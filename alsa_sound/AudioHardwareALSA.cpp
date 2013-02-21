@@ -474,7 +474,7 @@ status_t  AudioHardwareALSA::setFmVolume(float value)
         ALOGW("setFmVolume(%f) over 1.0, assuming 1.0\n", value);
         value = 1.0;
     }
-    vol  = lrint((value * 0x2000) + 0.5);
+    vol  = lrint((value * 0x1600) + 0.5);
 
     ALOGV("setFmVolume(%f)\n", value);
     ALOGV("Setting FM volume to %d (available range is 0 to 0x2000)\n", vol);
