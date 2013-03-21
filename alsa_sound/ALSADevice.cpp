@@ -1617,9 +1617,9 @@ char* ALSADevice::getUCMDevice(uint32_t devices, int input, char *rxDevice)
             if (mCallMode == AUDIO_MODE_IN_CALL ||
                 mCallMode == AUDIO_MODE_IN_COMMUNICATION) {
                 if (shouldUseHandsetAnc(mDevSettingsFlag, mInChannels)) {
-                    return strdup(SND_USE_CASE_DEV_ANC_HANDSET); /* ANC Handset RX */
+                    return strdup(SND_USE_CASE_DEV_SPEAKER); /* Voice SPEAKER RX */
                 } else {
-                    return strdup(SND_USE_CASE_DEV_VOC_EARPIECE); /* Voice HANDSET RX */
+                    return strdup(SND_USE_CASE_DEV_SPEAKER); /* Voice SPEAKER RX */
                 }
             } else {
                 return strdup(SND_USE_CASE_DEV_EARPIECE); /* HANDSET RX */
