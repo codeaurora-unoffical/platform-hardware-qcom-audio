@@ -1417,7 +1417,7 @@ char* ALSADevice::getUCMDevice(uint32_t devices, int input, char *rxDevice)
         } else if (devices & AudioSystem::DEVICE_OUT_EARPIECE) {
             if (mCallMode == AudioSystem::MODE_IN_CALL ||
                 mCallMode == AudioSystem::MODE_IN_COMMUNICATION) {
-                return strdup(SND_USE_CASE_DEV_VOC_EARPIECE); /* Voice HANDSET RX */
+                return strdup(SND_USE_CASE_DEV_SPEAKER); /* Voice SPEAKER RX */
             } else {
                 return strdup(SND_USE_CASE_DEV_EARPIECE); /* HANDSET RX */
             }
