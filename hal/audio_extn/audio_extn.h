@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -57,6 +57,10 @@
 
 #ifndef INCALL_MUSIC_ENABLED
 #define AUDIO_OUTPUT_FLAG_INCALL_MUSIC 0x8000
+#endif
+
+#ifdef DRIVER_SIDE_PLAYBACK_ENABLED
+#define AUDIO_OUTPUT_FLAG_DRIVER_SIDE 0x100000
 #endif
 
 #ifndef AUDIO_DEVICE_OUT_FM_TX

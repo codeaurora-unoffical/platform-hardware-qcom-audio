@@ -313,6 +313,8 @@ static int pcm_device_table[AUDIO_USECASE_MAX][2] = {
                                           AFE_PROXY_RECORD_PCM_DEVICE},
     [USECASE_AUDIO_RECORD_AFE_PROXY] = {AFE_PROXY_PLAYBACK_PCM_DEVICE,
                                         AFE_PROXY_RECORD_PCM_DEVICE},
+    [USECASE_AUDIO_PLAYBACK_DRIVER_SIDE] = {MULTIMEDIA2_PCM_DEVICE,
+                                            MULTIMEDIA2_PCM_DEVICE},
 
 };
 
@@ -2030,6 +2032,9 @@ int platform_send_audio_calibration_for_usecase(void *platform,
         case USECASE_AUDIO_PLAYBACK_ULL:
         case USECASE_AUDIO_DIRECT_PCM_OFFLOAD:
             acdb_dev_id = 78;
+            break;
+        case USECASE_AUDIO_PLAYBACK_DRIVER_SIDE:
+            acdb_dev_id = 14;
             break;
         case USECASE_AUDIO_HFP_SCO:
         case USECASE_AUDIO_HFP_SCO_WB:
