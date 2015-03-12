@@ -358,6 +358,7 @@ struct audio_device {
     int perf_lock_handle;
     int perf_lock_opts[MAX_PERF_LOCK_OPTS];
     int perf_lock_opts_size;
+    bool force_device_switch;
 };
 
 int select_devices(struct audio_device *adev,

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -516,11 +516,15 @@ int enable_snd_device(struct audio_device *adev,
     if(SND_DEVICE_IN_USB_HEADSET_MIC == snd_device)
        audio_extn_usb_start_capture(adev);
 
+    if (SND_DEVICE_OUT_BT_A2DP == snd_device ||
+       (SND_DEVICE_OUT_SPEAKER_AND_BT_A2DP) == snd_device)
+        audio_extn_a2dp_start_playback();
+
+    //if ((snd_device == SND_DEVICE_OUT_SPEAKER || snd_device == SND_DEVICE_OUT_SPEAKER_WSA ||
     if ((snd_device == SND_DEVICE_OUT_SPEAKER ||
-         snd_device == SND_DEVICE_OUT_SPEAKER_VBAT ||
-         snd_device == SND_DEVICE_OUT_VOICE_SPEAKER_VBAT ||
-         snd_device == SND_DEVICE_OUT_VOICE_SPEAKER) &&
-         audio_extn_spkr_prot_is_enabled()) {
+        snd_device == SND_DEVICE_OUT_SPEAKER_VBAT || snd_device == SND_DEVICE_OUT_VOICE_SPEAKER_VBAT ||
+        snd_device == SND_DEVICE_OUT_VOICE_SPEAKER) &&
+        audio_extn_spkr_prot_is_enabled()) {
        if (audio_extn_spkr_prot_get_acdb_id(snd_device) < 0) {
            adev->snd_dev_ref_cnt[snd_device]--;
            return -EINVAL;
@@ -586,11 +590,15 @@ int disable_snd_device(struct audio_device *adev,
         if(SND_DEVICE_IN_USB_HEADSET_MIC == snd_device)
             audio_extn_usb_stop_capture();
 
+        if (SND_DEVICE_OUT_BT_A2DP == snd_device ||
+           (SND_DEVICE_OUT_SPEAKER_AND_BT_A2DP) == snd_device)
+            audio_extn_a2dp_stop_playback();
+
+        //if ((snd_device == SND_DEVICE_OUT_SPEAKER || snd_device == SND_DEVICE_OUT_SPEAKER_WSA ||
         if ((snd_device == SND_DEVICE_OUT_SPEAKER ||
-             snd_device == SND_DEVICE_OUT_SPEAKER_VBAT ||
-             snd_device == SND_DEVICE_OUT_VOICE_SPEAKER_VBAT ||
-             snd_device == SND_DEVICE_OUT_VOICE_SPEAKER) &&
-             audio_extn_spkr_prot_is_enabled()) {
+            snd_device == SND_DEVICE_OUT_SPEAKER_VBAT || snd_device == SND_DEVICE_OUT_VOICE_SPEAKER_VBAT ||
+            snd_device == SND_DEVICE_OUT_VOICE_SPEAKER) &&
+            audio_extn_spkr_prot_is_enabled()) {
             audio_extn_spkr_prot_stop_processing(snd_device);
         } else {
             audio_route_reset_and_update_path(adev->audio_route, device_name);
@@ -928,10 +936,13 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
         }
     }
 
+
     if (out_snd_device == usecase->out_snd_device &&
-        in_snd_device == usecase->in_snd_device) {
+        in_snd_device == usecase->in_snd_device &&
+        (adev->force_device_switch == false)) {
         return 0;
     }
+
 
     ALOGD("%s: out_snd_device(%d: %s) in_snd_device(%d: %s)", __func__,
           out_snd_device, platform_get_snd_device_name(out_snd_device),
@@ -1972,14 +1983,15 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
         pthread_mutex_lock(&adev->lock);
 
         /*
-         * When HDMI cable is unplugged/usb hs is disconnected the
+         * When HDMI cable is unplugged/usb hs/A2DP is disconnected the
          * music playback is paused and the policy manager sends routing=0
          * But the audioflingercontinues to write data until standby time
          * (3sec). As the HDMI core is turned off, the write gets blocked.
          * Avoid this by routing audio to speaker until standby.
          */
         if ((out->devices == AUDIO_DEVICE_OUT_AUX_DIGITAL ||
-                out->devices == AUDIO_DEVICE_OUT_ANLG_DOCK_HEADSET) &&
+                out->devices == AUDIO_DEVICE_OUT_ANLG_DOCK_HEADSET ||
+                (out->devices & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP)) &&
                 val == AUDIO_DEVICE_NONE) {
             if (!audio_extn_dolby_is_passthrough_stream(out->flags))
                 val = AUDIO_DEVICE_OUT_SPEAKER;
@@ -3398,6 +3410,23 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
         }
     }
 
+    ret = str_parms_get_str(parms,"reconfigA2dp", value, sizeof(value));
+    if (ret >= 0) {
+        struct audio_usecase *usecase;
+        struct listnode *node;
+        list_for_each(node, &adev->usecase_list) {
+            usecase = node_to_item(node, struct audio_usecase, list);
+            if ((usecase->type == PCM_PLAYBACK) &&
+                (usecase->devices & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP)){
+                ALOGD("reconfigure a2dp... forcing device switch");
+                //force device switch to re configure encoder
+                adev->force_device_switch = true;
+                select_devices(adev, usecase->id);
+                adev->force_device_switch = false;
+                break;
+            }
+        }
+    }
     audio_extn_set_parameters(adev, parms);
 
 done:
@@ -3828,6 +3857,7 @@ static int adev_open(const hw_module_t *module, const char *name,
     adev->perf_lock_opts[0] = 0x101;
     adev->perf_lock_opts[1] = 0x20E;
     adev->perf_lock_opts_size = 2;
+    adev->force_device_switch = false;
 
     pthread_mutex_init(&adev->snd_card_status.lock, (const pthread_mutexattr_t *) NULL);
     adev->snd_card_status.state = SND_CARD_STATE_OFFLINE;
