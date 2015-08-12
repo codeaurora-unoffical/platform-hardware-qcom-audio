@@ -1030,9 +1030,15 @@ int audio_extn_spkr_prot_get_acdb_id(snd_device_t snd_device)
 
     switch(snd_device) {
     case SND_DEVICE_OUT_SPEAKER:
+#ifdef PLATFORM_MSM8916
+    case SND_DEVICE_OUT_SPEAKER_WSA:
+#endif
         acdb_id = platform_get_snd_device_acdb_id(SND_DEVICE_OUT_SPEAKER_PROTECTED);
         break;
     case SND_DEVICE_OUT_VOICE_SPEAKER:
+#ifdef PLATFORM_MSM8916
+    case SND_DEVICE_OUT_VOICE_SPEAKER_WSA:
+#endif
         acdb_id = platform_get_snd_device_acdb_id(SND_DEVICE_OUT_VOICE_SPEAKER_PROTECTED);
         break;
     default:
@@ -1049,8 +1055,14 @@ int audio_extn_get_spkr_prot_snd_device(snd_device_t snd_device)
 
     switch(snd_device) {
     case SND_DEVICE_OUT_SPEAKER:
+#ifdef PLATFORM_MSM8916
+    case SND_DEVICE_OUT_SPEAKER_WSA:
+#endif
         return SND_DEVICE_OUT_SPEAKER_PROTECTED;
     case SND_DEVICE_OUT_VOICE_SPEAKER:
+#ifdef PLATFORM_MSM8916
+    case SND_DEVICE_OUT_VOICE_SPEAKER_WSA:
+#endif
         return SND_DEVICE_OUT_VOICE_SPEAKER_PROTECTED;
     default:
         return snd_device;
