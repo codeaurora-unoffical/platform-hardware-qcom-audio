@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
  * Not a contribution.
  *
  * Copyright (C) 2009 The Android Open Source Project
@@ -46,6 +46,10 @@
 #include <soundtrigger/SoundTrigger.h>
 #include "AudioPolicyManager.h"
 #include <policy.h>
+
+#ifdef DRIVER_SIDE_PLAYBACK_ENABLED
+#define AUDIO_OUTPUT_FLAG_DRIVER_SIDE 0x100000
+#endif
 
 namespace android {
 #ifdef VOICE_CONCURRENCY
@@ -1277,6 +1281,14 @@ status_t AudioPolicyManagerCustom::getOutputForAttr(const audio_attributes_t *at
         offloadInfo = &tOffloadInfo;
     }
 
+#ifdef DRIVER_SIDE_PLAYBACK_ENABLED
+    if (attr != NULL) {
+        if (attr->usage == AUDIO_USAGE_ASSISTANCE_NAVIGATION_GUIDANCE) {
+            flags = (audio_output_flags_t)(AUDIO_OUTPUT_FLAG_DRIVER_SIDE);
+        }
+    }
+#endif
+
     return AudioPolicyManager::getOutputForAttr(attr, output, session, stream,
                                                 (uid_t)uid, (uint32_t)samplingRate,
                                                 format, (audio_channel_mask_t)channelMask,
@@ -1946,6 +1958,56 @@ AudioPolicyManagerCustom::AudioPolicyManagerCustom(AudioPolicyClientInterface *c
 {
     char ssr_enabled[PROPERTY_VALUE_MAX] = {0};
     bool prop_ssr_enabled = false;
+
+#ifdef DRIVER_SIDE_PLAYBACK_ENABLED
+    audio_module_handle_t moduleHandle;
+    audio_config_t config;
+    audio_io_handle_t handle = AUDIO_IO_HANDLE_NONE;
+    status_t status;
+
+    if (mPrimaryOutput != 0) {
+        mDriverSideProfile = new IOProfile(String8("driver-side"), AUDIO_PORT_ROLE_SOURCE);
+        mDriverSideProfile->attach(mPrimaryOutput->mPort->mModule);
+        mDriverSideProfile->mSamplingRates.add(48000);
+        mDriverSideProfile->mFormats.add(AUDIO_FORMAT_PCM_16_BIT);
+        mDriverSideProfile->mChannelMasks.add(AUDIO_CHANNEL_OUT_STEREO);
+        mDriverSideProfile->mSupportedDevices.add(mDefaultOutputDevice);
+        mDriverSideProfile->mFlags = (audio_output_flags_t)(AUDIO_OUTPUT_FLAG_DRIVER_SIDE);
+        mPrimaryOutput->mPort->mModule->mOutputProfiles.add(mDriverSideProfile);
+
+        moduleHandle = mPrimaryOutput->getModuleHandle();
+
+        mDriverSideOutput = new SwAudioOutputDescriptor(mDriverSideProfile,
+                                                        mpClientInterface);
+        mDriverSideOutput->mDevice = AUDIO_DEVICE_OUT_SPEAKER;
+
+        config = AUDIO_CONFIG_INITIALIZER;
+        config.sample_rate = 48000;
+        config.channel_mask = AUDIO_CHANNEL_OUT_STEREO;
+        config.format = AUDIO_FORMAT_PCM_16_BIT;
+
+        status = mpClientInterface->openOutput(moduleHandle,
+                                               &handle,
+                                               &config,
+                                               &mDriverSideOutput->mDevice,
+                                               String8(""),
+                                               &mDriverSideOutput->mLatency,
+                                               mDriverSideOutput->mFlags);
+
+        if (status != NO_ERROR) {
+            ALOGE("Cannot open driver side output stream.");
+        } else {
+            mDriverSideOutput->mSamplingRate = config.sample_rate;
+            mDriverSideOutput->mChannelMask = config.channel_mask;
+            mDriverSideOutput->mFormat = config.format;
+
+            addOutput(handle, mDriverSideOutput);
+            setOutputDevice(mDriverSideOutput,
+                            mDriverSideOutput->mDevice,
+                            true);
+        }
+    }
+#endif
 
     if (property_get("ro.qc.sdk.audio.ssr", ssr_enabled, NULL)) {
         prop_ssr_enabled = atoi(ssr_enabled) || !strncmp("true", ssr_enabled, 4);
