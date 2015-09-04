@@ -17,6 +17,11 @@ LOCAL_SRC_FILES:= \
 	effect_util.c \
         hw_accelerator.c
 
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_AUDIOSPHERE)),true)
+    LOCAL_CFLAGS += -DAUDIOSPHERE_ENABLED
+    LOCAL_SRC_FILES += asphere.c
+endif
+
 LOCAL_CFLAGS+= -O2 -fvisibility=hidden
 
 ifneq ($(strip $(AUDIO_FEATURE_DISABLED_DTS_EAGLE)),true)
