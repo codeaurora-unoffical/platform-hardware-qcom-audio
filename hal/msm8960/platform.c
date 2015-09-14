@@ -209,6 +209,8 @@ static int pcm_device_table[AUDIO_USECASE_MAX][2] = {
     [USECASE_AUDIO_PLAYBACK_DRIVER_SIDE] = {DRIVER_SIDE_PCM_DEVICE, DRIVER_SIDE_PCM_DEVICE},
     [USECASE_AUDIO_PLAYBACK_RES] = {RES_PCM_DEVICE, RES_PCM_DEVICE},
     [USECASE_AUDIO_PLAYBACK_RES_OFFLOAD] = {RES_OFFLOAD_DEVICE, RES_OFFLOAD_DEVICE},
+    [USECASE_AUDIO_LINE_IN_PASSTHROUGH] = {-1, -1},
+    [USECASE_AUDIO_HDMI_IN_PASSTHROUGH] = {-1, -1},
 };
 
 /* Array to store sound devices */
@@ -294,6 +296,7 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_SPEAKER_DMIC_AEC_BROADSIDE] = "speaker-dmic-broadside",
     [SND_DEVICE_IN_SPEAKER_DMIC_NS_BROADSIDE] = "speaker-dmic-broadside",
     [SND_DEVICE_IN_SPEAKER_DMIC_AEC_NS_BROADSIDE] = "speaker-dmic-broadside",
+    [SND_DEVICE_IN_LINE] = "line-in",
 };
 
 /* ACDB IDs (audio DSP path configuration IDs) for each sound device */

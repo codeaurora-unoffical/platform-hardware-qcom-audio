@@ -227,6 +227,9 @@ const char * const use_case_table[AUDIO_USECASE_MAX] = {
     [USECASE_AUDIO_PLAYBACK_DRIVER_SIDE] = "driver-side-playback",
     [USECASE_AUDIO_PLAYBACK_RES] = "res-playback",
     [USECASE_AUDIO_PLAYBACK_RES_OFFLOAD] = "res-playback-offload",
+
+    [USECASE_AUDIO_LINE_IN_PASSTHROUGH] = "line-in-passthrough",
+    [USECASE_AUDIO_HDMI_IN_PASSTHROUGH] = "hdmi-in-passthrough",
 };
 
 static const audio_usecase_t offload_usecases[] = {
@@ -617,6 +620,7 @@ static void check_usecases_codec_backend(struct audio_device *adev,
     list_for_each(node, &adev->usecase_list) {
         usecase = node_to_item(node, struct audio_usecase, list);
         if (usecase->type != PCM_CAPTURE &&
+                usecase->type != PCM_PASSTHROUGH &&
                 usecase != uc_info &&
                 (usecase->out_snd_device != snd_device || force_routing)  &&
                 usecase->devices & AUDIO_DEVICE_OUT_ALL_CODEC_BACKEND) {
@@ -687,6 +691,7 @@ static void check_and_route_capture_usecases(struct audio_device *adev,
     list_for_each(node, &adev->usecase_list) {
         usecase = node_to_item(node, struct audio_usecase, list);
         if (usecase->type != PCM_PLAYBACK &&
+                usecase->type != PCM_PASSTHROUGH &&
                 usecase != uc_info &&
                 usecase->in_snd_device != snd_device &&
                 (usecase->id != USECASE_AUDIO_SPKR_CALIB_TX)) {
