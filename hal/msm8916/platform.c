@@ -331,8 +331,8 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_OUT_SPEAKER] = "speaker",
     [SND_DEVICE_OUT_SPEAKER_EXTERNAL_1] = "speaker-ext-1",
     [SND_DEVICE_OUT_SPEAKER_EXTERNAL_2] = "speaker-ext-2",
-    [SND_DEVICE_OUT_SPEAKER_WSA] = "wsa-speaker",
-    [SND_DEVICE_OUT_SPEAKER_VBAT] = "vbat-speaker",
+    [SND_DEVICE_OUT_SPEAKER_WSA] = "speaker-wsa",
+    [SND_DEVICE_OUT_SPEAKER_VBAT] = "speaker-vbat",
     [SND_DEVICE_OUT_SPEAKER_REVERSE] = "speaker-reverse",
     [SND_DEVICE_OUT_HEADPHONES] = "headphones",
     [SND_DEVICE_OUT_HEADPHONES_44_1] = "headphones-44.1",
@@ -341,8 +341,8 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_OUT_SPEAKER_AND_HEADPHONES_EXTERNAL_2] = "speaker-and-headphones-ext-2",
     [SND_DEVICE_OUT_VOICE_HANDSET] = "voice-handset",
     [SND_DEVICE_OUT_VOICE_SPEAKER] = "voice-speaker",
-    [SND_DEVICE_OUT_VOICE_SPEAKER_WSA] = "wsa-voice-speaker",
-    [SND_DEVICE_OUT_VOICE_SPEAKER_VBAT] = "vbat-voice-speaker",
+    [SND_DEVICE_OUT_VOICE_SPEAKER_WSA] = "voice-speaker-wsa",
+    [SND_DEVICE_OUT_VOICE_SPEAKER_VBAT] = "voice-speaker-vbat",
     [SND_DEVICE_OUT_VOICE_HEADPHONES] = "voice-headphones",
     [SND_DEVICE_OUT_HDMI] = "hdmi",
     [SND_DEVICE_OUT_SPEAKER_AND_HDMI] = "speaker-and-hdmi",
@@ -1001,7 +1001,7 @@ void platform_set_echo_reference(struct audio_device *adev, bool enable,
                 sizeof(my_data->ec_ref_mixer_path));
         else if ((snd_device == SND_DEVICE_OUT_SPEAKER_VBAT) ||
                  (snd_device == SND_DEVICE_OUT_SPEAKER_PROTECTED_VBAT))
-            strlcpy(my_data->ec_ref_mixer_path, "vbat-speaker echo-reference",
+            strlcpy(my_data->ec_ref_mixer_path, "echo-reference speaker-vbat",
                 sizeof(my_data->ec_ref_mixer_path));
         else
             strlcpy(my_data->ec_ref_mixer_path, "echo-reference",
@@ -1208,7 +1208,7 @@ static void set_platform_defaults()
     backend_table[SND_DEVICE_IN_CAPTURE_FM] = strdup("capture-fm");
     backend_table[SND_DEVICE_OUT_TRANSMISSION_FM] = strdup("transmission-fm");
     backend_table[SND_DEVICE_OUT_HEADPHONES_44_1] = strdup("headphones-44.1");
-    backend_table[SND_DEVICE_OUT_VOICE_SPEAKER_VBAT] = strdup("vbat-voice-speaker");
+    backend_table[SND_DEVICE_OUT_VOICE_SPEAKER_VBAT] = strdup("voice-speaker-vbat");
 }
 
 void get_cvd_version(char *cvd_version, struct audio_device *adev)
@@ -1302,7 +1302,7 @@ static int send_codec_cal(acdb_loader_get_calibration_t acdb_loader_get_calibrat
         struct wcdcal_ioctl_buffer codec_buffer;
         struct param_data calib;
 
-        if((plat_data->is_vbat_speaker) && (WCD9XXX_VBAT_CAL == type)) {
+        if ((plat_data->is_vbat_speaker) && (WCD9XXX_VBAT_CAL == type)) {
            ret = send_vbat_adc_data_to_acdb(plat_data, cal_name_info[type]);
            if (ret < 0)
                ALOGE("%s error in sending vbat adc data to acdb", __func__);
@@ -1830,7 +1830,7 @@ void platform_add_backend_name(char *mixer_path, snd_device_t snd_device,
         return;
     }
 
-    if((snd_device == SND_DEVICE_OUT_VOICE_SPEAKER_VBAT) &&
+    if ((snd_device == SND_DEVICE_OUT_VOICE_SPEAKER_VBAT) &&
         !(usecase->type == VOICE_CALL || usecase->type == VOIP_CALL)) {
         ALOGI("%s: Not adding vbat speaker device to non voice use cases", __func__);
         return;
