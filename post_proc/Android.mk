@@ -16,6 +16,11 @@ LOCAL_SRC_FILES:= \
 	effect_api.c \
 	effect_util.c
 
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_HW_ACCELERATED_EFFECTS)),true)
+    LOCAL_CFLAGS += -DHW_ACCELERATED_EFFECTS
+    LOCAL_SRC_FILES += hw_accelerator.c
+endif
+
 LOCAL_CFLAGS+= -O2 -fvisibility=hidden
 
 ifneq ($(strip $(AUDIO_FEATURE_DISABLED_DTS_EAGLE)),true)
@@ -32,9 +37,37 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE_RELATIVE_PATH := soundfx
 LOCAL_MODULE:= libqcompostprocbundle
 
+LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
+
 LOCAL_C_INCLUDES := \
 	external/tinyalsa/include \
         $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include \
 	$(call include-path-for, audio-effects)
 
 include $(BUILD_SHARED_LIBRARY)
+
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_HW_ACCELERATED_EFFECTS)),true)
+include $(CLEAR_VARS)
+
+LOCAL_SRC_FILES := EffectsHwAcc.cpp
+
+LOCAL_C_INCLUDES := \
+    $(call include-path-for, audio-effects)
+
+LOCAL_SHARED_LIBRARIES := \
+    liblog \
+    libeffects
+
+LOCAL_MODULE_TAGS := optional
+
+LOCAL_CFLAGS += -O2 -fvisibility=hidden
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_DTS_EAGLE)), true)
+LOCAL_CFLAGS += -DHW_ACC_HPX
+endif
+
+LOCAL_MODULE:= libhwacceffectswrapper
+
+include $(BUILD_STATIC_LIBRARY)
+endif

@@ -36,8 +36,8 @@
 #ifdef DTS_EAGLE
 
 #define AUDIO_PARAMETER_KEY_DTS_EAGLE   "DTS_EAGLE"
-#define STATE_NOTIFY_FILE               "/data/data/dts/stream"
-#define FADE_NOTIFY_FILE                "/data/data/dts/fade"
+#define STATE_NOTIFY_FILE               "/data/misc/dts/stream"
+#define FADE_NOTIFY_FILE                "/data/misc/dts/fade"
 #define DTS_EAGLE_KEY                   "DTS_EAGLE"
 #define DEVICE_NODE                     "/dev/snd/hwC0D3"
 #define MAX_LENGTH_OF_INTEGER_IN_STRING 13
@@ -56,11 +56,12 @@ static const char* DTS_EAGLE_STR = DTS_EAGLE_KEY;
 
 static int do_DTS_Eagle_params_stream(struct stream_out *out, struct dts_eagle_param_desc_alsa *t, bool get) {
     char mixer_string[128];
+    char mixer_str_query[128];
     struct mixer_ctl *ctl;
+    struct mixer_ctl *query_ctl;
     int pcm_device_id = platform_get_pcm_device_id(out->usecase, PCM_PLAYBACK);
 
     ALOGV("DTS_EAGLE_HAL (%s): enter", __func__);
-
     snprintf(mixer_string, sizeof(mixer_string), "%s %d", "Audio Effects Config", pcm_device_id);
     ctl = mixer_get_ctl_by_name(out->dev->mixer, mixer_string);
     if (!ctl) {
@@ -70,7 +71,13 @@ static int do_DTS_Eagle_params_stream(struct stream_out *out, struct dts_eagle_p
         ALOGD("DTS_EAGLE_HAL (%s): opened mixer %s", __func__, mixer_string);
         if (get) {
             ALOGD("DTS_EAGLE_HAL (%s): get request", __func__);
-            mixer_ctl_set_array(ctl, t, size);
+            snprintf(mixer_str_query, sizeof(mixer_str_query), "%s %d", "Query Audio Effect Param", pcm_device_id);
+            query_ctl = mixer_get_ctl_by_name(out->dev->mixer, mixer_str_query);
+            if (!query_ctl) {
+                ALOGE("DTS_EAGLE_HAL (%s): failed to open mixer %s", __func__, mixer_str_query);
+                return -EINVAL;
+            }
+            mixer_ctl_set_array(query_ctl, t, size);
             return mixer_ctl_get_array(ctl, t, size);
         }
         ALOGD("DTS_EAGLE_HAL (%s): set request", __func__);
@@ -81,22 +88,31 @@ static int do_DTS_Eagle_params_stream(struct stream_out *out, struct dts_eagle_p
     return -EINVAL;
 }
 
-static int do_DTS_Eagle_params(const struct audio_device *adev, struct dts_eagle_param_desc_alsa *t, bool get) {
+static int do_DTS_Eagle_params(const struct audio_device *adev, struct dts_eagle_param_desc_alsa *t, bool get, const struct stream_out *out) {
     struct listnode *node;
     struct audio_usecase *usecase;
-    int ret = 0, sent = 0;
+    int ret = 0, sent = 0, tret = 0;
 
     ALOGV("DTS_EAGLE_HAL (%s): enter", __func__);
 
-    list_for_each(node, &adev->usecase_list) {
-        usecase = node_to_item(node, struct audio_usecase, list);
-        /* set/get eagle params for offload usecases only */
-        if ((usecase->type == PCM_PLAYBACK) && is_offload_usecase(usecase->id)) {
-            int tret = do_DTS_Eagle_params_stream(usecase->stream.out, t, get);
-            if (tret < 0)
-                ret = tret;
-            else
-                sent = 1;
+    if (out) {
+        /* if valid out stream is given, then send params to this stream only */
+        tret = do_DTS_Eagle_params_stream(out, t, get);
+        if (tret < 0)
+            ret = tret;
+        else
+            sent = 1;
+    } else {
+        list_for_each(node, &adev->usecase_list) {
+            usecase = node_to_item(node, struct audio_usecase, list);
+            /* set/get eagle params for offload usecases only */
+            if ((usecase->type == PCM_PLAYBACK) && is_offload_usecase(usecase->id)) {
+                tret = do_DTS_Eagle_params_stream(usecase->stream.out, t, get);
+                if (tret < 0)
+                    ret = tret;
+                else
+                    sent = 1;
+            }
         }
     }
 
@@ -129,13 +145,21 @@ static int do_DTS_Eagle_params(const struct audio_device *adev, struct dts_eagle
 }
 
 static void fade_node(bool need_data) {
-    int fd = creat(FADE_NOTIFY_FILE, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH), n = 0;
-    char *str = need_data ? "need" : "have";
-    if (fd < 0) {
-        ALOGE("DTS_EAGLE_HAL (%s): opening fade notifier node failed", __func__);
+    char prop[PROPERTY_VALUE_MAX];
+    property_get("use.dts_eagle", prop, "0");
+    if (strncmp("true", prop, sizeof("true")))
         return;
+    int fd, n = 0;
+    if ((fd = open(FADE_NOTIFY_FILE, O_TRUNC|O_WRONLY)) < 0) {
+        ALOGV("No fade node, create one");
+        fd = creat(FADE_NOTIFY_FILE, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH);
+        if (fd < 0) {
+            ALOGE("DTS_EAGLE_HAL (%s): Creating fade notifier node failed", __func__);
+            return;
+        }
+        chmod(FADE_NOTIFY_FILE, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
     }
-    chmod(FADE_NOTIFY_FILE, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
+    char *str = need_data ? "need" : "have";
     n = write(fd, str, strlen(str));
     close(fd);
     if (n > 0)
@@ -144,7 +168,7 @@ static void fade_node(bool need_data) {
         ALOGE("DTS_EAGLE_HAL (%s): error writing to fade notifier node", __func__);
 }
 
-int audio_extn_dts_eagle_fade(const struct audio_device *adev, bool fade_in) {
+int audio_extn_dts_eagle_fade(const struct audio_device *adev, bool fade_in, const struct stream_out *out) {
     char prop[PROPERTY_VALUE_MAX];
 
     ALOGV("DTS_EAGLE_HAL (%s): enter with fade %s requested", __func__, fade_in ? "in" : "out");
@@ -158,10 +182,10 @@ int audio_extn_dts_eagle_fade(const struct audio_device *adev, bool fade_in) {
 
     if (fade_in) {
         if (fade_in_data)
-            return do_DTS_Eagle_params(adev, fade_in_data, false);
+            return do_DTS_Eagle_params(adev, fade_in_data, false, out);
     } else {
         if (fade_out_data)
-            return do_DTS_Eagle_params(adev, fade_out_data, false);
+            return do_DTS_Eagle_params(adev, fade_out_data, false, out);
     }
     return 0;
 }
@@ -278,7 +302,7 @@ void audio_extn_dts_eagle_set_parameters(struct audio_device *adev, struct str_p
                 ALOGD("DTS_EAGLE_HAL (%s): id: 0x%X, size: %d, offset: %d, device: %d", __func__,
                        (*t)->d.id, (*t)->d.size, (*t)->d.offset, (*t)->d.device);
                 if (!fade_in) {
-                    ret = do_DTS_Eagle_params(adev, *t, false);
+                    ret = do_DTS_Eagle_params(adev, *t, false, NULL);
                     if (ret < 0)
                         ALOGE("DTS_EAGLE_HAL (%s): failed setting params in kernel with error %i", __func__, ret);
                 }
@@ -294,7 +318,6 @@ void audio_extn_dts_eagle_set_parameters(struct audio_device *adev, struct str_p
         if (fade_in > 0 && fade_in_data && fade_out_data)
             fade_node(false);
     }
-
     ALOGV("DTS_EAGLE_HAL (%s): exit", __func__);
 }
 
@@ -353,14 +376,14 @@ int audio_extn_dts_eagle_get_parameters(const struct audio_device *adev,
                 t->d.id = id;
                 t->d.size = size;
                 t->d.offset = offset;
-                t->d.device = dev | DTS_EAGLE_FLAG_ALSA_GET;
+                t->d.device = dev;
                 ALOGV("DTS_EAGLE_HAL (%s): id (get): 0x%X, size: %d, offset: %d, device: %d", __func__,
                        t->d.id, t->d.size, t->d.offset, t->d.device & 0x7FFFFFFF);
                 if ((sizeof(struct dts_eagle_param_desc_alsa) + size) > PARAM_GET_MAX_SIZE) {
                     ALOGE("%s: requested data too large", __func__);
                     return -1;
                 }
-                ret = do_DTS_Eagle_params(adev, t, true);
+                ret = do_DTS_Eagle_params(adev, t, true, NULL);
                 if (ret >= 0) {
                     data = (int*)(params + sizeof(struct dts_eagle_param_desc_alsa));
                     for (i = 0; i < count; i++)
@@ -420,10 +443,9 @@ void audio_extn_dts_create_state_notifier_node(int stream_out)
         chmod(path, S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH);
         ALOGV("DTS_EAGLE_NODE_STREAM (%s): opening state notifier node successful", __func__);
         close(fd);
+        if (!fade_in_data || !fade_out_data)
+            fade_node(true);
     }
-
-    if (!fade_in_data || !fade_out_data)
-        fade_node(true);
 }
 
 void audio_extn_dts_notify_playback_state(int stream_out, int has_video, int sample_rate,

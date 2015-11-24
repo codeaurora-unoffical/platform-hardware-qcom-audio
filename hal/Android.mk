@@ -8,7 +8,7 @@ LOCAL_ARM_MODE := arm
 
 AUDIO_PLATFORM := $(TARGET_BOARD_PLATFORM)
 
-ifneq ($(filter msm8974 msm8226 msm8610 apq8084 msm8994,$(TARGET_BOARD_PLATFORM)),)
+ifneq ($(filter msm8974 msm8226 msm8610 apq8084 msm8994 msm8992,$(TARGET_BOARD_PLATFORM)),)
   # B-family platform uses msm8974 code base
   AUDIO_PLATFORM = msm8974
   MULTIPLE_HW_VARIANTS_ENABLED := true
@@ -22,6 +22,9 @@ ifneq ($(filter apq8084,$(TARGET_BOARD_PLATFORM)),)
   LOCAL_CFLAGS := -DPLATFORM_APQ8084
 endif
 ifneq ($(filter msm8994,$(TARGET_BOARD_PLATFORM)),)
+  LOCAL_CFLAGS := -DPLATFORM_MSM8994
+endif
+ifneq ($(filter msm8992,$(TARGET_BOARD_PLATFORM)),)
   LOCAL_CFLAGS := -DPLATFORM_MSM8994
 endif
 endif
@@ -46,6 +49,14 @@ LOCAL_SRC_FILES += audio_extn/audio_extn.c \
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
 LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
 
+ifneq ($(filter msm8994 msm8992,$(TARGET_BOARD_PLATFORM)),)
+    LOCAL_SRC_FILES += edid.c
+endif
+
+ifeq ($(strip $(AUDIO_USE_LL_AS_PRIMARY_OUTPUT)),true)
+    LOCAL_CFLAGS += -DUSE_LL_AS_PRIMARY_OUTPUT
+endif
+
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_PCM_OFFLOAD)),true)
     LOCAL_CFLAGS += -DPCM_OFFLOAD_ENABLED
 endif
@@ -60,6 +71,10 @@ endif
 
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_PROXY_DEVICE)),true)
     LOCAL_CFLAGS += -DAFE_PROXY_ENABLED
+endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_KPI_OPTIMIZE)),true)
+    LOCAL_CFLAGS += -DKPI_OPTIMIZE_ENABLED
 endif
 
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_FM)),true)
@@ -85,6 +100,7 @@ ifeq ($(strip $(AUDIO_FEATURE_ENABLED_SSR)),true)
     LOCAL_CFLAGS += -DSSR_ENABLED
     LOCAL_SRC_FILES += audio_extn/ssr.c
     LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio/surround_sound/
+    LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio/surround_sound_3mic/
     LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/common/inc/
 endif
 
@@ -103,7 +119,7 @@ endif
 endif
 
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXTN_FORMATS)),true)
-LOCAL_CFLAGS += -DFORMATS_ENABLED
+LOCAL_CFLAGS += -DAUDIO_EXTN_FORMATS_ENABLED
 endif
 
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_SPKR_PROTECTION)),true)
@@ -131,7 +147,7 @@ ifeq ($(strip $(DOLBY_DDP)),true)
     LOCAL_SRC_FILES += audio_extn/dolby.c
 endif
 
-ifeq ($(strip $(DOLBY_DAP)),true)
+ifeq ($(strip $(DS1_DOLBY_DAP)),true)
     LOCAL_CFLAGS += -DDS1_DOLBY_DAP_ENABLED
 ifneq ($(strip $(DOLBY_DDP)),true)
     LOCAL_SRC_FILES += audio_extn/dolby.c
@@ -143,7 +159,33 @@ ifeq ($(strip $(AUDIO_FEATURE_ENABLED_MULTIPLE_TUNNEL)), true)
 endif
 
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXTN_FLAC_DECODER)),true)
-    LOCAL_CFLAGS += -DQTI_FLAC_DECODER
+    LOCAL_CFLAGS += -DFLAC_OFFLOAD_ENABLED
+    LOCAL_CFLAGS += -DCOMPRESS_METADATA_NEEDED
+endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_VORBIS_OFFLOAD)),true)
+    LOCAL_CFLAGS += -DVORBIS_OFFLOAD_ENABLED
+    LOCAL_CFLAGS += -DCOMPRESS_METADATA_NEEDED
+
+endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_WMA_OFFLOAD)),true)
+    LOCAL_CFLAGS += -DWMA_OFFLOAD_ENABLED
+    LOCAL_CFLAGS += -DCOMPRESS_METADATA_NEEDED
+endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_ALAC_OFFLOAD)),true)
+    LOCAL_CFLAGS += -DALAC_OFFLOAD_ENABLED
+    LOCAL_CFLAGS += -DCOMPRESS_METADATA_NEEDED
+endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_APE_OFFLOAD)),true)
+    LOCAL_CFLAGS += -DAPE_OFFLOAD_ENABLED
+    LOCAL_CFLAGS += -DCOMPRESS_METADATA_NEEDED
+endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_PCM_OFFLOAD_24)),true)
+       LOCAL_CFLAGS += -DPCM_OFFLOAD_ENABLED_24
 endif
 
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_DEV_ARBI)),true)
@@ -153,6 +195,24 @@ endif
 
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_RECORD_PLAY_CONCURRENCY)),true)
     LOCAL_CFLAGS += -DRECORD_PLAY_CONCURRENCY
+endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_ACDB_LICENSE)), true)
+    LOCAL_CFLAGS += -DDOLBY_ACDB_LICENSE
+endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_DS2_DOLBY_DAP)),true)
+    LOCAL_CFLAGS += -DDS2_DOLBY_DAP_ENABLED
+    LOCAL_CFLAGS += -DDS1_DOLBY_DDP_ENABLED
+ifneq ($(strip $(DOLBY_DDP)),true)
+    ifneq ($(strip $(DS1_DOLBY_DAP)),true)
+        LOCAL_SRC_FILES += audio_extn/dolby.c
+    endif
+endif
+endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_HDMI_PASSTHROUGH)),true)
+    LOCAL_CFLAGS += -DHDMI_PASSTHROUGH_ENABLED
 endif
 
 LOCAL_SHARED_LIBRARIES := \
