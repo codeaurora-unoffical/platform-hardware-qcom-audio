@@ -117,6 +117,8 @@
 #define AUDIO_PARAMETER_KEY_VOLUME_BOOST  "volume_boost"
 #define AUDIO_PARAMETER_KEY_AUD_CALDATA   "cal_data"
 #define AUDIO_PARAMETER_KEY_AUD_CALRESULT "cal_result"
+#define AUDIO_PARAMETER_KEY_EC_CAR_STATE  "ec_car_state"
+#define AUDIO_PARAMETER_KEY_CONVERSATION_MODE_STATE  "conversation_mode_state"
 
 
 /* Query external audio device connection status */
@@ -208,6 +210,8 @@ struct platform_data {
     bool ec_ref_enabled;
     bool is_i2s_ext_modem;
     bool is_acdb_initialized;
+    bool ec_car_state;
+    bool conversation_mode_state;
     /* Vbat monitor related flags */
     bool is_vbat_speaker;
     bool gsm_mode_enabled;
@@ -2542,6 +2546,23 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
 
     if (snd_device != AUDIO_DEVICE_NONE)
         goto exit;
+     
+    if (my_data->ec_car_state && my_data->conversation_mode_state)
+        ALOGE("%s: EC and ICC Flags are both enabled", __func__);
+    
+    if (my_data->ec_car_state) {
+        snd_device = SND_DEVICE_IN_SPEAKER_QMIC_AEC;
+        platform_set_echo_reference(adev, true, out_device);
+    }
+    else if (my_data->conversation_mode_state) { 
+        snd_device = SND_DEVICE_IN_HANDSET_DMIC;
+        platform_set_echo_reference(adev, true, out_device);
+    }
+ 
+    
+    if (snd_device != SND_DEVICE_NONE) {
+        goto exit;
+    }    
 
     if ((out_device != AUDIO_DEVICE_NONE) && ((mode == AUDIO_MODE_IN_CALL) ||
         voice_extn_compress_voip_is_active(adev) || audio_extn_hfp_is_active(adev))) {
@@ -2925,6 +2946,24 @@ static int set_hd_voice(struct platform_data *my_data, bool state)
     return ret;
 }
 
+static int platform_set_eccarstate(struct platform_data *my_data,bool state)
+{
+    int ret = 0;
+    ALOGE("Setting EC Car state: %d", state);
+    my_data->ec_car_state = state;
+	
+    return ret;
+}
+
+static int platform_set_conversation_mode_state(struct platform_data *my_data,bool state)
+{
+    int ret = 0;
+    ALOGE("Setting Conversation mode  state: %d", state);
+    my_data->conversation_mode_state = state;
+    
+    return ret;
+}
+
 static int update_external_device_status(struct platform_data *my_data,
                                  char* event_name, bool status)
 {
@@ -3150,6 +3189,30 @@ int platform_set_parameters(void *platform, struct str_parms *parms)
                 my_data->voice_feature_set = 0;
             }
         }
+    }
+
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_EC_CAR_STATE, 
+                            value, len);
+    if (err >= 0) {
+        bool state = false;
+        if (!strncmp("true", value, sizeof("true"))) {
+            state = true;
+            ALOGE("%s: Value of EC CAR STATE set to true!",__func__);
+        }
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_EC_CAR_STATE);
+        platform_set_eccarstate(my_data, state);
+    }
+    
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_CONVERSATION_MODE_STATE, 
+                            value, len);
+    if (err >= 0) {
+        bool state = false;
+        if (!strncmp("true", value, sizeof("true"))) {
+            state = true;
+            ALOGE("%s: Value of CONVERSATION MODE STATE set to true!",__func__);
+        }
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_CONVERSATION_MODE_STATE);
+        platform_set_conversation_mode_state(my_data, state);
     }
 
     err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_EXT_AUDIO_DEVICE,
@@ -3411,6 +3474,19 @@ void platform_get_parameters(void *platform,
         }
 
         str_parms_add_str(reply, AUDIO_PARAMETER_KEY_VOLUME_BOOST, value);
+    }
+    
+    ret = str_parms_get_str(query,AUDIO_PARAMETER_KEY_EC_CAR_STATE,
+                            value,sizeof(value));
+    if (ret >= 0) {
+        str_parms_add_str(reply, AUDIO_PARAMETER_KEY_EC_CAR_STATE,
+                          my_data->ec_car_state?"true":"false");
+    }
+    ret = str_parms_get_str(query,AUDIO_PARAMETER_KEY_CONVERSATION_MODE_STATE,
+                            value,sizeof(value));
+    if (ret >= 0) {
+        str_parms_add_str(reply, AUDIO_PARAMETER_KEY_CONVERSATION_MODE_STATE,
+                          my_data->conversation_mode_state?"true":"false");
     }
 
     /* Handle audio calibration keys */
