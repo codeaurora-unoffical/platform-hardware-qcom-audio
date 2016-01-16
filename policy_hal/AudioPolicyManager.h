@@ -22,9 +22,6 @@
 #include <audio_policy_conf.h>
 #include <Volume.h>
 
-extern "C" {
-#include "AudioUtil.h"
-}
 
 namespace android {
 #ifndef AUDIO_EXTN_FORMATS_ENABLED
@@ -46,11 +43,7 @@ class AudioPolicyManagerCustom: public AudioPolicyManager
 public:
         AudioPolicyManagerCustom(AudioPolicyClientInterface *clientInterface);
 
-        virtual ~AudioPolicyManagerCustom() {
-#ifdef DTS_EAGLE
-            remove_route_node();
-#endif
-        }
+        virtual ~AudioPolicyManagerCustom() {}
 
         status_t setDeviceConnectionStateInt(audio_devices_t device,
                                           audio_policy_dev_state_t state,
