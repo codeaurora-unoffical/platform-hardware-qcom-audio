@@ -34,8 +34,6 @@
 //#define LOG_NDEBUG 0
 #include <utils/Log.h>
 #include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
 
 #include <cutils/properties.h>
 #include <fcntl.h>
@@ -53,10 +51,10 @@ static int32_t mCurrDevice = 0;
 
 void create_route_node(void)
 {
-    bool useDTSEagle = false;
+    char prop[PROPERTY_VALUE_MAX] = "true";
     int fd;
-    useDTSEagle = property_get_bool("use.dts_eagle", false);
-    if (useDTSEagle) {
+    property_get("use.dts_eagle", prop, "0");
+    if (!strncmp("true", prop, sizeof("true")) || atoi(prop)) {
         ALOGV("create_route_node");
         if ((fd=open(ROUTE_PATH, O_RDONLY)) < 0) {
             ALOGV("No File exisit");
@@ -77,7 +75,7 @@ void create_route_node(void)
 
 void notify_route_node(int active_device, int devices)
 {
-    bool useDTSEagle = false;
+    char prop[PROPERTY_VALUE_MAX] = "true";
     char buf[1024];
     int fd;
     if ((mCurrDevice == active_device) &&
@@ -87,8 +85,8 @@ void notify_route_node(int active_device, int devices)
     }
     mDevices = devices;
     mCurrDevice = active_device;
-    useDTSEagle = property_get_bool("use.dts_eagle", false);
-    if (useDTSEagle) {
+    property_get("use.dts_eagle", prop, "0");
+    if (!strncmp("true", prop, sizeof("true")) || atoi(prop)) {
         ALOGV("notify active device : %d all_devices : %d", active_device, devices);
         if ((fd=open(ROUTE_PATH, O_TRUNC|O_WRONLY)) < 0) {
             ALOGV("Write device to route node failed");
@@ -115,10 +113,10 @@ void notify_route_node(int active_device, int devices)
 
 void remove_route_node(void)
 {
-    bool useDTSEagle = false;
+    char prop[PROPERTY_VALUE_MAX] = "true";
     int fd;
-    useDTSEagle = property_get_bool("use.dts_eagle", false);
-    if (useDTSEagle) {
+    property_get("use.dts_eagle", prop, "0");
+    if (!strncmp("true", prop, sizeof("true")) || atoi(prop)) {
         ALOGV("remove_route_node");
         if ((fd=open(ROUTE_PATH, O_RDONLY)) < 0) {
             ALOGV("open route  node failed");
