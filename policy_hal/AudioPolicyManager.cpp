@@ -1983,5 +1983,11 @@ AudioPolicyManagerCustom::AudioPolicyManagerCustom(AudioPolicyClientInterface *c
 #ifdef VOICE_CONCURRENCY
     mFallBackflag = getFallBackPath();
 #endif
+
+    // set the volume index for music playback
+    initStreamVolume(AUDIO_STREAM_MUSIC, 0, 15);
+    char propValue[PROP_VALUE_MAX];
+    property_get("early.audio.volume",propValue,"0");
+    setStreamVolumeIndex(AUDIO_STREAM_MUSIC, atoi(propValue), AUDIO_DEVICE_OUT_SPEAKER);
 }
 }
