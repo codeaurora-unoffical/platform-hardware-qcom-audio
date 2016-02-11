@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -1000,7 +1000,8 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
             out_snd_device = SND_DEVICE_NONE;
             if (in_snd_device == SND_DEVICE_NONE) {
                 audio_devices_t out_device = AUDIO_DEVICE_NONE;
-                if ((adev->active_input->source == AUDIO_SOURCE_VOICE_COMMUNICATION ||
+                if (adev->active_input &&
+                    (adev->active_input->source == AUDIO_SOURCE_VOICE_COMMUNICATION ||
                     (adev->mode == AUDIO_MODE_IN_COMMUNICATION &&
                      adev->active_input->source == AUDIO_SOURCE_MIC)) &&
                      adev->primary_output && !adev->primary_output->standby) {
@@ -3024,7 +3025,8 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
 
     /* Init use case and pcm_config */
     if ((out->flags & AUDIO_OUTPUT_FLAG_DIRECT) &&
-        !(out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) &&
+        !(out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD ||
+        (out->flags & AUDIO_OUTPUT_FLAG_DIRECT_PCM)) &&
         (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL ||
         out->devices & AUDIO_DEVICE_OUT_PROXY)) {
 
