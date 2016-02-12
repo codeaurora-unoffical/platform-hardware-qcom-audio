@@ -125,6 +125,17 @@ struct pcm_config pcm_config_hdmi_multi = {
     .avail_min = 0,
 };
 
+struct pcm_config pcm_config_driver_side = {
+    .channels = 2,
+    .rate = DEFAULT_OUTPUT_SAMPLING_RATE,
+    .period_size = DEEP_BUFFER_OUTPUT_PERIOD_SIZE,
+    .period_count = DEEP_BUFFER_OUTPUT_PERIOD_COUNT,
+    .format = PCM_FORMAT_S16_LE,
+    .start_threshold = DEEP_BUFFER_OUTPUT_PERIOD_SIZE / 4,
+    .stop_threshold = INT_MAX,
+    .avail_min = DEEP_BUFFER_OUTPUT_PERIOD_SIZE / 4,
+};
+
 struct pcm_config pcm_config_audio_capture = {
     .channels = 2,
     .period_count = AUDIO_CAPTURE_PERIOD_COUNT,
@@ -210,6 +221,7 @@ const char * const use_case_table[AUDIO_USECASE_MAX] = {
 
     [USECASE_AUDIO_PLAYBACK_AFE_PROXY] = "afe-proxy-playback",
     [USECASE_AUDIO_RECORD_AFE_PROXY] = "afe-proxy-record",
+    [USECASE_AUDIO_PLAYBACK_DRIVER_SIDE] = "driver-side-playback",
 };
 
 static const audio_usecase_t offload_usecases[] = {
@@ -3125,6 +3137,13 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
         out->usecase = USECASE_AUDIO_PLAYBACK_ULL;
         out->config = pcm_config_low_latency;
         out->sample_rate = out->config.rate;
+#ifdef DRIVER_SIDE_PLAYBACK_ENABLED
+    } else if (out->flags & AUDIO_OUTPUT_FLAG_DRIVER_SIDE) {
+        format = AUDIO_FORMAT_PCM_16_BIT;
+        out->usecase = USECASE_AUDIO_PLAYBACK_DRIVER_SIDE;
+        out->config = pcm_config_driver_side;
+        out->sample_rate = out->config.rate;
+#endif
     } else if (out->flags & AUDIO_OUTPUT_FLAG_FAST) {
         format = AUDIO_FORMAT_PCM_16_BIT;
         out->usecase = USECASE_AUDIO_PLAYBACK_LOW_LATENCY;
