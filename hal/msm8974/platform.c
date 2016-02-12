@@ -2008,6 +2008,7 @@ int platform_send_audio_calibration_for_usecase(void *platform,
 {
     struct platform_data *my_data = (struct platform_data *)platform;
     int acdb_dev_id;
+    int acdb_ec_dev_id;
     int ret = 0;
 
     if ((usecase->type == VOICE_CALL) || (usecase->type == VOIP_CALL)) {
@@ -2050,6 +2051,11 @@ int platform_send_audio_calibration_for_usecase(void *platform,
             break;
         }
 
+        if (my_data->conversation_mode_state)
+        {
+            acdb_dev_id = 16;
+        }
+
         if ((ret == 0) && (my_data->acdb_send_audio_cal)) {
             struct stream_out *out = usecase->stream.out;
             ALOGV("%s: sending audio calibration for usecase(%d) acdb_id(%d)",
@@ -2067,8 +2073,19 @@ int platform_send_audio_calibration_for_usecase(void *platform,
         case USECASE_AUDIO_RECORD_LOW_LATENCY:
         case USECASE_AUDIO_HFP_SCO:
         case USECASE_AUDIO_HFP_SCO_WB:
-            acdb_dev_id = 11;
-            break;
+            {
+                if (my_data->conversation_mode_state) {
+                    acdb_dev_id = 13;
+                }
+                else if (my_data->ec_car_state) {
+                    acdb_dev_id = 12;
+                    acdb_ec_dev_id = 100;
+                }
+                else {
+                    acdb_dev_id = 11;
+                }
+                break;
+            }
         default:
             ALOGE("%s: audio calibration not supported for usecase(%d)",
                   __func__, usecase->id);
@@ -2082,6 +2099,14 @@ int platform_send_audio_calibration_for_usecase(void *platform,
             my_data->acdb_send_audio_cal(acdb_dev_id, ACDB_DEV_TYPE_IN,
                                          platform_get_default_app_type(platform),
                                          48000);
+
+            if (my_data->ec_car_state) {
+                ALOGV("%s: sending audio calibration for usecase(%d) acdb_id(%d)",
+                      __func__, usecase->id, acdb_ec_dev_id);
+                my_data->acdb_send_audio_cal(acdb_ec_dev_id, ACDB_DEV_TYPE_IN,
+                                             platform_get_default_app_type(platform),
+                                             48000);
+            }
         }
     }
 
