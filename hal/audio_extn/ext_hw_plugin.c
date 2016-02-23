@@ -36,6 +36,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 #include <audio_hw.h>
 #include "audio_extn.h"
 #include "platform_api.h"
+#include "platform.h"
 #include "audio_hal_plugin.h"
 
 #ifdef EXT_HW_PLUGIN_ENABLED
@@ -212,6 +213,13 @@ int32_t audio_extn_ext_hw_plugin_usecase_start(void *plugin, struct audio_usecas
                     __func__, usecase->id);
             return 0;
         }
+
+        if((usecase->id == USECASE_AUDIO_RECORD) &&
+           (usecase->in_snd_device == SND_DEVICE_IN_SPEAKER_QMIC_AEC))
+        {
+           codec_enable.usecase = AUDIO_HAL_PLUGIN_USECASE_EC_CAPTURE;
+        }
+
         if(my_plugin->usecase_ref_count[codec_enable.usecase]){
             ALOGV("%s: plugin usecase %d already enabled",
                     __func__, codec_enable.usecase);
@@ -243,6 +251,33 @@ int32_t audio_extn_ext_hw_plugin_usecase_start(void *plugin, struct audio_usecas
                 return ret;
             }
             my_plugin->in_snd_dev[codec_enable.usecase] = codec_enable.snd_dev;
+        }
+
+        if ((usecase->type == PCM_CAPTURE) &&
+            (usecase->id ==  USECASE_AUDIO_RECORD) &&
+            (usecase->in_snd_device == SND_DEVICE_IN_SPEAKER_QMIC_AEC)) {
+            audio_hal_plugin_codec_enable_t codec_enable_ec = {0,};
+            codec_enable_ec.snd_dev = usecase->in_snd_device;
+            // TODO - below should be related with in_snd_dev
+            codec_enable_ec.sample_rate = 48000;
+            codec_enable_ec.bit_width = 16;
+            codec_enable_ec.num_chs = 6;
+            codec_enable_ec.usecase = AUDIO_HAL_PLUGIN_USECASE_EC_REF_CAPTURE;
+
+            ALOGD("%s: enable audio hal plugin input for echo reference, %d, %d, %d, %d, %d",
+                __func__, (int)codec_enable_ec.usecase,
+                (int)codec_enable_ec.snd_dev,
+                (int)codec_enable_ec.sample_rate,
+                (int)codec_enable_ec.bit_width,
+                (int)codec_enable_ec.num_chs);
+
+            ret = my_plugin->audio_hal_plugin_send_msg(msg,
+                (void*)&codec_enable_ec, sizeof(codec_enable_ec));
+            if (ret) {
+                ALOGE("%s: enable audio hal plugin input failed ret = %d",
+                    __func__, ret);
+                return ret;
+            }
         }
 
         if ((usecase->type == PCM_PLAYBACK) || (usecase->type == VOICE_CALL) ||
@@ -297,6 +332,12 @@ int32_t audio_extn_ext_hw_plugin_usecase_stop(void *plugin, struct audio_usecase
                     __func__, usecase->id);
             return 0;
         }
+
+        if((usecase->id == USECASE_AUDIO_RECORD) &&
+           (usecase->in_snd_device == SND_DEVICE_IN_SPEAKER_QMIC_AEC))
+        {
+           codec_disable.usecase = AUDIO_HAL_PLUGIN_USECASE_EC_CAPTURE;
+        }
         if(my_plugin->usecase_ref_count[codec_disable.usecase] > 1){
             ALOGI("%s: plugin usecase %d still in use and can not be disabled",
                     __func__, codec_disable.usecase);
@@ -340,6 +381,26 @@ int32_t audio_extn_ext_hw_plugin_usecase_stop(void *plugin, struct audio_usecase
                     __func__, ret);
             }
             my_plugin->in_snd_dev[codec_disable.usecase] = 0;
+        }
+
+        if ((usecase->type == PCM_CAPTURE) &&
+            (usecase->id ==  USECASE_AUDIO_RECORD) &&
+            (usecase->in_snd_device == SND_DEVICE_IN_SPEAKER_QMIC_AEC)) {
+            audio_hal_plugin_codec_disable_t codec_disable_ec = {0,};
+            codec_disable_ec.snd_dev = usecase->in_snd_device;
+            codec_disable_ec.usecase = AUDIO_HAL_PLUGIN_USECASE_EC_REF_CAPTURE;
+
+            ALOGD("%s: disable audio hal plugin input for echo reference, %d, %d",
+                __func__, (int)codec_disable_ec.usecase,
+                (int)codec_disable_ec.snd_dev);
+
+            ret = my_plugin->audio_hal_plugin_send_msg(msg,
+                (void*)&codec_disable_ec, sizeof(codec_disable_ec));
+            if (ret) {
+                ALOGE("%s: disable audio hal plugin input failed ret = %d",
+                    __func__, ret);
+                return ret;
+            }
         }
         my_plugin->usecase_ref_count[codec_disable.usecase]--;
     }
