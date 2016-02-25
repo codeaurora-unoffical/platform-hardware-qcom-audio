@@ -128,6 +128,7 @@
 #define EVENT_EXTERNAL_SPK_2 "qc_ext_spk_2"
 #define EVENT_EXTERNAL_MIC   "qc_ext_mic"
 #define MAX_CAL_NAME 20
+#define MAX_MIME_TYPE_LENGTH 30
 
 char cal_name_info[WCD9XXX_MAX_CAL][MAX_CAL_NAME] = {
         [WCD9XXX_ANC_CAL] = "anc_cal",
@@ -137,7 +138,7 @@ char cal_name_info[WCD9XXX_MAX_CAL][MAX_CAL_NAME] = {
 
 #define  AUDIO_PARAMETER_IS_HW_DECODER_SESSION_ALLOWED  "is_hw_dec_session_allowed"
 
-char * dsp_only_decoders_mime[] = {
+char dsp_only_decoders_mime[][MAX_MIME_TYPE_LENGTH] = {
     "audio/x-ms-wma" /* wma*/ ,
     "audio/x-ms-wma-lossless" /* wma lossless */ ,
     "audio/x-ms-wma-pro" /* wma prop */ ,
@@ -830,10 +831,6 @@ void platform_set_echo_reference(struct audio_device *adev, bool enable,
                                  audio_devices_t out_device)
 {
     struct platform_data *my_data = (struct platform_data *)adev->platform;
-    snd_device_t snd_device = SND_DEVICE_NONE;
-    struct stream_out out;
-
-    out.devices = out_device;
 
     if (strcmp(my_data->ec_ref_mixer_path, "")) {
         ALOGV("%s: disabling %s", __func__, my_data->ec_ref_mixer_path);
@@ -842,8 +839,6 @@ void platform_set_echo_reference(struct audio_device *adev, bool enable,
     }
 
     if (enable) {
-        snd_device = platform_get_output_snd_device(adev->platform, &out);
-
         /*
          * If native audio device reference count > 0, then apply codec EC otherwise
          * fallback to Speakers with VBat if enabled or default
@@ -851,8 +846,7 @@ void platform_set_echo_reference(struct audio_device *adev, bool enable,
         if (adev->snd_dev_ref_cnt[SND_DEVICE_OUT_HEADPHONES_44_1] > 0)
             strlcpy(my_data->ec_ref_mixer_path, "echo-reference headphones-44.1",
                     sizeof(my_data->ec_ref_mixer_path));
-        else if ((snd_device == SND_DEVICE_OUT_SPEAKER_VBAT) ||
-                 (snd_device == SND_DEVICE_OUT_SPEAKER_PROTECTED_VBAT))
+        else if (adev->snd_dev_ref_cnt[SND_DEVICE_OUT_SPEAKER_VBAT] > 0)
             strlcpy(my_data->ec_ref_mixer_path, "echo-reference speaker-vbat",
                     sizeof(my_data->ec_ref_mixer_path));
         else
@@ -1035,7 +1029,11 @@ static bool platform_is_i2s_ext_modem(const char *snd_card_name,
 
 static void set_platform_defaults()
 {
-    int32_t dev;
+    int32_t dev, count = 0;
+    char dsp_decoder_property[PROPERTY_VALUE_MAX];
+    const char *MEDIA_MIMETYPE_AUDIO_ALAC = "audio/alac";
+    const char *MEDIA_MIMETYPE_AUDIO_APE = "audio/x-ape";
+
     for (dev = 0; dev < SND_DEVICE_MAX; dev++) {
         backend_table[dev] = NULL;
     }
@@ -1066,6 +1064,28 @@ static void set_platform_defaults()
     backend_table[SND_DEVICE_OUT_HEADPHONES] = strdup("headphones");
     backend_table[SND_DEVICE_OUT_HEADPHONES_44_1] = strdup("headphones-44.1");
     backend_table[SND_DEVICE_OUT_VOICE_SPEAKER_VBAT] = strdup("voice-speaker-vbat");
+
+
+     /*remove ALAC & APE from DSP decoder list based on software decoder availability*/
+     for (count = 0; count < sizeof(dsp_only_decoders_mime)/sizeof(dsp_only_decoders_mime[0]);
+            count++) {
+
+         if (!strncmp(MEDIA_MIMETYPE_AUDIO_ALAC, dsp_only_decoders_mime[count],
+              strlen(dsp_only_decoders_mime[count]))) {
+
+             if(property_get_bool("use.qti.sw.alac.decoder", false)) {
+                 ALOGD("Alac software decoder is available...removing alac from DSP decoder list");
+                 strncpy(dsp_only_decoders_mime[count],"none",5);
+             }
+         } else if (!strncmp(MEDIA_MIMETYPE_AUDIO_APE, dsp_only_decoders_mime[count],
+              strlen(dsp_only_decoders_mime[count]))) {
+
+             if(property_get_bool("use.qti.sw.ape.decoder", false)) {
+                 ALOGD("APE software decoder is available...removing ape from DSP decoder list");
+                 strncpy(dsp_only_decoders_mime[count],"none",5);
+             }
+         }
+     }
 }
 
 void get_cvd_version(char *cvd_version, struct audio_device *adev)
@@ -1315,6 +1335,7 @@ void *platform_init(struct audio_device *adev)
         if (!snd_card_name) {
             ALOGE("failed to allocate memory for snd_card_name\n");
             free(my_data);
+            mixer_close(adev->mixer);
             return NULL;
         }
         ALOGD("%s: snd_card_name: %s", __func__, snd_card_name);
@@ -1381,6 +1402,7 @@ void *platform_init(struct audio_device *adev)
                 free(my_data);
                 free(snd_card_name);
                 free(snd_card_name_t);
+                mixer_close(adev->mixer);
                 return NULL;
             }
             adev->snd_card = snd_card_num;
@@ -1389,6 +1411,7 @@ void *platform_init(struct audio_device *adev)
         }
         retry_num = 0;
         snd_card_num++;
+        mixer_close(adev->mixer);
     }
 
     if (snd_card_num >= MAX_SND_CARD) {
@@ -2026,29 +2049,16 @@ int native_audio_set_params(struct platform_data *platform,
     return ret;
 }
 
-int check_hdset_combo_device(struct audio_device *adev, snd_device_t snd_device)
+int check_hdset_combo_device(snd_device_t snd_device)
 {
     int ret = false;
-    struct listnode *node;
-    int i =0;
 
-    if (SND_DEVICE_OUT_SPEAKER_AND_HEADPHONES == snd_device)
+    if (SND_DEVICE_OUT_SPEAKER_AND_HEADPHONES == snd_device ||
+        SND_DEVICE_OUT_SPEAKER_AND_LINE == snd_device ||
+        SND_DEVICE_OUT_SPEAKER_AND_HEADPHONES_EXTERNAL_1 == snd_device ||
+        SND_DEVICE_OUT_SPEAKER_AND_HEADPHONES_EXTERNAL_2 == snd_device ||
+        SND_DEVICE_OUT_SPEAKER_AND_ANC_HEADSET == snd_device)
         ret = true;
-    else {
-         list_for_each(node, &adev->usecase_list) {
-            struct audio_usecase *uc;
-            uc = node_to_item(node, struct audio_usecase, list);
-            ALOGD("%s: (%d) use case %s snd device %s",
-                __func__, i++, use_case_table[uc->id],
-                platform_get_snd_device_name(uc->out_snd_device));
-
-            if (SND_DEVICE_OUT_SPEAKER_AND_HEADPHONES == uc->out_snd_device)
-                ret = true;
-        }
-    }
-    ALOGV("%s:napb: (%s) snd_device (%s)",
-          __func__, (ret == false ? "false":"true"),
-          platform_get_snd_device_name(snd_device));
 
     return ret;
 }
@@ -3109,6 +3119,7 @@ static void set_audiocal(void *platform, struct str_parms *parms, char *value, i
               cal.snd_dev_id = platform_get_input_snd_device(platform, cal.dev_id);
           } else {
               out.devices = cal.dev_id;
+              out.sample_rate = cal.sampling_rate;
               cal.snd_dev_id = platform_get_output_snd_device(platform, &out);
           }
         }
@@ -3409,6 +3420,7 @@ static void get_audiocal(void *platform, void *keys, void *pReply) {
         cal.snd_dev_id = platform_get_input_snd_device(platform, cal.dev_id);
     } else if(cal.dev_id) {
         out.devices = cal.dev_id;
+        out.sample_rate = cal.sampling_rate;
         cal.snd_dev_id = platform_get_output_snd_device(platform, &out);
     }
     cal.acdb_dev_id =  platform_get_snd_device_acdb_id(cal.snd_dev_id);
@@ -3859,7 +3871,7 @@ bool platform_check_codec_backend_cfg(struct audio_device* adev,
     }
 
     if (audio_is_true_native_stream_active(adev)) {
-        if (check_hdset_combo_device(adev, snd_device)) {
+        if (check_hdset_combo_device(snd_device)) {
         /*
          * In true native mode Tasha has a limitation that one port at 44.1 khz
          * cannot drive both spkr and hdset, to simiplify the solution lets
@@ -4544,6 +4556,11 @@ int platform_get_spkr_prot_snd_device(snd_device_t snd_device)
         default:
              return snd_device;
     }
+}
+
+int platform_spkr_prot_is_wsa_analog_mode(void *adev __unused)
+{
+    return 0;
 }
 
 /*
