@@ -45,6 +45,7 @@
 
 #define SOUND_TRIGGER_DEVICE_HANDSET_MONO_LOW_POWER_ACDB_ID (100)
 #define MIXER_XML_DEFAULT_PATH "/system/etc/mixer_paths.xml"
+#define MIXER_XML_DEFAULT_PATH_1 "/system/etc/mixer_paths_cdp.xml"
 #define MIXER_XML_PATH_AUXPCM "/system/etc/mixer_paths_auxpcm.xml"
 #define MIXER_XML_PATH_I2S "/system/etc/mixer_paths_i2s.xml"
 #define MIXER_XML_BASE_STRING "/system/etc/mixer_paths"
@@ -1270,6 +1271,16 @@ void *platform_init(struct audio_device *adev)
     char mixer_xml_file[MIXER_PATH_MAX_LENGTH]= {0};
     int idx;
 
+    int load_path_1_mixer_file = 0;
+
+    if(((strcmp(adev->hw_platfom_name, "Dragon") == 0) && (adev->hw_platfom_soc_id == 291)) ||
+       ((strcmp(adev->hw_platfom_name, "Surf") == 0) && (adev->hw_platfom_soc_id == 310)))
+    {
+       load_path_1_mixer_file = 1;
+    }
+
+    ALOGD("%s: load_path_1_mixer_file: %d", __func__, load_path_1_mixer_file);
+
     my_data = calloc(1, sizeof(struct platform_data));
 
     if (!my_data) {
@@ -1340,8 +1351,15 @@ void *platform_init(struct audio_device *adev)
                     strlcat(mixer_xml_file, MIXER_FILE_EXT,
                         MIXER_PATH_MAX_LENGTH);
                 } else {
+
+                   if(load_path_1_mixer_file == 1) {
+                      strlcpy(mixer_xml_file, MIXER_XML_DEFAULT_PATH_1,
+                        MIXER_PATH_MAX_LENGTH);
+                   }
+                   else {
                     strlcpy(mixer_xml_file, MIXER_XML_DEFAULT_PATH,
                         MIXER_PATH_MAX_LENGTH);
+                   }
                 }
 
                 if (F_OK == access(mixer_xml_file, 0)) {
@@ -1352,10 +1370,19 @@ void *platform_init(struct audio_device *adev)
                                                        mixer_xml_file);
                 } else {
                     ALOGD("%s: Loading default mixer file", __func__);
-                    if(audio_extn_read_xml(adev, snd_card_num, MIXER_XML_DEFAULT_PATH,
+
+                    if(load_path_1_mixer_file == 1 ) {
+                       if(audio_extn_read_xml(adev, snd_card_num, MIXER_XML_DEFAULT_PATH_1,
                                     MIXER_XML_PATH_AUXPCM) == -ENOSYS)
                         adev->audio_route = audio_route_init(snd_card_num,
-                                                       MIXER_XML_DEFAULT_PATH);
+                                                       MIXER_XML_DEFAULT_PATH_1);
+                    }
+                    else {
+                       if(audio_extn_read_xml(adev, snd_card_num, MIXER_XML_DEFAULT_PATH,
+                                       MIXER_XML_PATH_AUXPCM) == -ENOSYS)
+                           adev->audio_route = audio_route_init(snd_card_num,
+                                                          MIXER_XML_DEFAULT_PATH);
+                    }
                 }
             }
             if (!adev->audio_route) {

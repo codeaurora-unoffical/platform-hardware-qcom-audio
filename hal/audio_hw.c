@@ -3789,6 +3789,9 @@ static int adev_open(const hw_module_t *module, const char *name,
 {
     int i, ret;
 
+    FILE *soc_file = NULL;
+    char buffer[MAX_PLATFORM_ID_BUFFER_SIZE];
+
     ALOGD("%s: enter", __func__);
     if (strcmp(name, AUDIO_HARDWARE_INTERFACE) != 0) return -EINVAL;
 
@@ -3851,6 +3854,31 @@ static int adev_open(const hw_module_t *module, const char *name,
 
     pthread_mutex_init(&adev->snd_card_status.lock, (const pthread_mutexattr_t *) NULL);
     adev->snd_card_status.state = SND_CARD_STATE_OFFLINE;
+
+    strncpy(adev->hw_platfom_name, "QRD", sizeof("QRD"));
+    adev->hw_platfom_soc_id = 291;
+
+    soc_file = fopen("/sys/devices/soc0/hw_platform","r");
+    if (soc_file == NULL)
+       soc_file = fopen("/sys/devices/system/soc/soc0/hw_platform","r");
+
+    if (soc_file == NULL)
+       ALOGE("%s: Failed to get hw_platform file, use default", __func__);
+    else if (fgets(adev->hw_platfom_name, sizeof(adev->hw_platfom_name), soc_file) == NULL)
+       ALOGE("%s: Failed to get hw_platform name, use default", __func__);
+    else if (adev->hw_platfom_name[(strlen(adev->hw_platfom_name) - 1)] == '\n')
+       adev->hw_platfom_name[(strlen(adev->hw_platfom_name) - 1)] = '\0';
+
+   if (soc_file != NULL)
+      fclose(soc_file);
+
+    soc_file = fopen("/sys/devices/soc0/soc_id", "r");
+    if (soc_file) {
+       fread(buffer, 1, 8, soc_file);
+       fclose(soc_file);
+       adev->hw_platfom_soc_id = atoi(buffer);
+    }
+
     /* Loads platform specific libraries dynamically */
     adev->platform = platform_init(adev);
     if (!adev->platform) {
