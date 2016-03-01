@@ -1,5 +1,5 @@
 /* hfp.c
-Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -169,7 +169,7 @@ static int32_t start_hfp(struct audio_device *adev,
               __func__, pcm_dev_rx_id, pcm_dev_tx_id, uc_info->id);
 
     ALOGV("%s: Opening PCM playback device card_id(%d) device_id(%d)",
-          __func__, adev->snd_card, pcm_dev_rx_id);
+          __func__, adev->snd_card, pcm_dev_asm_rx_id);
     hfpmod.hfp_sco_rx = pcm_open(adev->snd_card,
                                   pcm_dev_asm_rx_id,
                                   PCM_OUT, &pcm_config_hfp);
