@@ -2031,7 +2031,7 @@ int platform_send_audio_calibration_for_usecase(void *platform,
 #endif
         case USECASE_AUDIO_PLAYBACK_ULL:
         case USECASE_AUDIO_DIRECT_PCM_OFFLOAD:
-            acdb_dev_id = 78;
+            acdb_dev_id = 41;
             break;
         case USECASE_AUDIO_PLAYBACK_DRIVER_SIDE:
             acdb_dev_id = 14;
