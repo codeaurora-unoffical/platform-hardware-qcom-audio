@@ -2091,12 +2091,6 @@ int platform_send_audio_calibration_for_usecase(void *platform,
         }
 
         if ((ret == 0) && (my_data->acdb_send_audio_cal)) {
-            ALOGV("%s: sending audio calibration for usecase(%d) acdb_id(%d)",
-                  __func__, usecase->id, acdb_dev_id);
-            my_data->acdb_send_audio_cal(acdb_dev_id, ACDB_DEV_TYPE_IN,
-                                         platform_get_default_app_type(platform),
-                                         48000);
-
             if (my_data->ec_car_state) {
                 ALOGV("%s: sending audio calibration for usecase(%d) acdb_id(%d)",
                       __func__, usecase->id, acdb_ec_dev_id);
@@ -2104,6 +2098,12 @@ int platform_send_audio_calibration_for_usecase(void *platform,
                                              platform_get_default_app_type(platform),
                                              48000);
             }
+
+            ALOGV("%s: sending audio calibration for usecase(%d) acdb_id(%d)",
+                  __func__, usecase->id, acdb_dev_id);
+            my_data->acdb_send_audio_cal(acdb_dev_id, ACDB_DEV_TYPE_IN,
+                                         platform_get_default_app_type(platform),
+                                         48000);
         }
     }
 
@@ -2582,7 +2582,19 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
     
     if (my_data->ec_car_state) {
         snd_device = SND_DEVICE_IN_SPEAKER_QMIC_AEC;
-        platform_set_echo_reference(adev, true, out_device);
+
+        if (strcmp(my_data->ec_ref_mixer_path, ""))
+        {
+            ALOGV("%s: disabling %s", __func__, my_data->ec_ref_mixer_path);
+            audio_route_reset_and_update_path(adev->audio_route,
+                                              my_data->ec_ref_mixer_path);
+        }
+
+        strlcpy(my_data->ec_ref_mixer_path, "multi-mic-echo-reference",
+                sizeof(my_data->ec_ref_mixer_path));
+
+        ALOGD("%s: enabling %s", __func__, my_data->ec_ref_mixer_path);
+        audio_route_apply_and_update_path(adev->audio_route, my_data->ec_ref_mixer_path);
     }
     else if (my_data->conversation_mode_state) { 
         snd_device = SND_DEVICE_IN_HANDSET_DMIC;
