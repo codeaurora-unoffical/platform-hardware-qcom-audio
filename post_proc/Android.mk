@@ -30,7 +30,7 @@ LOCAL_MODULE:= libqcompostprocbundle
 
 LOCAL_C_INCLUDES := \
 	external/tinyalsa/include \
-        $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include \
+	$(BOARD_KERNEL_HEADER_DIR) \
 	$(call include-path-for, audio-effects)
 
 include $(BUILD_SHARED_LIBRARY)
