@@ -413,6 +413,14 @@ bool audio_extn_hfp_is_active(struct audio_device *adev);
 audio_usecase_t audio_extn_hfp_get_usecase();
 #endif
 
+#ifndef ICC_ENABLED
+#define audio_extn_icc_is_active(adev)                  (0)
+#define audio_extn_icc_get_usecase()                    (-1)
+#else
+bool audio_extn_icc_is_active(struct audio_device *adev);
+audio_usecase_t audio_extn_icc_get_usecase();
+#endif
+
 #ifndef DEV_ARBI_ENABLED
 #define audio_extn_dev_arbi_init()                  (0)
 #define audio_extn_dev_arbi_deinit()                (0)
