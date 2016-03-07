@@ -140,7 +140,8 @@ enum {
     USECASE_AUDIO_PLAYBACK_AFE_PROXY,
     USECASE_AUDIO_RECORD_AFE_PROXY,
     USECASE_AUDIO_PLAYBACK_DRIVER_SIDE,
-
+    /* In Car Communication usecase*/
+    USECASE_ICC_CALL,
     AUDIO_USECASE_MAX
 };
 
@@ -255,7 +256,8 @@ typedef enum {
     PCM_CAPTURE,
     VOICE_CALL,
     VOIP_CALL,
-    PCM_HFP_CALL
+    PCM_HFP_CALL,
+    ICC_CALL
 } usecase_type_t;
 
 union stream_ptr {

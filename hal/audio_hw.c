@@ -222,6 +222,7 @@ const char * const use_case_table[AUDIO_USECASE_MAX] = {
     [USECASE_AUDIO_PLAYBACK_AFE_PROXY] = "afe-proxy-playback",
     [USECASE_AUDIO_RECORD_AFE_PROXY] = "afe-proxy-record",
     [USECASE_AUDIO_PLAYBACK_DRIVER_SIDE] = "driver-side-playback",
+    [USECASE_ICC_CALL] = "icc-call",
 };
 
 static const audio_usecase_t offload_usecases[] = {
@@ -877,7 +878,8 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
 
     if ((usecase->type == VOICE_CALL) ||
         (usecase->type == VOIP_CALL)  ||
-        (usecase->type == PCM_HFP_CALL)) {
+        (usecase->type == PCM_HFP_CALL) ||
+        (usecase->type == ICC_CALL)) {
         out_snd_device = platform_get_output_snd_device(adev->platform,
                                                         usecase->stream.out);
         in_snd_device = platform_get_input_snd_device(adev->platform, usecase->stream.out->devices);
