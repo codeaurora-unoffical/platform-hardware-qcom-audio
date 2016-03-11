@@ -92,8 +92,10 @@ bool virtualizer_is_device_supported(audio_devices_t device) {
     case AUDIO_DEVICE_OUT_SPEAKER:
     case AUDIO_DEVICE_OUT_BLUETOOTH_SCO_CARKIT:
     case AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_SPEAKER:
+#if 0
 #ifdef AFE_PROXY_ENABLED
     case AUDIO_DEVICE_OUT_PROXY:
+#endif
 #endif
     case AUDIO_DEVICE_OUT_AUX_DIGITAL:
     case AUDIO_DEVICE_OUT_USB_ACCESSORY:
