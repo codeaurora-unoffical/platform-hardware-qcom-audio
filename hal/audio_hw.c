@@ -250,7 +250,9 @@ static const struct string_to_enum out_channels_name_to_enum_table[] = {
     STRING_TO_ENUM(AUDIO_CHANNEL_OUT_STEREO),
     STRING_TO_ENUM(AUDIO_CHANNEL_OUT_QUAD),/* QUAD_BACK is same as QUAD */
     STRING_TO_ENUM(AUDIO_CHANNEL_OUT_QUAD_SIDE),
+#if 0
     STRING_TO_ENUM(AUDIO_CHANNEL_OUT_PENTA),
+#endif
     STRING_TO_ENUM(AUDIO_CHANNEL_OUT_5POINT1), /* 5POINT1_BACK is same as 5POINT1 */
     STRING_TO_ENUM(AUDIO_CHANNEL_OUT_5POINT1_SIDE),
     STRING_TO_ENUM(AUDIO_CHANNEL_OUT_7POINT1),
@@ -321,18 +323,25 @@ static bool is_supported_format(audio_format_t format)
         format == AUDIO_FORMAT_AAC_LC ||
         format == AUDIO_FORMAT_AAC_HE_V1 ||
         format == AUDIO_FORMAT_AAC_HE_V2 ||
+#if 0
         format == AUDIO_FORMAT_AAC_ADTS_LC ||
         format == AUDIO_FORMAT_AAC_ADTS_HE_V1 ||
         format == AUDIO_FORMAT_AAC_ADTS_HE_V2 ||
         format == AUDIO_FORMAT_PCM_16_BIT_OFFLOAD ||
         format == AUDIO_FORMAT_PCM_24_BIT_OFFLOAD ||
+#endif
         format == AUDIO_FORMAT_PCM_16_BIT ||
+#if 0
         format == AUDIO_FORMAT_FLAC ||
         format == AUDIO_FORMAT_ALAC ||
         format == AUDIO_FORMAT_APE ||
-        format == AUDIO_FORMAT_VORBIS ||
-        format == AUDIO_FORMAT_WMA ||
-        format == AUDIO_FORMAT_WMA_PRO)
+#endif
+        format == AUDIO_FORMAT_VORBIS
+#if 0
+        || format == AUDIO_FORMAT_WMA ||
+        format == AUDIO_FORMAT_WMA_PRO
+#endif
+       )
            return true;
 
     return false;
@@ -349,13 +358,16 @@ static int get_snd_codec_id(audio_format_t format)
     case AUDIO_FORMAT_AAC:
         id = SND_AUDIOCODEC_AAC;
         break;
+#if 0
     case AUDIO_FORMAT_AAC_ADTS:
         id = SND_AUDIOCODEC_AAC;
         break;
     case AUDIO_FORMAT_PCM_OFFLOAD:
+#endif
     case AUDIO_FORMAT_PCM:
         id = SND_AUDIOCODEC_PCM;
         break;
+#if 0
     case AUDIO_FORMAT_FLAC:
         id = SND_AUDIOCODEC_FLAC;
         break;
@@ -365,15 +377,18 @@ static int get_snd_codec_id(audio_format_t format)
     case AUDIO_FORMAT_APE:
         id = SND_AUDIOCODEC_APE;
         break;
+#endif
     case AUDIO_FORMAT_VORBIS:
         id = SND_AUDIOCODEC_VORBIS;
         break;
+#if 0
     case AUDIO_FORMAT_WMA:
         id = SND_AUDIOCODEC_WMA;
         break;
     case AUDIO_FORMAT_WMA_PRO:
         id = SND_AUDIOCODEC_WMA_PRO;
         break;
+#endif
     default:
         ALOGE("%s: Unsupported audio format :%x", __func__, format);
     }
@@ -806,7 +821,9 @@ static int read_hdmi_channel_masks(struct stream_out *out)
         ALOGV("%s: HDMI supports Quad and 5.1", __func__);
         out->supported_channel_masks[i++] = AUDIO_CHANNEL_OUT_QUAD;
         out->supported_channel_masks[i++] = AUDIO_CHANNEL_OUT_QUAD_SIDE;
+#if 0
         out->supported_channel_masks[i++] = AUDIO_CHANNEL_OUT_PENTA;
+#endif
         out->supported_channel_masks[i++] = AUDIO_CHANNEL_OUT_5POINT1;
         out->supported_channel_masks[i++] = AUDIO_CHANNEL_OUT_5POINT1_SIDE;
         break;
@@ -814,7 +831,9 @@ static int read_hdmi_channel_masks(struct stream_out *out)
         ALOGV("%s: HDMI supports Quad, 5.1 and 7.1 channels", __func__);
         out->supported_channel_masks[i++] = AUDIO_CHANNEL_OUT_QUAD;
         out->supported_channel_masks[i++] = AUDIO_CHANNEL_OUT_QUAD_SIDE;
+#if 0
         out->supported_channel_masks[i++] = AUDIO_CHANNEL_OUT_PENTA;
+#endif
         out->supported_channel_masks[i++] = AUDIO_CHANNEL_OUT_5POINT1;
         out->supported_channel_masks[i++] = AUDIO_CHANNEL_OUT_5POINT1_SIDE;
         out->supported_channel_masks[i++] = AUDIO_CHANNEL_OUT_7POINT1;
@@ -2256,7 +2275,9 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
             out->send_new_metadata = 0;
             if (out->send_next_track_params && out->is_compr_metadata_avail) {
                 ALOGD("copl(%p):send next track params in gapless", out);
+#if 0
                 compress_set_next_track_param(out->compr, &(out->compr_config.codec->options));
+#endif
                 out->send_next_track_params = false;
                 out->is_compr_metadata_avail = false;
             }
@@ -2935,15 +2956,19 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
     /* Init use case and pcm_config */
     if ((out->flags & AUDIO_OUTPUT_FLAG_DIRECT) &&
         !(out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) &&
-        (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL ||
-        out->devices & AUDIO_DEVICE_OUT_PROXY)) {
+        (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL
+#if 0
+        || out->devices & AUDIO_DEVICE_OUT_PROXY
+#endif
+        )) {
 
         pthread_mutex_lock(&adev->lock);
         if (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL)
             ret = read_hdmi_channel_masks(out);
-
+#if 0
         if (out->devices & AUDIO_DEVICE_OUT_PROXY)
             ret = audio_extn_read_afe_proxy_channel_masks(out);
+#endif
         pthread_mutex_unlock(&adev->lock);
         if (ret != 0)
             goto error_open;
@@ -2960,6 +2985,7 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
         out->config.rate = config->sample_rate;
         out->config.channels = audio_channel_count_from_out_mask(out->channel_mask);
         out->config.period_size = HDMI_MULTI_PERIOD_BYTES / (out->config.channels * 2);
+#if 0
     } else if ((out->dev->mode == AUDIO_MODE_IN_COMMUNICATION) &&
                (out->flags == (AUDIO_OUTPUT_FLAG_DIRECT | AUDIO_OUTPUT_FLAG_VOIP_RX)) &&
                (voice_extn_compress_voip_is_config_supported(config))) {
@@ -2969,8 +2995,12 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
                   __func__, ret);
             goto error_open;
         }
-    } else if ((out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) ||
-               (out->flags & AUDIO_OUTPUT_FLAG_DIRECT_PCM)) {
+#endif
+    } else if ((out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)
+#if 0
+              || (out->flags & AUDIO_OUTPUT_FLAG_DIRECT_PCM)
+#endif
+              ) {
 
         if (config->offload_info.version != AUDIO_INFO_INITIALIZER.version ||
             config->offload_info.size != AUDIO_INFO_INITIALIZER.size) {
@@ -3004,11 +3034,12 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
             ret = -ENOMEM;
             goto error_open;
         }
-
+#if 0
         if (out->flags & AUDIO_OUTPUT_FLAG_DIRECT_PCM) {
             ALOGV("%s:: inserting DIRECT_PCM _USECASE", __func__);
             out->usecase = USECASE_AUDIO_DIRECT_PCM_OFFLOAD;
         } else {
+#endif
             ALOGV("%s:: inserting OFFLOAD_USECASE", __func__);
             out->usecase = get_offload_usecase(adev);
 
@@ -3017,7 +3048,9 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
             out->stream.resume = out_resume;
             out->stream.drain = out_drain;
             out->stream.flush = out_flush;
+#if 0
         }
+#endif
         if (config->offload_info.channel_mask)
             out->channel_mask = config->offload_info.channel_mask;
         else if (config->channel_mask) {
@@ -3037,7 +3070,10 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
             out->compr_config.codec->id =
                 get_snd_codec_id(config->offload_info.format);
 
-        if (((config->offload_info.format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_PCM_OFFLOAD)||
+        if (
+#if 0
+             ((config->offload_info.format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_PCM_OFFLOAD)||
+#endif
              ((config->offload_info.format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_PCM)) {
             out->compr_config.fragment_size =
                platform_get_pcm_offload_buffer_size(&config->offload_info);
@@ -3056,28 +3092,33 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
         out->compr_config.codec->ch_in =
                 audio_channel_count_from_out_mask(config->channel_mask);
         out->compr_config.codec->ch_out = out->compr_config.codec->ch_in;
+#if 0
         out->bit_width = AUDIO_OUTPUT_BIT_WIDTH;
+#endif
         /*TODO: Do we need to change it for passthrough */
         out->compr_config.codec->format = SND_AUDIOSTREAMFORMAT_RAW;
 
         if ((config->offload_info.format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_AAC)
              out->compr_config.codec->format = SND_AUDIOSTREAMFORMAT_RAW;
+#if 0
         if ((config->offload_info.format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_AAC_ADTS)
             out->compr_config.codec->format = SND_AUDIOSTREAMFORMAT_MP4ADTS;
         if (config->offload_info.format == AUDIO_FORMAT_PCM_16_BIT_OFFLOAD)
             out->compr_config.codec->format = SNDRV_PCM_FORMAT_S16_LE;
         if (config->offload_info.format == AUDIO_FORMAT_PCM_24_BIT_OFFLOAD)
             out->compr_config.codec->format = SNDRV_PCM_FORMAT_S24_LE;
+#endif
         if (config->offload_info.format == AUDIO_FORMAT_PCM_16_BIT)
             out->compr_config.codec->format = SNDRV_PCM_FORMAT_S16_LE;
 
+#if 0
         if (out->bit_width == 24) {
             out->compr_config.codec->format = SNDRV_PCM_FORMAT_S24_LE;
         }
 
         if (config->offload_info.format == AUDIO_FORMAT_FLAC)
             out->compr_config.codec->options.flac_dec.sample_size = AUDIO_OUTPUT_BIT_WIDTH;
-
+#endif
         if (flags & AUDIO_OUTPUT_FLAG_NON_BLOCKING)
             out->non_blocking = 1;
 

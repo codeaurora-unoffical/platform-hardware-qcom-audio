@@ -721,7 +721,9 @@ static int msm_device_to_be_id [][NO_COLS] = {
        {AUDIO_DEVICE_OUT_USB_ACCESSORY                  ,       -1},
        {AUDIO_DEVICE_OUT_USB_DEVICE                     ,       -1},
        {AUDIO_DEVICE_OUT_REMOTE_SUBMIX                  ,       9},
+#if 0
        {AUDIO_DEVICE_OUT_PROXY                          ,       9},
+#endif
 /* Add the correct be ids */
        {AUDIO_DEVICE_OUT_FM                             ,       7},
        {AUDIO_DEVICE_OUT_FM_TX                          ,       8},
@@ -2505,11 +2507,13 @@ snd_device_t platform_get_output_snd_device(void *platform, struct stream_out *o
         snd_device = SND_DEVICE_OUT_TRANSMISSION_FM;
     } else if (devices & AUDIO_DEVICE_OUT_EARPIECE) {
         snd_device = SND_DEVICE_OUT_HANDSET;
+#if 0
     } else if (devices & AUDIO_DEVICE_OUT_PROXY) {
         channel_count = audio_extn_get_afe_proxy_channel_count();
         ALOGD("%s: setting sink capability(%d) for Proxy", __func__, channel_count);
         audio_extn_set_afe_proxy_channel_mixer(adev, channel_count);
         snd_device = SND_DEVICE_OUT_AFE_PROXY;
+#endif
     } else {
         ALOGE("%s: Unknown device(s) %#x", __func__, devices);
     }
@@ -3573,7 +3577,7 @@ uint32_t platform_get_compress_offload_buffer_size(audio_offload_info_t* info)
             atoi(value)) {
         fragment_size =  atoi(value) * 1024;
     }
-
+#if 0
     /* Use incoming offload buffer size if default buffer size is less */
     if ((info != NULL) && (fragment_size < info->offload_buffer_size)) {
         ALOGI("%s:: Overwriting offload buffer size default:%d new:%d", __func__,
@@ -3584,11 +3588,13 @@ uint32_t platform_get_compress_offload_buffer_size(audio_offload_info_t* info)
 
     // For FLAC use max size since it is loss less, and has sampling rates
     // upto 192kHZ
+
     if (info != NULL && !info->has_video &&
         info->format == AUDIO_FORMAT_FLAC) {
        fragment_size = MAX_COMPRESS_OFFLOAD_FRAGMENT_SIZE;
        ALOGV("FLAC fragment size %d", fragment_size);
     }
+#endif
 
     if (info != NULL && info->has_video && info->is_streaming) {
         fragment_size = COMPRESS_OFFLOAD_FRAGMENT_SIZE_FOR_AV_STREAMING;
@@ -3611,11 +3617,11 @@ uint32_t platform_get_pcm_offload_buffer_size(audio_offload_info_t* info)
     uint32_t fragment_size = 0;
     uint32_t bits_per_sample = 16;
     uint32_t pcm_offload_time = PCM_OFFLOAD_BUFFER_DURATION;
-
+#if 0
     if (info->format == AUDIO_FORMAT_PCM_24_BIT_OFFLOAD) {
         bits_per_sample = 32;
     }
-
+#endif
     //duration is set to 40 ms worth of stereo data at 48Khz
     //with 16 bit per sample, modify this when the channel
     //configuration is different
@@ -3638,7 +3644,10 @@ uint32_t platform_get_pcm_offload_buffer_size(audio_offload_info_t* info)
 
 bool platform_use_small_buffer(audio_offload_info_t* info)
 {
+#if 0
     return OFFLOAD_USE_SMALL_BUFFER;
+#endif
+    return false;
 }
 
 int platform_set_codec_backend_cfg(struct audio_device* adev,
@@ -3936,11 +3945,13 @@ int platform_set_stream_channel_map(void *platform, audio_channel_mask_t channel
                 channel_map[2] = PCM_CHANNEL_LB;
                 channel_map[3] = PCM_CHANNEL_RB;
             }
+#if 0
             if (channel_mask == AUDIO_CHANNEL_OUT_SURROUND)
             {
                 channel_map[2] = PCM_CHANNEL_FC;
                 channel_map[3] = PCM_CHANNEL_CS;
             }
+#endif
             break;
         case 5:
             /* AUDIO_CHANNEL_OUT_PENTA */
@@ -4145,17 +4156,21 @@ unsigned char platform_map_to_edid_format(int audio_format)
         ALOGV("%s:AAC", __func__);
         format = AAC;
         break;
+#if 0
     case AUDIO_FORMAT_AAC_ADTS:
         ALOGV("%s:AAC_ADTS", __func__);
         format = AAC;
         break;
+#endif
     case AUDIO_FORMAT_E_AC3:
         ALOGV("%s:E_AC3", __func__);
         format = DOLBY_DIGITAL_PLUS;
         break;
     case AUDIO_FORMAT_PCM_16_BIT:
+#if 0
     case AUDIO_FORMAT_PCM_16_BIT_OFFLOAD:
     case AUDIO_FORMAT_PCM_24_BIT_OFFLOAD:
+#endif
     default:
         ALOGV("%s:PCM", __func__);
         format =  LPCM;

@@ -80,7 +80,9 @@ struct string_to_enum {
 
 const struct string_to_enum s_flag_name_to_enum_table[] = {
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_DIRECT),
+#if 0
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_DIRECT_PCM),
+#endif
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_PRIMARY),
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_FAST),
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_DEEP_BUFFER),
@@ -108,6 +110,7 @@ const struct string_to_enum s_format_name_to_enum_table[] = {
     STRING_TO_ENUM(AUDIO_FORMAT_AMR_WB),
     STRING_TO_ENUM(AUDIO_FORMAT_AC3),
     STRING_TO_ENUM(AUDIO_FORMAT_E_AC3),
+#if 0
 #ifdef AUDIO_EXTN_FORMATS_ENABLED
     STRING_TO_ENUM(AUDIO_FORMAT_DTS),
     STRING_TO_ENUM(AUDIO_FORMAT_WMA),
@@ -133,6 +136,7 @@ const struct string_to_enum s_format_name_to_enum_table[] = {
     STRING_TO_ENUM(AUDIO_FORMAT_AAC_SUB_LC),
     STRING_TO_ENUM(AUDIO_FORMAT_AAC_SUB_HE_V1),
     STRING_TO_ENUM(AUDIO_FORMAT_AAC_SUB_HE_V2),
+#endif
 #endif
 };
 
