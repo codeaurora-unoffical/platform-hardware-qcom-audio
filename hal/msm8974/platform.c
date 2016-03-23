@@ -319,7 +319,7 @@ static int pcm_device_table[AUDIO_USECASE_MAX][2] = {
                                         AFE_PROXY_RECORD_PCM_DEVICE},
     [USECASE_AUDIO_PLAYBACK_DRIVER_SIDE] = {MULTIMEDIA2_PCM_DEVICE,
                                             MULTIMEDIA2_PCM_DEVICE},
-    [USECASE_ICC_CALL] = {MULTIMEDIA6_PCM_DEVICE, MULTIMEDIA6_PCM_DEVICE},
+    [USECASE_ICC_CALL] = {ICC_PCM_DEVICE, ICC_PCM_DEVICE},
 
 };
 
