@@ -155,7 +155,17 @@ static int32_t start_hfp(struct audio_device *adev,
     select_devices(adev, hfpmod.ucid);
 
     pcm_dev_rx_id = platform_get_pcm_device_id(uc_info->id, PCM_PLAYBACK);
+
+    if(((strcmp(adev->hw_platfom_name, "Dragon") == 0) && (adev->hw_platfom_soc_id == 291)) ||
+       ((strcmp(adev->hw_platfom_name, "Surf") == 0) && (adev->hw_platfom_soc_id == 310)))
+    {
+       pcm_dev_rx_id = 58;
+    }
+
+    ALOGD("%s: pcm_dev_rx_id %d", __func__, pcm_dev_rx_id);
+
     pcm_dev_tx_id = platform_get_pcm_device_id(uc_info->id, PCM_CAPTURE);
+
     pcm_dev_asm_rx_id = HFP_ASM_RX_TX;
     pcm_dev_asm_tx_id = HFP_ASM_RX_TX;
     if (pcm_dev_rx_id < 0 || pcm_dev_tx_id < 0 ||
