@@ -47,6 +47,7 @@ struct a2dp_data{
     struct audio_hw_device *a2dp_device;
     bool a2dp_started;
     bool a2dp_suspended;
+    int  a2dp_total_active_session_request;
 };
 
 struct a2dp_data a2dp;
@@ -155,7 +156,8 @@ void audio_extn_a2dp_start_playback()
     int ret = 0;
     char buf[20]={0};
 
-    if (!a2dp.a2dp_started && a2dp.a2dp_device && a2dp.a2dp_stream) {
+    if (!a2dp.a2dp_started && a2dp.a2dp_device && a2dp.a2dp_stream
+         && !a2dp.a2dp_total_active_session_request) {
 
          snprintf(buf,sizeof(buf),"%s=true",AUDIO_PARAMETER_A2DP_STARTED);
         /* This call indicates BT HAL to start playback */
@@ -168,6 +170,12 @@ void audio_extn_a2dp_start_playback()
            ALOGV("Start playback successful to BT HAL");
         }
     }
+
+    if (a2dp.a2dp_started)
+        a2dp.a2dp_total_active_session_request++;
+
+    ALOGD("start A2DP playback total active sessions :%d",
+          a2dp.a2dp_total_active_session_request);
 }
 
 void audio_extn_a2dp_stop_playback()
@@ -175,7 +183,11 @@ void audio_extn_a2dp_stop_playback()
     int ret =0;
     char buf[20]={0};
 
-    if ( a2dp.a2dp_started && a2dp.a2dp_device && a2dp.a2dp_stream) {
+    if ( a2dp.a2dp_started && (a2dp.a2dp_total_active_session_request > 0))
+        a2dp.a2dp_total_active_session_request--;
+
+    if ( a2dp.a2dp_started && a2dp.a2dp_device && a2dp.a2dp_stream
+         && !a2dp.a2dp_total_active_session_request) {
 
        snprintf(buf,sizeof(buf),"%s=false",AUDIO_PARAMETER_A2DP_STARTED);
 
@@ -187,8 +199,13 @@ void audio_extn_a2dp_stop_playback()
             ALOGV("out_standby to BT HAL successful");
 
     }
-    a2dp.a2dp_started = false;
-    a2dp.a2dp_suspended = true;
+    if(!a2dp.a2dp_total_active_session_request) {
+       a2dp.a2dp_started = false;
+       a2dp.a2dp_suspended = true;
+    }
+
+    ALOGD("Stop A2DP playback total active sessions :%d",
+          a2dp.a2dp_total_active_session_request);
 }
 
 void audio_extn_a2dp_init ()
@@ -197,5 +214,6 @@ void audio_extn_a2dp_init ()
   a2dp.a2dp_suspended = true;
   a2dp.a2dp_stream = NULL;
   a2dp.a2dp_device = NULL;
+  a2dp.a2dp_total_active_session_request = 0;
 }
 #endif // SPLIT_A2DP_ENABLED
