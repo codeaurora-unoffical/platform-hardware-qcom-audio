@@ -46,7 +46,6 @@ struct a2dp_data{
     struct audio_stream_out *a2dp_stream;
     struct audio_hw_device *a2dp_device;
     bool a2dp_started;
-    bool a2dp_suspended;
     int  a2dp_total_active_session_request;
 };
 
@@ -91,7 +90,6 @@ static int open_a2dp_output()
         ALOGE("Failed to open output stream for a2dp: status %d", rc);
     }
 
-    a2dp.a2dp_suspended = false;
     return rc;
 }
 
@@ -107,7 +105,7 @@ static int close_a2dp_output()
     a2dp.a2dp_device->close_output_stream(a2dp.a2dp_device, a2dp.a2dp_stream);
     a2dp.a2dp_stream = NULL;
     a2dp.a2dp_started = false;
-    a2dp.a2dp_suspended = true;
+    a2dp.a2dp_total_active_session_request = 0;
 
     return 0;
 }
@@ -142,11 +140,6 @@ void audio_extn_a2dp_set_parameters(struct str_parms *parms)
      if (ret >= 0) {
          if (a2dp.a2dp_device && a2dp.a2dp_stream) {
              a2dp.a2dp_device->set_parameters(a2dp.a2dp_device, str_parms_to_str(parms));
-             if (!strncmp(value,"true",sizeof(value))) {
-                 a2dp.a2dp_suspended = true;
-             } else {
-                 a2dp.a2dp_suspended = false;
-             }
          }
      }
 }
@@ -201,7 +194,6 @@ void audio_extn_a2dp_stop_playback()
     }
     if(!a2dp.a2dp_total_active_session_request) {
        a2dp.a2dp_started = false;
-       a2dp.a2dp_suspended = true;
     }
 
     ALOGD("Stop A2DP playback total active sessions :%d",
@@ -211,7 +203,6 @@ void audio_extn_a2dp_stop_playback()
 void audio_extn_a2dp_init ()
 {
   a2dp.a2dp_started = false;
-  a2dp.a2dp_suspended = true;
   a2dp.a2dp_stream = NULL;
   a2dp.a2dp_device = NULL;
   a2dp.a2dp_total_active_session_request = 0;
