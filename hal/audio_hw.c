@@ -1025,17 +1025,8 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
     usecase->in_snd_device = in_snd_device;
     usecase->out_snd_device = out_snd_device;
 
-    if (usecase->type == PCM_PLAYBACK) {
-        audio_extn_utils_update_stream_app_type_cfg(adev->platform,
-                                                &adev->streams_output_cfg_list,
-                                                usecase->stream.out->devices,
-                                                usecase->stream.out->flags,
-                                                usecase->stream.out->format,
-                                                usecase->stream.out->sample_rate,
-                                                usecase->stream.out->bit_width,
-                                                &usecase->stream.out->app_type_cfg);
-        ALOGI("%s Selected apptype: %d", __func__, usecase->stream.out->app_type_cfg.app_type);
-    }
+    audio_extn_utils_update_stream_app_type_cfg_for_usecase(adev,
+                                                            usecase);
 
     enable_audio_route(adev, usecase);
 
@@ -3185,7 +3176,7 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
     /* TODO remove this hardcoding and check why width is zero*/
     if (out->bit_width == 0)
         out->bit_width = 16;
-    audio_extn_utils_update_stream_app_type_cfg(adev->platform,
+    audio_extn_utils_update_stream_output_app_type_cfg(adev->platform,
                                                 &adev->streams_output_cfg_list,
                                                 devices, flags, format, out->sample_rate,
                                                 out->bit_width, &out->app_type_cfg);
@@ -3593,7 +3584,8 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
     if (adev->vad_stream_running)
     {
       *stream_in = &adev->vad_stream->stream;
-      ALOGD("%s: VAD Stream running. Returning VAD stream 0x%08x. exit", __func__, &adev->vad_stream->stream);
+      ALOGD("%s: VAD Stream running. Returning VAD stream 0x%08x. exit",
+          __func__, &adev->vad_stream->stream);
       return ret;
     }
 
@@ -3707,6 +3699,15 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
         }
     }
 
+    in->sample_rate = config->sample_rate;
+    if (in->bit_width == 0) {
+        in->bit_width = 16;
+    }
+    audio_extn_utils_update_stream_input_app_type_cfg(adev->platform,
+                                                &adev->streams_input_cfg_list,
+                                                devices, flags, in->format, in->sample_rate,
+                                                in->bit_width, &in->app_type_cfg);
+
     /* This stream could be for sound trigger lab,
        get sound trigger pcm if present */
     audio_extn_sound_trigger_check_and_get_session(in);
@@ -3779,7 +3780,8 @@ static int adev_close(hw_device_t *device)
         audio_extn_vad_deinit();
         audio_extn_sound_trigger_deinit(adev);
         audio_extn_listen_deinit(adev);
-        audio_extn_utils_release_streams_output_cfg_list(&adev->streams_output_cfg_list);
+        audio_extn_utils_release_streams_cfg_list(&adev->streams_output_cfg_list,
+                                                  &adev->streams_input_cfg_list);
         audio_route_free(adev->audio_route);
         free(adev->snd_dev_ref_cnt);
         platform_deinit(adev->platform);
@@ -4002,8 +4004,9 @@ static int adev_open(const hw_module_t *module, const char *name,
     audio_extn_ds2_enable(adev);
     *device = &adev->device.common;
 
-    audio_extn_utils_update_streams_output_cfg_list(adev->platform, adev->mixer,
-                                                    &adev->streams_output_cfg_list);
+    audio_extn_utils_update_streams_cfg_list(adev->platform, adev->mixer,
+                                             &adev->streams_output_cfg_list,
+                                             &adev->streams_input_cfg_list);
 
     audio_device_ref_count++;
 

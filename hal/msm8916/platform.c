@@ -1912,6 +1912,14 @@ int platform_get_default_app_type(void *platform)
         return DEFAULT_APP_TYPE;
 }
 
+int platform_get_default_app_type_v2(void *platform, usecase_type_t  type)
+{
+    if(type == PCM_CAPTURE)
+        return DEFAULT_APP_TYPE_TX_PATH;
+    else
+        return DEFAULT_APP_TYPE_RX_PATH;
+}
+
 int platform_get_snd_device_acdb_id(snd_device_t snd_device)
 {
     if ((snd_device < SND_DEVICE_MIN) || (snd_device >= SND_DEVICE_MAX)) {
@@ -2093,8 +2101,22 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
     return 0;
 }
 
+int platform_get_usecase_acdb_id(void *platform,
+                                 struct audio_usecase *usecase,
+                                 int capability)
+{
+    ALOGE("%s: Not implemented", __func__);
+    return -ENOSYS;
+}
+
 int platform_send_audio_calibration_for_usecase(void *platform __unused,
                                                 struct audio_usecase *usecase __unused)
+{
+    ALOGE("%s: Not implemented", __func__);
+    return -ENOSYS;
+}
+
+bool platform_get_eccarstate(void *platform)
 {
     ALOGE("%s: Not implemented", __func__);
     return -ENOSYS;

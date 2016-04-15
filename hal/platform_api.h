@@ -45,9 +45,13 @@ int platform_get_native_support();
 int platform_get_backend_index(snd_device_t snd_device);
 int platform_send_audio_calibration(void *platform, struct audio_usecase *usecase,
                                     int app_type, int sample_rate);
+int platform_get_usecase_acdb_id(void *platform,
+                                 struct audio_usecase *usecase,
+                                 int capability);
 int platform_send_audio_calibration_for_usecase(void *platform,
                                                 struct audio_usecase *usecase);
 int platform_get_default_app_type(void *platform);
+int platform_get_default_app_type_v2(void *platform, usecase_type_t type);
 int platform_switch_voice_call_device_pre(void *platform);
 int platform_switch_voice_call_enable_device_config(void *platform,
                                                     snd_device_t out_snd_device,
@@ -124,4 +128,5 @@ int platform_set_audio_device_interface(const char * device_name, const char *in
                                         const char * codec_type);
 void platform_set_gsm_mode(void *platform, bool enable);
 int platform_hal_plugin_enable(void *platform, struct stream_out *out, bool enable);
+bool platform_get_eccarstate(void *platform);
 #endif // AUDIO_PLATFORM_API_H
