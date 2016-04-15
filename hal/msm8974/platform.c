@@ -99,7 +99,8 @@
 #define EDID_FORMAT_LPCM    1
 
 /* fallback app type if the default app type from acdb loader fails */
-#define DEFAULT_APP_TYPE  0x11130
+#define DEFAULT_APP_TYPE_RX_PATH  0x11130
+#define DEFAULT_APP_TYPE_TX_PATH  0x11132
 
 /* Retry for delay in FW loading*/
 #define RETRY_NUMBER 10
@@ -136,8 +137,8 @@ char cal_name_info[WCD9XXX_MAX_CAL][MAX_CAL_NAME] = {
 };
 
 enum {
-	VOICE_FEATURE_SET_DEFAULT,
-	VOICE_FEATURE_SET_VOLUME_BOOST
+    VOICE_FEATURE_SET_DEFAULT,
+    VOICE_FEATURE_SET_VOLUME_BOOST
 };
 
 struct audio_block_header
@@ -279,7 +280,9 @@ static int pcm_device_table[AUDIO_USECASE_MAX][2] = {
                                   MULTIMEDIA2_PCM_DEVICE},
     [USECASE_AUDIO_PLAYBACK_FM] = {FM_PLAYBACK_PCM_DEVICE, FM_CAPTURE_PCM_DEVICE},
     [USECASE_AUDIO_HFP_SCO] = {HFP_PCM_RX, HFP_SCO_RX},
+    [USECASE_AUDIO_HFP_SCO_LINK] = {HFP_ASM_RX_TX, HFP_ASM_RX_TX},
     [USECASE_AUDIO_HFP_SCO_WB] = {HFP_PCM_RX, HFP_SCO_RX},
+    [USECASE_AUDIO_HFP_SCO_LINK_WB] = {HFP_ASM_RX_TX, HFP_ASM_RX_TX},
     [USECASE_VOICE_CALL] = {VOICE_CALL_PCM_DEVICE, VOICE_CALL_PCM_DEVICE},
     [USECASE_VOICE2_CALL] = {VOICE2_CALL_PCM_DEVICE, VOICE2_CALL_PCM_DEVICE},
     [USECASE_VOLTE_CALL] = {VOLTE_CALL_PCM_DEVICE, VOLTE_CALL_PCM_DEVICE},
@@ -1823,7 +1826,16 @@ int platform_get_default_app_type(void *platform)
     if (my_data->acdb_get_default_app_type)
         return my_data->acdb_get_default_app_type();
     else
-        return DEFAULT_APP_TYPE;
+        return DEFAULT_APP_TYPE_RX_PATH;
+}
+
+int platform_get_default_app_type_v2(void *platform, usecase_type_t type)
+{
+    ALOGV("%s: platform: %p, type: %d", __func__, platform, type);
+    if (type == PCM_CAPTURE)
+        return DEFAULT_APP_TYPE_TX_PATH;
+    else
+        return DEFAULT_APP_TYPE_RX_PATH;
 }
 
 int platform_get_snd_device_acdb_id(snd_device_t snd_device)
@@ -2005,21 +2017,65 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
     return 0;
 }
 
-int platform_send_audio_calibration_for_usecase(void *platform,
-                                                struct audio_usecase *usecase)
+int platform_get_usecase_acdb_id(void *platform,
+                                 struct audio_usecase *usecase,
+                                 int capability)
 {
     struct platform_data *my_data = (struct platform_data *)platform;
-    int acdb_dev_id;
-    int acdb_ec_dev_id = 0;
-    int ret = 0;
+    int acdb_dev_id = 0;
 
-    if ((usecase->type == VOICE_CALL) || (usecase->type == VOIP_CALL)) {
-        ALOGV("%s: by-passing audio calibration for usecase(%d)",
-              __func__, usecase->id);
-        return ret;
-    }
-
-    if ((usecase->type == PCM_PLAYBACK) || (usecase->type == PCM_HFP_CALL) || (usecase->type == ICC_CALL)) {
+    switch(usecase->type) {
+    case VOICE_CALL:
+    case VOIP_CALL:
+        switch (usecase->id) {
+        case USECASE_VOICE_CALL:
+        case USECASE_VOICE2_CALL:
+        case USECASE_VOLTE_CALL:
+        case USECASE_QCHAT_CALL:
+        case USECASE_VOWLAN_CALL:
+        case USECASE_VOICEMMODE1_CALL:
+        case USECASE_VOICEMMODE2_CALL:
+        case USECASE_COMPRESS_VOIP_CALL:
+            if (capability == ACDB_DEV_TYPE_IN)
+                acdb_dev_id = 95;
+            else
+                acdb_dev_id = 94;
+            break;
+        default:
+            ALOGE("%s: no acdb id supported for usecase id (%d)",
+                __func__, usecase->id);
+            return -EINVAL;
+        }
+        break;
+    case PCM_HFP_CALL:
+        switch (usecase->id) {
+        case USECASE_AUDIO_HFP_SCO:
+            if (capability == ACDB_DEV_TYPE_IN) {
+                if (my_data->ec_car_state)
+                    acdb_dev_id = 12;
+                else
+                    acdb_dev_id = 11;
+            } else
+                /* calibration device is PRI_PCM_RX */
+                acdb_dev_id = 21;
+            break;
+        case USECASE_AUDIO_HFP_SCO_WB:
+            if (capability == ACDB_DEV_TYPE_IN) {
+                if (my_data->ec_car_state)
+                    acdb_dev_id = 12;
+                else
+                    acdb_dev_id = 11;
+            } else
+                /* calibration device is PRI_PCM_RX */
+                acdb_dev_id = 39;
+            break;
+        default:
+            ALOGE("%s: no acdb id supported for usecase id (%d)",
+                __func__, usecase->id);
+            return -EINVAL;
+        }
+        break;
+    case PCM_PLAYBACK:
         switch (usecase->id) {
         case USECASE_AUDIO_PLAYBACK_DEEP_BUFFER:
         case USECASE_AUDIO_PLAYBACK_LOW_LATENCY:
@@ -2042,72 +2098,120 @@ int platform_send_audio_calibration_for_usecase(void *platform,
         case USECASE_AUDIO_PLAYBACK_DRIVER_SIDE:
             acdb_dev_id = 14;
             break;
-        case USECASE_AUDIO_HFP_SCO:
-        case USECASE_AUDIO_HFP_SCO_WB:
-            acdb_dev_id = 15;
-            break;
-        case USECASE_ICC_CALL:
-            acdb_dev_id = 16;
-            break;
         default:
-            ALOGE("%s: audio calibration not supported for usecase(%d)",
-                  __func__, usecase->id);
-            ret = -EINVAL;
-            break;
+            ALOGE("%s: no acdb id supported for usecase id (%d)",
+                __func__, usecase->id);
+            return -EINVAL;
         }
-
-        if ((ret == 0) && (my_data->acdb_send_audio_cal)) {
-            struct stream_out *out = usecase->stream.out;
-            ALOGV("%s: sending audio calibration for usecase(%d) acdb_id(%d)",
-                  __func__, usecase->id, acdb_dev_id);
-            my_data->acdb_send_audio_cal(acdb_dev_id, ACDB_DEV_TYPE_OUT,
-                                         out->app_type_cfg.app_type,
-                                         out->app_type_cfg.sample_rate);
-        }
-    }
-
-    if ((usecase->type == PCM_CAPTURE) || (usecase->type == PCM_HFP_CALL) || (usecase->type == ICC_CALL)) {
+        break;
+    case PCM_CAPTURE:
         switch (usecase->id) {
         case USECASE_AUDIO_RECORD:
         case USECASE_AUDIO_RECORD_COMPRESS:
         case USECASE_AUDIO_RECORD_LOW_LATENCY:
-        case USECASE_AUDIO_HFP_SCO:
-        case USECASE_AUDIO_HFP_SCO_WB:
-            {
-                if (my_data->ec_car_state) {
-                    acdb_dev_id = 12;
-                    acdb_ec_dev_id = 100;
-                }
-                else {
-                    acdb_dev_id = 11;
-                    acdb_ec_dev_id = 100;
-                }
-                break;
-            }
-        case USECASE_ICC_CALL:
-            acdb_dev_id = 13;
+            if (my_data->ec_car_state)
+                acdb_dev_id = 12;
+            else
+                acdb_dev_id = 11;
             break;
         default:
-            ALOGE("%s: audio calibration not supported for usecase(%d)",
+            ALOGE("%s: no acdb id supported for usecase id (%d)",
                 __func__, usecase->id);
-            ret = -EINVAL;
-            break;
+            return -EINVAL;
         }
+        break;
+    case ICC_CALL:
+        switch (usecase->id) {
+        case USECASE_ICC_CALL:
+            if (capability == ACDB_DEV_TYPE_IN)
+                acdb_dev_id = 13;
+            else
+                acdb_dev_id = 16;
+            break;
+        default:
+            ALOGE("%s: no acdb id supported for usecase id (%d)",
+                __func__, usecase->id);
+            return -EINVAL;
+        }
+        break;
+    default:
+        ALOGE("%s: no acdb id supported for usecase type (%d)",
+            __func__, usecase->type);
+        return -EINVAL;
+    }
 
-        if ((ret == 0) && (my_data->acdb_send_audio_cal)) {
+    return acdb_dev_id;
+}
+
+int platform_send_audio_calibration_for_usecase(void *platform,
+                                                struct audio_usecase *usecase)
+{
+    struct platform_data *my_data = (struct platform_data *)platform;
+    int acdb_dev_id = 0;
+    int acdb_ec_dev_id = 100;
+    int ret = 0;
+
+    if ((usecase->type == VOICE_CALL) || (usecase->type == VOIP_CALL)) {
+        ALOGV("%s: by-passing audio calibration for usecase(%d)",
+              __func__, usecase->id);
+        return ret;
+    }
+
+    if ((usecase->type == PCM_PLAYBACK) && (my_data->acdb_send_audio_cal)) {
+        acdb_dev_id = platform_get_usecase_acdb_id(platform, usecase,
+                                                   ACDB_DEV_TYPE_OUT);
+        if ((acdb_dev_id > 0) && (usecase->stream.out)) {
+            ALOGV("%s: sending audio calibration for usecase(%d) acdb_id(%d)",
+                  __func__, usecase->id, acdb_dev_id);
+            my_data->acdb_send_audio_cal(acdb_dev_id, ACDB_DEV_TYPE_OUT,
+                                         usecase->stream.out->app_type_cfg.app_type,
+                                         usecase->stream.out->app_type_cfg.sample_rate);
+        }
+    } else if ((usecase->type == PCM_CAPTURE) && (my_data->acdb_send_audio_cal)) {
+        acdb_dev_id = platform_get_usecase_acdb_id(platform, usecase,
+                                                   ACDB_DEV_TYPE_IN);
+        if ((acdb_dev_id > 0) && (usecase->stream.in)) {
             if (my_data->ec_car_state) {
                 ALOGV("%s: sending audio calibration for usecase(%d) acdb_id(%d)",
                       __func__, usecase->id, acdb_ec_dev_id);
                 my_data->acdb_send_audio_cal(acdb_ec_dev_id, ACDB_DEV_TYPE_IN,
-                                             platform_get_default_app_type(platform),
-                                             48000);
+                                             usecase->stream.in->app_type_cfg.app_type,
+                                             usecase->stream.in->app_type_cfg.sample_rate);
             }
-
             ALOGV("%s: sending audio calibration for usecase(%d) acdb_id(%d)",
                   __func__, usecase->id, acdb_dev_id);
             my_data->acdb_send_audio_cal(acdb_dev_id, ACDB_DEV_TYPE_IN,
-                                         platform_get_default_app_type(platform),
-                                         48000);
+                                         usecase->stream.in->app_type_cfg.app_type,
+                                         usecase->stream.in->app_type_cfg.sample_rate);
+        }
+    } else if (((usecase->type == PCM_HFP_CALL) || (usecase->type == ICC_CALL)) &&
+        (my_data->acdb_send_audio_cal)) {
+        /* calibrate rx */
+        acdb_dev_id = platform_get_usecase_acdb_id(platform, usecase,
+                                                   ACDB_DEV_TYPE_OUT);
+        if (acdb_dev_id > 0) {
+            ALOGV("%s: sending audio calibration for usecase(%d) acdb_id(%d)",
+                  __func__, usecase->id, acdb_dev_id);
+            my_data->acdb_send_audio_cal(acdb_dev_id, ACDB_DEV_TYPE_OUT,
+                                         usecase->out_app_type_cfg.app_type,
+                                         usecase->out_app_type_cfg.sample_rate);
+        }
+        /* calibrate tx */
+        acdb_dev_id = platform_get_usecase_acdb_id(platform, usecase,
+                                                   ACDB_DEV_TYPE_IN);
+        if (acdb_dev_id > 0) {
+            if (my_data->ec_car_state) {
+                ALOGV("%s: sending audio calibration for usecase(%d) acdb_id(%d)",
+                      __func__, usecase->id, acdb_ec_dev_id);
+                my_data->acdb_send_audio_cal(acdb_ec_dev_id, ACDB_DEV_TYPE_IN,
+                                             usecase->in_app_type_cfg.app_type,
+                                             usecase->in_app_type_cfg.sample_rate);
+            }
+            ALOGV("%s: sending audio calibration for usecase(%d) acdb_id(%d)",
+                  __func__, usecase->id, acdb_dev_id);
+            my_data->acdb_send_audio_cal(acdb_dev_id, ACDB_DEV_TYPE_IN,
+                                         usecase->in_app_type_cfg.app_type,
+                                         usecase->in_app_type_cfg.sample_rate);
         }
     }
 
@@ -2997,8 +3101,13 @@ static int platform_set_eccarstate(struct platform_data *my_data,bool state)
     int ret = 0;
     ALOGE("Setting EC Car state: %d", state);
     my_data->ec_car_state = state;
-	
     return ret;
+}
+
+bool platform_get_eccarstate(void *platform)
+{
+    struct platform_data *my_data = (struct platform_data *)platform;
+    return my_data->ec_car_state;
 }
 
 static int update_external_device_status(struct platform_data *my_data,

@@ -478,6 +478,12 @@ int platform_get_default_app_type(void *platform __unused)
     return -ENOSYS;
 }
 
+int platform_get_default_app_type_v2(void *platform, usecase_type_t type)
+{
+    ALOGE("%s: Not implemented", __func__);
+    return -ENOSYS;
+}
+
 int platform_send_audio_calibration(void *platform, struct audio_usecase *usecase,
                                     int app_type __unused, int sample_rate __unused)
 {
@@ -511,8 +517,22 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
     return 0;
 }
 
+int platform_get_usecase_acdb_id(void *platform,
+                                 struct audio_usecase *usecase,
+                                 int capability)
+{
+    ALOGE("%s: Not implemented", __func__);
+    return -ENOSYS;
+}
+
 int platform_send_audio_calibration_for_usecase(void *platform __unused,
                                                 struct audio_usecase *usecase __unused)
+{
+    ALOGE("%s: Not implemented", __func__);
+    return -ENOSYS;
+}
+
+bool platform_get_eccarstate(void *platform)
 {
     ALOGE("%s: Not implemented", __func__);
     return -ENOSYS;

@@ -41,9 +41,10 @@
 #endif
 #endif
 
-#define AUDIO_OUTPUT_POLICY_VENDOR_CONFIG_FILE "/vendor/etc/audio_output_policy.conf"
+#define AUDIO_IO_POLICY_VENDOR_CONFIG_FILE "/vendor/etc/audio_io_policy.conf"
 
 #define OUTPUTS_TAG "outputs"
+#define INPUTS_TAG "inputs"
 
 #define DYNAMIC_VALUE_TAG "dynamic"
 #define FLAGS_TAG "flags"
@@ -97,6 +98,14 @@ const struct string_to_enum s_flag_name_to_enum_table[] = {
 #endif
 #ifdef DRIVER_SIDE_PLAYBACK_ENABLED
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_DRIVER_SIDE),
+#endif
+    STRING_TO_ENUM(AUDIO_INPUT_FLAG_NONE),
+    STRING_TO_ENUM(AUDIO_INPUT_FLAG_FAST),
+    STRING_TO_ENUM(AUDIO_INPUT_FLAG_HW_HOTWORD),
+    STRING_TO_ENUM(AUDIO_INPUT_FLAG_RAW),
+    STRING_TO_ENUM(AUDIO_INPUT_FLAG_SYNC),
+#ifdef ICC_ENABLED
+    STRING_TO_ENUM(AUDIO_INPUT_FLAG_ICC),
 #endif
 };
 
@@ -251,8 +260,8 @@ static int parse_app_type_names(void *platform, char *name)
     return app_type;
 }
 
-static void update_streams_output_cfg_list(cnode *root, void *platform,
-                                           struct listnode *streams_output_cfg_list)
+static void update_streams_cfg_list(cnode *root, void *platform,
+                                    struct listnode *streams_cfg_list)
 {
     cnode *node = root->first_child;
     struct streams_output_cfg *so_info;
@@ -280,28 +289,41 @@ static void update_streams_output_cfg_list(cnode *root, void *platform,
         }
         node = node->next;
     }
-    list_add_tail(streams_output_cfg_list, &so_info->list);
+    list_add_tail(streams_cfg_list, &so_info->list);
 }
 
-static void load_output(cnode *root, void *platform,
-                        struct listnode *streams_output_cfg_list)
+static void load_cfg_list(cnode *root, void *platform,
+                          struct listnode *streams_output_cfg_list,
+                          struct listnode *streams_input_cfg_list)
 {
-    cnode *node = config_find(root, OUTPUTS_TAG);
-    if (node == NULL) {
-        ALOGE("%s: could not load output, node is NULL", __func__);
-        return;
-    }
+    cnode *node = NULL;
 
-    node = node->first_child;
-    while (node) {
-        ALOGV("%s: loading output %s", __func__, node->name);
-        update_streams_output_cfg_list(node, platform, streams_output_cfg_list);
-        node = node->next;
-    }
+    node = config_find(root, OUTPUTS_TAG);
+    if (node != NULL) {
+        node = node->first_child;
+        while (node) {
+            ALOGV("%s: loading output %s", __func__, node->name);
+            update_streams_cfg_list(node, platform, streams_output_cfg_list);
+            node = node->next;
+        }
+    } else
+        ALOGE("%s: could not load output, node is NULL", __func__);
+
+    node = config_find(root, INPUTS_TAG);
+    if (node != NULL) {
+        node = node->first_child;
+        while (node) {
+            ALOGV("%s: loading input %s", __func__, node->name);
+            update_streams_cfg_list(node, platform, streams_input_cfg_list);
+            node = node->next;
+        }
+    } else
+        ALOGE("%s: could not load input, node is NULL", __func__);
 }
 
 static void send_app_type_cfg(void *platform, struct mixer *mixer,
-                              struct listnode *streams_output_cfg_list)
+                              struct listnode *streams_output_cfg_list,
+                              struct listnode *streams_input_cfg_list)
 {
     int app_type_cfg[MAX_LENGTH_MIXER_CONTROL_IN_INT] = {-1};
     int length = 0, i, num_app_types = 0;
@@ -309,7 +331,8 @@ static void send_app_type_cfg(void *platform, struct mixer *mixer,
     bool update;
     struct mixer_ctl *ctl = NULL;
     const char *mixer_ctl_name = "App Type Config";
-    struct streams_output_cfg *so_info;
+    struct streams_output_cfg *so_info_out = NULL;
+    struct streams_input_cfg *so_info_in = NULL;
 
     if (!mixer) {
         ALOGE("%s: mixer is null",__func__);
@@ -320,9 +343,12 @@ static void send_app_type_cfg(void *platform, struct mixer *mixer,
         ALOGE("%s: Could not get ctl for mixer cmd - %s",__func__, mixer_ctl_name);
         return;
     }
-    if (streams_output_cfg_list == NULL) {
-        app_type_cfg[length++] = 1;
-        app_type_cfg[length++] = platform_get_default_app_type(platform);
+    if (streams_output_cfg_list == NULL && streams_input_cfg_list == NULL) {
+        app_type_cfg[length++] = 2;
+        app_type_cfg[length++] = platform_get_default_app_type_v2(platform, PCM_PLAYBACK);
+        app_type_cfg[length++] = 48000;
+        app_type_cfg[length++] = 16;
+        app_type_cfg[length++] = platform_get_default_app_type_v2(platform, PCM_CAPTURE);
         app_type_cfg[length++] = 48000;
         app_type_cfg[length++] = 16;
         mixer_ctl_set_array(ctl, app_type_cfg, length);
@@ -331,21 +357,39 @@ static void send_app_type_cfg(void *platform, struct mixer *mixer,
 
     app_type_cfg[length++] = num_app_types;
     list_for_each(node, streams_output_cfg_list) {
-        so_info = node_to_item(node, struct streams_output_cfg, list);
+        so_info_out = node_to_item(node, struct streams_output_cfg, list);
         update = true;
         for (i=0; i<length; i=i+3) {
             if (app_type_cfg[i+1] == -1)
                 break;
-            else if (app_type_cfg[i+1] == so_info->app_type_cfg.app_type) {
+            else if (app_type_cfg[i+1] == so_info_out->app_type_cfg.app_type) {
                 update = false;
                 break;
             }
         }
         if (update && ((length + 3) <= MAX_LENGTH_MIXER_CONTROL_IN_INT)) {
-            num_app_types += 1 ;
-            app_type_cfg[length++] = so_info->app_type_cfg.app_type;
-            app_type_cfg[length++] = so_info->app_type_cfg.sample_rate;
-            app_type_cfg[length++] = so_info->app_type_cfg.bit_width;
+            num_app_types += 1;
+            app_type_cfg[length++] = so_info_out->app_type_cfg.app_type;
+            app_type_cfg[length++] = so_info_out->app_type_cfg.sample_rate;
+            app_type_cfg[length++] = so_info_out->app_type_cfg.bit_width;
+        }
+    }
+    list_for_each(node, streams_input_cfg_list) {
+        so_info_in = node_to_item(node, struct streams_input_cfg, list);
+        update = true;
+        for (i=0; i<length; i=i+3) {
+            if (app_type_cfg[i+1] == -1)
+                break;
+            else if (app_type_cfg[i+1] == so_info_in->app_type_cfg.app_type) {
+                update = false;
+                break;
+            }
+        }
+        if (update && ((length + 3) <= MAX_LENGTH_MIXER_CONTROL_IN_INT)) {
+            num_app_types += 1;
+            app_type_cfg[length++] = so_info_in->app_type_cfg.app_type;
+            app_type_cfg[length++] = so_info_in->app_type_cfg.sample_rate;
+            app_type_cfg[length++] = so_info_in->app_type_cfg.bit_width;
         }
     }
     ALOGV("%s: num_app_types: %d", __func__, num_app_types);
@@ -355,21 +399,15 @@ static void send_app_type_cfg(void *platform, struct mixer *mixer,
     }
 }
 
-void audio_extn_utils_update_streams_output_cfg_list(void *platform,
-                                       struct mixer *mixer,
-                                       struct listnode *streams_output_cfg_list)
+void audio_extn_utils_update_streams_cfg_list(void *platform,
+                                    struct mixer *mixer,
+                                    struct listnode *streams_output_cfg_list,
+                                    struct listnode *streams_input_cfg_list)
 {
     cnode *root;
     char *data;
 
     ALOGV("%s", __func__);
-    list_init(streams_output_cfg_list);
-    data = (char *)load_file(AUDIO_OUTPUT_POLICY_VENDOR_CONFIG_FILE, NULL);
-    if (data == NULL) {
-        send_app_type_cfg(platform, mixer, NULL);
-        ALOGE("%s: could not load output policy config file", __func__);
-        return;
-    }
 
     root = config_node("", "");
     if (root == NULL) {
@@ -377,22 +415,32 @@ void audio_extn_utils_update_streams_output_cfg_list(void *platform,
         return;
     }
 
-    config_load(root, data);
-    load_output(root, platform, streams_output_cfg_list);
+    data = (char *)load_file(AUDIO_IO_POLICY_VENDOR_CONFIG_FILE, NULL);
+    if (data == NULL) {
+        send_app_type_cfg(platform, mixer, NULL, NULL);
+        ALOGE("%s: could not load io policy config file", __func__);
+        return;
+    }
 
-    send_app_type_cfg(platform, mixer, streams_output_cfg_list);
+    list_init(streams_output_cfg_list);
+    list_init(streams_input_cfg_list);
+    config_load(root, data);
+    load_cfg_list(root, platform, streams_output_cfg_list,
+                                  streams_input_cfg_list);
+
+    send_app_type_cfg(platform, mixer, streams_output_cfg_list,
+                                       streams_input_cfg_list);
 }
 
-void audio_extn_utils_dump_streams_output_cfg_list(
-                                       struct listnode *streams_output_cfg_list)
+static void audio_extn_utils_dump_streams_cfg_list_ext(
+                                    struct listnode *streams_cfg_list)
 {
-    int i=0;
     struct listnode *node_i, *node_j;
     struct streams_output_cfg *so_info;
     struct stream_format *sf_info;
     struct stream_sample_rate *ss_info;
-    ALOGV("%s", __func__);
-    list_for_each(node_i, streams_output_cfg_list) {
+
+    list_for_each(node_i, streams_cfg_list) {
         so_info = node_to_item(node_i, struct streams_output_cfg, list);
         ALOGV("%s: flags-%d, output_sample_rate-%d, output_bit_width-%d, app_type-%d",
                __func__, so_info->flags, so_info->app_type_cfg.sample_rate,
@@ -408,16 +456,23 @@ void audio_extn_utils_dump_streams_output_cfg_list(
     }
 }
 
-void audio_extn_utils_release_streams_output_cfg_list(
-                                       struct listnode *streams_output_cfg_list)
+void audio_extn_utils_dump_streams_cfg_list(
+                                    struct listnode *streams_output_cfg_list,
+                                    struct listnode *streams_input_cfg_list)
+{
+    ALOGV("%s", __func__);
+    audio_extn_utils_dump_streams_cfg_list_ext(streams_output_cfg_list);
+    audio_extn_utils_dump_streams_cfg_list_ext(streams_input_cfg_list);
+}
+
+static void audio_extn_utils_release_streams_cfg_list_ext(
+                                    struct listnode *streams_cfg_list)
 {
     struct listnode *node_i, *node_j;
     struct streams_output_cfg *so_info;
-    struct stream_format *sf_info;
 
-    ALOGV("%s", __func__);
-    while (!list_empty(streams_output_cfg_list)) {
-        node_i = list_head(streams_output_cfg_list);
+    while (!list_empty(streams_cfg_list)) {
+        node_i = list_head(streams_cfg_list);
         so_info = node_to_item(node_i, struct streams_output_cfg, list);
         while (!list_empty(&so_info->format_list)) {
             node_j = list_head(&so_info->format_list);
@@ -434,9 +489,18 @@ void audio_extn_utils_release_streams_output_cfg_list(
     }
 }
 
-static bool set_output_cfg(struct streams_output_cfg *so_info,
-                           struct stream_app_type_cfg *app_type_cfg,
-                           uint32_t sample_rate, uint32_t bit_width)
+void audio_extn_utils_release_streams_cfg_list(
+                                    struct listnode *streams_output_cfg_list,
+                                    struct listnode *streams_input_cfg_list)
+{
+    ALOGV("%s", __func__);
+    audio_extn_utils_release_streams_cfg_list_ext(streams_output_cfg_list);
+    audio_extn_utils_release_streams_cfg_list_ext(streams_input_cfg_list);
+}
+
+static bool set_app_type_cfg(struct streams_output_cfg *so_info,
+                    struct stream_app_type_cfg *app_type_cfg,
+                    uint32_t sample_rate, uint32_t bit_width)
  {
     struct listnode *node_i;
     struct stream_sample_rate *ss_info;
@@ -475,7 +539,42 @@ static bool set_output_cfg(struct streams_output_cfg *so_info,
     return false;
 }
 
-void audio_extn_utils_update_stream_app_type_cfg(void *platform,
+void audio_extn_utils_update_stream_input_app_type_cfg(void *platform,
+                                  struct listnode *streams_input_cfg_list,
+                                  audio_devices_t devices,
+                                  audio_input_flags_t flags,
+                                  audio_format_t format,
+                                  uint32_t sample_rate,
+                                  uint32_t bit_width,
+                                  struct stream_app_type_cfg *app_type_cfg)
+{
+    struct listnode *node_i, *node_j, *node_k;
+    struct streams_input_cfg *so_info;
+    struct stream_format *sf_info;
+    struct stream_sample_rate *ss_info;
+
+    ALOGV("%s: flags: %x, format: %x sample_rate %d",
+           __func__, flags, format, sample_rate);
+    list_for_each(node_i, streams_input_cfg_list) {
+        so_info = node_to_item(node_i, struct streams_input_cfg, list);
+        if (so_info->flags == flags) {
+            list_for_each(node_j, &so_info->format_list) {
+                sf_info = node_to_item(node_j, struct stream_format, list);
+                if (sf_info->format == format) {
+                    if (set_app_type_cfg((struct streams_output_cfg *)so_info,
+                                app_type_cfg, sample_rate, bit_width))
+                        return;
+                }
+            }
+        }
+    }
+    ALOGW("%s: App type could not be selected. Falling back to default", __func__);
+    app_type_cfg->app_type = platform_get_default_app_type_v2(platform, PCM_CAPTURE);
+    app_type_cfg->sample_rate = CODEC_BACKEND_DEFAULT_SAMPLE_RATE;
+    app_type_cfg->bit_width = 16;
+}
+
+void audio_extn_utils_update_stream_output_app_type_cfg(void *platform,
                                   struct listnode *streams_output_cfg_list,
                                   audio_devices_t devices,
                                   audio_output_flags_t flags,
@@ -506,7 +605,7 @@ void audio_extn_utils_update_stream_app_type_cfg(void *platform,
             list_for_each(node_j, &so_info->format_list) {
                 sf_info = node_to_item(node_j, struct stream_format, list);
                 if (sf_info->format == format) {
-                    if (set_output_cfg(so_info, app_type_cfg, sample_rate, bit_width))
+                    if (set_app_type_cfg(so_info, app_type_cfg, sample_rate, bit_width))
                         return;
                 }
             }
@@ -530,19 +629,122 @@ void audio_extn_utils_update_stream_app_type_cfg(void *platform,
     app_type_cfg->bit_width = 16;
 }
 
+void audio_extn_utils_update_stream_app_type_cfg_for_usecase(
+                                    struct audio_device *adev,
+                                    struct audio_usecase *usecase)
+{
+    int32_t sample_rate = CODEC_BACKEND_DEFAULT_SAMPLE_RATE;
+
+    ALOGV("%s", __func__);
+
+    switch(usecase->type) {
+    case PCM_PLAYBACK:
+        audio_extn_utils_update_stream_output_app_type_cfg(adev->platform,
+                                                &adev->streams_output_cfg_list,
+                                                usecase->stream.out->devices,
+                                                usecase->stream.out->flags,
+                                                usecase->stream.out->format,
+                                                usecase->stream.out->sample_rate,
+                                                usecase->stream.out->bit_width,
+                                                &usecase->stream.out->app_type_cfg);
+        ALOGV("%s Selected apptype: %d", __func__, usecase->stream.out->app_type_cfg.app_type);
+        break;
+    case PCM_CAPTURE:
+        if (platform_get_eccarstate(adev->platform)) {
+            sample_rate = 16000;
+            ALOGV("%s: Allowing EC Car State on input device at sampling rate: %d",
+                __func__, sample_rate);
+        } else
+            sample_rate = usecase->stream.in->sample_rate;
+        audio_extn_utils_update_stream_input_app_type_cfg(adev->platform,
+                                                &adev->streams_input_cfg_list,
+                                                usecase->stream.in->device,
+                                                usecase->stream.in->flags,
+                                                usecase->stream.in->format,
+                                                sample_rate,
+                                                usecase->stream.in->bit_width,
+                                                &usecase->stream.in->app_type_cfg);
+        ALOGV("%s Selected apptype: %d", __func__, usecase->stream.in->app_type_cfg.app_type);
+        break;
+    case PCM_HFP_CALL:
+        /* HFP usecase: ASM loopback from TDM_TX to PCM_RX
+           RX sample rate is different between HFP_SCO NB and WB */
+        switch (usecase->id) {
+        case USECASE_AUDIO_HFP_SCO:
+            usecase->out_app_type_cfg.sample_rate = 8000;
+            break;
+        case USECASE_AUDIO_HFP_SCO_WB:
+            usecase->out_app_type_cfg.sample_rate = 16000;
+            break;
+        default:
+            ALOGE("%s: usecase id (%d) not supported, use default",
+                __func__, usecase->id);
+            usecase->out_app_type_cfg.sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
+        }
+        /* update out_app_type_cfg */
+        usecase->out_app_type_cfg.bit_width = 16;
+        usecase->out_app_type_cfg.app_type = platform_get_default_app_type_v2(adev->platform, PCM_PLAYBACK);
+        /* update in_app_type_cfg */
+        if (platform_get_eccarstate(adev->platform)) {
+            sample_rate = 16000;
+            ALOGV("%s: Allowing EC Car State on input device at sampling rate: %d",
+                __func__, sample_rate);
+        } else
+            sample_rate = CODEC_BACKEND_DEFAULT_SAMPLE_RATE;
+        audio_extn_utils_update_stream_input_app_type_cfg(adev->platform,
+                                                &adev->streams_input_cfg_list,
+                                                AUDIO_DEVICE_IN_DEFAULT,
+                                                AUDIO_INPUT_FLAG_NONE,
+                                                AUDIO_FORMAT_PCM_16_BIT,
+                                                sample_rate,
+                                                16,
+                                                &usecase->in_app_type_cfg);
+        ALOGV("%s Selected apptype: playback %d capture %d",
+            __func__, usecase->out_app_type_cfg.app_type, usecase->in_app_type_cfg.app_type);
+        break;
+    case ICC_CALL:
+        /* ICC usecase: ASM loopback from TDM_TX to TDM RX */
+        /* update out_app_type_cfg */
+        usecase->out_app_type_cfg.sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
+        usecase->out_app_type_cfg.bit_width = 16;
+        usecase->out_app_type_cfg.app_type = platform_get_default_app_type_v2(adev->platform, PCM_PLAYBACK);
+        /* update in_app_type_cfg */
+        audio_extn_utils_update_stream_input_app_type_cfg(adev->platform,
+                                                &adev->streams_input_cfg_list,
+                                                AUDIO_DEVICE_IN_DEFAULT,
+#ifdef ICC_ENABLED
+                                                AUDIO_INPUT_FLAG_ICC,
+#else
+                                                AUDIO_INPUT_FLAG_NONE,
+#endif
+                                                AUDIO_FORMAT_PCM_16_BIT,
+                                                48000,
+                                                16,
+                                                &usecase->in_app_type_cfg);
+        ALOGV("%s Selected apptype: playback %d capture %d",
+            __func__, usecase->out_app_type_cfg.app_type, usecase->in_app_type_cfg.app_type);
+        break;
+    default:
+        ALOGE("%s: app type cfg not supported for usecase type (%d)",
+            __func__, usecase->type);
+    }
+}
+
 int audio_extn_utils_send_app_type_cfg(struct audio_device *adev,
                                        struct audio_usecase *usecase)
 {
     char mixer_ctl_name[MAX_LENGTH_MIXER_CONTROL_IN_INT];
     int app_type_cfg[MAX_LENGTH_MIXER_CONTROL_IN_INT], len = 0, rc;
     struct mixer_ctl *ctl;
-    int pcm_device_id, acdb_dev_id, snd_device = usecase->out_snd_device;
+    int pcm_device_id, acdb_dev_id = 0, snd_device = usecase->out_snd_device;
     int32_t sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
+    audio_usecase_t uc_id_link = USECASE_INVALID;
 
     ALOGV("%s", __func__);
 
-    if (usecase->type != PCM_PLAYBACK && usecase->type != PCM_CAPTURE) {
-        ALOGE("%s: not a playback or capture path, no need to cfg app type", __func__);
+    if (usecase->type != PCM_PLAYBACK && usecase->type != PCM_CAPTURE &&
+        usecase->type != PCM_HFP_CALL && usecase->type != ICC_CALL) {
+        ALOGE("%s: not a playback/capture/hfp/icc path, no need to cfg app type", __func__);
         rc = 0;
         goto exit_send_app_type_cfg;
     }
@@ -550,21 +752,52 @@ int audio_extn_utils_send_app_type_cfg(struct audio_device *adev,
         (usecase->id != USECASE_AUDIO_PLAYBACK_LOW_LATENCY) &&
         (usecase->id != USECASE_AUDIO_PLAYBACK_MULTI_CH) &&
         (!is_offload_usecase(usecase->id)) &&
-        (usecase->type != PCM_CAPTURE)) {
-        ALOGV("%s: a rx/tx path where app type cfg is not required %d", __func__, usecase->id);
+        (usecase->type != PCM_CAPTURE) &&
+        (usecase->id != USECASE_AUDIO_HFP_SCO) &&
+        (usecase->id != USECASE_AUDIO_HFP_SCO_WB) &&
+        (usecase->id != USECASE_ICC_CALL)) {
+        ALOGV("%s: a rx/tx/loopback path where app type cfg is not required %d", __func__, usecase->id);
         rc = 0;
         goto exit_send_app_type_cfg;
     }
+    /* For HFP or ICC, need to retrieve the pcm device id for the multimedia
+       frontend playback/capture/loopback session.
+       pcm device id and acdb device id for playback path is retrieved by default
+       for HFP or ICC. */
     if (usecase->type == PCM_PLAYBACK) {
         snd_device = usecase->out_snd_device;
         pcm_device_id = platform_get_pcm_device_id(usecase->id, PCM_PLAYBACK);
+        snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
+            "Audio Stream %d App Type Cfg", pcm_device_id);
+        acdb_dev_id = platform_get_usecase_acdb_id(adev->platform, usecase, ACDB_DEV_TYPE_OUT);
     } else if (usecase->type == PCM_CAPTURE) {
         snd_device = usecase->in_snd_device;
         pcm_device_id = platform_get_pcm_device_id(usecase->id, PCM_CAPTURE);
+        snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
+            "Audio Stream Capture %d App Type Cfg", pcm_device_id);
+        acdb_dev_id = platform_get_usecase_acdb_id(adev->platform, usecase, ACDB_DEV_TYPE_IN);
+    } else if (usecase->type == PCM_HFP_CALL) {
+        snd_device = usecase->out_snd_device;
+        if (usecase->id == USECASE_AUDIO_HFP_SCO)
+            uc_id_link = USECASE_AUDIO_HFP_SCO_LINK;
+        else if (usecase->id == USECASE_AUDIO_HFP_SCO_WB)
+            uc_id_link = USECASE_AUDIO_HFP_SCO_LINK_WB;
+        pcm_device_id = platform_get_pcm_device_id(uc_id_link, PCM_PLAYBACK);
+        snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
+            "Audio Stream %d App Type Cfg", pcm_device_id);
+        acdb_dev_id = platform_get_usecase_acdb_id(adev->platform, usecase, ACDB_DEV_TYPE_OUT);
+    } else if (usecase->type == ICC_CALL) {
+        snd_device = usecase->out_snd_device;
+        pcm_device_id = platform_get_pcm_device_id(usecase->id, PCM_PLAYBACK);
+        snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
+            "Audio Stream %d App Type Cfg", pcm_device_id);
+        acdb_dev_id = platform_get_usecase_acdb_id(adev->platform, usecase, ACDB_DEV_TYPE_OUT);
     }
-
-    snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
-             "Audio Stream %d App Type Cfg", pcm_device_id);
+    if (acdb_dev_id <= 0) {
+        ALOGE("%s: Couldn't get the acdb dev id", __func__);
+        rc = -EINVAL;
+        goto exit_send_app_type_cfg;
+    }
 
     ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
     if (!ctl) {
@@ -575,20 +808,14 @@ int audio_extn_utils_send_app_type_cfg(struct audio_device *adev,
     }
     snd_device = (snd_device == SND_DEVICE_OUT_SPEAKER) ?
                  audio_extn_get_spkr_prot_snd_device(snd_device) : snd_device;
-    acdb_dev_id = platform_get_snd_device_acdb_id(snd_device);
-    if (acdb_dev_id < 0) {
-        ALOGE("%s: Couldn't get the acdb dev id", __func__);
-        rc = -EINVAL;
-        goto exit_send_app_type_cfg;
-    }
 
     if ((usecase->type == PCM_PLAYBACK) && (usecase->stream.out == NULL)) {
-        sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
-        app_type_cfg[len++] = platform_get_default_app_type(adev->platform);
+        app_type_cfg[len++] = platform_get_default_app_type_v2(adev->platform, usecase->type);
         app_type_cfg[len++] = acdb_dev_id;
         app_type_cfg[len++] = sample_rate;
         ALOGI("%s PLAYBACK app_type %d, acdb_dev_id %d, sample_rate %d",
-              __func__, platform_get_default_app_type(adev->platform), acdb_dev_id, sample_rate);
+              __func__, platform_get_default_app_type_v2(adev->platform, usecase->type),
+              acdb_dev_id, sample_rate);
     } else if (usecase->type == PCM_PLAYBACK) {
         if ((24 == usecase->stream.out->bit_width) &&
             (usecase->stream.out->devices & AUDIO_DEVICE_OUT_SPEAKER)) {
@@ -614,12 +841,59 @@ int audio_extn_utils_send_app_type_cfg(struct audio_device *adev,
             app_type_cfg[len++] = sample_rate;
         ALOGI("%s PLAYBACK app_type %d, acdb_dev_id %d, sample_rate %d",
               __func__, usecase->stream.out->app_type_cfg.app_type, acdb_dev_id, sample_rate);
-    } else if (usecase->type == PCM_CAPTURE) {
-        app_type_cfg[len++] = platform_get_default_app_type(adev->platform);
+    } else if ((usecase->type == PCM_CAPTURE) && (usecase->stream.in == NULL)) {
+        if (platform_get_eccarstate(adev->platform)) {
+            sample_rate = 16000;
+            ALOGV("%s: Allowing EC Car State on input device at sampling rate: %d",
+                __func__, sample_rate);
+        }
+        app_type_cfg[len++] = platform_get_default_app_type_v2(adev->platform, usecase->type);
         app_type_cfg[len++] = acdb_dev_id;
         app_type_cfg[len++] = sample_rate;
         ALOGI("%s CAPTURE app_type %d, acdb_dev_id %d, sample_rate %d",
-           __func__, platform_get_default_app_type(adev->platform), acdb_dev_id, sample_rate);
+           __func__, platform_get_default_app_type_v2(adev->platform, usecase->type),
+           acdb_dev_id, sample_rate);
+    } else if (usecase->type == PCM_CAPTURE) {
+        app_type_cfg[len++] = usecase->stream.in->app_type_cfg.app_type;
+        app_type_cfg[len++] = acdb_dev_id;
+        app_type_cfg[len++] = usecase->stream.in->app_type_cfg.sample_rate;
+        ALOGI("%s CAPTURE app_type %d, acdb_dev_id %d, sample_rate %d",
+           __func__, usecase->stream.in->app_type_cfg.app_type, acdb_dev_id,
+           usecase->stream.in->app_type_cfg.sample_rate);
+    } else if ((usecase->type == PCM_HFP_CALL) || (usecase->type == ICC_CALL)) {
+        /* config playback path */
+        app_type_cfg[len++] = usecase->out_app_type_cfg.app_type;
+        app_type_cfg[len++] = acdb_dev_id;
+        app_type_cfg[len++] = usecase->out_app_type_cfg.sample_rate;
+        ALOGI("%s HFP/ICC PLAYBACK: app_type %d, acdb_dev_id %d, sample_rate %d",
+              __func__, usecase->out_app_type_cfg.app_type, acdb_dev_id,
+              usecase->out_app_type_cfg.sample_rate);
+        mixer_ctl_set_array(ctl, app_type_cfg, len);
+
+        /* config capture path */
+        len = 0;
+        acdb_dev_id = platform_get_usecase_acdb_id(adev->platform, usecase, ACDB_DEV_TYPE_IN);
+        if (acdb_dev_id <= 0) {
+            ALOGE("%s: Couldn't get the acdb dev id", __func__);
+            rc = -EINVAL;
+            goto exit_send_app_type_cfg;
+        }
+        snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
+            "Audio Stream Capture %d App Type Cfg", pcm_device_id);
+        ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+        if (!ctl) {
+            ALOGE("%s: Could not get ctl for mixer cmd - %s",
+                __func__, mixer_ctl_name);
+            rc = -EINVAL;
+            goto exit_send_app_type_cfg;
+        }
+        app_type_cfg[len++] = usecase->in_app_type_cfg.app_type;
+        app_type_cfg[len++] = acdb_dev_id;
+        app_type_cfg[len++] = usecase->in_app_type_cfg.sample_rate;
+        ALOGI("%s HFP/ICC CAPTURE: app_type %d, acdb_dev_id %d, sample_rate %d",
+              __func__, usecase->in_app_type_cfg.app_type,
+              platform_get_usecase_acdb_id(adev->platform, usecase, ACDB_DEV_TYPE_IN),
+              usecase->in_app_type_cfg.sample_rate);
     }
     mixer_ctl_set_array(ctl, app_type_cfg, len);
     rc = 0;

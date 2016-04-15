@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
  * Not a contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -104,7 +104,9 @@ enum {
 
     /* HFP Use case*/
     USECASE_AUDIO_HFP_SCO,
+    USECASE_AUDIO_HFP_SCO_LINK,
     USECASE_AUDIO_HFP_SCO_WB,
+    USECASE_AUDIO_HFP_SCO_LINK_WB,
 
     /* Capture usecases */
     USECASE_AUDIO_RECORD,
@@ -251,6 +253,9 @@ struct stream_in {
     audio_input_flags_t flags;
     bool is_st_session;
     bool is_st_session_active;
+    unsigned int sample_rate;
+    struct stream_app_type_cfg app_type_cfg;
+    unsigned int bit_width;
 
     struct audio_device *dev;
 };
@@ -277,6 +282,8 @@ struct audio_usecase {
     audio_devices_t devices;
     snd_device_t out_snd_device;
     snd_device_t in_snd_device;
+    struct stream_app_type_cfg out_app_type_cfg;
+    struct stream_app_type_cfg in_app_type_cfg;
     union stream_ptr stream;
 };
 
@@ -298,6 +305,14 @@ struct stream_sample_rate {
 struct streams_output_cfg {
     struct listnode list;
     audio_output_flags_t flags;
+    struct listnode format_list;
+    struct listnode sample_rate_list;
+    struct stream_app_type_cfg app_type_cfg;
+};
+
+struct streams_input_cfg {
+    struct listnode list;
+    audio_input_flags_t flags;
     struct listnode format_list;
     struct listnode sample_rate_list;
     struct stream_app_type_cfg app_type_cfg;
@@ -336,6 +351,7 @@ struct audio_device {
     int *snd_dev_ref_cnt;
     struct listnode usecase_list;
     struct listnode streams_output_cfg_list;
+    struct listnode streams_input_cfg_list;
     struct audio_route *audio_route;
     int acdb_settings;
     bool speaker_lr_swap;
