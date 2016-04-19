@@ -93,4 +93,5 @@ int voice_check_and_set_incall_music_usecase(struct audio_device *adev,
 int voice_check_and_stop_incall_rec_usecase(struct audio_device *adev,
                                             struct stream_in *in);
 void voice_update_devices_for_all_voice_usecases(struct audio_device *adev);
+bool voice_is_call_state_active(struct audio_device *adev);
 #endif //VOICE_H
