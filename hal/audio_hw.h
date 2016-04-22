@@ -330,6 +330,9 @@ struct audio_device {
     unsigned int cur_hdmi_channels;
     unsigned int cur_wfd_channels;
     bool bt_wb_speech_enabled;
+    bool voice_barge_in_enabled;
+    bool vad_stream_running;
+    struct stream_in *vad_stream;
 
     int snd_card;
     unsigned int cur_codec_backend_samplerate;

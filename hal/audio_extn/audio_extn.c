@@ -102,6 +102,13 @@ void audio_extn_icc_set_parameters(struct audio_device *adev,
                                            struct str_parms *parms);
 #endif
 
+#ifndef VAD_ENABLED
+#define audio_extn_vad_set_parameters(adev, parms)          (0)
+#else
+void audio_extn_vad_set_parameters(struct audio_device *adev,
+                                           struct str_parms *parms);
+#endif
+
 #ifndef SOURCE_TRACKING_ENABLED
 #define audio_extn_source_track_set_parameters(adev, parms) (0)
 #define audio_extn_source_track_get_parameters(adev, query, reply) (0)
@@ -566,6 +573,7 @@ static int get_active_offload_usecases(const struct audio_device *adev,
 void audio_extn_set_parameters(struct audio_device *adev,
                                struct str_parms *parms)
 {
+   audio_extn_vad_set_parameters(adev, parms);
    audio_extn_set_anc_parameters(adev, parms);
    audio_extn_set_fluence_parameters(adev, parms);
    audio_extn_set_afe_proxy_parameters(adev, parms);
@@ -597,6 +605,7 @@ void audio_extn_get_parameters(const struct audio_device *adev,
     audio_extn_dts_eagle_get_parameters(adev, query, reply);
     audio_extn_hpx_get_parameters(query, reply);
     audio_extn_source_track_get_parameters(adev, query, reply);
+    audio_extn_vad_get_parameters(adev, query, reply);
     if (adev->offload_effects_get_parameters != NULL)
         adev->offload_effects_get_parameters(query, reply);
     audio_extn_ext_hw_plugin_get_parameters(adev->ext_hw_plugin, query, reply);

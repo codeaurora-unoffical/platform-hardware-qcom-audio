@@ -538,4 +538,23 @@ int audio_extn_ext_hw_plugin_set_parameters(void *plugin,
 int audio_extn_ext_hw_plugin_get_parameters(void *plugin,
                   struct str_parms *query, struct str_parms *reply);
 #endif
+
+#ifndef VAD_ENABLED
+#define audio_extn_vad_init(adev)                           (0)
+#define audio_extn_vad_deinit()                             (0)
+#define audio_extn_vad_get_parameters(adev, query, reply)   (0)
+#define audio_extn_vad_circ_buf_create_read_loop(in)        (0)
+#define audio_extn_vad_circ_buf_start_read_loop()           (0)
+#define audio_extn_vad_circ_buf_read(in, buffer, bytes)     (0)
+#else
+int audio_extn_vad_init(struct audio_device *adev);
+int audio_extn_vad_deinit();
+void audio_extn_vad_get_parameters(struct audio_device *adev,
+                                  struct str_parms *query,
+                                  struct str_parms *reply);
+void audio_extn_vad_circ_buf_create_read_loop(struct stream_in *in);
+void audio_extn_vad_circ_buf_start_read_loop();
+size_t audio_extn_vad_circ_buf_read(struct stream_in *in,
+                                        void *buffer, size_t bytes);
+#endif
 #endif /* AUDIO_EXTN_H */

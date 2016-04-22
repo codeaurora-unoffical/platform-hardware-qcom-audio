@@ -105,6 +105,11 @@ ifeq ($(strip $(AUDIO_FEATURE_ENABLED_ICC)),true)
     LOCAL_SRC_FILES += audio_extn/icc.c
 endif
 
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_VAD)),true)
+    LOCAL_CFLAGS += -DVAD_ENABLED
+    LOCAL_SRC_FILES += audio_extn/vad.c
+endif
+
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_CUSTOMSTEREO)),true)
     LOCAL_CFLAGS += -DCUSTOM_STEREO_ENABLED
 endif
