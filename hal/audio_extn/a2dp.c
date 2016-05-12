@@ -46,6 +46,7 @@ struct a2dp_data{
     struct audio_stream_out *a2dp_stream;
     struct audio_hw_device *a2dp_device;
     bool a2dp_started;
+    bool a2dp_suspended;
     int  a2dp_total_active_session_request;
 };
 
@@ -106,6 +107,7 @@ static int close_a2dp_output()
     a2dp.a2dp_stream = NULL;
     a2dp.a2dp_started = false;
     a2dp.a2dp_total_active_session_request = 0;
+    a2dp.a2dp_suspended = false;
 
     return 0;
 }
@@ -139,8 +141,27 @@ void audio_extn_a2dp_set_parameters(struct str_parms *parms)
      ret = str_parms_get_str(parms, "A2dpSuspended", value, sizeof(value));
      if (ret >= 0) {
          if (a2dp.a2dp_device && a2dp.a2dp_stream) {
-             a2dp.a2dp_device->set_parameters(a2dp.a2dp_device, str_parms_to_str(parms));
-         }
+             if ((!strncmp(value,"true",sizeof(value)))) {
+                 int active_sessions = a2dp.a2dp_total_active_session_request, count = 0;
+                 //Force close all active sessions on suspend (if any)
+                 for(count  = 0; count< active_sessions; count ++)
+                     audio_extn_a2dp_stop_playback();
+                 a2dp.a2dp_total_active_session_request = active_sessions;
+                 a2dp.a2dp_suspended = true;
+                 a2dp.a2dp_device->set_parameters(a2dp.a2dp_device, str_parms_to_str(parms));
+            }
+            else {
+                  a2dp.a2dp_device->set_parameters(a2dp.a2dp_device, str_parms_to_str(parms));
+                  a2dp.a2dp_suspended = false;
+                  //Force restart all active sessions post suspend (if any)
+                if(a2dp.a2dp_total_active_session_request > 0){
+                   int active_sessions = a2dp.a2dp_total_active_session_request;
+                   a2dp.a2dp_total_active_session_request = 0;
+                   audio_extn_a2dp_start_playback();
+                   a2dp.a2dp_total_active_session_request = active_sessions;
+               }
+            }
+        }
      }
 }
 
@@ -148,6 +169,12 @@ void audio_extn_a2dp_start_playback()
 {
     int ret = 0;
     char buf[20]={0};
+
+    if(a2dp.a2dp_suspended == true) {
+        //session will be restarted after suspend completion
+        a2dp.a2dp_total_active_session_request++;
+        return;
+    }
 
     if (!a2dp.a2dp_started && a2dp.a2dp_device && a2dp.a2dp_stream
          && !a2dp.a2dp_total_active_session_request) {
@@ -176,6 +203,12 @@ void audio_extn_a2dp_stop_playback()
     int ret =0;
     char buf[20]={0};
 
+    if(a2dp.a2dp_suspended == true) {
+        // sessions are already closed during suspend, just update active sessions counts
+         if(a2dp.a2dp_total_active_session_request > 0)
+            a2dp.a2dp_total_active_session_request--;
+            return;
+    }
     if ( a2dp.a2dp_started && (a2dp.a2dp_total_active_session_request > 0))
         a2dp.a2dp_total_active_session_request--;
 
@@ -206,5 +239,6 @@ void audio_extn_a2dp_init ()
   a2dp.a2dp_stream = NULL;
   a2dp.a2dp_device = NULL;
   a2dp.a2dp_total_active_session_request = 0;
+  a2dp.a2dp_suspended = false;
 }
 #endif // SPLIT_A2DP_ENABLED
