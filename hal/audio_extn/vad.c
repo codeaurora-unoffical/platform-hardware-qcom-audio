@@ -143,7 +143,7 @@ typedef struct vad_self_t {
   pthread_mutex_t   vad_loop_mutex;
   pthread_t         vad_loop_thread;
 
-  FILE            *in_read_fp;
+  FILE              *in_read_fp;
 } vad_self_t;
 
 static vad_self_t self = {
@@ -196,11 +196,23 @@ static void * vad_pcm_read_loop(void *context)
 
   for(;;)
   {
-    pthread_mutex_lock(&self.vad_loop_mutex);
     if (self.isVadLoopDeinit)
     {
-      pthread_mutex_unlock(&self.vad_loop_mutex);
       break;
+    }
+
+    if (self.isClientReading) {
+      pthread_cond_wait(&self.vad_loop_cond, &self.vad_loop_mutex);
+      pthread_mutex_unlock(&self.vad_loop_mutex);
+      ALOGD("%s: Received Signal, Checking circular buffer length for consumption",
+          __func__);
+
+      if (self.circ_buf.length == 0) {
+        pthread_cond_wait(&self.vad_loop_cond, &self.vad_loop_mutex);
+        pthread_mutex_unlock(&self.vad_loop_mutex);
+        ALOGD("%s: Received Signal, loop continuing",
+            __func__);
+      }
     }
 
     if (!in->pcm)
@@ -211,19 +223,13 @@ static void * vad_pcm_read_loop(void *context)
       break;
     }
 
-    if (self.isClientReading) {
-      pthread_cond_wait(&self.vad_loop_cond, &self.vad_loop_mutex);
-      pthread_mutex_unlock(&self.vad_loop_mutex);
-      ALOGD("%s: Received Signal, loop continuing",
-          __func__);
-      continue;
-    }
-
     ret = pcm_read(in->pcm, &self.circ_buf.buffer[self.circ_buf.end], self.circ_buf.frame_size_in_bytes);
+    pthread_mutex_lock(&self.vad_loop_mutex);
 
     if(ret < 0) {
       ALOGE("%s: PCM Read failed with status %d, sleeping for 20ms",
         __func__, ret);
+      pthread_mutex_unlock(&self.vad_loop_mutex);
       usleep(AUDIO_CAPTURE_PERIOD_DURATION_MSEC * 1000);
       continue;
     }
@@ -424,9 +430,9 @@ static int vad_init ()
   }
 
   self.vad_params.vad_feature_mode = 1;
-  self.vad_params.vad_threshold = 3072;
+  self.vad_params.vad_threshold = 8192;
   self.vad_params.vad_hangover = 15;
-  self.vad_params.vad_min_noise_floor = 450;
+  self.vad_params.vad_min_noise_floor = 13000;
 
   ret = self.vad_func.vad_set_param(&self.vad_lib, &self.vad_params, 0, sizeof(self.vad_params));
 
@@ -516,8 +522,8 @@ int audio_extn_vad_init(struct audio_device *adev)
   self.vad_cfg.feature_mode = VAD_FEATURE_MODE_ON;
   self.vad_cfg.sampling_rate = 8000;
   self.vad_cfg.in_data_type = VAD_BIT_TYPE_16BIT;
-  self.vad_cfg.num_look_ahead_blks = 5;
-  self.vad_cfg.look_ahead_blk_size = 5;   // 500ms look-ahead for characterization
+  self.vad_cfg.num_look_ahead_blks = 2;
+  self.vad_cfg.look_ahead_blk_size = 5;   // 200ms look-ahead for characterization
   self.vad_cfg.num_channels = 1;
   adev->voice_barge_in_enabled = false;
   adev->vad_stream_running = false;
@@ -733,6 +739,7 @@ void audio_extn_vad_set_parameters (struct audio_device *adev,
     else
       ALOGE("%s: Voice Barge-in Circular Buffer Size can only be set when disabled!",__func__);
   }
+  free(value);
 }
 
 void audio_extn_vad_get_parameters (struct audio_device *adev,
@@ -776,8 +783,6 @@ void audio_extn_vad_get_parameters (struct audio_device *adev,
       str_parms_add_str(reply, AUDIO_PARAMETER_KEY_VAD_NUM_FRAMES_IN_CIRC_BUF,
                         int_str_reply);
   }
-
-  free(value);
 }
 
 void audio_extn_vad_circ_buf_create_read_loop(struct stream_in *in)
@@ -869,10 +874,14 @@ size_t audio_extn_vad_circ_buf_read(struct stream_in *in,
     self.circ_buf.start = 0;
 
   self.circ_buf.byte_count -= bytes;
+  pthread_cond_signal(&self.vad_loop_cond);
   ret = 0;
 
 read_done:
   pthread_mutex_unlock(&self.vad_loop_mutex);
+  //Sleep when copying from circular buffer because it reads faster-than-real-time
+  usleep(10000);
+
   ALOGV("%s: finish at position %d",
     __func__, self.circ_buf.start);
   return ret;

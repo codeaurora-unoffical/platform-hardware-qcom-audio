@@ -57,7 +57,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
      in the VAD circular buffer used for storing captured audio data history.
      Each frame is 20ms long. This must be set when VAD_enabled=false.
      The following the range of values are supported:
-      - 10 to 500
+      - 10 to 150
       */
 
 #define AUDIO_PARAMETER_KEY_VAD_DETECTED  "VAD_detected"
