@@ -479,7 +479,7 @@ int voice_set_volume(struct audio_device *adev, float volume)
 
         err = platform_set_voice_volume(adev->platform, vol);
     }
-    if (adev->mode == AUDIO_MODE_IN_COMMUNICATION)
+    if (adev->mode == AUDIO_MODE_IN_COMMUNICATION || voice_extn_compress_voip_is_active(adev))
         err = voice_extn_compress_voip_set_volume(adev, volume);
 
 
