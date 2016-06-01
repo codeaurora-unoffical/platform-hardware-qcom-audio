@@ -156,8 +156,7 @@ static int32_t start_hfp(struct audio_device *adev,
 
     pcm_dev_rx_id = platform_get_pcm_device_id(uc_info->id, PCM_PLAYBACK);
 
-    if(((strcmp(adev->hw_platfom_name, "Dragon") == 0) && (adev->hw_platfom_soc_id == 291)) ||
-       ((strcmp(adev->hw_platfom_name, "Surf") == 0) && (adev->hw_platfom_soc_id == 310)))
+    if((strcmp(adev->hw_platfom_name, "Dragon") == 0) && (adev->hw_platfom_soc_id == 291))
     {
        pcm_dev_rx_id = 58;
     }
