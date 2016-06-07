@@ -555,4 +555,12 @@ int audio_extn_ext_hw_plugin_get_parameters(void *plugin,
                   struct str_parms *query, struct str_parms *reply);
 int audio_extn_ext_hw_plugin_set_mic_mute(void *plugin, bool mute);
 #endif
+
+#ifndef ICC_ENABLED
+#define audio_extn_icc_get_parameters(adev, query, reply)   (0)
+#else
+void audio_extn_icc_get_parameters(struct audio_device *adev,
+                                  struct str_parms *query,
+                                  struct str_parms *reply);
+#endif
 #endif /* AUDIO_EXTN_H */
