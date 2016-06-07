@@ -49,9 +49,9 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 #ifdef PLATFORM_MSM8994
 #define ICC_RX_VOLUME     "NULL"
 #elif defined PLATFORM_MSM8996
-#define ICC_RX_VOLUME     "NULL"
+#define ICC_RX_VOLUME     "Internal ICC Volume"
 #else
-#define ICC_RX_VOLUME     "NULL"
+#define ICC_RX_VOLUME     "Internal ICC Volume"
 #endif
 
 static int32_t start_icc(struct audio_device *adev,
@@ -70,7 +70,7 @@ struct icc_module {
 static struct icc_module iccmod = {
     .icc_pcm_rx = NULL,
     .icc_pcm_tx = NULL,
-    .icc_volume = 0,
+    .icc_volume = 7.5,
     .is_icc_running = 0,
     .ucid = USECASE_ICC_CALL,
 };
@@ -88,6 +88,38 @@ static struct pcm_config pcm_config_icc = {
 static int32_t icc_set_volume(struct audio_device *adev, float value)
 {
     int32_t vol, ret = 0;
+    struct mixer_ctl *ctl;
+    const char *mixer_ctl_name = ICC_RX_VOLUME;
+
+    ALOGV("%s: entry", __func__);
+    ALOGD("%s: (%f)\n", __func__, value);
+
+    iccmod.icc_volume = value;
+    if (value < 0.0) {
+        ALOGW("%s: (%f) Under 0.0, assuming 0.0\n", __func__, value);
+        value = 0.0;
+    } else {
+        value = ((value > 15.000000) ? 1.0 : (value / 15));
+        ALOGW("%s: Volume brought with in range (%f)\n", __func__, value);
+    }
+    vol  = lrint((value * 0xFE2F) + 0.5); //18dB ceiling
+
+    if (!iccmod.is_icc_running) {
+        ALOGV("%s: ICC not active, ignoring set_icc_volume call", __func__);
+        return -EIO;
+    }
+
+    ALOGD("%s: Setting ICC volume to %d \n", __func__, vol);
+    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+    if (!ctl) {
+        ALOGE("%s: Could not get ctl for mixer cmd - %s",
+              __func__, mixer_ctl_name);
+        return -EINVAL;
+    }
+    if(mixer_ctl_set_value(ctl, 0, vol) < 0) {
+        ALOGE("%s: Couldn't set ICC Volume: [%d]", __func__, vol);
+        return -EINVAL;
+    }
 
     ALOGV("%s: exit", __func__);
     return ret;
@@ -170,7 +202,6 @@ static int32_t start_icc(struct audio_device *adev,
     }
 
     iccmod.is_icc_running = true;
-    icc_set_volume(adev, iccmod.icc_volume);
 
     ALOGD("%s: exit: status(%d)", __func__, ret);
     return 0;
@@ -299,5 +330,21 @@ void audio_extn_icc_set_parameters(struct audio_device *adev, struct str_parms *
     }
 exit:
     ALOGV("%s Exit",__func__);
+}
+
+void audio_extn_icc_get_parameters (struct audio_device *adev,
+                                    struct str_parms *query,
+                                    struct str_parms *reply)
+{
+  int ret = 0;
+  char value[512] = {0};
+  char int_str_reply[512] = {0};
+
+  ret = str_parms_get_str(query,AUDIO_PARAMETER_ICC_ENABLE,
+                          value,sizeof(value));
+  if (ret >= 0) {
+      str_parms_add_str(reply, AUDIO_PARAMETER_ICC_ENABLE,
+                        iccmod.is_icc_running?"true":"false");
+  }
 }
 #endif /*ICC_ENABLED*/

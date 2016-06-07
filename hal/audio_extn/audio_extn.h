@@ -539,6 +539,14 @@ int audio_extn_ext_hw_plugin_get_parameters(void *plugin,
                   struct str_parms *query, struct str_parms *reply);
 #endif
 
+#ifndef ICC_ENABLED
+#define audio_extn_icc_get_parameters(adev, query, reply)   (0)
+#else
+void audio_extn_icc_get_parameters(struct audio_device *adev,
+                                  struct str_parms *query,
+                                  struct str_parms *reply);
+#endif
+
 #ifndef VAD_ENABLED
 #define audio_extn_vad_init(adev)                           (0)
 #define audio_extn_vad_deinit()                             (0)
