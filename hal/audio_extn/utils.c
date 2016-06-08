@@ -409,11 +409,8 @@ void audio_extn_utils_update_streams_cfg_list(void *platform,
 
     ALOGV("%s", __func__);
 
-    root = config_node("", "");
-    if (root == NULL) {
-        ALOGE("cfg_list, NULL config root");
-        return;
-    }
+    list_init(streams_output_cfg_list);
+    list_init(streams_input_cfg_list);
 
     data = (char *)load_file(AUDIO_IO_POLICY_VENDOR_CONFIG_FILE, NULL);
     if (data == NULL) {
@@ -422,8 +419,12 @@ void audio_extn_utils_update_streams_cfg_list(void *platform,
         return;
     }
 
-    list_init(streams_output_cfg_list);
-    list_init(streams_input_cfg_list);
+    root = config_node("", "");
+    if (root == NULL) {
+        ALOGE("cfg_list, NULL config root");
+        return;
+    }
+
     config_load(root, data);
     load_cfg_list(root, platform, streams_output_cfg_list,
                                   streams_input_cfg_list);
