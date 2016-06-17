@@ -62,11 +62,14 @@
 #define MIXER_XML_PATH_WCD9306 "/system/etc/mixer_paths_wcd9306.xml"
 #define MIXER_XML_PATH_WCD9330 "/system/etc/mixer_paths_wcd9330.xml"
 #define MIXER_XML_PATH_WCD9335 "/system/etc/mixer_paths_wcd9335.xml"
+#ifdef LINUX_ENABLED
+#define MIXER_XML_PATH_WCD9326 "/etc/mixer_paths_wcd9326.xml"
+#else
 #define MIXER_XML_PATH_WCD9326 "/system/etc/mixer_paths_wcd9326.xml"
+#endif
 #define MIXER_XML_PATH_SKUN "/system/etc/mixer_paths_qrd_skun.xml"
 #define PLATFORM_INFO_XML_PATH      "/system/etc/audio_platform_info.xml"
 #define PLATFORM_INFO_XML_PATH_EXTCODEC  "/system/etc/audio_platform_info_extcodec.xml"
-
 #define LIB_ACDB_LOADER "libacdbloader.so"
 #define AUDIO_DATA_BLOCK_MIXER_CTL "HDMI EDID"
 #define CVD_VERSION_MIXER_CTL "CVD Version"
