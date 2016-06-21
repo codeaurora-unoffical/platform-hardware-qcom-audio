@@ -2198,13 +2198,13 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
 
     if (is_offload_usecase(out->usecase)) {
         ALOGD("copl(%p): writing buffer (%zu bytes) to compress device", out, bytes);
-        if (out->send_new_metadata) {
-            ALOGD("copl(%p):send new gapless metadata", out);
-            compress_set_gapless_metadata(out->compr, &out->gapless_mdata);
-            out->send_new_metadata = 0;
-        }
-
         if (out->compr != NULL) {
+            if (out->send_new_metadata) {
+                ALOGD("copl(%p):send new gapless metadata", out);
+                compress_set_gapless_metadata(out->compr, &out->gapless_mdata);
+                out->send_new_metadata = 0;
+            }
+
             if (out->offload_state == OFFLOAD_STATE_PAUSED) {
                 int status;
 
@@ -2224,26 +2224,26 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
             if (ret < 0)
                 ret = -errno;
 
-        }
-        ALOGVV("%s: writing buffer (%d bytes) to compress device returned %d", __func__, bytes, ret);
-        if (ret >= 0 && ret < (ssize_t)bytes) {
-            ALOGD("No space available in compress driver, post msg to cb thread");
-            send_offload_cmd_l(out, OFFLOAD_CMD_WAIT_FOR_BUFFER);
-        } else if (-ENETRESET == ret) {
-            ALOGE("copl %s: received sound card offline state on compress write", __func__);
-            set_snd_card_state(adev,SND_CARD_STATE_OFFLINE);
-            pthread_mutex_unlock(&out->lock);
-            out_standby(&out->stream.common);
-            return ret;
-        }
-        if (!out->playback_started && ret >= 0) {
-            compress_start(out->compr);
-            out->playback_started = 1;
-            out->offload_state = OFFLOAD_STATE_PLAYING;
+            ALOGVV("%s: writing buffer (%d bytes) to compress device returned %d", __func__, bytes, ret);
+            if (ret >= 0 && ret < (ssize_t)bytes) {
+                ALOGD("No space available in compress driver, post msg to cb thread");
+                send_offload_cmd_l(out, OFFLOAD_CMD_WAIT_FOR_BUFFER);
+            } else if (-ENETRESET == ret) {
+                ALOGE("copl %s: received sound card offline state on compress write", __func__);
+                set_snd_card_state(adev,SND_CARD_STATE_OFFLINE);
+                pthread_mutex_unlock(&out->lock);
+                out_standby(&out->stream.common);
+                return ret;
+            }
+            if (!out->playback_started && ret >= 0) {
+                compress_start(out->compr);
+                out->playback_started = 1;
+                out->offload_state = OFFLOAD_STATE_PLAYING;
 
-            audio_extn_dts_notify_playback_state(out->usecase, 0, out->sample_rate,
+                audio_extn_dts_notify_playback_state(out->usecase, 0, out->sample_rate,
                                                      popcount(out->channel_mask),
                                                      out->playback_started);
+            }
         }
         pthread_mutex_unlock(&out->lock);
         return ret;
