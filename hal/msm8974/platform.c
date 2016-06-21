@@ -1278,8 +1278,7 @@ void *platform_init(struct audio_device *adev)
 
     int load_path_1_mixer_file = 0;
 
-    if(((strcmp(adev->hw_platfom_name, "Dragon") == 0) && (adev->hw_platfom_soc_id == 291)) ||
-       ((strcmp(adev->hw_platfom_name, "Surf") == 0) && (adev->hw_platfom_soc_id == 310)))
+    if((strcmp(adev->hw_platfom_name, "Dragon") == 0) && (adev->hw_platfom_soc_id == 291))
     {
        load_path_1_mixer_file = 1;
     }
