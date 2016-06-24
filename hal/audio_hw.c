@@ -1768,6 +1768,9 @@ static int out_standby(struct audio_stream *stream)
 
     pthread_mutex_lock(&out->lock);
     if (!out->standby) {
+        if (is_offload_usecase(out->usecase))
+            stop_compressed_output_l(out);
+
         pthread_mutex_lock(&adev->lock);
         out->standby = true;
         if (!is_offload_usecase(out->usecase)) {
@@ -1777,7 +1780,6 @@ static int out_standby(struct audio_stream *stream)
             }
         } else {
             ALOGD("copl(%p):standby", out);
-            stop_compressed_output_l(out);
             out->gapless_mdata.encoder_delay = 0;
             out->gapless_mdata.encoder_padding = 0;
             if (out->compr != NULL) {
