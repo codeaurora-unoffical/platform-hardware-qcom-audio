@@ -55,6 +55,20 @@ static struct voice_session *voice_get_session_from_use_case(struct audio_device
     return session;
 }
 
+bool voice_is_call_state_active(struct audio_device *adev)
+{
+    bool call_state = false;
+    int ret = 0;
+
+    ret = voice_extn_is_call_state_active(adev, &call_state);
+    if (ret == -ENOSYS) {
+        call_state = (adev->voice.session[VOICE_SESS_IDX].state.current == CALL_ACTIVE) ? true : false;
+    }
+
+    return call_state;
+}
+
+
 int voice_stop_usecase(struct audio_device *adev, audio_usecase_t usecase_id)
 {
     int i, ret = 0;
@@ -70,6 +84,9 @@ int voice_stop_usecase(struct audio_device *adev, audio_usecase_t usecase_id)
     }
 
     session->state.current = CALL_INACTIVE;
+
+    if (!voice_is_call_state_active(adev))
+        adev->voice.in_call = false;
 
     ret = platform_stop_voice_call(adev->platform, session->vsid);
 
@@ -196,19 +213,6 @@ error_start_voice:
 done:
     ALOGD("%s: exit: status(%d)", __func__, ret);
     return ret;
-}
-
-bool voice_is_call_state_active(struct audio_device *adev)
-{
-    bool call_state = false;
-    int ret = 0;
-
-    ret = voice_extn_is_call_state_active(adev, &call_state);
-    if (ret == -ENOSYS) {
-        call_state = (adev->voice.session[VOICE_SESS_IDX].state.current == CALL_ACTIVE) ? true : false;
-    }
-
-    return call_state;
 }
 
 bool voice_is_in_call(struct audio_device *adev)
