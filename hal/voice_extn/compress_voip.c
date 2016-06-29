@@ -80,6 +80,7 @@ struct voip_data {
 #define AUDIO_PARAMETER_KEY_VOIP_CHECK              "voip_flag"
 #define AUDIO_PARAMETER_KEY_VOIP_OUT_STREAM_COUNT   "voip_out_stream_count"
 #define AUDIO_PARAMETER_KEY_VOIP_SAMPLE_RATE        "voip_sample_rate"
+#define AUDIO_PARAMETER_KEY_VOIP_MUTE               "voip_mute"
 
 static struct voip_data voip_data = {
   .pcm_rx = NULL,
@@ -140,7 +141,6 @@ static int voip_set_volume(struct audio_device *adev, int volume)
     int vol_index = 0;
     uint32_t set_values[ ] = {0,
                               DEFAULT_VOLUME_RAMP_DURATION_MS};
-    static bool isMuted = false;
 
     ALOGV("%s: enter", __func__);
 
@@ -160,13 +160,6 @@ static int voip_set_volume(struct audio_device *adev, int volume)
     ALOGV("%s: Setting voip volume index: %d", __func__, set_values[0]);
     mixer_ctl_set_array(ctl, set_values, ARRAY_SIZE(set_values));
 
-    if (vol_index == MAX_VOL_INDEX) {
-       platform_set_device_mute(adev->platform, 1/* mute */, "rx");
-       isMuted = true;
-    } else if (isMuted){
-       platform_set_device_mute(adev->platform, 0/* unmute */, "rx");
-       isMuted = false;
-    }
     ALOGV("%s: exit", __func__);
     return 0;
 }
@@ -474,6 +467,18 @@ int voice_extn_compress_voip_set_parameters(struct audio_device *adev,
         if (strcmp(value, AUDIO_PARAMETER_VALUE_VOIP_TRUE) == 0)
             flag = true;
         voip_set_dtx(adev, flag);
+    }
+
+    memset(value, 0, sizeof(value));
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_VOIP_MUTE,
+                            value, sizeof(value));
+    if (err >= 0) {
+        if (voice_extn_compress_voip_is_active(adev)) {
+            if (strcmp(value, AUDIO_PARAMETER_VALUE_VOIP_TRUE) == 0)
+                platform_set_device_mute(adev->platform, 1/* mute */, "rx");
+            else
+                platform_set_device_mute(adev->platform, 0/* unmute */, "rx");
+        }
     }
 
 done:
