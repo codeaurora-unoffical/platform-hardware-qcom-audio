@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
  * Not a contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -164,7 +164,6 @@ static int update_calls(struct audio_device *adev)
     audio_usecase_t usecase_id = 0;
     enum voice_lch_mode lch_mode;
     struct voice_session *session = NULL;
-    int fd = 0;
     int ret = 0;
 
     ALOGD("%s: enter:", __func__);
@@ -442,7 +441,6 @@ int voice_extn_stop_call(struct audio_device *adev)
 int voice_extn_set_parameters(struct audio_device *adev,
                               struct str_parms *parms)
 {
-    char *str;
     int value;
     int ret = 0, err;
     char *kv_pairs = str_parms_to_str(parms);
@@ -575,16 +573,16 @@ void voice_extn_get_parameters(const struct audio_device *adev,
     free(str);
 }
 
-void voice_extn_out_get_parameters(struct stream_out *out,
-                                   struct str_parms *query,
-                                   struct str_parms *reply)
+void voice_extn_out_get_parameters(struct stream_out *out __unused,
+                                   struct str_parms *query __unused,
+                                   struct str_parms *reply __unused)
 {
     voice_extn_compress_voip_out_get_parameters(out, query, reply);
 }
 
-void voice_extn_in_get_parameters(struct stream_in *in,
-                                  struct str_parms *query,
-                                  struct str_parms *reply)
+void voice_extn_in_get_parameters(struct stream_in *in __unused,
+                                  struct str_parms *query __unused,
+                                  struct str_parms *reply __unused)
 {
     voice_extn_compress_voip_in_get_parameters(in, query, reply);
 }
