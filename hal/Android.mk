@@ -5,6 +5,7 @@ LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_ARM_MODE := arm
+LOCAL_CLANG := false
 
 AUDIO_PLATFORM := $(TARGET_BOARD_PLATFORM)
 
@@ -254,6 +255,8 @@ ifeq ($(strip $(AUDIO_FEATURE_ENABLED_PM_SUPPORT)),true)
     LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/libperipheralclient/inc
     LOCAL_SHARED_LIBRARIES += libperipheral_client
 endif
+
+#LOCAL_CFLAGS += -Wall -Werror
 
 LOCAL_COPY_HEADERS_TO   := mm-audio
 LOCAL_COPY_HEADERS      := audio_extn/audio_defs.h

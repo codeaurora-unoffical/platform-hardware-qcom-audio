@@ -661,9 +661,8 @@ void audio_extn_dolby_set_license(struct audio_device *adev)
         ds2extnmod.dap_hal_set_hw_info(DMID, (void*)(&dolby_license.dmid));
     } else {
         ALOGV("%s: dap_hal_set_hw_info is NULL", __func__);
-        return ret;
+        
     }
-    return 0;
 }
 
 
