@@ -1109,7 +1109,7 @@ static void query_platform(const char *snd_card_name,
 }
 
 void platform_set_echo_reference(struct audio_device *adev, bool enable,
-    audio_devices_t out_device)
+    audio_devices_t out_device __unused)
 {
     struct platform_data *my_data = (struct platform_data *)adev->platform;
 
@@ -1154,6 +1154,7 @@ void platform_set_gsm_mode(void *platform, bool enable)
     }
 }
 
+#if 0
 static struct csd_data *open_csd_client()
 {
     struct csd_data *csd = calloc(1, sizeof(struct csd_data));
@@ -1287,7 +1288,7 @@ error:
     csd = NULL;
     return csd;
 }
-
+#endif
 void close_csd_client(struct csd_data *csd)
 {
     if (csd != NULL) {
@@ -1302,7 +1303,6 @@ void close_csd_client(struct csd_data *csd)
 static void set_platform_defaults()
 {
     int32_t dev, count = 0;
-    char dsp_decoder_property[PROPERTY_VALUE_MAX];
     const char *MEDIA_MIMETYPE_AUDIO_ALAC = "audio/alac";
     const char *MEDIA_MIMETYPE_AUDIO_APE = "audio/x-ape";
 
@@ -1676,14 +1676,11 @@ static bool check_and_get_wsa_info(char *snd_card_name, int *wsaCount,
 
 void *platform_init(struct audio_device *adev)
 {
-    char platform[PROPERTY_VALUE_MAX];
-    char baseband[PROPERTY_VALUE_MAX];
     char value[PROPERTY_VALUE_MAX];
     struct platform_data *my_data = NULL;
-    int retry_num = 0, snd_card_num = 0, key = 0;
+    int retry_num = 0, snd_card_num = 0;
     const char *snd_card_name;
     char mixer_xml_path[MAX_MIXER_XML_PATH],ffspEnable[PROPERTY_VALUE_MAX];
-    char *cvd_version = NULL;
     const char *mixer_ctl_name = "Set HPX ActiveBe";
     struct mixer_ctl *ctl = NULL;
     int idx;
@@ -2260,7 +2257,7 @@ int platform_get_default_app_type(void *platform)
         return DEFAULT_APP_TYPE;
 }
 
-int platform_get_default_app_type_v2(void *platform, usecase_type_t  type)
+int platform_get_default_app_type_v2(void *platform __unused, usecase_type_t  type)
 {
     if(type == PCM_CAPTURE)
         return DEFAULT_APP_TYPE_TX_PATH;
@@ -2460,7 +2457,6 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
 {
     struct platform_data *my_data = (struct platform_data *)platform;
     int acdb_dev_id, acdb_dev_type;
-    struct audio_device *adev = my_data->adev;
     int snd_device = SND_DEVICE_OUT_SPEAKER;
 
     if (usecase->type == PCM_PLAYBACK)
@@ -2642,7 +2638,7 @@ int platform_stop_voice_call(void *platform, uint32_t vsid)
     return ret;
 }
 
-int platform_get_sample_rate(void *platform, uint32_t *rate)
+int platform_get_sample_rate(void *platform __unused, uint32_t *rate __unused)
 {
     return 0;
 }
@@ -3344,7 +3340,6 @@ int platform_edid_get_max_channels(void *platform)
     int max_channels = 2;
     int i = 0, ret = 0;
     struct platform_data *my_data = (struct platform_data *)platform;
-    struct audio_device *adev = my_data->adev;
     edid_audio_info *info = NULL;
     ret = platform_get_edid_info(platform);
     info = (edid_audio_info *)my_data->edid_info;
@@ -3420,7 +3415,7 @@ static int set_hd_voice(struct platform_data *my_data, bool state)
 
     return ret;
 }
-
+#if 0
 static int update_external_device_status(struct platform_data *my_data,
                                  char* event_name, bool status)
 {
@@ -3448,11 +3443,12 @@ static int update_external_device_status(struct platform_data *my_data,
 
     return ret;
 }
+#endif
 
+#if 0
 static int parse_audiocal_cfg(struct str_parms *parms, acdb_audio_cal_cfg_t *cal)
 {
     int err;
-    unsigned int val;
     char value[64];
     int ret = 0;
 
@@ -3515,14 +3511,16 @@ static int parse_audiocal_cfg(struct str_parms *parms, acdb_audio_cal_cfg_t *cal
     }
     return ret;
 }
-
+#endif
+#if 0
 static void set_audiocal(void *platform, struct str_parms *parms, char *value, int len) {
     struct platform_data *my_data = (struct platform_data *)platform;
     struct stream_out out;
-    acdb_audio_cal_cfg_t cal={0};
+    acdb_audio_cal_cfg_t cal;
     uint8_t *dptr = NULL;
     int32_t dlen;
     int err, ret;
+    memset(&cal,0,sizeof(acdb_audio_cal_cfg_t));
     if(value == NULL || platform == NULL || parms == NULL) {
         ALOGE("[%s] received null pointer, failed",__func__);
         goto done_key_audcal;
@@ -3576,13 +3574,12 @@ done_key_audcal:
     if(dptr != NULL)
         free(dptr);
 }
-
+#endif
 int platform_set_parameters(void *platform, struct str_parms *parms)
 {
     struct platform_data *my_data = (struct platform_data *)platform;
-    char *str;
     char value[256] = {0};
-    int val,len;
+    int len;
     int ret = 0, err;
     char *kv_pairs = NULL;
 
@@ -3770,12 +3767,13 @@ int platform_update_lch(void *platform, struct voice_session *session,
     return ret;
 }
 
+#if 0
 static void get_audiocal(void *platform, void *keys, void *pReply) {
     struct platform_data *my_data = (struct platform_data *)platform;
     struct stream_out out;
     struct str_parms *query = (struct str_parms *)keys;
     struct str_parms *reply=(struct str_parms *)pReply;
-    acdb_audio_cal_cfg_t cal={0};
+    acdb_audio_cal_cfg_t cal;
     uint8_t *dptr = NULL;
     char value[512] = {0};
     char *rparms=NULL;
@@ -3787,6 +3785,7 @@ static void get_audiocal(void *platform, void *keys, void *pReply) {
         ret=-EINVAL;
         goto done;
     }
+     memset(&cal,0,sizeof(acdb_audio_cal_cfg_t));
     /* parse audiocal configuration keys */
     ret = parse_audiocal_cfg(query, &cal);
     if(ret == 0) {
@@ -3827,7 +3826,6 @@ static void get_audiocal(void *platform, void *keys, void *pReply) {
     if (my_data->acdb_get_audio_cal != NULL) {
         ret = my_data->acdb_get_audio_cal((void*)&cal, (void*)dptr, &param_len);
         if (ret == 0) {
-            int dlen;
             if(param_len == 0 || param_len == MAX_SET_CAL_BYTE_SIZE) {
                 ret = -EINVAL;
                 goto done_key_audcal;
@@ -3865,13 +3863,12 @@ done:
     if(rparms != NULL)
         free(rparms);
 }
-
+#endif
 void platform_get_parameters(void *platform,
                             struct str_parms *query,
                             struct str_parms *reply)
 {
     struct platform_data *my_data = (struct platform_data *)platform;
-    char *str = NULL;
     char value[512] = {0};
     int ret;
     char *kv_pairs = NULL;
@@ -4164,7 +4161,7 @@ uint32_t platform_get_pcm_offload_buffer_size(audio_offload_info_t* info)
     return fragment_size;
 }
 
-bool platform_use_small_buffer(audio_offload_info_t* info)
+bool platform_use_small_buffer(audio_offload_info_t* info __unused)
 {
     return OFFLOAD_USE_SMALL_BUFFER;
 }
@@ -4179,10 +4176,6 @@ int platform_set_codec_backend_cfg(struct audio_device* adev,
     int ret = 0;
     int backend_idx = DEFAULT_CODEC_BACKEND;
     struct platform_data *my_data = (struct platform_data *)adev->platform;
-    const char *snd_card_name = mixer_get_name(adev->mixer);
-    int na_mode = platform_get_native_support();
-
-
     backend_idx = platform_get_backend_index(snd_device);
     ALOGI("%s:becf: afe: bitwidth %d, samplerate %d, backend_idx %d device (%s)",
           __func__, bit_width, sample_rate, backend_idx,
@@ -4443,10 +4436,7 @@ bool platform_check_and_set_codec_backend_cfg(struct audio_device* adev,
     unsigned int new_bit_width;
     unsigned int new_sample_rate;
     int backend_idx = DEFAULT_CODEC_BACKEND;
-    struct platform_data *my_data = (struct platform_data *)adev->platform;
-
     backend_idx = platform_get_backend_index(snd_device);
-
     new_bit_width = usecase->stream.out->bit_width;
     new_sample_rate = usecase->stream.out->sample_rate;
 
@@ -4604,10 +4594,7 @@ int platform_get_edid_info(void *platform)
     struct platform_data *my_data = (struct platform_data *)platform;
     struct audio_device *adev = my_data->adev;
     char block[MAX_SAD_BLOCKS * SAD_BLOCK_SIZE];
-    char *sad = block;
-    int num_audio_blocks;
-    int channel_count = 2;
-    int i, ret, count;
+    int ret, count;
 
     struct mixer_ctl *ctl;
     char edid_data[MAX_SAD_BLOCKS * SAD_BLOCK_SIZE + 1] = {0};
@@ -4695,7 +4682,6 @@ int platform_set_channel_map(void *platform, int ch_count, char *ch_map, int snd
     int ret;
     unsigned int i;
     int set_values[8] = {0};
-    char device_num[13]; // device number up to 2 digit
     struct platform_data *my_data = (struct platform_data *)platform;
     struct audio_device *adev = my_data->adev;
     ALOGV("%s channel_count:%d",__func__, ch_count);
@@ -4793,10 +4779,8 @@ void platform_reset_edid_info(void *platform) {
 bool platform_is_edid_supported_format(void *platform, int format)
 {
     struct platform_data *my_data = (struct platform_data *)platform;
-    struct audio_device *adev = my_data->adev;
     edid_audio_info *info = NULL;
-    int num_audio_blocks;
-    int i, ret, count;
+    int i, ret;
     unsigned char format_id = platform_map_to_edid_format(format);
 
     ret = platform_get_edid_info(platform);
@@ -4823,11 +4807,9 @@ bool platform_is_edid_supported_format(void *platform, int format)
 int platform_set_edid_channels_configuration(void *platform, int channels) {
 
     struct platform_data *my_data = (struct platform_data *)platform;
-    struct audio_device *adev = my_data->adev;
     edid_audio_info *info = NULL;
-    int num_audio_blocks;
     int channel_count = 2;
-    int i, ret, count;
+    int i, ret;
     char default_channelMap[MAX_CHANNELS_SUPPORTED] = {0};
 
     ret = platform_get_edid_info(platform);
@@ -5106,8 +5088,6 @@ int platform_set_spkr_device_tz_names(snd_device_t index,
                                       const char *spkr_1_tz_name, const char *spkr_2_tz_name)
 {
     int ret = 0;
-    int i;
-
     if (spkr_1_tz_name == NULL && spkr_2_tz_name == NULL) {
         ALOGE("%s: Invalid input", __func__);
         ret = -EINVAL;

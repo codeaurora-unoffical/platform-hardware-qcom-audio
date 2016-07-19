@@ -67,15 +67,6 @@ struct audio_extn_module {
     bool hifi_audio_enabled;
 };
 
-static struct audio_extn_module aextnmod = {
-    .anc_enabled = 0,
-    .aanc_enabled = 0,
-    .custom_stereo_enabled = 0,
-    .proxy_channel_num = 2,
-    .hpx_enabled = 0,
-    .vbat_enabled = 0,
-    .hifi_audio_enabled = 0,
-};
 
 #define AUDIO_PARAMETER_KEY_ANC        "anc_enabled"
 #define AUDIO_PARAMETER_KEY_WFD        "wfd_channel_cap"

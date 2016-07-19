@@ -395,7 +395,6 @@ void audio_extn_utils_update_streams_output_cfg_list(void *platform,
 void audio_extn_utils_dump_streams_output_cfg_list(
                                        struct listnode *streams_output_cfg_list)
 {
-    int i=0;
     struct listnode *node_i, *node_j;
     struct streams_output_cfg *so_info;
     struct stream_format *sf_info;
@@ -422,8 +421,6 @@ void audio_extn_utils_release_streams_output_cfg_list(
 {
     struct listnode *node_i, *node_j;
     struct streams_output_cfg *so_info;
-    struct stream_format *sf_info;
-
     ALOGV("%s", __func__);
     while (!list_empty(streams_output_cfg_list)) {
         node_i = list_head(streams_output_cfg_list);
@@ -494,10 +491,9 @@ void audio_extn_utils_update_stream_app_type_cfg(void *platform,
                                   audio_channel_mask_t channel_mask,
                                   struct stream_app_type_cfg *app_type_cfg)
 {
-    struct listnode *node_i, *node_j, *node_k;
+    struct listnode *node_i, *node_j;
     struct streams_output_cfg *so_info;
     struct stream_format *sf_info;
-    struct stream_sample_rate *ss_info;
     char value[PROPERTY_VALUE_MAX] = {0};
 
     if ((24 == bit_width) &&
@@ -571,7 +567,7 @@ int audio_extn_utils_send_app_type_cfg(struct audio_device *adev,
     char mixer_ctl_name[MAX_LENGTH_MIXER_CONTROL_IN_INT];
     int app_type_cfg[MAX_LENGTH_MIXER_CONTROL_IN_INT], len = 0, rc;
     struct mixer_ctl *ctl;
-    int pcm_device_id, acdb_dev_id, snd_device = usecase->out_snd_device;
+    int pcm_device_id,acdb_dev_id, snd_device = usecase->out_snd_device;
     int32_t sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
     char value[PROPERTY_VALUE_MAX] = {0};
 
@@ -594,13 +590,14 @@ int audio_extn_utils_send_app_type_cfg(struct audio_device *adev,
     if (usecase->type == PCM_PLAYBACK) {
         snd_device = usecase->out_snd_device;
         pcm_device_id = platform_get_pcm_device_id(usecase->id, PCM_PLAYBACK);
-    } else if (usecase->type == PCM_CAPTURE) {
+        snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
+             "Audio Stream %d App Type Cfg", pcm_device_id);
+        } else if (usecase->type == PCM_CAPTURE) {
         snd_device = usecase->in_snd_device;
         pcm_device_id = platform_get_pcm_device_id(usecase->id, PCM_CAPTURE);
-    }
-
-    snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
+        snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
              "Audio Stream %d App Type Cfg", pcm_device_id);
+      }
 
     ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
     if (!ctl) {
@@ -859,7 +856,6 @@ int b64encode(uint8_t *inp, int ilen, char* outp)
         default:
             break;
     }
-done:
     outp[k] = '\0';
     return k;
 }
