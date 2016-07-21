@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -250,6 +250,7 @@ enum {
 #define HFP_PCM_RX 5
 #define HFP_SCO_RX 17
 #define HFP_ASM_RX_TX 18
+#define HFP_ASM_RX_TX_SESSION2 36
 
 #define INCALL_MUSIC_UPLINK_PCM_DEVICE 1
 #define INCALL_MUSIC_UPLINK2_PCM_DEVICE 16
