@@ -430,9 +430,11 @@ int audio_extn_dolby_set_passt_latency(struct stream_out *out, int latency);
 #ifndef HFP_ENABLED
 #define audio_extn_hfp_is_active(adev)                  (0)
 #define audio_extn_hfp_get_usecase()                    (-1)
+#define hfp_set_mic_mute(dev, state)                    (0)
 #else
 bool audio_extn_hfp_is_active(struct audio_device *adev);
 audio_usecase_t audio_extn_hfp_get_usecase();
+int hfp_set_mic_mute(struct audio_device *dev, bool state);
 #endif
 
 #ifndef DEV_ARBI_ENABLED
