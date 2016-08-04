@@ -107,6 +107,9 @@ enum {
     /* Capture usecases */
     USECASE_AUDIO_RECORD,
     USECASE_AUDIO_RECORD_COMPRESS,
+    USECASE_AUDIO_RECORD_COMPRESS2,
+    USECASE_AUDIO_RECORD_COMPRESS3,
+    USECASE_AUDIO_RECORD_COMPRESS4,
     USECASE_AUDIO_RECORD_LOW_LATENCY,
     USECASE_AUDIO_RECORD_FM_VIRTUAL,
 
@@ -229,7 +232,9 @@ struct stream_in {
     pthread_mutex_t lock; /* see note below on mutex acquisition order */
     pthread_mutex_t pre_lock; /* acquire before lock to avoid DOS by playback thread */
     struct pcm_config config;
+    struct compr_config compr_config;
     struct pcm *pcm;
+    struct compress *compr;
     int standby;
     int source;
     int pcm_device_id;
@@ -331,6 +336,7 @@ struct audio_device {
     bool is_channel_status_set;
     void *platform;
     unsigned int offload_usecases_state;
+    unsigned int compress_record_usecases_state;
     void *visualizer_lib;
     int (*visualizer_start_output)(audio_io_handle_t, int);
     int (*visualizer_stop_output)(audio_io_handle_t, int);
