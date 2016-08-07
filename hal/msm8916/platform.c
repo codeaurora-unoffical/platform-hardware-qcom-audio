@@ -4632,9 +4632,9 @@ bool platform_check_capture_codec_backend_cfg(struct audio_device* adev,
     ALOGI("%s:txbecf: afe: Codec selected backend: %d updated bit width: %d and "
           "sample rate: %d", __func__, backend_idx, bit_width, sample_rate);
     // Force routing if the expected bitwdith or samplerate
-    // is not same as current backend comfiguration
-    if ((bit_width != my_data->current_tx_backend_cfg[backend_idx].bit_width) ||
-        (sample_rate != my_data->current_tx_backend_cfg[backend_idx].sample_rate)) {
+    // is inferior to current afe configurations
+    if ((bit_width > my_data->current_tx_backend_cfg[backend_idx].bit_width) ||
+        (sample_rate > my_data->current_tx_backend_cfg[backend_idx].sample_rate)) {
         *new_bit_width = bit_width;
         *new_sample_rate = sample_rate;
         backend_change = true;
