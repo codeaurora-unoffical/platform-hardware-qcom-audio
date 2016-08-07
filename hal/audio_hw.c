@@ -76,6 +76,17 @@
 #define COMPRESS_OFFLOAD_NUM_FRAGMENTS 4
 #define COMPRESS_RECORD_NUM_FRAGMENTS 8
 
+/* default timestamp metadata definition if not defined in kernel*/
+#ifndef COMPRESSED_TIMESTAMP_FLAG
+#define COMPRESSED_TIMESTAMP_FLAG 0
+struct snd_codec_metadata {
+};
+#define compress_record_set_timstamp_flag(codec) (-ENOSYS)
+#else
+#define compress_record_set_timstamp_flag(codec) \
+            codec->flags |= COMPRESSED_TIMESTAMP_FLAG;
+#endif
+
 /* ToDo: Check and update a proper value in msec */
 #define COMPRESS_OFFLOAD_PLAYBACK_LATENCY 50
 #define COMPRESS_PLAYBACK_VOLUME_MAX 0x2000
@@ -1970,7 +1981,8 @@ static int check_input_parameters(uint32_t sample_rate,
 static size_t get_input_buffer_size(uint32_t sample_rate,
                                     audio_format_t format,
                                     int channel_count,
-                                    bool is_low_latency)
+                                    bool is_low_latency,
+                                    bool timestamp_mode)
 {
     size_t size = 0;
 
@@ -1990,6 +2002,12 @@ static size_t get_input_buffer_size(uint32_t sample_rate,
      */
     size += 0x1f;
     size &= ~0x1f;
+
+    /* increase size to accomodate timestamp metadata
+     * metadata is multiple of 32 bytes, so no re-calculation for byte alignment
+     */
+    if (timestamp_mode)
+        size += sizeof(struct snd_codec_metadata);
 
     return size;
 }
@@ -3000,8 +3018,16 @@ static ssize_t in_read(struct audio_stream_in *stream, void *buffer,
             ret = 0;
             /* data from DSP comes in 24_8 format, convert it to 8_24 */
             if (bytes > 0 && (in->format == AUDIO_FORMAT_PCM_8_24_BIT)) {
-                if (convert_format_24_8_to_8_24(buffer, bytes_read) != (int) bytes)
+                /* if present, skip timestamp metadata */
+                int data_offset = 0;
+                if (in->flags & AUDIO_INPUT_FLAG_TIMESTAMP)
+                    data_offset = sizeof(struct snd_codec_metadata);
+
+                char *buf = (char *) buffer + data_offset;
+                if ((int) bytes !=
+                    convert_format_24_8_to_8_24(buf, bytes_read - data_offset)) {
                     goto exit;
+                }
             }
         } else {
             int err = errno;
@@ -3791,15 +3817,22 @@ static size_t adev_get_input_buffer_size(const struct audio_hw_device *dev __unu
     int channel_count = audio_channel_count_from_in_mask(config->channel_mask);
 
     return get_input_buffer_size(config->sample_rate, config->format, channel_count,
-            false /* is_low_latency: since we don't know, be conservative */);
+            false /* is_low_latency: since we don't know, be conservative */,
+            true /* a large value is ok, again conservative*/);
 }
 
 /* returns true if requested input stream is compressed */
-static bool is_compressed_input_stream(struct stream_in *in __unused)
+static bool is_compressed_input_stream(struct stream_in *in)
 {
-    /* for now, compressed input is not applicable to any usecase
-     * to be used on addition of timestamp mode
+    /* return true if compressed timestamp support exists
+     * and timestamp mode is requested for this input
      */
+    if (COMPRESSED_TIMESTAMP_FLAG != 0 &&
+        in->flags & AUDIO_INPUT_FLAG_TIMESTAMP)
+        return true;
+    else
+        in->flags &= ~AUDIO_INPUT_FLAG_TIMESTAMP;
+
     return false;
 }
 
@@ -3966,11 +3999,14 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
         }
         in->config.channels = channel_count;
         buffer_size = get_input_buffer_size(config->sample_rate,
-                                            config->format,
-                                            channel_count,
-                                            false/*is_low_latency*/);
+                                        config->format,
+                                        channel_count,
+                                        false/*is_low_latency*/,
+                                        (in->flags & AUDIO_INPUT_FLAG_TIMESTAMP));
         in->compr_config.codec->id = get_snd_codec_id(config->format);
         in->compr_config.fragment_size = buffer_size;
+        if (in->flags & AUDIO_INPUT_FLAG_TIMESTAMP)
+            compress_record_set_timstamp_flag(in->compr_config.codec);
         in->compr_config.fragments = COMPRESS_RECORD_NUM_FRAGMENTS;
         in->compr_config.codec->sample_rate = config->sample_rate;
         in->compr_config.codec->ch_in = in->config.channels;
@@ -3991,7 +4027,8 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
         buffer_size = get_input_buffer_size(config->sample_rate,
                                             config->format,
                                             channel_count,
-                                            is_low_latency);
+                                            is_low_latency,
+                                            false /*timestamp mode */);
         in->config.period_size = buffer_size / frame_size;
         if ((in->source == AUDIO_SOURCE_VOICE_COMMUNICATION) &&
                (in->dev->mode == AUDIO_MODE_IN_COMMUNICATION) &&
