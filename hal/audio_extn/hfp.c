@@ -1,5 +1,5 @@
 /* hfp.c
-Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+Copyright (c) 2012-2014,2016 The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -45,10 +45,15 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 #define AUDIO_PARAMETER_HFP_SET_SAMPLING_RATE "hfp_set_sampling_rate"
 #define AUDIO_PARAMETER_KEY_HFP_VOLUME "hfp_volume"
 
+
+#ifdef ASM_LOOPBACK_RX_ENABLED
+#define HFP_RX_VOLUME     "Playback 36 Volume"
+#else
 #ifdef PLATFORM_MSM8994
 #define HFP_RX_VOLUME     "SEC AUXPCM LOOPBACK Volume"
 #else
 #define HFP_RX_VOLUME     "Internal HFP RX Volume"
+#endif
 #endif
 
 static int32_t start_hfp(struct audio_device *adev,
