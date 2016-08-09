@@ -459,6 +459,7 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_UNPROCESSED_THREE_MIC] = "three-mic",
     [SND_DEVICE_IN_UNPROCESSED_QUAD_MIC] = "quad-mic",
     [SND_DEVICE_IN_UNPROCESSED_HEADSET_MIC] = "headset-mic",
+    [SND_DEVICE_IN_HANDSET_GENERIC_QMIC] = "quad-mic",
 };
 
 // Platform specific backend bit width table
@@ -577,6 +578,7 @@ static int acdb_device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_UNPROCESSED_THREE_MIC] = 145,
     [SND_DEVICE_IN_UNPROCESSED_QUAD_MIC] = 146,
     [SND_DEVICE_IN_UNPROCESSED_HEADSET_MIC] = 147,
+    [SND_DEVICE_IN_HANDSET_GENERIC_QMIC] = 150,
 };
 
 struct name_to_index {
@@ -697,6 +699,7 @@ static struct name_to_index snd_device_name_index[SND_DEVICE_MAX] = {
     {TO_NAME_INDEX(SND_DEVICE_IN_UNPROCESSED_THREE_MIC)},
     {TO_NAME_INDEX(SND_DEVICE_IN_UNPROCESSED_QUAD_MIC)},
     {TO_NAME_INDEX(SND_DEVICE_IN_UNPROCESSED_HEADSET_MIC)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_GENERIC_QMIC)},
 };
 
 static char * backend_table[SND_DEVICE_MAX] = {0};
@@ -3063,6 +3066,13 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
 
     ALOGV("%s: enter: out_device(%#x) in_device(%#x) channel_count (%d) channel_mask (0x%x)",
           __func__, out_device, in_device, channel_count, channel_mask);
+
+    int use_generic_handset_with_tx_app_type = false;
+    char value[PROPERTY_VALUE_MAX] = {0};
+    property_get("audio.apptype.multirec.enabled", value, NULL);
+    if (atoi(value) || !strncmp("true", value, 4))
+        use_generic_handset_with_tx_app_type = true;
+
     if (my_data->external_mic) {
         if ((out_device != AUDIO_DEVICE_NONE) && ((mode == AUDIO_MODE_IN_CALL) ||
             voice_extn_compress_voip_is_active(adev) || audio_extn_hfp_is_active(adev))) {
@@ -3164,6 +3174,18 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
             }
         } else if (out_device & AUDIO_DEVICE_OUT_TELEPHONY_TX)
             snd_device = SND_DEVICE_IN_VOICE_RX;
+    } else if (use_generic_handset_with_tx_app_type == true &&  //     system prop is enabled
+               (my_data->source_mic_type & SOURCE_QUAD_MIC) &&  // AND 4mic is available
+               ((in_device & AUDIO_DEVICE_IN_BUILTIN_MIC) ||    // AND device is buit-in mic or back mic
+                (in_device & AUDIO_DEVICE_IN_BACK_MIC)) &&
+               (my_data->fluence_in_audio_rec == true &&       //  AND fluencepro is enabled
+                my_data->fluence_type & FLUENCE_QUAD_MIC) &&
+               (source == AUDIO_SOURCE_CAMCORDER ||           // AND source is cam/mic/unprocessed
+                source == AUDIO_SOURCE_UNPROCESSED ||
+                source == AUDIO_SOURCE_MIC)) {
+                snd_device = SND_DEVICE_IN_HANDSET_GENERIC_QMIC;
+            if (my_data->fluence_in_audio_rec == true)
+                platform_set_echo_reference(adev, true, out_device);
     } else if (source == AUDIO_SOURCE_CAMCORDER) {
         if (in_device & AUDIO_DEVICE_IN_BUILTIN_MIC ||
             in_device & AUDIO_DEVICE_IN_BACK_MIC) {
