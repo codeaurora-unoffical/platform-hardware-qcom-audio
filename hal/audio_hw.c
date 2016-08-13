@@ -74,6 +74,8 @@
 #include "sound/asound.h"
 
 #define COMPRESS_OFFLOAD_NUM_FRAGMENTS 4
+#define COMPRESS_RECORD_NUM_FRAGMENTS 8
+
 /* ToDo: Check and update a proper value in msec */
 #define COMPRESS_OFFLOAD_PLAYBACK_LATENCY 50
 #define COMPRESS_PLAYBACK_VOLUME_MAX 0x2000
@@ -180,6 +182,9 @@ const char * const use_case_table[AUDIO_USECASE_MAX] = {
 
     [USECASE_AUDIO_RECORD] = "audio-record",
     [USECASE_AUDIO_RECORD_COMPRESS] = "audio-record-compress",
+    [USECASE_AUDIO_RECORD_COMPRESS2] = "audio-record-compress2",
+    [USECASE_AUDIO_RECORD_COMPRESS3] = "audio-record-compress3",
+    [USECASE_AUDIO_RECORD_COMPRESS4] = "audio-record-compress4",
     [USECASE_AUDIO_RECORD_LOW_LATENCY] = "low-latency-record",
     [USECASE_AUDIO_RECORD_FM_VIRTUAL] = "fm-virtual-record",
     [USECASE_AUDIO_PLAYBACK_FM] = "play-fm",
@@ -220,6 +225,12 @@ static const audio_usecase_t offload_usecases[] = {
     USECASE_AUDIO_PLAYBACK_OFFLOAD7,
     USECASE_AUDIO_PLAYBACK_OFFLOAD8,
     USECASE_AUDIO_PLAYBACK_OFFLOAD9,
+};
+
+static const audio_usecase_t compress_record_usecases[] = {
+    USECASE_AUDIO_RECORD_COMPRESS2,
+    USECASE_AUDIO_RECORD_COMPRESS3,
+    USECASE_AUDIO_RECORD_COMPRESS4
 };
 
 #define STRING_TO_ENUM(string) { #string, string }
@@ -1129,6 +1140,56 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
     return status;
 }
 
+bool is_compress_record_usecase(audio_usecase_t uc_id)
+{
+    unsigned int i;
+
+    for (i = 0; i < sizeof(compress_record_usecases)/sizeof(compress_record_usecases[0]); i++) {
+        if (uc_id == compress_record_usecases[i])
+            return true;
+    }
+    return false;
+}
+
+static audio_usecase_t get_compress_record_usecase(struct audio_device *adev)
+{
+    audio_usecase_t ret_uc = USECASE_INVALID;
+    unsigned int i, num_usecase = sizeof(compress_record_usecases) /
+                                  sizeof(compress_record_usecases[0]);
+    char value[PROPERTY_VALUE_MAX] = {0};
+
+    property_get("audio.record.multiple.enabled", value, NULL);
+    if (!(atoi(value) || !strncmp("true", value, 4)))
+        num_usecase = 1; /* If prop is not set, limit the num of record usecases to 1 */
+
+    ALOGV("%s: num_usecase: %d", __func__, num_usecase);
+    pthread_mutex_lock(&adev->lock);
+    for (i = 0; i < num_usecase; i++) {
+        if (!(adev->compress_record_usecases_state & (0x1 << i))) {
+            adev->compress_record_usecases_state |= 0x1 << i;
+            ret_uc = compress_record_usecases[i];
+            break;
+        }
+    }
+    pthread_mutex_unlock(&adev->lock);
+    ALOGV("%s: compress record usecase is %d", __func__, ret_uc);
+    return ret_uc;
+}
+
+static void free_compress_record_usecase(struct audio_device *adev,
+                                         audio_usecase_t uc_id)
+{
+    unsigned int i;
+
+    for (i = 0; i < sizeof(compress_record_usecases) /
+                    sizeof(compress_record_usecases[0]); i++) {
+        if (uc_id == compress_record_usecases[i])
+            adev->compress_record_usecases_state &= ~(0x1 << i);
+            break;
+    }
+    ALOGV("%s: free record usecase %d", __func__, uc_id);
+}
+
 static int stop_input_stream(struct stream_in *in)
 {
     int ret = 0;
@@ -1228,40 +1289,56 @@ int start_input_stream(struct stream_in *in)
     ALOGV("%s: Opening PCM device card_id(%d) device_id(%d), channels %d format %d",
           __func__, adev->snd_card, in->pcm_device_id, in->config.channels, in->config.format);
 
-    unsigned int flags = PCM_IN;
-    unsigned int pcm_open_retry_count = 0;
-
-    if (in->usecase == USECASE_AUDIO_RECORD_AFE_PROXY) {
-        flags |= PCM_MMAP | PCM_NOIRQ;
-        pcm_open_retry_count = PROXY_OPEN_RETRY_COUNT;
-    }
-
-    while (1) {
-        in->pcm = pcm_open(adev->snd_card, in->pcm_device_id,
-                           flags, &in->config);
-        if (in->pcm == NULL || !pcm_is_ready(in->pcm)) {
-            ALOGE("%s: %s", __func__, pcm_get_error(in->pcm));
-            if (in->pcm != NULL) {
-                pcm_close(in->pcm);
-                in->pcm = NULL;
-            }
-            if (pcm_open_retry_count-- == 0) {
-                ret = -EIO;
-                goto error_open;
-            }
-            usleep(PROXY_OPEN_WAIT_TIME * 1000);
-            continue;
-        }
-        break;
-    }
-
-    ALOGV("%s: pcm_prepare", __func__);
-    ret = pcm_prepare(in->pcm);
-    if (ret < 0) {
-        ALOGE("%s: pcm_prepare returned %d", __func__, ret);
-        pcm_close(in->pcm);
+    if (is_compress_record_usecase(in->usecase)) {
         in->pcm = NULL;
-        goto error_open;
+        in->compr = compress_open(adev->snd_card, in->pcm_device_id,
+                           COMPRESS_OUT, &in->compr_config);
+        if (in->compr == NULL || !is_compress_ready(in->compr)) {
+            ALOGE("%s: %s", __func__,
+                            in->compr ? compress_get_error(in->compr) : "null");
+            if (in->compr) {
+                compress_close(in->compr);
+                in->compr = NULL;
+            }
+            ret = -EIO;
+            goto error_open;
+        }
+    } else {
+        unsigned int flags = PCM_IN;
+        unsigned int pcm_open_retry_count = 0;
+
+        if (in->usecase == USECASE_AUDIO_RECORD_AFE_PROXY) {
+            flags |= PCM_MMAP | PCM_NOIRQ;
+            pcm_open_retry_count = PROXY_OPEN_RETRY_COUNT;
+        }
+
+        while (1) {
+            in->pcm = pcm_open(adev->snd_card, in->pcm_device_id,
+                               flags, &in->config);
+            if (in->pcm == NULL || !pcm_is_ready(in->pcm)) {
+                ALOGE("%s: %s", __func__, pcm_get_error(in->pcm));
+                if (in->pcm != NULL) {
+                    pcm_close(in->pcm);
+                    in->pcm = NULL;
+                }
+                if (pcm_open_retry_count-- == 0) {
+                    ret = -EIO;
+                    goto error_open;
+                }
+                usleep(PROXY_OPEN_WAIT_TIME * 1000);
+                continue;
+            }
+            break;
+        }
+
+        ALOGV("%s: pcm_prepare", __func__);
+        ret = pcm_prepare(in->pcm);
+        if (ret < 0) {
+            ALOGE("%s: pcm_prepare returned %d", __func__, ret);
+            pcm_close(in->pcm);
+            in->pcm = NULL;
+            goto error_open;
+        }
     }
 
     audio_extn_perf_lock_release(&adev->perf_lock_handle);
@@ -2686,6 +2763,8 @@ static size_t in_get_buffer_size(const struct audio_stream *stream)
         return voice_extn_compress_voip_in_get_buffer_size(in);
     else if(audio_extn_compr_cap_usecase_supported(in->usecase))
         return audio_extn_compr_cap_get_buffer_size(in->config.format);
+    else if(is_compress_record_usecase(in->usecase))
+        return in->compr_config.fragment_size;
 
     return in->config.period_size *
                 audio_stream_in_frame_size((const struct audio_stream_in *)stream);
@@ -2740,7 +2819,10 @@ static int in_standby(struct audio_stream *stream)
 
         pthread_mutex_lock(&adev->lock);
         in->standby = true;
-        if (in->pcm) {
+        if (in->compr) {
+            compress_close(in->compr);
+            in->compr = NULL;
+        } else if (in->pcm) {
             pcm_close(in->pcm);
             in->pcm = NULL;
         }
@@ -2852,6 +2934,20 @@ static int in_set_gain(struct audio_stream_in *stream __unused,
     return 0;
 }
 
+static int convert_format_24_8_to_8_24(void *buf, size_t bytes)
+{
+    size_t i = 0;
+    int *int_buf_stream = buf;
+
+    if ((bytes % 4) != 0) {
+        ALOGE("%s: wrong inout buffer! ... is not 32 bit aligned ", __func__);
+        return -EINVAL;
+    }
+    for (; i < (bytes / 4); i++)
+        int_buf_stream[i] >>= 8;
+    return bytes;
+}
+
 static ssize_t in_read(struct audio_stream_in *stream, void *buffer,
                        size_t bytes)
 {
@@ -2859,8 +2955,7 @@ static ssize_t in_read(struct audio_stream_in *stream, void *buffer,
     struct audio_device *adev = in->dev;
     int ret = -1;
     int snd_scard_state = get_snd_card_state(adev);
-    int *int_buf_stream = NULL;
-    size_t itt;
+    size_t bytes_read = 0;
 
     lock_input_stream(in);
 
@@ -2896,7 +2991,27 @@ static ssize_t in_read(struct audio_stream_in *stream, void *buffer,
     if (adev->adm_request_focus)
         adev->adm_request_focus(adev->adm_data, in->capture_handle);
 
-    if (in->pcm) {
+    if (in->compr && is_compress_record_usecase(in->usecase)) {
+        /* start stream if not already done */
+        if (!is_compress_running(in->compr))
+            compress_start(in->compr);
+
+        bytes_read = compress_read(in->compr, buffer, bytes);
+        if (bytes_read > 0) {
+            /* set ret to 0 if compress_read succeeded*/
+            ret = 0;
+            /* data from DSP comes in 24_8 format, convert it to 8_24 */
+            if (bytes > 0 && (in->format == AUDIO_FORMAT_PCM_8_24_BIT)) {
+                if (convert_format_24_8_to_8_24(buffer, bytes_read) != (int) bytes)
+                    goto exit;
+            }
+        } else {
+            int err = errno;
+            ALOGE("%s: failed error = %d, ret = %d, err_str %s",
+                  __func__, err, ret, compress_get_error(in->compr));
+            ret = -errno;
+        }
+    } else if (in->pcm) {
         if (audio_extn_ssr_get_stream() == in) {
             ret = audio_extn_ssr_read(stream, buffer, bytes);
         } else if (audio_extn_compr_cap_usecase_supported(in->usecase)) {
@@ -2905,22 +3020,16 @@ static ssize_t in_read(struct audio_stream_in *stream, void *buffer,
             ret = pcm_mmap_read(in->pcm, buffer, bytes);
         } else {
             ret = pcm_read(in->pcm, buffer, bytes);
+            /* data from DSP comes in 24_8 format, convert it to 8_24 */
             if ( !ret && bytes > 0 && (in->format == AUDIO_FORMAT_PCM_8_24_BIT)) {
-                if (bytes % 4 == 0) {
-                    /* data from DSP comes in 24_8 format, convert it to 8_24 */
-                    int_buf_stream = buffer;
-                    for (itt=0; itt < bytes/4 ; itt++) {
-                        int_buf_stream[itt] >>= 8;
-                    }
-                } else {
-                    ALOGE("%s: !!! something wrong !!! ... data not 32 bit aligned ", __func__);
-                    ret = -EINVAL;
+                if (convert_format_24_8_to_8_24(buffer, bytes) != (int) bytes)
                     goto exit;
-                }
             } if (ret < 0) {
                 ret = -errno;
             }
         }
+        /* bytes read is always set to bytes for non compress usecases */
+        bytes_read = bytes;
     }
 
     if (adev->adm_abandon_focus)
@@ -2955,7 +3064,7 @@ exit:
         usleep((uint64_t)bytes * 1000000 / audio_stream_in_frame_size(stream) /
                                    in_get_sample_rate(&in->stream.common));
     }
-    return bytes;
+    return bytes_read;
 }
 
 static uint32_t in_get_input_frames_lost(struct audio_stream_in *stream __unused)
@@ -3687,6 +3796,15 @@ static size_t adev_get_input_buffer_size(const struct audio_hw_device *dev __unu
             false /* is_low_latency: since we don't know, be conservative */);
 }
 
+/* returns true if requested input stream is compressed */
+static bool is_compressed_input_stream(struct stream_in *in __unused)
+{
+    /* for now, compressed input is not applicable to any usecase
+     * to be used on addition of timestamp mode
+     */
+    return false;
+}
+
 static int adev_open_input_stream(struct audio_hw_device *dev,
                                   audio_io_handle_t handle,
                                   audio_devices_t devices,
@@ -3746,6 +3864,52 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
     in->capture_handle = handle;
     in->flags = flags;
 
+    in->config = pcm_config_audio_capture;
+    in->config.rate = config->sample_rate;
+    in->format = config->format;
+    in->bit_width = 16;
+    in->sample_rate = config->sample_rate;
+
+    /* restrict 24 bit capture for unprocessed source only
+     * for other sources if 24 bit requested reject 24 and set 16 bit capture only
+     */
+    if (config->format == AUDIO_FORMAT_DEFAULT) {
+        config->format = AUDIO_FORMAT_PCM_16_BIT;
+    } else if ((config->format == AUDIO_FORMAT_PCM_FLOAT) ||
+               (config->format == AUDIO_FORMAT_PCM_32_BIT) ||
+               (config->format == AUDIO_FORMAT_PCM_24_BIT_PACKED) ||
+               (config->format == AUDIO_FORMAT_PCM_8_24_BIT)) {
+        bool ret_error = false;
+        in->bit_width = 24;
+        /* 24 bit is restricted to UNPROCESSED source only,also format supported
+           from HAL is 24_packed and 8_24
+         *> In case of UNPROCESSED source, for 24 bit, if format requested is other than
+            24_packed return error indicating supported format is 24_packed
+         *> In case of any other source requesting 24 bit or float return error
+            indicating format supported is 16 bit only.
+
+            on error flinger will retry with supported format passed
+         */
+        if ((source != AUDIO_SOURCE_UNPROCESSED) &&
+            (source != AUDIO_SOURCE_CAMCORDER)) {
+            config->format = AUDIO_FORMAT_PCM_16_BIT;
+            if (config->sample_rate > 48000)
+                config->sample_rate = 48000;
+            ret_error = true;
+        } else if (config->format == AUDIO_FORMAT_PCM_24_BIT_PACKED) {
+            in->config.format = PCM_FORMAT_S24_3LE;
+        } else if (config->format == AUDIO_FORMAT_PCM_8_24_BIT) {
+            in->config.format = PCM_FORMAT_S24_LE;
+        } else {
+            config->format = AUDIO_FORMAT_PCM_24_BIT_PACKED;
+            ret_error = true;
+        }
+
+        if (ret_error) {
+            ret = -EINVAL;
+            goto err_open;
+        }
+    }
     /* Update config params with the requested sample rate and channels */
     in->usecase = USECASE_AUDIO_RECORD;
     if (config->sample_rate == LOW_LATENCY_CAPTURE_SAMPLE_RATE &&
@@ -3755,12 +3919,6 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
         in->usecase = USECASE_AUDIO_RECORD_LOW_LATENCY;
 #endif
     }
-    in->config = pcm_config_audio_capture;
-    in->config.rate = config->sample_rate;
-    in->format = config->format;
-    in->bit_width = 16;
-    in->sample_rate = config->sample_rate;
-
     if (in->device == AUDIO_DEVICE_IN_TELEPHONY_RX) {
         if (adev->mode != AUDIO_MODE_IN_CALL) {
             ret = -EINVAL;
@@ -3789,56 +3947,48 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
         in->sample_rate = config->sample_rate;
     }
 #ifdef SSR_ENABLED
-      else if (!audio_extn_ssr_check_and_set_usecase(in)) {
+    else if (!audio_extn_ssr_check_and_set_usecase(in)) {
         ALOGD("%s: created surround sound session succesfully",__func__);
     }
 #endif
-       else if (audio_extn_compr_cap_enabled() &&
-            audio_extn_compr_cap_format_supported(config->format) &&
-            (in->dev->mode != AUDIO_MODE_IN_COMMUNICATION)) {
+    else if (audio_extn_compr_cap_enabled() &&
+             audio_extn_compr_cap_format_supported(config->format) &&
+             (in->dev->mode != AUDIO_MODE_IN_COMMUNICATION)) {
         audio_extn_compr_cap_init(in);
-    } else {
-        /* restrict 24 bit capture for unprocessed source only
-         * for other sources if 24 bit requested reject 24 and set 16 bit capture only
-         */
-        if (config->format == AUDIO_FORMAT_DEFAULT) {
-            config->format = AUDIO_FORMAT_PCM_16_BIT;
-        } else if ((config->format == AUDIO_FORMAT_PCM_FLOAT) ||
-                (config->format == AUDIO_FORMAT_PCM_32_BIT) ||
-                (config->format == AUDIO_FORMAT_PCM_24_BIT_PACKED) ||
-                (config->format == AUDIO_FORMAT_PCM_8_24_BIT)) {
-            bool ret_error = false;
-            in->bit_width = 24;
-            /* 24 bit is restricted to UNPROCESSED source only,also format supported
-               from HAL is 24_packed and 8_24
-             *> In case of UNPROCESSED source, for 24 bit, if format requested is other than
-             24_packed return error indicating supported format is 24_packed
-             *> In case of any other source requesting 24 bit or float return error
-             indicating format supported is 16 bit only.
-
-             on error flinger will retry with supported format passed
-             */
-            if ((source != AUDIO_SOURCE_UNPROCESSED) &&
-                (source != AUDIO_SOURCE_CAMCORDER)) {
-                config->format = AUDIO_FORMAT_PCM_16_BIT;
-                if( config->sample_rate > 48000)
-                    config->sample_rate = 48000;
-                ret_error = true;
-            } else if (config->format == AUDIO_FORMAT_PCM_24_BIT_PACKED) {
-                in->config.format = PCM_FORMAT_S24_3LE;
-            } else if (config->format == AUDIO_FORMAT_PCM_8_24_BIT) {
-                in->config.format = PCM_FORMAT_S24_LE;
-            } else {
-                config->format = AUDIO_FORMAT_PCM_24_BIT_PACKED;
-                ret_error = true;
-            }
-
-            if (ret_error) {
-                ret = -EINVAL;
-                goto err_open;
-            }
+    } else if (is_compressed_input_stream(in)) {
+        in->compr_config.codec = (struct snd_codec *)
+                                  calloc(1, sizeof(struct snd_codec));
+        if (!in->compr_config.codec) {
+            ret = -ENOMEM;
+            goto err_open;
         }
-
+        in->usecase = get_compress_record_usecase(adev);
+        if (in->usecase == USECASE_INVALID) {
+            ALOGE("%s, Max allowed compress record usecase reached .", __func__);
+            ret = -EEXIST;
+            goto err_open;
+        }
+        in->config.channels = channel_count;
+        buffer_size = get_input_buffer_size(config->sample_rate,
+                                            config->format,
+                                            channel_count,
+                                            false/*is_low_latency*/);
+        in->compr_config.codec->id = get_snd_codec_id(config->format);
+        in->compr_config.fragment_size = buffer_size;
+        in->compr_config.fragments = COMPRESS_RECORD_NUM_FRAGMENTS;
+        in->compr_config.codec->sample_rate = config->sample_rate;
+        in->compr_config.codec->ch_in = in->config.channels;
+        in->compr_config.codec->ch_out = in->config.channels;
+        /*convert pcm_format to alsa, as tinycompress passes format as it is*/
+        if (config->format == AUDIO_FORMAT_PCM_8_24_BIT) {
+            in->config.format = SNDRV_PCM_FORMAT_S24_LE;
+        } else if (config->format == AUDIO_FORMAT_PCM_24_BIT_PACKED) {
+            in->config.format = SNDRV_PCM_FORMAT_S24_3LE;
+        } else if (config->format == AUDIO_FORMAT_PCM_16_BIT) {
+            in->config.format = SNDRV_PCM_FORMAT_S16_LE;
+        }
+        in->compr_config.codec->format = in->config.format;
+    } else {
         in->format = config->format;
         in->config.channels = channel_count;
         frame_size = audio_stream_in_frame_size(&in->stream);
@@ -3892,6 +4042,10 @@ static void adev_close_input_stream(struct audio_hw_device *dev,
                   __func__, ret);
     } else
         in_standby(&stream->common);
+
+    if (is_compress_record_usecase(in->usecase)) {
+        free_compress_record_usecase(adev, in->usecase);
+    }
 
     if (audio_extn_ssr_get_stream() == in) {
         audio_extn_ssr_deinit();
@@ -4020,6 +4174,7 @@ static int adev_open(const hw_module_t *module, const char *name,
     list_init(&adev->usecase_list);
     adev->cur_wfd_channels = 2;
     adev->offload_usecases_state = 0;
+    adev->compress_record_usecases_state = 0;
     adev->is_channel_status_set = false;
     adev->perf_lock_opts[0] = 0x101;
     adev->perf_lock_opts[1] = 0x20E;
