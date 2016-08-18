@@ -86,7 +86,7 @@ void audio_extn_fm_set_parameters(struct audio_device *adev,
 #ifndef HFP_ENABLED
 #define audio_extn_hfp_set_parameters(adev, parms) (0)
 #else
-void audio_extn_hfp_set_parameters(struct audio_device *adev,
+int audio_extn_hfp_set_parameters(struct audio_device *adev,
                                            struct str_parms *parms);
 #endif
 
@@ -499,22 +499,25 @@ static int get_active_offload_usecases(const struct audio_device *adev,
     return ret;
 }
 
-void audio_extn_set_parameters(struct audio_device *adev,
+int audio_extn_set_parameters(struct audio_device *adev,
                                struct str_parms *parms)
 {
+   int ret = 0;
+
    audio_extn_set_anc_parameters(adev, parms);
    audio_extn_set_fluence_parameters(adev, parms);
    audio_extn_set_afe_proxy_parameters(adev, parms);
    audio_extn_fm_set_parameters(adev, parms);
    audio_extn_sound_trigger_set_parameters(adev, parms);
    audio_extn_listen_set_parameters(adev, parms);
-   audio_extn_hfp_set_parameters(adev, parms);
+   ret = audio_extn_hfp_set_parameters(adev, parms);
    audio_extn_dts_eagle_set_parameters(adev, parms);
    audio_extn_ddp_set_parameters(adev, parms);
    audio_extn_ds2_set_parameters(adev, parms);
    audio_extn_customstereo_set_parameters(adev, parms);
    audio_extn_hpx_set_parameters(adev, parms);
    audio_extn_ext_hw_plugin_set_parameters(adev->ext_hw_plugin, parms);
+   return ret;
 }
 
 void audio_extn_get_parameters(const struct audio_device *adev,
