@@ -74,6 +74,9 @@
 
 #define AUDIO_OFFLOAD_CODEC_VORBIS_BITSTREAM_FMT "music_offload_vorbis_bitstream_fmt"
 
+/* Set bad mic channel index to reconfigure input device */
+#define AUDIO_PARAMETER_KEY_BAD_MIC_CHANNEL_INDEX "bad_mic_channel_index"
+
 /* Query handle fm parameter*/
 #define AUDIO_PARAMETER_KEY_HANDLE_FM "handle_fm"
 

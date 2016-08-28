@@ -267,6 +267,7 @@ struct platform_data {
     int metainfo_key;
     int source_mic_type;
     int max_mic_count;
+    int bad_mic_channel_index;
 };
 
 static bool is_external_codec = false;
@@ -464,6 +465,9 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_UNPROCESSED_QUAD_MIC] = "quad-mic",
     [SND_DEVICE_IN_UNPROCESSED_HEADSET_MIC] = "headset-mic",
     [SND_DEVICE_IN_HANDSET_GENERIC_QMIC] = "quad-mic",
+    [SND_DEVICE_IN_HANDSET_GENERIC_QMIC_ALT1] = "quad-mic-alt1",
+    [SND_DEVICE_IN_HANDSET_GENERIC_QMIC_ALT2] = "quad-mic-alt2",
+    [SND_DEVICE_IN_HANDSET_GENERIC_QMIC_ALT3] = "quad-mic-alt3",
 };
 
 // Platform specific backend bit width table
@@ -583,6 +587,9 @@ static int acdb_device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_UNPROCESSED_QUAD_MIC] = 146,
     [SND_DEVICE_IN_UNPROCESSED_HEADSET_MIC] = 147,
     [SND_DEVICE_IN_HANDSET_GENERIC_QMIC] = 150,
+    [SND_DEVICE_IN_HANDSET_GENERIC_QMIC_ALT1] = 151,
+    [SND_DEVICE_IN_HANDSET_GENERIC_QMIC_ALT2] = 152,
+    [SND_DEVICE_IN_HANDSET_GENERIC_QMIC_ALT3] = 153,
 };
 
 struct name_to_index {
@@ -704,6 +711,9 @@ static struct name_to_index snd_device_name_index[SND_DEVICE_MAX] = {
     {TO_NAME_INDEX(SND_DEVICE_IN_UNPROCESSED_QUAD_MIC)},
     {TO_NAME_INDEX(SND_DEVICE_IN_UNPROCESSED_HEADSET_MIC)},
     {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_GENERIC_QMIC)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_GENERIC_QMIC_ALT1)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_GENERIC_QMIC_ALT2)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_GENERIC_QMIC_ALT3)},
 };
 
 static char * backend_table[SND_DEVICE_MAX] = {0};
@@ -3191,7 +3201,16 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
                (source == AUDIO_SOURCE_CAMCORDER ||           // AND source is cam/mic/unprocessed
                 source == AUDIO_SOURCE_UNPROCESSED ||
                 source == AUDIO_SOURCE_MIC)) {
-                snd_device = SND_DEVICE_IN_HANDSET_GENERIC_QMIC;
+                if (!my_data->bad_mic_channel_index)
+                    snd_device = SND_DEVICE_IN_HANDSET_GENERIC_QMIC;
+                else if (my_data->bad_mic_channel_index & 0x1)
+                    snd_device = SND_DEVICE_IN_HANDSET_GENERIC_QMIC_ALT1;
+                else if (my_data->bad_mic_channel_index & 0x2)
+                    snd_device = SND_DEVICE_IN_HANDSET_GENERIC_QMIC_ALT2;
+                else if (my_data->bad_mic_channel_index & 0x4)
+                    snd_device = SND_DEVICE_IN_HANDSET_GENERIC_QMIC_ALT3;
+                else
+                    snd_device = SND_DEVICE_IN_HANDSET_GENERIC_QMIC;
             if (my_data->fluence_in_audio_rec == true)
                 platform_set_echo_reference(adev, true, out_device);
     } else if (source == AUDIO_SOURCE_CAMCORDER) {
@@ -3573,6 +3592,18 @@ static int set_hd_voice(struct platform_data *my_data, bool state)
 
     return ret;
 }
+
+static void update_devices_against_bad_mic(struct platform_data *platform)
+{
+    struct audio_usecase *usecase;
+    struct listnode *node;
+    list_for_each(node, &(platform->adev)->usecase_list) {
+        usecase = node_to_item(node, struct audio_usecase, list);
+        if (usecase->type == PCM_CAPTURE)
+            select_devices(platform->adev, usecase->id);
+    }
+}
+
 #if 0
 static int update_external_device_status(struct platform_data *my_data,
                                  char* event_name, bool status)
@@ -3826,6 +3857,16 @@ int platform_set_parameters(void *platform, struct str_parms *parms)
         str_parms_del(parms, PLATFORM_MAX_MIC_COUNT);
         my_data->max_mic_count = atoi(value);
         ALOGV("%s: max_mic_count %d", __func__, my_data->max_mic_count);
+    }
+
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_BAD_MIC_CHANNEL_INDEX, value, sizeof(value));
+    if (err >= 0) {
+        int bad_mic_channel_index = atoi(value);
+        if (bad_mic_channel_index != 0 && my_data->bad_mic_channel_index == 0) {
+            my_data->bad_mic_channel_index = bad_mic_channel_index;
+            ALOGD("setting bad mic channel index to 0x%0x", bad_mic_channel_index);
+            update_devices_against_bad_mic(platform);
+        }
     }
 
     native_audio_set_params(platform, parms, value, sizeof(value));
