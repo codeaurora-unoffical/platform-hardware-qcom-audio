@@ -76,6 +76,8 @@
 
 #define MAX_PERF_LOCK_OPTS 20
 
+#define MAX_STREAM_PROFILE_STR_LEN 50
+
 /* These are the supported use cases by the hardware.
  * Each usecase is mapped to a specific PCM device.
  * Refer to pcm_device_table[].
@@ -246,6 +248,7 @@ struct stream_in {
     audio_format_t format;
     audio_io_handle_t capture_handle;
     audio_input_flags_t flags;
+    char profile[MAX_STREAM_PROFILE_STR_LEN];
     bool is_st_session;
     bool is_st_session_active;
     unsigned int sample_rate;
@@ -295,17 +298,10 @@ struct stream_sample_rate {
     uint32_t sample_rate;
 };
 
-struct streams_output_cfg {
+struct streams_io_cfg {
     struct listnode list;
     audio_output_flags_t flags;
-    struct listnode format_list;
-    struct listnode sample_rate_list;
-    struct stream_app_type_cfg app_type_cfg;
-};
-
-struct streams_input_cfg {
-    struct listnode list;
-    audio_input_flags_t flags;
+    char profile[MAX_STREAM_PROFILE_STR_LEN];
     struct listnode format_list;
     struct listnode sample_rate_list;
     struct stream_app_type_cfg app_type_cfg;
