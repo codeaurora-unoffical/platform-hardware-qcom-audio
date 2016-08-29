@@ -47,6 +47,7 @@
 #include <audio_route/audio_route.h>
 #include "audio_defs.h"
 #include "voice.h"
+#include "qti_audio_extn.h"
 
 #define VISUALIZER_LIBRARY_PATH "/system/lib/soundfx/libqcomvisualizer.so"
 #define OFFLOAD_EFFECTS_BUNDLE_LIBRARY_PATH "/system/lib/soundfx/libqcompostprocbundle.so"
@@ -183,7 +184,10 @@ struct stream_app_type_cfg {
 };
 
 struct stream_out {
-    struct audio_stream_out stream;
+    union {
+        struct audio_stream_out stream;
+        struct qti_audio_stream_out qti_stream;
+    };
     pthread_mutex_t lock; /* see note below on mutex acquisition order */
     pthread_mutex_t pre_lock; /* acquire before lock to avoid DOS by playback thread */
     pthread_cond_t  cond;
@@ -228,7 +232,10 @@ struct stream_out {
 };
 
 struct stream_in {
-    struct audio_stream_in stream;
+    union {
+        struct audio_stream_in stream;
+        struct qti_audio_stream_in qti_stream;
+    };
     pthread_mutex_t lock; /* see note below on mutex acquisition order */
     pthread_mutex_t pre_lock; /* acquire before lock to avoid DOS by playback thread */
     struct pcm_config config;
@@ -320,7 +327,10 @@ typedef void (*adm_request_focus_t)(void *, audio_io_handle_t);
 typedef void (*adm_abandon_focus_t)(void *, audio_io_handle_t);
 
 struct audio_device {
-    struct audio_hw_device device;
+    union {
+        struct audio_hw_device device;
+        struct qti_audio_hw_device qti_device;
+    };
     pthread_mutex_t lock; /* see note below on mutex acquisition order */
     struct mixer *mixer;
     audio_mode_t mode;

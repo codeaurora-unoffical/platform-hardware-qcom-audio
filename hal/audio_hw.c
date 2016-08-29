@@ -69,6 +69,7 @@
 #include <platform.h>
 #include "audio_extn.h"
 #include "voice_extn.h"
+#include "qti_audio_extn_internal.h"
 
 #include "sound/compress_params.h"
 #include "sound/asound.h"
@@ -2753,7 +2754,8 @@ static size_t in_get_buffer_size(const struct audio_stream *stream)
     else if(audio_extn_compr_cap_usecase_supported(in->usecase))
         return audio_extn_compr_cap_get_buffer_size(in->config.format);
     else if(is_compress_record_usecase(in->usecase))
-        return in->compr_config.fragment_size;
+        return get_input_buffer_size(in->sample_rate, in->format,
+                   audio_channel_count_from_in_mask(in->channel_mask), false);
 
     return in->config.period_size *
                 audio_stream_in_frame_size((const struct audio_stream_in *)stream);
@@ -2991,6 +2993,7 @@ static ssize_t in_read(struct audio_stream_in *stream, void *buffer,
             ret = 0;
             /* data from DSP comes in 24_8 format, convert it to 8_24 */
             if (bytes > 0 && (in->format == AUDIO_FORMAT_PCM_8_24_BIT)) {
+                qti_audio_extn_backup_capture_stream_metadata(in, buffer, bytes_read);
                 if (convert_format_24_8_to_8_24(buffer, bytes_read) != (int) bytes)
                     goto exit;
             }
@@ -3786,11 +3789,11 @@ static size_t adev_get_input_buffer_size(const struct audio_hw_device *dev __unu
 }
 
 /* returns true if requested input stream is compressed */
-static bool is_compressed_input_stream(struct stream_in *in __unused)
+static bool is_compressed_input_stream(struct stream_in *in)
 {
-    /* for now, compressed input is not applicable to any usecase
-     * to be used on addition of timestamp mode
-     */
+    if (qti_audio_extn_is_compressed_input_stream(in))
+        return true;
+
     return false;
 }
 
@@ -3977,6 +3980,7 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
             in->config.format = SNDRV_PCM_FORMAT_S16_LE;
         }
         in->compr_config.codec->format = in->config.format;
+        qti_audio_extn_update_config(in);
     } else {
         in->format = config->format;
         in->config.channels = channel_count;
@@ -4293,6 +4297,7 @@ static int adev_open(const hw_module_t *module, const char *name,
         adev->adm_data = adev->adm_init();
 
     audio_extn_perf_lock_init();
+    qti_audio_extn_init(*device);
     ALOGV("%s: exit", __func__);
     return 0;
 }

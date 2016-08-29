@@ -104,6 +104,7 @@ endif
 
 h_sources = audio_extn/audio_defs.h \
             audio_extn/audio_extn.h \
+            audio_extn/qti_audio_extn.h \
             audio_hw.h \
             voice.h
 
