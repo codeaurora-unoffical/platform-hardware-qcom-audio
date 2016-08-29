@@ -91,7 +91,8 @@
 #define EDID_FORMAT_LPCM    1
 
 /* fallback app type if the default app type from acdb loader fails */
-#define DEFAULT_APP_TYPE  0x11130
+#define DEFAULT_APP_TYPE_RX_PATH  0x11130
+#define DEFAULT_APP_TYPE_TX_PATH  0x11132
 
 /* Retry for delay in FW loading*/
 #define RETRY_NUMBER 20
@@ -129,8 +130,13 @@ char * dsp_only_decoders_mime[] = {
 };
 
 enum {
-	VOICE_FEATURE_SET_DEFAULT,
-	VOICE_FEATURE_SET_VOLUME_BOOST
+    VOICE_FEATURE_SET_DEFAULT,
+    VOICE_FEATURE_SET_VOLUME_BOOST
+};
+
+enum {
+    BUFF_IDX_0 = 0,
+    BUFF_IDX_1 = 1,
 };
 
 struct audio_block_header
@@ -143,6 +149,7 @@ struct audio_block_header
 typedef void (*acdb_deallocate_t)();
 typedef int  (*acdb_init_t)(char *, char *, int);
 typedef void (*acdb_send_audio_cal_t)(int, int, int, int);
+typedef void (*acdb_send_audio_cal_v3_t)(int, int, int , int, int);
 typedef void (*acdb_send_voice_cal_t)(int, int);
 typedef int (*acdb_reload_vocvoltable_t)(int);
 typedef int  (*acdb_get_default_app_type_t)(void);
@@ -169,6 +176,7 @@ struct platform_data {
     acdb_init_t                acdb_init;
     acdb_deallocate_t          acdb_deallocate;
     acdb_send_audio_cal_t      acdb_send_audio_cal;
+    acdb_send_audio_cal_v3_t   acdb_send_audio_cal_v3;
     acdb_send_voice_cal_t      acdb_send_voice_cal;
     acdb_reload_vocvoltable_t  acdb_reload_vocvoltable;
     acdb_get_default_app_type_t acdb_get_default_app_type;
@@ -1294,6 +1302,12 @@ void *platform_init(struct audio_device *adev)
             ALOGE("%s: Could not find the symbol acdb_loader_deallocate_ACDB from %s",
                   __func__, LIB_ACDB_LOADER);
 
+        my_data->acdb_send_audio_cal_v3 = (acdb_send_audio_cal_t)dlsym(my_data->acdb_handle,
+                                                    "acdb_loader_send_audio_cal_v3");
+        if (!my_data->acdb_send_audio_cal_v3)
+            ALOGE("%s: Could not find the symbol acdb_send_audio_cal from %s",
+                  __func__, LIB_ACDB_LOADER);
+
         my_data->acdb_send_audio_cal = (acdb_send_audio_cal_t)dlsym(my_data->acdb_handle,
                                                     "acdb_loader_send_audio_cal_v2");
         if (!my_data->acdb_send_audio_cal)
@@ -1556,7 +1570,16 @@ int platform_get_default_app_type(void *platform)
     if (my_data->acdb_get_default_app_type)
         return my_data->acdb_get_default_app_type();
     else
-        return DEFAULT_APP_TYPE;
+        return DEFAULT_APP_TYPE_RX_PATH;
+}
+
+int platform_get_default_app_type_v2(void *platform, usecase_type_t type)
+{
+    ALOGV("%s: platform: %p, type: %d", __func__, platform, type);
+    if (type == PCM_CAPTURE)
+        return DEFAULT_APP_TYPE_TX_PATH;
+    else
+        return DEFAULT_APP_TYPE_RX_PATH;
 }
 
 int platform_get_snd_device_acdb_id(snd_device_t snd_device)
@@ -1603,31 +1626,32 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
               __func__, snd_device);
         return -EINVAL;
     }
-    if (my_data->acdb_send_audio_cal) {
+    ALOGV("%s: sending audio calibration for snd_device(%d) acdb_id(%d)",
+          __func__, snd_device, acdb_dev_id);
+    if (snd_device >= SND_DEVICE_OUT_BEGIN && snd_device < SND_DEVICE_OUT_END)
+        acdb_dev_type = ACDB_DEV_TYPE_OUT;
+    else
+        acdb_dev_type = ACDB_DEV_TYPE_IN;
+
+    if ((my_data->acdb_send_audio_cal_v3) && (usecase->type == PCM_HFP_CALL)) {
+        /* TX path calibration */
+        my_data->acdb_send_audio_cal_v3(acdb_dev_id, ACDB_DEV_TYPE_IN,
+                            DEFAULT_APP_TYPE_TX_PATH, sample_rate, BUFF_IDX_0);
+        my_data->acdb_send_audio_cal_v3(acdb_dev_id, ACDB_DEV_TYPE_OUT,
+                            DEFAULT_APP_TYPE_RX_PATH, sample_rate, BUFF_IDX_0);
+
+        /* RX path calibration */
+        snd_device = usecase->out_snd_device;
+        acdb_dev_id = acdb_device_table[snd_device];
         ALOGV("%s: sending audio calibration for snd_device(%d) acdb_id(%d)",
-              __func__, snd_device, acdb_dev_id);
-        if (snd_device >= SND_DEVICE_OUT_BEGIN &&
-                snd_device < SND_DEVICE_OUT_END)
-            acdb_dev_type = ACDB_DEV_TYPE_OUT;
-        else
-            acdb_dev_type = ACDB_DEV_TYPE_IN;
-
-        if ((usecase->type == PCM_HFP_CALL)) {
-            /* TX path calibration */
-            my_data->acdb_send_audio_cal(acdb_dev_id, acdb_dev_type, app_type,
-                                         sample_rate);
-            /* RX path calibration */
-            snd_device = usecase->out_snd_device;
-            acdb_dev_id = acdb_device_table[snd_device];
-            ALOGV("%s: sending audio calibration for snd_device(%d) acdb_id(%d)",
-                       __func__, snd_device, acdb_dev_id);
-            my_data->acdb_send_audio_cal(acdb_dev_id, ACDB_DEV_TYPE_OUT, APP_TYPE_SYSTEM_SOUNDS,
-                                        sample_rate);
-            } else{
-                my_data->acdb_send_audio_cal(acdb_dev_id, acdb_dev_type, app_type,
-                                           sample_rate);
-           }
-
+                   __func__, snd_device, acdb_dev_id);
+        my_data->acdb_send_audio_cal_v3(acdb_dev_id, ACDB_DEV_TYPE_IN,
+                            DEFAULT_APP_TYPE_TX_PATH, sample_rate, BUFF_IDX_1);
+        my_data->acdb_send_audio_cal_v3(acdb_dev_id, ACDB_DEV_TYPE_OUT,
+                            DEFAULT_APP_TYPE_RX_PATH, sample_rate, BUFF_IDX_1);
+    } else if (my_data->acdb_send_audio_cal) {
+        my_data->acdb_send_audio_cal(acdb_dev_id, acdb_dev_type, app_type,
+                                     sample_rate);
     }
     return 0;
 }
