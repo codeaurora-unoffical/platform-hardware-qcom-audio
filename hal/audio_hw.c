@@ -2895,6 +2895,16 @@ static int in_set_parameters(struct audio_stream *stream, const char *kvpairs)
         }
     }
 
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_STREAM_PROFILE, value, sizeof(value));
+    if (err >= 0) {
+        strlcpy(in->profile, value, MAX_STREAM_PROFILE_STR_LEN);
+        audio_extn_utils_update_stream_input_app_type_cfg(adev->platform,
+                                                &adev->streams_input_cfg_list,
+                                                in->device, in->flags, in->profile,
+                                                in->format, in->sample_rate,
+                                                in->bit_width, &in->app_type_cfg);
+    }
+
     pthread_mutex_unlock(&adev->lock);
     pthread_mutex_unlock(&in->lock);
 
@@ -4035,7 +4045,8 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
 
     audio_extn_utils_update_stream_input_app_type_cfg(adev->platform,
                                                 &adev->streams_input_cfg_list,
-                                                devices, flags, in->format, in->sample_rate,
+                                                devices, flags, in->profile,
+                                                in->format, in->sample_rate,
                                                 in->bit_width, &in->app_type_cfg);
 
     /* This stream could be for sound trigger lab,
