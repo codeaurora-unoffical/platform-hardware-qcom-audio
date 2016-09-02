@@ -52,6 +52,11 @@ LOCAL_SRC_FILES += audio_extn/audio_extn.c \
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
 LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
 
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_QTI_EXTN)),true)
+    LOCAL_CFLAGS += -DQTI_AUDIO_EXTN
+    LOCAL_SRC_FILES += audio_extn/qti_audio_extn.c
+endif
+
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_HDMI_EDID)),true)
     LOCAL_CFLAGS += -DHDMI_EDID
     LOCAL_SRC_FILES += edid.c
@@ -290,6 +295,10 @@ LOCAL_CFLAGS += -Wall -Werror
 
 LOCAL_COPY_HEADERS_TO   := mm-audio
 LOCAL_COPY_HEADERS      := audio_extn/audio_defs.h
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_QTI_EXTN)),true)
+    LOCAL_COPY_HEADERS += audio_extn/qti_audio_extn.h
+endif
 
 LOCAL_MODULE := audio.primary.$(TARGET_BOARD_PLATFORM)
 
