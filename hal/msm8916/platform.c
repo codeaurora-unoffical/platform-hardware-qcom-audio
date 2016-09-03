@@ -66,6 +66,7 @@
 #define MIXER_XML_PATH_WCD9326 "/etc/mixer_paths_wcd9326.xml"
 #define PLATFORM_INFO_XML_PATH_EXTCODEC  "/etc/audio_platform_info_extcodec.xml"
 #define PLATFORM_INFO_XML_PATH      "/etc/audio_platform_info.xml"
+#define MIXER_XML_PATH_WCD9326 "/etc/mixer_paths_wcd9326_i2s.xml"
 #else
 #define MIXER_XML_PATH_MTP "/system/etc/mixer_paths_mtp.xml"
 #define PLATFORM_INFO_XML_PATH_EXTCODEC  "/system/etc/audio_platform_info_extcodec.xml"
@@ -860,7 +861,9 @@ static void update_codec_type(const char *snd_card_name) {
          !strncmp(snd_card_name, "msm8953-tasha-snd-card",
                   sizeof("msm8953-tasha-snd-card")) ||
          !strncmp(snd_card_name, "msm8953-tashalite-snd-card",
-                  sizeof("msm8953-tashalite-snd-card")))
+                  sizeof("msm8953-tashalite-snd-card")) ||
+         !strncmp(snd_card_name, "apq8009-tashalite-snd-card",
+                  sizeof("apq8009-tashalite-snd-card")))
      {
          ALOGI("%s: snd_card_name: %s",__func__,snd_card_name);
          is_external_codec = true;
@@ -1156,7 +1159,14 @@ static void query_platform(const char *snd_card_name,
         msm_device_to_be_id = msm_device_to_be_id_internal_codec;
         msm_be_id_array_len  =
             sizeof(msm_device_to_be_id_internal_codec) / sizeof(msm_device_to_be_id_internal_codec[0]);
-    } else {
+    } else if (!strncmp(snd_card_name, "apq8009-tashalite-snd-card",
+                 sizeof("apq8009-tashalite-snd-card"))) {
+        strlcpy(mixer_xml_path, MIXER_XML_PATH_WCD9326,
+               MAX_MIXER_XML_PATH);
+        msm_device_to_be_id = msm_device_to_be_id_external_codec;
+        msm_be_id_array_len  =
+            sizeof(msm_device_to_be_id_external_codec) / sizeof(msm_device_to_be_id_external_codec[0]);
+   } else {
         strlcpy(mixer_xml_path, MIXER_XML_PATH,
                 sizeof(MIXER_XML_PATH));
 
