@@ -127,6 +127,10 @@ c_sources += qahw_intf.c
 AM_CFLAGS += -I $(top_srcdir)/qahw_api/inc/
 endif
 
+if AFE_PROXY
+AM_CFLAGS += -DAFE_PROXY_ENABLED
+endif
+
 h_sources = audio_extn/audio_defs.h \
             audio_extn/audio_extn.h \
             audio_extn/qti_audio_extn.h \

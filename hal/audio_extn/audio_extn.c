@@ -67,6 +67,7 @@ struct audio_extn_module {
     bool hifi_audio_enabled;
 };
 
+static struct audio_extn_module aextnmod;
 
 #define AUDIO_PARAMETER_KEY_ANC        "anc_enabled"
 #define AUDIO_PARAMETER_KEY_WFD        "wfd_channel_cap"
@@ -735,6 +736,17 @@ static int get_active_offload_usecases(const struct audio_device *adev,
         str_parms_add_int(reply, AUDIO_PARAMETER_OFFLOAD_NUM_ACTIVE, count);
     }
     return ret;
+}
+
+void audio_extn_init(void)
+{
+    aextnmod.anc_enabled = 0;
+    aextnmod.aanc_enabled = 0;
+    aextnmod.custom_stereo_enabled = 0;
+    aextnmod.proxy_channel_num = 2;
+    aextnmod.hpx_enabled = 0;
+    aextnmod.vbat_enabled = 0;
+    aextnmod.hifi_audio_enabled = 0;
 }
 
 void audio_extn_set_parameters(struct audio_device *adev,
