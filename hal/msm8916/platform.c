@@ -66,12 +66,13 @@
 #define MIXER_XML_PATH_WCD9326 "/etc/mixer_paths_wcd9326.xml"
 #define PLATFORM_INFO_XML_PATH_EXTCODEC  "/etc/audio_platform_info_extcodec.xml"
 #define PLATFORM_INFO_XML_PATH      "/etc/audio_platform_info.xml"
-#define MIXER_XML_PATH_WCD9326 "/etc/mixer_paths_wcd9326_i2s.xml"
+#define MIXER_XML_PATH_WCD9326_I2S "/etc/mixer_paths_wcd9326_i2s.xml"
 #else
 #define MIXER_XML_PATH_MTP "/system/etc/mixer_paths_mtp.xml"
 #define PLATFORM_INFO_XML_PATH_EXTCODEC  "/system/etc/audio_platform_info_extcodec.xml"
 #define MIXER_XML_PATH_WCD9326 "/system/etc/mixer_paths_wcd9326.xml"
 #define PLATFORM_INFO_XML_PATH      "/system/etc/audio_platform_info.xml"
+#define MIXER_XML_PATH_WCD9326_I2S  "/system/etc/mixer_paths_wcd9326_i2s.xml"
 #endif
 #define MIXER_XML_PATH_SKUN "/system/etc/mixer_paths_qrd_skun.xml"
 #define LIB_ACDB_LOADER "libacdbloader.so"
@@ -1161,7 +1162,7 @@ static void query_platform(const char *snd_card_name,
             sizeof(msm_device_to_be_id_internal_codec) / sizeof(msm_device_to_be_id_internal_codec[0]);
     } else if (!strncmp(snd_card_name, "apq8009-tashalite-snd-card",
                  sizeof("apq8009-tashalite-snd-card"))) {
-        strlcpy(mixer_xml_path, MIXER_XML_PATH_WCD9326,
+        strlcpy(mixer_xml_path, MIXER_XML_PATH_WCD9326_I2S,
                MAX_MIXER_XML_PATH);
         msm_device_to_be_id = msm_device_to_be_id_external_codec;
         msm_be_id_array_len  =
