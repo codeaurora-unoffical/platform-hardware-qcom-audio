@@ -308,16 +308,14 @@ int hfp_set_mic_mute(struct audio_device *adev, bool state)
 
     ALOGI("%s: enter, state=%d", __func__, state);
 
-    if (adev->mode == AUDIO_MODE_IN_COMMUNICATION) {
-        set_values[0] = state;
-        ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
-        if (!ctl) {
-            ALOGE("%s: Could not get ctl for mixer cmd - %s",
-                  __func__, mixer_ctl_name);
-            return -EINVAL;
-        }
-        mixer_ctl_set_array(ctl, set_values, ARRAY_SIZE(set_values));
+    set_values[0] = state;
+    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+    if (!ctl) {
+        ALOGE("%s: Could not get ctl for mixer cmd - %s",
+              __func__, mixer_ctl_name);
+        return -EINVAL;
     }
+    mixer_ctl_set_array(ctl, set_values, ARRAY_SIZE(set_values));
 
     ALOGV("%s: exit", __func__);
     return 0;
