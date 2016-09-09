@@ -2442,7 +2442,7 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
         if (ret < 0)
             ret = -errno;
         ALOGVV("%s: writing buffer (%d bytes) to compress device returned %d", __func__, bytes, ret);
-        if (ret >= 0 && ret < (ssize_t)bytes) {
+        if (ret >= 0 && (ret < (ssize_t)bytes) && out->non_blocking) {
             ALOGD("No space available in compress driver, post msg to cb thread");
             send_offload_cmd_l(out, OFFLOAD_CMD_WAIT_FOR_BUFFER);
         } else if (-ENETRESET == ret) {
@@ -2452,8 +2452,14 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
             out_standby(&out->stream.common);
             return ret;
         }
-        if (!out->playback_started && ret >= 0) {
-            compress_start(out->compr);
+        /* Call compr start only when non-zero bytes of data is there to be rendered */
+        if (!out->playback_started && ret > 0) {
+            int status = compress_start(out->compr);
+            if (status < 0) {
+                ret = status;
+                ALOGE("%s: compr start failed with err %d", __func__, errno);
+                goto exit;
+            }
             audio_extn_dts_eagle_fade(adev, true, out);
             out->playback_started = 1;
             out->offload_state = OFFLOAD_STATE_PLAYING;
@@ -2508,8 +2514,9 @@ exit:
             out->standby = true;
         }
         out_standby(&out->stream.common);
-        usleep((uint64_t)bytes * 1000000 / audio_stream_out_frame_size(stream) /
-                        out_get_sample_rate(&out->stream.common));
+        if (!(out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD))
+            usleep((uint64_t)bytes * 1000000 / audio_stream_out_frame_size(stream) /
+                            out_get_sample_rate(&out->stream.common));
     }
     return bytes;
 }
