@@ -3873,10 +3873,15 @@ int platform_set_parameters(void *platform, struct str_parms *parms)
     err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_BAD_MIC_CHANNEL_INDEX, value, sizeof(value));
     if (err >= 0) {
         int bad_mic_channel_index = atoi(value);
-        if (bad_mic_channel_index != 0 && my_data->bad_mic_channel_index == 0) {
+        if (my_data->bad_mic_channel_index == 0 &&
+            (bad_mic_channel_index == 0x1 ||
+             bad_mic_channel_index == 0x2 ||
+             bad_mic_channel_index == 0x4)) {
             my_data->bad_mic_channel_index = bad_mic_channel_index;
             ALOGD("setting bad mic channel index to 0x%0x", bad_mic_channel_index);
             update_devices_against_bad_mic(platform);
+        } else if(my_data->bad_mic_channel_index != bad_mic_channel_index) {
+            ret = -EINVAL;
         }
     }
 
