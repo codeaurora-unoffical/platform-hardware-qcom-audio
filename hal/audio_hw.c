@@ -3172,7 +3172,7 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
     out->dev = adev;
     format = out->format = config->format;
     out->sample_rate = config->sample_rate;
-    out->channel_mask = AUDIO_CHANNEL_OUT_STEREO;
+    out->channel_mask = config->channel_mask;
     out->supported_channel_masks[0] = AUDIO_CHANNEL_OUT_STEREO;
     out->handle = handle;
     out->bit_width = CODEC_BACKEND_DEFAULT_BIT_WIDTH;
@@ -3401,6 +3401,7 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
         out->usecase = USECASE_AUDIO_PLAYBACK_DEEP_BUFFER;
         out->config = pcm_config_deep_buffer;
         out->sample_rate = out->config.rate;
+        out->config.channels = audio_channel_count_from_out_mask(out->channel_mask);
     } else {
         /* primary path is the default path selected if no other outputs are available/suitable */
         format = AUDIO_FORMAT_PCM_16_BIT;
