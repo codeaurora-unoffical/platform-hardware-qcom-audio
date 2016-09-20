@@ -338,7 +338,7 @@ static bool is_supported_format(audio_format_t format)
         format == AUDIO_FORMAT_APE ||
 #endif
         format == AUDIO_FORMAT_VORBIS
-#if 0
+#ifdef AUDIO_FEATURE_ENABLED_WMA_OFFLOAD
         || format == AUDIO_FORMAT_WMA ||
         format == AUDIO_FORMAT_WMA_PRO
 #endif
@@ -382,7 +382,7 @@ static int get_snd_codec_id(audio_format_t format)
     case AUDIO_FORMAT_VORBIS:
         id = SND_AUDIOCODEC_VORBIS;
         break;
-#if 0
+#ifdef AUDIO_FEATURE_ENABLED_WMA_OFFLOAD
     case AUDIO_FORMAT_WMA:
         id = SND_AUDIOCODEC_WMA;
         break;
