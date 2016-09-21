@@ -320,6 +320,8 @@ static int pcm_device_table[AUDIO_USECASE_MAX][2] = {
     [USECASE_AUDIO_PLAYBACK_DRIVER_SIDE] = {MULTIMEDIA2_PCM_DEVICE,
                                             MULTIMEDIA2_PCM_DEVICE},
     [USECASE_ICC_CALL] = {ICC_PCM_DEVICE, ICC_PCM_DEVICE},
+    [USECASE_AUDIO_LINE_IN_PASSTHROUGH] = {-1, -1},
+    [USECASE_AUDIO_HDMI_IN_PASSTHROUGH] = {-1, -1},
 
 };
 
@@ -421,6 +423,7 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_SPEAKER_QMIC_AEC] = "quad-mic",
     [SND_DEVICE_IN_SPEAKER_QMIC_NS] = "quad-mic",
     [SND_DEVICE_IN_SPEAKER_QMIC_AEC_NS] = "quad-mic",
+    [SND_DEVICE_IN_LINE] = "line-in",
 };
 
 // Platform specific backend bit width table
