@@ -1351,7 +1351,7 @@ acdb_init_fail:
     audio_extn_usb_init(adev);
 
     /*init a2dp*/
-    audio_extn_a2dp_init();
+    audio_extn_a2dp_init(adev);
 
     /* update sound cards appropriately */
     audio_extn_usb_set_proxy_sound_card(adev->snd_card);
@@ -1980,6 +1980,8 @@ snd_device_t platform_get_output_snd_device(void *platform, audio_devices_t devi
                 snd_device = SND_DEVICE_OUT_BT_SCO_WB;
             else
                 snd_device = SND_DEVICE_OUT_BT_SCO;
+        } else if (devices & AUDIO_DEVICE_OUT_ALL_A2DP) {
+                snd_device = SND_DEVICE_OUT_BT_A2DP;
         } else if (devices & AUDIO_DEVICE_OUT_SPEAKER) {
                 if (my_data->is_wsa_speaker)
                     snd_device = SND_DEVICE_OUT_VOICE_SPEAKER_WSA;

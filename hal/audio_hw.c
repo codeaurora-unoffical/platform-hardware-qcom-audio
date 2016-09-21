@@ -557,6 +557,7 @@ static void check_usecases_codec_backend(struct audio_device *adev,
     struct audio_usecase *usecase;
     bool switch_device[AUDIO_USECASE_MAX];
     int i, num_uc_to_switch = 0;
+    bool force_restart_session = false;
 
     /*
      * This function is to make sure that all the usecases that are active on
@@ -577,6 +578,16 @@ static void check_usecases_codec_backend(struct audio_device *adev,
      */
     bool force_routing = platform_check_and_set_codec_backend_cfg(adev, uc_info);
 
+    /* For a2dp device reconfigure all active sessions
+     * with new AFE encoder format based on a2dp state
+     */
+     if (SND_DEVICE_OUT_BT_A2DP == snd_device ||
+         SND_DEVICE_OUT_SPEAKER_AND_BT_A2DP == snd_device) {
+         force_routing = true;
+         force_restart_session = true;
+     }
+     ALOGD("%s:becf: force routing %d", __func__, force_routing);
+
     /* Disable all the usecases on the shared backend other than the
        specified usecase */
     for (i = 0; i < AUDIO_USECASE_MAX; i++)
@@ -585,9 +596,10 @@ static void check_usecases_codec_backend(struct audio_device *adev,
     list_for_each(node, &adev->usecase_list) {
         usecase = node_to_item(node, struct audio_usecase, list);
         if (usecase->type != PCM_CAPTURE &&
-                usecase != uc_info &&
-                (usecase->out_snd_device != snd_device || force_routing)  &&
-                usecase->devices & AUDIO_DEVICE_OUT_ALL_CODEC_BACKEND) {
+            usecase != uc_info &&
+           (usecase->out_snd_device != snd_device || force_routing) &&
+           ((usecase->devices & AUDIO_DEVICE_OUT_ALL_CODEC_BACKEND) ||
+           (force_restart_session))) {
             ALOGV("%s: Usecase (%s) is active on (%s) - disabling ..",
                   __func__, use_case_table[usecase->id],
                   platform_get_snd_device_name(usecase->out_snd_device));
@@ -847,9 +859,8 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
 
     if (out_snd_device == usecase->out_snd_device &&
         in_snd_device == usecase->in_snd_device) {
-        return 0;
+           return 0;
     }
-
     ALOGD("%s: out_snd_device(%d: %s) in_snd_device(%d: %s)", __func__,
           out_snd_device, platform_get_snd_device_name(out_snd_device),
           in_snd_device,  platform_get_snd_device_name(in_snd_device));
@@ -1796,7 +1807,7 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
         pthread_mutex_lock(&adev->lock);
 
         /*
-         * When HDMI cable is unplugged/usb hs is disconnected the
+         * When HDMI cable is unplugged/usb hs/A2DP is disconnected the
          * music playback is paused and the policy manager sends routing=0
          * But the audioflingercontinues to write data until standby time
          * (3sec). As the HDMI core is turned off, the write gets blocked.
@@ -1808,7 +1819,17 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
             && val == AUDIO_DEVICE_NONE) {
             val = AUDIO_DEVICE_OUT_SPEAKER;
         }
-
+        /*
+         * When A2DP is disconnected the
+         * music playback is paused and the policy manager sends routing=0
+         * But the audioflingercontinues to write data until standby time
+         * (3sec). As BT is turned off, the write gets blocked.
+         * Avoid this by routing audio to speaker until standby.
+         */
+         if ((out->devices & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP) &&
+             (val == AUDIO_DEVICE_NONE)) {
+             val = AUDIO_DEVICE_OUT_SPEAKER;
+         }
         /*
          * select_devices() call below switches all the usecases on the same
          * backend to the new device. Refer to check_usecases_codec_backend() in
@@ -3031,9 +3052,7 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
         else
             adev->bt_wb_speech_enabled = false;
     }
-
     audio_extn_set_parameters(adev, parms);
-
 done:
     str_parms_destroy(parms);
     pthread_mutex_unlock(&adev->lock);
@@ -3442,7 +3461,6 @@ static int adev_open(const hw_module_t *module, const char *name,
     list_init(&adev->usecase_list);
     adev->cur_wfd_channels = 2;
     adev->offload_usecases_state = 0;
-
     pthread_mutex_init(&adev->snd_card_status.lock, (const pthread_mutexattr_t *) NULL);
     adev->snd_card_status.state = SND_CARD_STATE_OFFLINE;
     /* Loads platform specific libraries dynamically */

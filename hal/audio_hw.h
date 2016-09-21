@@ -296,7 +296,6 @@ struct audio_device {
     void *offload_effects_lib;
     int (*offload_effects_start_output)(audio_io_handle_t, int);
     int (*offload_effects_stop_output)(audio_io_handle_t, int);
-
     struct sound_card_status snd_card_status;
 };
 
