@@ -722,7 +722,7 @@ static int msm_device_to_be_id [][NO_COLS] = {
        {AUDIO_DEVICE_OUT_USB_ACCESSORY                  ,       -1},
        {AUDIO_DEVICE_OUT_USB_DEVICE                     ,       -1},
        {AUDIO_DEVICE_OUT_REMOTE_SUBMIX                  ,       9},
-#if 0
+#ifdef AFE_PROXY_ENABLED
        {AUDIO_DEVICE_OUT_PROXY                          ,       9},
 #endif
 /* Add the correct be ids */
@@ -2533,7 +2533,7 @@ snd_device_t platform_get_output_snd_device(void *platform, struct stream_out *o
         snd_device = SND_DEVICE_OUT_TRANSMISSION_FM;
     } else if (devices & AUDIO_DEVICE_OUT_EARPIECE) {
         snd_device = SND_DEVICE_OUT_HANDSET;
-#if 0
+#ifdef AFE_PROXY_ENABLED
     } else if (devices & AUDIO_DEVICE_OUT_PROXY) {
         channel_count = audio_extn_get_afe_proxy_channel_count();
         ALOGD("%s: setting sink capability(%d) for Proxy", __func__, channel_count);
@@ -3603,7 +3603,7 @@ uint32_t platform_get_compress_offload_buffer_size(audio_offload_info_t* info)
             atoi(value)) {
         fragment_size =  atoi(value) * 1024;
     }
-#if 0
+#ifdef COMPRESS_METADATA_NEEDED
     /* Use incoming offload buffer size if default buffer size is less */
     if ((info != NULL) && (fragment_size < info->offload_buffer_size)) {
         ALOGI("%s:: Overwriting offload buffer size default:%d new:%d", __func__,
@@ -3611,7 +3611,8 @@ uint32_t platform_get_compress_offload_buffer_size(audio_offload_info_t* info)
               info->offload_buffer_size);
         fragment_size = info->offload_buffer_size;
     }
-
+#endif
+#ifdef FLAC_OFFLOAD_ENABLED
     // For FLAC use max size since it is loss less, and has sampling rates
     // upto 192kHZ
 
@@ -3643,7 +3644,7 @@ uint32_t platform_get_pcm_offload_buffer_size(audio_offload_info_t* info)
     uint32_t fragment_size = 0;
     uint32_t bits_per_sample = 16;
     uint32_t pcm_offload_time = PCM_OFFLOAD_BUFFER_DURATION;
-#if 0
+#ifdef PCM_OFFLOAD_ENABLED_24
     if (info->format == AUDIO_FORMAT_PCM_24_BIT_OFFLOAD) {
         bits_per_sample = 32;
     }
@@ -3670,7 +3671,7 @@ uint32_t platform_get_pcm_offload_buffer_size(audio_offload_info_t* info)
 
 bool platform_use_small_buffer(audio_offload_info_t* info)
 {
-#if 0
+#ifdef PCM_OFFLOAD_ENABLED
     return OFFLOAD_USE_SMALL_BUFFER;
 #endif
     return false;

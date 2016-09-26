@@ -140,7 +140,7 @@ static struct ddp_endp_params {
           {AUDIO_DEVICE_OUT_FM_TX, 2,
               {8, 0, 0, 0, 0, 0, 0, 21, 1, 6, 0, 0, 0, 0, 0, 0, 0},
               {1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0} },
-#if 0
+#ifdef AFE_PROXY_ENABLED
           {AUDIO_DEVICE_OUT_PROXY, 2,
               {8, 0, 0, 0, 0, 0, 0, 21, 1, 2, 0, 0, 0, 0, 0, 0, 0},
               {1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0} },
@@ -271,7 +271,7 @@ void audio_extn_dolby_send_ddp_endp_params(struct audio_device *adev)
              */
             int channel_cap = usecase->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL ?
                               adev->cur_hdmi_channels :
-#if 0
+#ifdef AFE_PROXY_ENABLED
                               usecase->devices & AUDIO_DEVICE_OUT_PROXY ?
                               adev->cur_wfd_channels : 2;
 #endif
@@ -373,7 +373,7 @@ int audio_extn_dolby_get_snd_codec_id(struct audio_device *adev,
      */
     int channel_cap = out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL ?
                       adev->cur_hdmi_channels :
-#if 0
+#ifdef AFE_PROXY_ENABLED
                       out->devices & AUDIO_DEVICE_OUT_PROXY ?
                       adev->cur_wfd_channels : 2;
 #endif
@@ -778,13 +778,7 @@ void audio_extn_dolby_set_license(struct audio_device *adev)
         ds2extnmod.dap_hal_set_hw_info(DMID, (void*)(&dolby_license.dmid));
     } else {
         ALOGV("%s: dap_hal_set_hw_info is NULL", __func__);
-#if 0
-        return ret;
-#endif
     }
-#if 0
-    return 0;
-#endif
 }
 
 
