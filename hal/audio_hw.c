@@ -3304,6 +3304,26 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
         }
     }
 
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_DEVICE_CONNECT, value, sizeof(value));
+    if (ret >= 0) {
+        val = atoi(value);
+        if (val == AUDIO_DEVICE_OUT_REMOTE_SUBMIX) {
+            ALOGV("Ignoring device connect for remote submix");
+            str_parms_destroy(parms);
+            return status;
+        }
+    }
+
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_DEVICE_DISCONNECT, value, sizeof(value));
+    if (ret >= 0) {
+        val = atoi(value);
+        if (val == AUDIO_DEVICE_OUT_REMOTE_SUBMIX) {
+            ALOGV("Ignoring device disconnect for remote submix");
+            str_parms_destroy(parms);
+            return status;
+        }
+    }
+
     pthread_mutex_lock(&adev->lock);
     status = voice_set_parameters(adev, parms);
     if (status != 0)
