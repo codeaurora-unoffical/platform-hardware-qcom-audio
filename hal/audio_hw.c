@@ -3390,18 +3390,23 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
     } else if (out->flags & AUDIO_OUTPUT_FLAG_RAW) {
         out->usecase = USECASE_AUDIO_PLAYBACK_ULL;
         out->config = pcm_config_low_latency;
-        out->sample_rate = out->config.rate;
+        out->config.channels = audio_channel_count_from_out_mask(out->channel_mask);
+        out->config.rate = out->sample_rate;
+        out->config.format = out->format;
     } else if (out->flags & AUDIO_OUTPUT_FLAG_FAST) {
-        format = AUDIO_FORMAT_PCM_16_BIT;
+        format = out->format;
         out->usecase = USECASE_AUDIO_PLAYBACK_LOW_LATENCY;
         out->config = pcm_config_low_latency;
-        out->sample_rate = out->config.rate;
+        out->config.channels = audio_channel_count_from_out_mask(out->channel_mask);
+        out->config.rate = out->sample_rate;
+        out->config.format = out->format;
     } else if (out->flags & AUDIO_OUTPUT_FLAG_DEEP_BUFFER) {
-        format = AUDIO_FORMAT_PCM_16_BIT;
+        format = out->format;
         out->usecase = USECASE_AUDIO_PLAYBACK_DEEP_BUFFER;
         out->config = pcm_config_deep_buffer;
-        out->sample_rate = out->config.rate;
         out->config.channels = audio_channel_count_from_out_mask(out->channel_mask);
+        out->config.rate = out->sample_rate;
+        out->config.format = out->format;
     } else {
         /* primary path is the default path selected if no other outputs are available/suitable */
         format = AUDIO_FORMAT_PCM_16_BIT;
