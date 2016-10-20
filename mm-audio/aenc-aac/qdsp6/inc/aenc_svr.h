@@ -39,10 +39,16 @@ extern "C" {
 #define LOG_TAG "QC_AACENC"
 #endif
 
+/*uncomment to get logcat logs*/
+/*#define LE_VERBOSE_LOGGING*/
+
 #ifndef LOGE
 #define LOGE ALOGE
 #endif
 
+#define DEBUG_PRINT_ERROR ALOGE
+
+#ifdef LE_VERBOSE_LOGGING
 #ifndef LOGW
 #define LOGW ALOGW
 #endif
@@ -59,9 +65,16 @@ extern "C" {
 #define LOGI ALOGI
 #endif
 
-#define DEBUG_PRINT_ERROR LOGE
 #define DEBUG_PRINT       LOGV
 #define DEBUG_DETAIL      LOGV
+#else
+#define LOGW(a...) do { } while(0)
+#define LOGD(a...) do { } while(0)
+#define LOGV(a...) do { } while(0)
+#define LOGI(a...) do { } while(0)
+#define DEBUG_PRINT(a...) do { } while(0)
+#define DEBUG_DETAIL(a...) do { } while(0)
+#endif
 
 typedef void (*message_func)(void* client_data, unsigned char id);
 

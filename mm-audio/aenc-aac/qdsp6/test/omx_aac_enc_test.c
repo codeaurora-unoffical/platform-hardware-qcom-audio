@@ -44,6 +44,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "OMX_Component.h"
 #include "pthread.h"
 #include <signal.h>
+#include <aenc_svr.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -115,7 +116,6 @@ uint32_t tunnel      = 0;
 uint32_t rectime     = 0;
 uint32_t format = 1;
 uint32_t profile = OMX_AUDIO_AACObjectLC;
-#define DEBUG_PRINT printf
 unsigned to_idle_transition = 0;
 
 typedef enum adts_sample_index__ {
@@ -373,7 +373,7 @@ OMX_ERRORTYPE FillBufferDone(OMX_IN OMX_HANDLETYPE hComponent,
         }
         if(num_of_frames != src[0]){
 
-            printf("Data corrupt\n");
+            DEBUG_PRINT_ERROR("Data corrupt\n");
             return OMX_ErrorNone;
         }
         /* Skip the first bytes */
@@ -832,7 +832,7 @@ int Play_Encoder()
     session_id = streaminfoparam.sessionId;
     control = msm_mixer_open("/dev/snd/controlC0", 0);
     if(control < 0)
-    printf("ERROR opening the device\n");
+    DEBUG_PRINT_ERROR("ERROR opening the device\n");
     device_id = msm_get_device(device);
     DEBUG_PRINT ("\ndevice_id = %d\n",device_id);
     DEBUG_PRINT("\nsession_id = %d\n",session_id);

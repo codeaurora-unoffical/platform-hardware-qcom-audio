@@ -395,7 +395,7 @@ RETURN VALUE
 ========================================================================== */
 omx_aac_aenc::~omx_aac_aenc()
 {
-    DEBUG_PRINT_ERROR("AAC Object getting destroyed comp-deinit=%d\n",
+    DEBUG_PRINT("AAC Object getting destroyed comp-deinit=%d\n",
 			m_comp_deinit);
     if ( !m_comp_deinit )
     {
@@ -444,7 +444,7 @@ omx_aac_aenc::~omx_aac_aenc()
     sem_destroy (&sem_read_msg);
     sem_destroy (&sem_write_msg);
     sem_destroy (&sem_States);
-    DEBUG_PRINT_ERROR("OMX AAC component destroyed\n");
+    DEBUG_PRINT("OMX AAC component destroyed\n");
     return;
 }
 
@@ -1101,8 +1101,6 @@ OMX_ERRORTYPE omx_aac_aenc::component_init(OMX_STRING role)
 
     memset(&m_buffer_supplier, 0, sizeof(m_buffer_supplier));
     m_buffer_supplier.nPortIndex=OMX_BufferSupplyUnspecified;
-
-    DEBUG_PRINT_ERROR(" component init: role = %s\n",role);
 
     DEBUG_PRINT(" component init: role = %s\n",role);
     component_Role.nVersion.nVersion = OMX_SPEC_VERSION;
@@ -4418,7 +4416,7 @@ OMX_ERRORTYPE  omx_aac_aenc::component_deinit(OMX_IN OMX_HANDLETYPE hComp)
     }
   deinit_encoder();
 
-  DEBUG_PRINT_ERROR("%s:COMPONENT DEINIT...\n", __FUNCTION__);
+  DEBUG_PRINT("%s:COMPONENT DEINIT...\n", __FUNCTION__);
   return OMX_ErrorNone;
 }
 
