@@ -2180,10 +2180,13 @@ int platform_switch_voice_call_device_post(void *platform,
         if (out_snd_device == SND_DEVICE_OUT_VOICE_SPEAKER &&
             audio_extn_spkr_prot_is_enabled())
             out_snd_device = SND_DEVICE_OUT_VOICE_SPEAKER_PROTECTED;
-
+#ifdef EXT_HW_PLUGIN_ENABLED
+        acdb_rx_id = 94;
+        acdb_tx_id = 95;
+#else
         acdb_rx_id = acdb_device_table[out_snd_device];
         acdb_tx_id = acdb_device_table[in_snd_device];
-
+#endif
         if (acdb_rx_id > 0 && acdb_tx_id > 0)
             my_data->acdb_send_voice_cal(acdb_rx_id, acdb_tx_id);
         else
