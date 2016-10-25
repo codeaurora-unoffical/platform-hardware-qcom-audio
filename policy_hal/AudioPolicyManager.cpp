@@ -1294,6 +1294,7 @@ status_t AudioPolicyManagerCustom::getOutputForAttr(const audio_attributes_t *at
         tOffloadInfo.channel_mask = channelMask;
         tOffloadInfo.format = format;
         tOffloadInfo.stream_type = *stream;
+#ifdef PCM_OFFLOAD_ENABLED
         tOffloadInfo.bit_width = 16;    //hard coded for PCM_16
         if (attr != NULL) {
             ALOGV("found attribute .. setting usage %d ", attr->usage);
@@ -1301,6 +1302,7 @@ status_t AudioPolicyManagerCustom::getOutputForAttr(const audio_attributes_t *at
         } else {
             ALOGD("%s:: attribute is NULL .. no usage set", __func__);
         }
+#endif
         offloadInfo = &tOffloadInfo;
     }
 
@@ -1410,7 +1412,7 @@ audio_io_handle_t AudioPolicyManagerCustom::getOutputForDevice(
         if (result.getInt(String8("voip_sample_rate"), value) == NO_ERROR) {
             voipSampleRate = value;
         }
-
+#ifdef VOICE_CONCURRENCY
         if ((mode == AUDIO_MODE_IN_COMMUNICATION) && (voipOutCount == 0) &&
             ((voipSampleRate == 0) || (voipSampleRate == samplingRate))) {
             if (audio_is_linear_pcm(format)) {
@@ -1419,11 +1421,12 @@ audio_io_handle_t AudioPolicyManagerCustom::getOutputForDevice(
                 bool voipPcmSysPropEnabled = !strncmp("true", propValue, sizeof("true"));
                 if (voipPcmSysPropEnabled && (format == AUDIO_FORMAT_PCM_16_BIT)) {
                     flags = (audio_output_flags_t)((flags &~AUDIO_OUTPUT_FLAG_FAST) |
-                                AUDIO_OUTPUT_FLAG_VOIP_RX | AUDIO_OUTPUT_FLAG_DIRECT);
+                                AUDIO_OUTPUT_FLAG_VOIP_RX  | AUDIO_OUTPUT_FLAG_DIRECT);
                     ALOGD("Set VoIP and Direct output flags for PCM format");
                 }
             }
         }
+#endif
     }
 
 #ifdef VOICE_CONCURRENCY
@@ -1546,7 +1549,7 @@ audio_io_handle_t AudioPolicyManagerCustom::getOutputForDevice(
     if ((flags & AUDIO_OUTPUT_FLAG_HW_AV_SYNC) != 0) {
         flags = (audio_output_flags_t)(flags | AUDIO_OUTPUT_FLAG_DIRECT);
     }
-
+#ifdef AUDIO_COMPRESS_OFFLOAD_ENABLE
     // Do offload magic here
     if ((flags == AUDIO_OUTPUT_FLAG_NONE) && (stream == AUDIO_STREAM_MUSIC) &&
         (offloadInfo != NULL) &&
@@ -1557,7 +1560,7 @@ audio_io_handle_t AudioPolicyManagerCustom::getOutputForDevice(
             flags = (audio_output_flags_t)(flags | AUDIO_OUTPUT_FLAG_DIRECT);
         }
     }
-
+#endif
     // only allow deep buffering for music stream type
     if (stream != AUDIO_STREAM_MUSIC) {
         flags = (audio_output_flags_t)(flags &~AUDIO_OUTPUT_FLAG_DEEP_BUFFER);
@@ -2166,7 +2169,8 @@ AudioPolicyManagerCustom::AudioPolicyManagerCustom(AudioPolicyClientInterface *c
                     audio_channel_mask_t channelMask = channels[x];
                     ALOGV("Channel Mask %x size %zu", channelMask,
                          channels.size());
-                    if (AUDIO_CHANNEL_IN_5POINT1 == channelMask) {
+#ifdef AUDIO_MULTI_CHANNEL_INPUT_SUPPORT
+                  if (AUDIO_CHANNEL_IN_5POINT1 == channelMask) {
                         if (!prop_ssr_enabled) {
                             ALOGI("removing AUDIO_CHANNEL_IN_5POINT1 from"
                                 " input profile as SSR(surround sound record)"
@@ -2176,6 +2180,7 @@ AudioPolicyManagerCustom::AudioPolicyManagerCustom(AudioPolicyClientInterface *c
                                 channels.size());
                         }
                     }
+#endif
                 }
             }
         }
