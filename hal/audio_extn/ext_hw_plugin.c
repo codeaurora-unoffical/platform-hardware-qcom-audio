@@ -177,6 +177,7 @@ static int32_t ext_hw_plugin_check_plugin_usecase(audio_usecase_t hal_usecase,
         *plugin_usecase = AUDIO_HAL_PLUGIN_USECASE_HFP_VOICE_CALL;
         break;
     case USECASE_VOICE_CALL:
+    case USECASE_VOICEMMODE1_CALL:
         *plugin_usecase = AUDIO_HAL_PLUGIN_USECASE_CS_VOICE_CALL;
         break;
     case USECASE_AUDIO_PLAYBACK_DRIVER_SIDE:
