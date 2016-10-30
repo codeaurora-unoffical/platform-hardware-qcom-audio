@@ -607,7 +607,7 @@ int audio_extn_parse_compress_metadata(struct stream_out *out,
     int ret = 0;
     char value[32];
 
-#if 0
+#ifdef FLAC_OFFLOAD_ENABLED
     if (out->format == AUDIO_FORMAT_FLAC) {
         ret = str_parms_get_str(parms, AUDIO_OFFLOAD_CODEC_FLAC_MIN_BLK_SIZE, value, sizeof(value));
         if (ret >= 0) {
@@ -784,7 +784,7 @@ int audio_extn_parse_compress_metadata(struct stream_out *out,
             out->is_compr_metadata_avail = true;
         }
     }
-#if 0
+#ifdef WMA_OFFLOAD_ENABLED
     else if (out->format == AUDIO_FORMAT_WMA || out->format == AUDIO_FORMAT_WMA_PRO) {
         ret = str_parms_get_str(parms, AUDIO_OFFLOAD_CODEC_WMA_FORMAT_TAG, value, sizeof(value));
         if (ret >= 0) {

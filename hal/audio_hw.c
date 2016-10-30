@@ -324,7 +324,7 @@ static bool is_supported_format(audio_format_t format)
         format == AUDIO_FORMAT_AAC_LC ||
         format == AUDIO_FORMAT_AAC_HE_V1 ||
         format == AUDIO_FORMAT_AAC_HE_V2 ||
-#if 0
+#ifdef AAC_ADTS_OFFLOAD_ENABLED
         format == AUDIO_FORMAT_AAC_ADTS_LC ||
         format == AUDIO_FORMAT_AAC_ADTS_HE_V1 ||
         format == AUDIO_FORMAT_AAC_ADTS_HE_V2 ||
@@ -332,13 +332,13 @@ static bool is_supported_format(audio_format_t format)
         format == AUDIO_FORMAT_PCM_24_BIT_OFFLOAD ||
 #endif
         format == AUDIO_FORMAT_PCM_16_BIT ||
-#if 0
+#ifdef FLAC_OFFLOAD_ENABLED
         format == AUDIO_FORMAT_FLAC ||
         format == AUDIO_FORMAT_ALAC ||
         format == AUDIO_FORMAT_APE ||
 #endif
         format == AUDIO_FORMAT_VORBIS
-#if 0
+#ifdef WMA_OFFLOAD_ENABLED
         || format == AUDIO_FORMAT_WMA ||
         format == AUDIO_FORMAT_WMA_PRO
 #endif
@@ -359,7 +359,7 @@ static int get_snd_codec_id(audio_format_t format)
     case AUDIO_FORMAT_AAC:
         id = SND_AUDIOCODEC_AAC;
         break;
-#if 0
+#ifdef AUDIO_EXTN_FORMATS_ENABLED
     case AUDIO_FORMAT_AAC_ADTS:
         id = SND_AUDIOCODEC_AAC;
         break;
@@ -368,7 +368,7 @@ static int get_snd_codec_id(audio_format_t format)
     case AUDIO_FORMAT_PCM:
         id = SND_AUDIOCODEC_PCM;
         break;
-#if 0
+#ifdef FLAC_OFFLOAD_ENABLED
     case AUDIO_FORMAT_FLAC:
         id = SND_AUDIOCODEC_FLAC;
         break;
@@ -382,7 +382,7 @@ static int get_snd_codec_id(audio_format_t format)
     case AUDIO_FORMAT_VORBIS:
         id = SND_AUDIOCODEC_VORBIS;
         break;
-#if 0
+#ifdef WMA_OFFLOAD_ENABLED
     case AUDIO_FORMAT_WMA:
         id = SND_AUDIOCODEC_WMA;
         break;
@@ -2278,7 +2278,7 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
             out->send_new_metadata = 0;
             if (out->send_next_track_params && out->is_compr_metadata_avail) {
                 ALOGD("copl(%p):send next track params in gapless", out);
-#if 0
+#ifdef COMPRESS_METADATA_NEEDED
                 compress_set_next_track_param(out->compr, &(out->compr_config.codec->options));
 #endif
                 out->send_next_track_params = false;
@@ -3001,7 +3001,7 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
     if ((out->flags & AUDIO_OUTPUT_FLAG_DIRECT) &&
         !(out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) &&
         (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL
-#if 0
+#ifdef AFE_PROXY_ENABLED
         || out->devices & AUDIO_DEVICE_OUT_PROXY
 #endif
         )) {
@@ -3009,7 +3009,7 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
         pthread_mutex_lock(&adev->lock);
         if (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL)
             ret = read_hdmi_channel_masks(out);
-#if 0
+#ifdef AFE_PROXY_ENABLED
         if (out->devices & AUDIO_DEVICE_OUT_PROXY)
             ret = audio_extn_read_afe_proxy_channel_masks(out);
 #endif
@@ -3144,7 +3144,7 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
 
         if ((config->offload_info.format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_AAC)
              out->compr_config.codec->format = SND_AUDIOSTREAMFORMAT_RAW;
-#if 0
+#ifdef AUDIO_EXTN_FORMATS_ENABLED
         if ((config->offload_info.format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_AAC_ADTS)
             out->compr_config.codec->format = SND_AUDIOSTREAMFORMAT_MP4ADTS;
         if (config->offload_info.format == AUDIO_FORMAT_PCM_16_BIT_OFFLOAD)
@@ -3155,11 +3155,10 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
         if (config->offload_info.format == AUDIO_FORMAT_PCM_16_BIT)
             out->compr_config.codec->format = SNDRV_PCM_FORMAT_S16_LE;
 
-#if 0
         if (out->bit_width == 24) {
             out->compr_config.codec->format = SNDRV_PCM_FORMAT_S24_LE;
         }
-
+#ifdef FLAC_OFFLOAD_ENABLED
         if (config->offload_info.format == AUDIO_FORMAT_FLAC)
             out->compr_config.codec->options.flac_dec.sample_size = AUDIO_OUTPUT_BIT_WIDTH;
 #endif
@@ -4143,7 +4142,7 @@ static int adev_close(hw_device_t *device)
             adev->adm_deinit(adev->adm_data);
         if(adev->ext_hw_plugin)
             audio_extn_ext_hw_plugin_deinit(adev->ext_hw_plugin);
- 
+
         free(device);
         adev = NULL;
     }

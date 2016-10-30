@@ -39,6 +39,12 @@ namespace android {
 #ifndef AUDIO_EXTN_AFE_PROXY_ENABLED
 #define AUDIO_DEVICE_OUT_PROXY 0x1000000
 #endif
+
+#ifdef AUDIO_FEATURE_ENABLED_WMA_OFFLOAD
+#define MAX_BITRATE_WMA          384000
+#define MAX_BITRATE_WMA_PRO      1536000
+#define MAX_BITRATE_WMA_LOSSLESS 1152000
+#endif
 // ----------------------------------------------------------------------------
 
 class AudioPolicyManagerCustom: public AudioPolicyManager
@@ -78,6 +84,8 @@ public:
         virtual status_t setStreamVolumeIndex(audio_stream_type_t stream,
                                               int index,
                                               audio_devices_t device);
+        virtual void closeAllInputs();
+
 protected:
 
          status_t checkAndSetVolume(audio_stream_type_t stream,
@@ -149,7 +157,9 @@ private:
                 const audio_offload_info_t *offloadInfo);
         // Used for voip + voice concurrency usecase
         int mPrevPhoneState;
+#ifdef VOICE_CONCURRENCY
         int mvoice_call_state;
+#endif
 #ifdef RECORD_PLAY_CONCURRENCY
         // Used for record + playback concurrency
         bool mIsInputRequestOnProgress;
