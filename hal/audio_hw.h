@@ -144,6 +144,8 @@ enum {
     /*Audio FM Tuner usecase*/
     USECASE_AUDIO_FM_TUNER_EXT,
 
+    /* In Car Communication usecase*/
+    USECASE_ICC_CALL,
     AUDIO_USECASE_MAX
 };
 
@@ -259,7 +261,8 @@ typedef enum {
     VOICE_CALL,
     VOIP_CALL,
     PCM_HFP_CALL,
-    PCM_PASSTHROUGH
+    PCM_PASSTHROUGH,
+    ICC_CALL
 } usecase_type_t;
 
 union stream_ptr {

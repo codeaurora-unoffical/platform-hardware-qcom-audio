@@ -316,6 +316,7 @@ static int pcm_device_table[AUDIO_USECASE_MAX][2] = {
     [USECASE_AUDIO_PLAYBACK_DRIVER_SIDE] = {MULTIMEDIA2_PCM_DEVICE,
                                             MULTIMEDIA2_PCM_DEVICE},
     [USECASE_AUDIO_FM_TUNER_EXT] = {-1, -1},
+    [USECASE_ICC_CALL] = {MULTIMEDIA6_PCM_DEVICE, MULTIMEDIA6_PCM_DEVICE},
 
 };
 
@@ -650,6 +651,7 @@ static struct name_to_index usecase_name_index[AUDIO_USECASE_MAX] = {
     {TO_NAME_INDEX(USECASE_INCALL_REC_DOWNLINK)},
     {TO_NAME_INDEX(USECASE_INCALL_REC_UPLINK_AND_DOWNLINK)},
     {TO_NAME_INDEX(USECASE_AUDIO_HFP_SCO)},
+    {TO_NAME_INDEX(USECASE_ICC_CALL)},
 };
 
 #define NO_COLS 2
@@ -1980,7 +1982,7 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
 
     if (usecase->type == PCM_PLAYBACK)
         snd_device =  usecase->out_snd_device;
-    else if ((usecase->type == PCM_HFP_CALL) || (usecase->type == PCM_CAPTURE))
+    else if ((usecase->type == PCM_HFP_CALL) || (usecase->type == PCM_CAPTURE) || (usecase->type == ICC_CALL) )
         snd_device = usecase->in_snd_device;
 
     acdb_dev_id = acdb_device_table[audio_extn_get_spkr_prot_snd_device(snd_device)];
@@ -2008,7 +2010,7 @@ int platform_send_audio_calibration_for_usecase(void *platform,
 {
     struct platform_data *my_data = (struct platform_data *)platform;
     int acdb_dev_id;
-    int acdb_ec_dev_id;
+    int acdb_ec_dev_id = 0;
     int ret = 0;
 
     if ((usecase->type == VOICE_CALL) || (usecase->type == VOIP_CALL)) {
@@ -2017,7 +2019,7 @@ int platform_send_audio_calibration_for_usecase(void *platform,
         return ret;
     }
 
-    if ((usecase->type == PCM_PLAYBACK) || (usecase->type == PCM_HFP_CALL)) {
+    if ((usecase->type == PCM_PLAYBACK) || (usecase->type == PCM_HFP_CALL) || (usecase->type == ICC_CALL)) {
         switch (usecase->id) {
         case USECASE_AUDIO_PLAYBACK_DEEP_BUFFER:
         case USECASE_AUDIO_PLAYBACK_LOW_LATENCY:
@@ -2044,16 +2046,14 @@ int platform_send_audio_calibration_for_usecase(void *platform,
         case USECASE_AUDIO_HFP_SCO_WB:
             acdb_dev_id = 15;
             break;
+        case USECASE_ICC_CALL:
+            acdb_dev_id = 16;
+            break;
         default:
             ALOGE("%s: audio calibration not supported for usecase(%d)",
                   __func__, usecase->id);
             ret = -EINVAL;
             break;
-        }
-
-        if (my_data->conversation_mode_state)
-        {
-            acdb_dev_id = 16;
         }
 
         if ((ret == 0) && (my_data->acdb_send_audio_cal)) {
@@ -2066,7 +2066,7 @@ int platform_send_audio_calibration_for_usecase(void *platform,
         }
     }
 
-    if ((usecase->type == PCM_CAPTURE) || (usecase->type == PCM_HFP_CALL)) {
+    if ((usecase->type == PCM_CAPTURE) || (usecase->type == PCM_HFP_CALL) || (usecase->type == ICC_CALL)) {
         switch (usecase->id) {
         case USECASE_AUDIO_RECORD:
         case USECASE_AUDIO_RECORD_COMPRESS:
@@ -2074,21 +2074,22 @@ int platform_send_audio_calibration_for_usecase(void *platform,
         case USECASE_AUDIO_HFP_SCO:
         case USECASE_AUDIO_HFP_SCO_WB:
             {
-                if (my_data->conversation_mode_state) {
-                    acdb_dev_id = 13;
-                }
-                else if (my_data->ec_car_state) {
+                if (my_data->ec_car_state) {
                     acdb_dev_id = 12;
                     acdb_ec_dev_id = 100;
                 }
                 else {
                     acdb_dev_id = 11;
+                    acdb_ec_dev_id = 100;
                 }
                 break;
             }
+        case USECASE_ICC_CALL:
+            acdb_dev_id = 13;
+            break;
         default:
             ALOGE("%s: audio calibration not supported for usecase(%d)",
-                  __func__, usecase->id);
+                __func__, usecase->id);
             ret = -EINVAL;
             break;
         }
@@ -2585,10 +2586,8 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
     if (snd_device != AUDIO_DEVICE_NONE)
         goto exit;
      
-    if (my_data->ec_car_state && my_data->conversation_mode_state)
-        ALOGE("%s: EC and ICC Flags are both enabled", __func__);
-    
     if (my_data->ec_car_state) {
+        ALOGE("%s: EC is enabled", __func__);
         snd_device = SND_DEVICE_IN_SPEAKER_QMIC_AEC;
 
         if (strcmp(my_data->ec_ref_mixer_path, ""))
@@ -2604,18 +2603,13 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
         ALOGD("%s: enabling %s", __func__, my_data->ec_ref_mixer_path);
         audio_route_apply_and_update_path(adev->audio_route, my_data->ec_ref_mixer_path);
     }
-    else if (my_data->conversation_mode_state) { 
-        snd_device = SND_DEVICE_IN_HANDSET_DMIC;
-        platform_set_echo_reference(adev, true, out_device);
-    }
- 
-    
+
     if (snd_device != SND_DEVICE_NONE) {
         goto exit;
     }    
 
     if ((out_device != AUDIO_DEVICE_NONE) && ((mode == AUDIO_MODE_IN_CALL) ||
-        voice_extn_compress_voip_is_active(adev) || audio_extn_hfp_is_active(adev))) {
+        voice_extn_compress_voip_is_active(adev) || audio_extn_hfp_is_active(adev) || audio_extn_icc_is_active(adev) )) {
         if ((adev->voice.tty_mode != TTY_MODE_OFF) &&
             !voice_extn_compress_voip_is_active(adev)) {
             if (out_device & AUDIO_DEVICE_OUT_WIRED_HEADPHONE ||
@@ -2793,6 +2787,8 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
     } else if (source == AUDIO_SOURCE_FM_TUNER) {
         snd_device = SND_DEVICE_IN_CAPTURE_FM;
     } else if (source == AUDIO_SOURCE_DEFAULT) {
+        ALOGW("%s: Using default handset-mic", __func__);
+        snd_device = SND_DEVICE_IN_HANDSET_MIC;
         goto exit;
     }
 
@@ -3002,15 +2998,6 @@ static int platform_set_eccarstate(struct platform_data *my_data,bool state)
     ALOGE("Setting EC Car state: %d", state);
     my_data->ec_car_state = state;
 	
-    return ret;
-}
-
-static int platform_set_conversation_mode_state(struct platform_data *my_data,bool state)
-{
-    int ret = 0;
-    ALOGE("Setting Conversation mode  state: %d", state);
-    my_data->conversation_mode_state = state;
-    
     return ret;
 }
 
@@ -3253,18 +3240,6 @@ int platform_set_parameters(void *platform, struct str_parms *parms)
         platform_set_eccarstate(my_data, state);
     }
     
-    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_CONVERSATION_MODE_STATE, 
-                            value, len);
-    if (err >= 0) {
-        bool state = false;
-        if (!strncmp("true", value, sizeof("true"))) {
-            state = true;
-            ALOGE("%s: Value of CONVERSATION MODE STATE set to true!",__func__);
-        }
-        str_parms_del(parms, AUDIO_PARAMETER_KEY_CONVERSATION_MODE_STATE);
-        platform_set_conversation_mode_state(my_data, state);
-    }
-
     err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_EXT_AUDIO_DEVICE,
                             value, len);
     if (err >= 0) {
@@ -3531,12 +3506,6 @@ void platform_get_parameters(void *platform,
     if (ret >= 0) {
         str_parms_add_str(reply, AUDIO_PARAMETER_KEY_EC_CAR_STATE,
                           my_data->ec_car_state?"true":"false");
-    }
-    ret = str_parms_get_str(query,AUDIO_PARAMETER_KEY_CONVERSATION_MODE_STATE,
-                            value,sizeof(value));
-    if (ret >= 0) {
-        str_parms_add_str(reply, AUDIO_PARAMETER_KEY_CONVERSATION_MODE_STATE,
-                          my_data->conversation_mode_state?"true":"false");
     }
 
     /* Handle audio calibration keys */
