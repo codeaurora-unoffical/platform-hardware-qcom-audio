@@ -17,3 +17,7 @@ hal_rec_test_SOURCES = qahw_multi_record_test.c
 hal_rec_test_CPPFLAGS = -Dstrlcat=g_strlcat $(GLIB_CFLAGS) -include glib.h
 hal_rec_test_CPPFLAGS += $(REC_CPPFLAGS) $(REC_INCLUDES)
 hal_rec_test_LDADD = -lutils ../libqahw.la $(GLIB_LIBS)
+
+if MULTI_RECORD
+AM_CFLAGS = -DMULTIRECORD_SUPPORT
+endif
