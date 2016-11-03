@@ -122,6 +122,11 @@ AM_CFLAGS += -DWMA_OFFLOAD_ENABLED
 AM_CFLAGS += -DCOMPRESS_METADATA_NEEDED
 endif
 
+if QAHW_SUPPORT
+c_sources += qahw_intf.c
+AM_CFLAGS += -I $(top_srcdir)/qahw_api/inc/
+endif
+
 h_sources = audio_extn/audio_defs.h \
             audio_extn/audio_extn.h \
             audio_extn/qti_audio_extn.h \
