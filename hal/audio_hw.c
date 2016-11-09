@@ -1108,7 +1108,8 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
     }
 
     if (in_snd_device != SND_DEVICE_NONE) {
-        check_usecases_capture_codec_backend(adev, usecase, in_snd_device);
+        if (usecase->devices & AUDIO_DEVICE_IN_ALL_CODEC_BACKEND)
+            check_usecases_capture_codec_backend(adev, usecase, in_snd_device);
         enable_snd_device(adev, in_snd_device);
     }
 
@@ -1209,7 +1210,9 @@ static int stop_input_stream(struct stream_in *in)
               __func__, in->usecase);
         return -EINVAL;
     }
-
+    if (in->usecase == USECASE_AUDIO_RECORD) {
+        adev->pcm_record_uc_state = 0;
+    }
     /* Close in-call recording streams */
     voice_check_and_stop_incall_rec_usecase(adev, in);
 
@@ -3933,7 +3936,26 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
         }
     }
     /* Update config params with the requested sample rate and channels */
-    in->usecase = USECASE_AUDIO_RECORD;
+    /*
+     * Acquire lock to avoid two concurrent use cases intialized to
+     * same pcm record usecase.
+     */
+    pthread_mutex_lock(&adev->lock);
+    if (!(adev->pcm_record_uc_state) &&
+            ((flags & AUDIO_INPUT_FLAG_TIMESTAMP) == 0)) {
+        ALOGV("%s: pcm record usecase", __func__);
+        in->usecase = USECASE_AUDIO_RECORD;
+        adev->pcm_record_uc_state = 1;
+    }
+    else {
+        /*
+         * Assign default compress record use case, actual use case
+         * assignment will happen later.
+         */
+        in->usecase = USECASE_AUDIO_RECORD_COMPRESS2;
+        ALOGV("%s: compress record usecase", __func__);
+    }
+    pthread_mutex_unlock(&adev->lock);
     if (config->sample_rate == LOW_LATENCY_CAPTURE_SAMPLE_RATE &&
             (flags & AUDIO_INPUT_FLAG_FAST) != 0) {
         is_low_latency = true;
@@ -3977,7 +3999,7 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
              audio_extn_compr_cap_format_supported(config->format) &&
              (in->dev->mode != AUDIO_MODE_IN_COMMUNICATION)) {
         audio_extn_compr_cap_init(in);
-    } else if (is_compressed_input_stream(in)) {
+    } else if (is_compressed_input_stream(in) || ((is_compress_record_usecase(in->usecase)))) {
         in->compr_config.codec = (struct snd_codec *)
                                   calloc(1, sizeof(struct snd_codec));
         if (!in->compr_config.codec) {
@@ -4205,6 +4227,7 @@ static int adev_open(const hw_module_t *module, const char *name,
     adev->cur_wfd_channels = 2;
     adev->offload_usecases_state = 0;
     adev->compress_record_usecases_state = 0;
+    adev->pcm_record_uc_state = 0;
     adev->is_channel_status_set = false;
     adev->perf_lock_opts[0] = 0x101;
     adev->perf_lock_opts[1] = 0x20E;
