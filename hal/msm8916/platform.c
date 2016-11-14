@@ -1948,7 +1948,8 @@ snd_device_t platform_get_output_snd_device(void *platform, audio_devices_t devi
         goto exit;
     }
 
-    if (voice_is_in_call(adev) || voice_extn_compress_voip_is_active(adev)) {
+    if (voice_is_in_call(adev) || voice_extn_compress_voip_is_active(adev) ||
+        audio_extn_hfp_is_active(adev)) {
         if (devices & AUDIO_DEVICE_OUT_WIRED_HEADPHONE ||
             devices & AUDIO_DEVICE_OUT_WIRED_HEADSET) {
             if ((adev->voice.tty_mode != TTY_MODE_OFF) &&
