@@ -64,8 +64,14 @@
 #define MIXER_XML_PATH_WCD9335 "/system/etc/mixer_paths_wcd9335.xml"
 #define MIXER_XML_PATH_WCD9326 "/system/etc/mixer_paths_wcd9326.xml"
 #define MIXER_XML_PATH_SKUN "/system/etc/mixer_paths_qrd_skun.xml"
+#define MIXER_XML_PATH_TAVIL "/system/etc/mixer_paths_tavil.xml"
+#define MIXER_XML_PATH_TASHA "/system/etc/mixer_paths_tasha.xml"
+#define MIXER_XML_PATH_TASHA_LITE "/system/etc/mixer_paths_tasha_lite.xml"
 #define PLATFORM_INFO_XML_PATH      "/system/etc/audio_platform_info.xml"
-#define PLATFORM_INFO_XML_PATH_EXTCODEC  "/system/etc/audio_platform_info_extcodec.xml"
+// ONLY for track3 branch, there is no ext_codec.xml in msmcobalt
+// Use default xml for ext codec validation
+//#define PLATFORM_INFO_XML_PATH_EXTCODEC  "/system/etc/audio_platform_info_extcodec.xml"
+#define PLATFORM_INFO_XML_PATH_EXTCODEC  "/system/etc/audio_platform_info.xml"
 
 #define LIB_ACDB_LOADER "libacdbloader.so"
 #define CVD_VERSION_MIXER_CTL "CVD Version"
@@ -849,6 +855,10 @@ static void update_codec_type(const char *snd_card_name) {
                   sizeof("msm8953-tasha-snd-card")) ||
          !strncmp(snd_card_name, "msm8953-tashalite-snd-card",
                   sizeof("msm8953-tashalite-snd-card")) ||
+         !strncmp(snd_card_name, "msmfalcon-tashalite-snd-card",
+                  sizeof("msmfalcon-tashalite-snd-card")) ||
+         !strncmp(snd_card_name, "msmfalcon-tavil-snd-card",
+                  sizeof("msmfalcon-tavil-snd-card")) ||
          !strncmp(snd_card_name, "msmfalcon-tasha-snd-card",
                   sizeof("msmfalcon-tasha-snd-card")))
      {
@@ -1140,8 +1150,22 @@ static void query_platform(const char *snd_card_name,
             sizeof(msm_device_to_be_id_internal_codec) / sizeof(msm_device_to_be_id_internal_codec[0]);
     } else if (!strncmp(snd_card_name, "msmfalcon-tasha-snd-card",
                  sizeof("msmfalcon-tasha-snd-card"))) {
-        strlcpy(mixer_xml_path, MIXER_XML_PATH_WCD9335,
-                sizeof(MIXER_XML_PATH_WCD9335));
+        strlcpy(mixer_xml_path, MIXER_XML_PATH_TASHA,
+                sizeof(MIXER_XML_PATH_TASHA));
+        msm_device_to_be_id = msm_device_to_be_id_external_codec;
+        msm_be_id_array_len  =
+            sizeof(msm_device_to_be_id_external_codec) / sizeof(msm_device_to_be_id_external_codec[0]);
+    } else if (!strncmp(snd_card_name, "msmfalcon-tavil-snd-card",
+                 sizeof("msmfalcon-tavil-snd-card"))) {
+        strlcpy(mixer_xml_path, MIXER_XML_PATH_TAVIL,
+                sizeof(MIXER_XML_PATH_TAVIL));
+        msm_device_to_be_id = msm_device_to_be_id_external_codec;
+        msm_be_id_array_len  =
+            sizeof(msm_device_to_be_id_external_codec) / sizeof(msm_device_to_be_id_external_codec[0]);
+    } else if (!strncmp(snd_card_name, "msmfalcon-tashalite-snd-card",
+                 sizeof("msmfalcon-tashalite-snd-card"))) {
+        strlcpy(mixer_xml_path, MIXER_XML_PATH_TASHA_LITE,
+                sizeof(MIXER_XML_PATH_TASHA_LITE));
         msm_device_to_be_id = msm_device_to_be_id_external_codec;
         msm_be_id_array_len  =
             sizeof(msm_device_to_be_id_external_codec) / sizeof(msm_device_to_be_id_external_codec[0]);
@@ -1491,6 +1515,12 @@ const char * get_snd_card_name_for_acdb_loader(const char *snd_card_name) {
         return "msm8953-tasha-snd-card";
     }
 
+    if(!strncmp(snd_card_name, "msmfalcon-tashalite-snd-card",
+             sizeof("msmfalcon-tashalite-snd-card"))) {
+        ALOGD("using tasha ACDB files for tasha-lite");
+        return "msmfalcon-tasha-snd-card";
+    }
+
    return snd_card_name;
 }
 
@@ -1554,6 +1584,12 @@ static bool check_and_get_wsa_info(char *snd_card_name, int *wsaCount,
     char file[10] = "wsa";
     bool found = false;
     int wsa_count = 0;
+
+    // Star lord hardware always has wsa by default, no need to add wsa
+    if(!strncmp(snd_card_name, "msmfalcon", strlen("msmfalcon"))) {
+        ALOGD(" Ignore WSA extension for msm falcon varients");
+        return false;
+    }
 
     if (!getcwd(cwd, sizeof(cwd)))
         return false;

@@ -8,7 +8,7 @@ LOCAL_ARM_MODE := arm
 
 AUDIO_PLATFORM := $(TARGET_BOARD_PLATFORM)
 
-ifneq ($(filter msm8974 msm8226 msm8610 apq8084 msm8994 msm8992 msm8996 msm8998,$(TARGET_BOARD_PLATFORM)),)
+ifneq ($(filter msm8974 msm8226 msm8610 apq8084 msm8994 msm8992 msm8996,$(TARGET_BOARD_PLATFORM)),)
   # B-family platform uses msm8974 code base
   AUDIO_PLATFORM = msm8974
   MULTIPLE_HW_VARIANTS_ENABLED := true
@@ -35,7 +35,7 @@ ifneq ($(filter msm8998,$(TARGET_BOARD_PLATFORM)),)
 endif
 endif
 
-ifneq ($(filter msm8916 msm8909 msm8952 msm8937 thorium msm8953 msmgold msmfalcon,$(TARGET_BOARD_PLATFORM)),)
+ifneq ($(filter msm8916 msm8909 msm8952 msm8937 thorium msm8953 msmgold msmfalcon msmcobalt msm8998,$(TARGET_BOARD_PLATFORM)),)
   AUDIO_PLATFORM = msm8916
   MULTIPLE_HW_VARIANTS_ENABLED := true
   LOCAL_CFLAGS := -DPLATFORM_MSM8916
@@ -44,6 +44,9 @@ ifneq ($(filter msm8909,$(TARGET_BOARD_PLATFORM)),)
 endif
 ifneq ($(filter msmfalcon,$(TARGET_BOARD_PLATFORM)),)
   LOCAL_CFLAGS := -DPLATFORM_MSMFALCON
+endif
+ifneq ($(filter msmcobalt msm8998,$(TARGET_BOARD_PLATFORM)),)
+  LOCAL_CFLAGS := -DPLATFORM_MSM8998
 endif
 endif
 
