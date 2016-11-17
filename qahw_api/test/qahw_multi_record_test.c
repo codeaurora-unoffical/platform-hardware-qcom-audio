@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
+#include <errno.h>
 #include "qahw_api.h"
 #include "qahw_defs.h"
 
@@ -175,6 +176,7 @@ void *start_input(void *thread_param)
   }
 
   // Get buffer size to get upper bound on data to read from the HAL.
+  size_t written_size;
   size_t buffer_size;
       buffer_size = qahw_in_get_buffer_size(in_handle);
   char *buffer;
@@ -228,7 +230,11 @@ void *start_input(void *thread_param)
       in_buf.buffer = buffer;
       in_buf.bytes = buffer_size;
       bytes_read = qahw_in_read(in_handle, &in_buf);
-      fwrite(in_buf.buffer, sizeof(char), buffer_size, fd);
+      written_size = fwrite(in_buf.buffer, sizeof(char), buffer_size, fd);
+      if (written_size < buffer_size) {
+         printf("Error in fwrite(%d)=%s\n",ferror(fd), strerror(ferror(fd)));
+         break;
+      }
       if(difftime(time(0), start_time) > params->loopTime) {
           sourcetrack_done = 1;
           printf("\nTest completed.\n");
