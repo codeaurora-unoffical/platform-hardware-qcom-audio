@@ -795,8 +795,8 @@ static int msm_device_to_be_id [][NO_COLS] = {
 static int msm_device_to_be_id [][NO_COLS] = {
        {AUDIO_DEVICE_OUT_EARPIECE                       ,       2},
        {AUDIO_DEVICE_OUT_SPEAKER                        ,       2},
-       {AUDIO_DEVICE_OUT_WIRED_HEADSET                  ,       2},
-       {AUDIO_DEVICE_OUT_WIRED_HEADPHONE                ,       2},
+       {AUDIO_DEVICE_OUT_WIRED_HEADSET                  ,       41},
+       {AUDIO_DEVICE_OUT_WIRED_HEADPHONE                ,       41},
        {AUDIO_DEVICE_OUT_BLUETOOTH_SCO                  ,       11},
        {AUDIO_DEVICE_OUT_BLUETOOTH_SCO_HEADSET          ,       11},
        {AUDIO_DEVICE_OUT_BLUETOOTH_SCO_CARKIT           ,       11},
@@ -2742,8 +2742,8 @@ bool platform_can_split_snd_device(void *platform,
         *num_devices = 2;
         new_snd_devices[0] = SND_DEVICE_OUT_SPEAKER;
         new_snd_devices[1] = SND_DEVICE_OUT_BT_A2DP;
+        status = true;
     }
-
 
     ALOGD("%s: snd_device(%d) num devices(%d) new_snd_devices(%d)", __func__,
         snd_device, *num_devices, *new_snd_devices);
@@ -5631,10 +5631,14 @@ int platform_set_sidetone(struct audio_device *adev,
 {
     int ret;
     if (out_snd_device == SND_DEVICE_OUT_USB_HEADSET) {
+        if (property_get_bool("audio.debug.usb.disable_sidetone", 0)) {
+            ALOGI("Debug: Disable sidetone");
+        } else {
             ret = audio_extn_usb_enable_sidetone(out_snd_device, enable);
             if (ret)
                 ALOGI("%s: usb device %d does not support device sidetone\n",
                   __func__, out_snd_device);
+        }
     } else {
         ALOGV("%s: sidetone out device(%d) mixer cmd = %s\n",
               __func__, out_snd_device, str);
@@ -5645,6 +5649,22 @@ int platform_set_sidetone(struct audio_device *adev,
             audio_route_reset_and_update_path(adev->audio_route, str);
     }
     return 0;
+}
+
+void platform_update_aanc_path(struct audio_device *adev,
+                               snd_device_t out_snd_device,
+                               bool enable,
+                               char *str)
+{
+    ALOGD("%s: aanc out device(%d) mixer cmd = %s, enable = %d\n",
+          __func__, out_snd_device, str, enable);
+
+    if (enable)
+        audio_route_apply_and_update_path(adev->audio_route, str);
+    else
+        audio_route_reset_and_update_path(adev->audio_route, str);
+
+    return;
 }
 
 static void make_cal_cfg(acdb_audio_cal_cfg_t* cal, int acdb_dev_id,
@@ -5795,4 +5815,9 @@ int platform_retrieve_audio_cal(void* platform, int acdb_dev_id,
 
 ERROR_RETURN:
     return ret;
+}
+
+int platform_get_max_mic_count(void *platform) {
+    struct platform_data *my_data = (struct platform_data *)platform;
+    return my_data->max_mic_count;
 }

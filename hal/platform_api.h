@@ -157,12 +157,17 @@ int platform_set_sidetone(struct audio_device *adev,
                           snd_device_t out_snd_device,
                           bool enable,
                           char * str);
+void platform_update_aanc_path(struct audio_device *adev,
+                              snd_device_t out_snd_device,
+                              bool enable,
+                              char * str);
 bool platform_supports_true_32bit();
 bool platform_check_if_backend_has_to_be_disabled(snd_device_t new_snd_device, snd_device_t cuurent_snd_device);
 bool platform_check_codec_dsd_support(void *platform);
 bool platform_check_codec_asrc_support(void *platform);
 int platform_get_backend_index(snd_device_t snd_device);
 int platform_get_ext_disp_type(void *platform);
+void platform_invalidate_hdmi_config(void *platform);
 
 int platform_send_audio_cal(void* platform, int acdb_dev_id, int acdb_device_type,
     int app_type, int topology_id, int sample_rate, uint32_t module_id, uint32_t param_id,
@@ -181,4 +186,5 @@ int platform_retrieve_audio_cal(void* platform, int acdb_dev_id, int acdb_device
     void* data, int* length);
 
 unsigned char* platform_get_license(void* platform, int* size);
+int platform_get_max_mic_count(void *platform);
 #endif // AUDIO_PLATFORM_API_H

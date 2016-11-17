@@ -1206,6 +1206,19 @@ struct audio_usecase *get_usecase_from_list(const struct audio_device *adev,
     return NULL;
 }
 
+struct stream_in *get_next_active_input(const struct audio_device *adev)
+{
+    struct audio_usecase *usecase;
+    struct listnode *node;
+
+    list_for_each_reverse(node, &adev->usecase_list) {
+        usecase = node_to_item(node, struct audio_usecase, list);
+        if (usecase->type == PCM_CAPTURE)
+            return usecase->stream.in;
+    }
+    return NULL;
+}
+
 /*
  * is a true native playback active
  */
@@ -1290,7 +1303,7 @@ static bool force_device_switch(struct audio_usecase *usecase)
 
     // Force all a2dp output devices to reconfigure for proper AFE encode format
     if((usecase->stream.out) &&
-       (usecase->stream.out->devices & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP) &&
+       (usecase->stream.out->devices & AUDIO_DEVICE_OUT_ALL_A2DP) &&
        audio_extn_a2dp_is_force_device_switch()) {
          ALOGD("Force a2dp device switch to update new encoder config");
          ret = true;
@@ -1424,6 +1437,10 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
         if (voice_is_call_state_active(adev) ||
             voice_extn_compress_voip_is_started(adev))
             voice_set_sidetone(adev, usecase->out_snd_device, false);
+
+        /* Disable aanc only if voice call exists */
+        if (voice_is_call_state_active(adev))
+            voice_check_and_update_aanc_path(adev, usecase->out_snd_device, false);
     }
 
     /* Disable current sound devices */
@@ -1494,6 +1511,10 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
     enable_audio_route(adev, usecase);
 
     if (usecase->type == VOICE_CALL || usecase->type == VOIP_CALL) {
+        /* Enable aanc only if voice call exists */
+        if (voice_is_call_state_active(adev))
+            voice_check_and_update_aanc_path(adev, out_snd_device, true);
+
         /* Enable sidetone only if other voice/voip call already exists */
         if (voice_is_call_state_active(adev) ||
             voice_extn_compress_voip_is_started(adev))
@@ -1519,7 +1540,7 @@ static int stop_input_stream(struct stream_in *in)
     struct audio_usecase *uc_info;
     struct audio_device *adev = in->dev;
 
-    adev->active_input = NULL;
+    adev->active_input = get_next_active_input(adev);
 
     ALOGV("%s: enter: usecase(%d: %s)", __func__,
           in->usecase, use_case_table[in->usecase]);
@@ -1666,7 +1687,7 @@ error_open:
     audio_extn_perf_lock_release(&adev->perf_lock_handle);
     stop_input_stream(in);
 error_config:
-    adev->active_input = NULL;
+    adev->active_input = get_next_active_input(adev);
     /*
      * sleep 50ms to allow sufficient time for kernel
      * drivers to recover incases like SSR.
@@ -2448,11 +2469,19 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
          * (3sec). As BT is turned off, the write gets blocked.
          * Avoid this by routing audio to speaker until standby.
          */
-        if ((out->devices & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP) &&
+        if ((out->devices & AUDIO_DEVICE_OUT_ALL_A2DP) &&
                 (val == AUDIO_DEVICE_NONE)) {
                 val = AUDIO_DEVICE_OUT_SPEAKER;
         }
-
+        /* To avoid a2dp to sco overlapping force route BT usecases
+         * to speaker based on Phone state
+         */
+        if ((val & AUDIO_DEVICE_OUT_ALL_A2DP) &&
+            ((adev->mode == AUDIO_MODE_RINGTONE) ||
+            (adev->mode == AUDIO_MODE_IN_CALL))) {
+            ALOGD("Forcing a2dp routing to speaker for ring/call mode");
+            val = AUDIO_DEVICE_OUT_SPEAKER;
+        }
         /*
          * select_devices() call below switches all the usecases on the same
          * backend to the new device. Refer to check_usecases_codec_backend() in
@@ -4251,10 +4280,13 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_DEVICE_DISCONNECT, value, sizeof(value));
     if (ret >= 0) {
         val = atoi(value);
-        if (val & AUDIO_DEVICE_OUT_AUX_DIGITAL) {
-            ALOGV("invalidate cached edid");
-            platform_invalidate_hdmi_config(adev->platform);
-        } else if ((val & AUDIO_DEVICE_OUT_USB_DEVICE) ||
+        /*
+         * The HDMI / Displayport disconnect handling has been moved to
+         * audio extension to ensure that its parameters are not
+         * invalidated prior to updating sysfs of the disconnect event
+         * Invalidate will be handled by audio_extn_ext_disp_set_parameters()
+         */
+        if ((val & AUDIO_DEVICE_OUT_USB_DEVICE) ||
                    !(val ^ AUDIO_DEVICE_IN_USB_DEVICE)) {
             ret = str_parms_get_str(parms, "card", value, sizeof(value));
             if (ret >= 0) {
@@ -4272,7 +4304,7 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
         list_for_each(node, &adev->usecase_list) {
             usecase = node_to_item(node, struct audio_usecase, list);
             if ((usecase->type == PCM_PLAYBACK) &&
-                (usecase->devices & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP)){
+                (usecase->devices & AUDIO_DEVICE_OUT_ALL_A2DP)){
                 ALOGD("reconfigure a2dp... forcing device switch");
                 lock_output_stream(usecase->stream.out);
                 audio_extn_a2dp_set_handoff_mode(true);
@@ -4440,6 +4472,7 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
     int ret = 0, buffer_size, frame_size;
     int channel_count = audio_channel_count_from_in_mask(config->channel_mask);
     bool is_low_latency = false;
+    bool channel_mask_updated = false;
 
     *stream_in = NULL;
     if (check_input_parameters(config->sample_rate, config->format, channel_count) != 0) {
@@ -4534,7 +4567,14 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
         in->config.channels = channel_count;
         in->config.rate = config->sample_rate;
         in->sample_rate = config->sample_rate;
-    } else if (!audio_extn_ssr_check_and_set_usecase(in)) {
+    } else if (!audio_extn_check_and_set_multichannel_usecase(adev,
+                in, config, &channel_mask_updated)) {
+        if (channel_mask_updated == true) {
+            ALOGD("%s: return error to retry with updated channel mask (%#x)",
+                   __func__, config->channel_mask);
+            ret = -EINVAL;
+            goto err_open;
+        }
         ALOGD("%s: created surround sound session succesfully",__func__);
     } else if (audio_extn_compr_cap_enabled() &&
             audio_extn_compr_cap_format_supported(config->format) &&

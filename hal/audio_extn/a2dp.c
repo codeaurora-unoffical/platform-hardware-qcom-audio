@@ -645,6 +645,35 @@ int audio_extn_a2dp_start_playback()
     return ret;
 }
 
+static void reset_a2dp_enc_config_params()
+{
+    int ret =0;
+
+    struct mixer_ctl *ctl_enc_config, *ctrl_bit_format;
+    struct sbc_enc_cfg_t dummy_reset_config;
+
+    memset(&dummy_reset_config, 0x0, sizeof(struct sbc_enc_cfg_t));
+    ctl_enc_config = mixer_get_ctl_by_name(a2dp.adev->mixer,
+                                           MIXER_ENC_CONFIG_BLOCK);
+    if (!ctl_enc_config) {
+        ALOGE(" ERROR  a2dp encoder format mixer control not identifed");
+    } else {
+        ret = mixer_ctl_set_array(ctl_enc_config, (void *)&dummy_reset_config,
+                                        sizeof(struct sbc_enc_cfg_t));
+         a2dp.bt_encoder_format = ENC_MEDIA_FMT_NONE;
+    }
+    ctrl_bit_format = mixer_get_ctl_by_name(a2dp.adev->mixer,
+                                            MIXER_ENC_BIT_FORMAT);
+    if (!ctrl_bit_format) {
+        ALOGE(" ERROR  bit format CONFIG data mixer control not identifed");
+    } else {
+        ret = mixer_ctl_set_enum_by_string(ctrl_bit_format, "S16_LE");
+        if (ret != 0) {
+            ALOGE("%s: Failed to set bit format to encoder", __func__);
+        }
+    }
+}
+
 int audio_extn_a2dp_stop_playback()
 {
     int ret =0;
@@ -659,35 +688,13 @@ int audio_extn_a2dp_stop_playback()
         a2dp.a2dp_total_active_session_request--;
 
     if ( a2dp.a2dp_started && !a2dp.a2dp_total_active_session_request) {
-        struct mixer_ctl *ctl_enc_config, *ctrl_bit_format;
-        struct sbc_enc_cfg_t dummy_reset_config;
-
         ALOGV("calling BT module stream stop");
         ret = a2dp.audio_stop_stream();
         if (ret < 0)
             ALOGE("stop stream to BT IPC lib failed");
         else
             ALOGV("stop steam to BT IPC lib successful");
-         memset(&dummy_reset_config, 0x0, sizeof(struct sbc_enc_cfg_t));
-        ctl_enc_config = mixer_get_ctl_by_name(a2dp.adev->mixer,
-                                               MIXER_ENC_CONFIG_BLOCK);
-        if (!ctl_enc_config) {
-            ALOGE(" ERROR  a2dp encoder format mixer control not identifed");
-        } else {
-            ret = mixer_ctl_set_array(ctl_enc_config, (void *)&dummy_reset_config,
-                                            sizeof(struct sbc_enc_cfg_t));
-             a2dp.bt_encoder_format = ENC_MEDIA_FMT_NONE;
-        }
-        ctrl_bit_format = mixer_get_ctl_by_name(a2dp.adev->mixer,
-                                                MIXER_ENC_BIT_FORMAT);
-        if (!ctrl_bit_format) {
-            ALOGE(" ERROR  bit format CONFIG data mixer control not identifed");
-        } else {
-            ret = mixer_ctl_set_enum_by_string(ctrl_bit_format, "S16_LE");
-            if (ret != 0) {
-                ALOGE("%s: Failed to set bit format to encoder", __func__);
-            }
-        }
+        reset_a2dp_enc_config_params();
     }
     if(!a2dp.a2dp_total_active_session_request)
        a2dp.a2dp_started = false;
@@ -724,6 +731,7 @@ void audio_extn_a2dp_set_parameters(struct str_parms *parms)
          val = atoi(value);
          if (val & AUDIO_DEVICE_OUT_ALL_A2DP) {
              ALOGV("Received device dis- connect request");
+             reset_a2dp_enc_config_params();
              close_a2dp_output();
          }
          goto param_handled;
@@ -735,6 +743,7 @@ void audio_extn_a2dp_set_parameters(struct str_parms *parms)
              if ((!strncmp(value,"true",sizeof(value)))) {
                 ALOGD("Setting a2dp to suspend state");
                 a2dp.a2dp_suspended = true;
+                reset_a2dp_enc_config_params();
                 if(a2dp.audio_suspend_stream)
                    a2dp.audio_suspend_stream();
             } else if (a2dp.a2dp_suspended == true) {
@@ -742,6 +751,27 @@ void audio_extn_a2dp_set_parameters(struct str_parms *parms)
                 if(a2dp.clear_a2dpsuspend_flag)
                     a2dp.clear_a2dpsuspend_flag();
                 a2dp.a2dp_suspended = false;
+                /*
+                 * It is possible that before suspend,a2dp sessions can be active
+                 * for example during music + voice activation concurrency
+                 * a2dp suspend will be called & BT will change to sco mode
+                 * though music is paused as a part of voice activation
+                 * compress session close happens only after pause timeout(10secs)
+                 * so if resume request comes before pause timeout as a2dp session
+                 * is already active IPC start will not be called from APM/audio_hw
+                 * Fix is to call a2dp start for IPC library post suspend
+                 * based on number of active session count
+                 */
+                if (a2dp.a2dp_total_active_session_request > 0) {
+                    ALOGD(" Calling IPC lib start post suspend state");
+                    if(a2dp.audio_start_stream) {
+                        ret =  a2dp.audio_start_stream();
+                        if (ret != 0) {
+                            ALOGE("BT controller start failed");
+                            a2dp.a2dp_started = false;
+                        }
+                    }
+                }
             }
         }
         goto param_handled;
