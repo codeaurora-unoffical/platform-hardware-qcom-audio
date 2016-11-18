@@ -52,6 +52,7 @@
 #define MIXER_XML_PATH_SKUE "/system/etc/mixer_paths_skue.xml"
 #define MIXER_XML_PATH_SKUL "/system/etc/mixer_paths_skul.xml"
 #define MIXER_XML_PATH_SKUM "/system/etc/mixer_paths_qrd_skum.xml"
+#define MIXER_XML_PATH_SKUS "/system/etc/mixer_paths_skus.xml"
 #define MIXER_XML_PATH_SKU1 "/system/etc/mixer_paths_qrd_sku1.xml"
 #define MIXER_XML_PATH_SKU2 "/system/etc/mixer_paths_qrd_sku2.xml"
 #define MIXER_XML_PATH_SKUN_CAJON "/system/etc/mixer_paths_qrd_skun_cajon.xml"
@@ -860,6 +861,8 @@ static void update_codec_type(const char *snd_card_name) {
                   sizeof("msm8953-tasha-snd-card")) ||
          !strncmp(snd_card_name, "msm8953-tashalite-snd-card",
                   sizeof("msm8953-tashalite-snd-card")) ||
+         !strncmp(snd_card_name, "msmfalcon-tasha-skus-snd-card",
+                  sizeof("msmfalcon-tasha-skus-snd-card")) ||
          !strncmp(snd_card_name, "msmfalcon-tashalite-snd-card",
                   sizeof("msmfalcon-tashalite-snd-card")) ||
          !strncmp(snd_card_name, "msmfalcon-tavil-snd-card",
@@ -1157,6 +1160,13 @@ static void query_platform(const char *snd_card_name,
                  sizeof("msmfalcon-tasha-snd-card"))) {
         strlcpy(mixer_xml_path, MIXER_XML_PATH_TASHA,
                 sizeof(MIXER_XML_PATH_TASHA));
+        msm_device_to_be_id = msm_device_to_be_id_external_codec;
+        msm_be_id_array_len  =
+            sizeof(msm_device_to_be_id_external_codec) / sizeof(msm_device_to_be_id_external_codec[0]);
+    } else if (!strncmp(snd_card_name, "msmfalcon-tasha-skus-snd-card",
+                 sizeof("msmfalcon-tasha-skus-snd-card"))) {
+        strlcpy(mixer_xml_path, MIXER_XML_PATH_SKUS,
+                sizeof(MIXER_XML_PATH_SKUS));
         msm_device_to_be_id = msm_device_to_be_id_external_codec;
         msm_be_id_array_len  =
             sizeof(msm_device_to_be_id_external_codec) / sizeof(msm_device_to_be_id_external_codec[0]);

@@ -297,6 +297,12 @@ static void update_hardware_info_8x16(struct hardware_info *hw_info, const char 
         hw_info->snd_devices = NULL;
         hw_info->num_snd_devices = 0;
         strlcpy(hw_info->dev_extn, "", sizeof(hw_info->dev_extn));
+    } else if (!strcmp(snd_card_name, "msmfalcon-tasha-skus-snd-card")) {
+        strlcpy(hw_info->type, "", sizeof(hw_info->type));
+        strlcpy(hw_info->name, "msmfalcon", sizeof(hw_info->name));
+        hw_info->snd_devices = NULL;
+        hw_info->num_snd_devices = 0;
+        strlcpy(hw_info->dev_extn, "", sizeof(hw_info->dev_extn));
     } else if (!strcmp(snd_card_name, "msmfalcon-tashalite-snd-card")) {
         strlcpy(hw_info->type, "", sizeof(hw_info->type));
         strlcpy(hw_info->name, "msmfalcon", sizeof(hw_info->name));
