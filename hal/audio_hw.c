@@ -3963,8 +3963,14 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
         in->usecase = USECASE_AUDIO_RECORD_LOW_LATENCY;
 #endif
     }
+#if AFE_PROXY_ENABLED
+    if ((in->device == AUDIO_DEVICE_IN_TELEPHONY_RX) ||
+             (in->device == AUDIO_DEVICE_IN_PROXY)) {
+#else
     if (in->device == AUDIO_DEVICE_IN_TELEPHONY_RX) {
-        if (adev->mode != AUDIO_MODE_IN_CALL) {
+#endif
+        if ((in->device == AUDIO_DEVICE_IN_TELEPHONY_RX) &&
+              (adev->mode != AUDIO_MODE_IN_CALL)) {
             ret = -EINVAL;
             goto err_open;
         }
@@ -4262,6 +4268,7 @@ static int adev_open(const hw_module_t *module, const char *name,
                                                         "visualizer_hal_stop_output");
         }
     }
+    audio_extn_init();
     audio_extn_listen_init(adev, adev->snd_card);
     audio_extn_sound_trigger_init(adev);
 
