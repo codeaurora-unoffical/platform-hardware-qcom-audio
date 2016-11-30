@@ -236,12 +236,12 @@ void *start_input(void *thread_param)
          break;
       }
       if(difftime(time(0), start_time) > params->loopTime) {
-          sourcetrack_done = 1;
           printf("\nTest completed.\n");
           break;
       }
   }
 
+  sourcetrack_done = 1;
   printf("closing input");
   fclose(fd);
 
