@@ -75,7 +75,7 @@ static struct icc_module iccmod = {
     .ucid = USECASE_ICC_CALL,
 };
 static struct pcm_config pcm_config_icc = {
-    .channels = 2,
+    .channels = 4,
     .rate = 16000,
     .period_size = 240,
     .period_count = 2,

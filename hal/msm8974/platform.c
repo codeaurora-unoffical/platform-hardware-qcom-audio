@@ -2124,7 +2124,7 @@ int platform_get_usecase_acdb_id(void *platform,
         switch (usecase->id) {
         case USECASE_ICC_CALL:
             if (capability == ACDB_DEV_TYPE_IN)
-                acdb_dev_id = 13;
+                acdb_dev_id = 46;
             else
                 acdb_dev_id = 16;
             break;
