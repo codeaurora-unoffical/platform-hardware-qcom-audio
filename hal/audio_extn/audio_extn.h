@@ -422,6 +422,20 @@ bool audio_extn_icc_is_active(struct audio_device *adev);
 audio_usecase_t audio_extn_icc_get_usecase();
 #endif
 
+#ifndef ANC_ENABLED
+#define audio_extn_anc_is_active(adev)                  (0)
+#define audio_extn_anc_get_usecase()                    (-1)
+#define audio_extn_anc_get_parameters(adev, query, reply)   (0)
+
+#else
+#define AUDIO_INPUT_FLAG_ANC 0x20
+bool audio_extn_anc_is_active(struct audio_device *adev);
+audio_usecase_t audio_extn_anc_get_usecase();
+void audio_extn_anc_get_parameters(struct audio_device *adev,
+                                  struct str_parms *query,
+                                  struct str_parms *reply);
+#endif
+
 #ifndef DEV_ARBI_ENABLED
 #define audio_extn_dev_arbi_init()                  (0)
 #define audio_extn_dev_arbi_deinit()                (0)

@@ -148,6 +148,10 @@ enum {
 
     /* In Car Communication usecase*/
     USECASE_ICC_CALL,
+
+    /* Active Noise Cancellation usecase*/
+    USECASE_ANC_LOOPBACK,
+
     AUDIO_USECASE_MAX
 };
 
@@ -267,7 +271,8 @@ typedef enum {
     VOIP_CALL,
     PCM_HFP_CALL,
     PCM_PASSTHROUGH,
-    ICC_CALL
+    ICC_CALL,
+    ANC_LOOPBACK
 } usecase_type_t;
 
 union stream_ptr {

@@ -320,6 +320,7 @@ static int pcm_device_table[AUDIO_USECASE_MAX][2] = {
                                             MULTIMEDIA2_PCM_DEVICE},
     [USECASE_AUDIO_FM_TUNER_EXT] = {-1, -1},
     [USECASE_ICC_CALL] = {ICC_PCM_DEVICE, ICC_PCM_DEVICE},
+    [USECASE_ANC_LOOPBACK] = {ANC_PCM_DEVICE, ANC_PCM_DEVICE},
 
 };
 
@@ -655,6 +656,7 @@ static struct name_to_index usecase_name_index[AUDIO_USECASE_MAX] = {
     {TO_NAME_INDEX(USECASE_INCALL_REC_UPLINK_AND_DOWNLINK)},
     {TO_NAME_INDEX(USECASE_AUDIO_HFP_SCO)},
     {TO_NAME_INDEX(USECASE_ICC_CALL)},
+    {TO_NAME_INDEX(USECASE_ANC_LOOPBACK)},
 };
 
 #define NO_COLS 2
@@ -1994,7 +1996,7 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
 
     if (usecase->type == PCM_PLAYBACK)
         snd_device =  usecase->out_snd_device;
-    else if ((usecase->type == PCM_HFP_CALL) || (usecase->type == PCM_CAPTURE) || (usecase->type == ICC_CALL) )
+    else if ((usecase->type == PCM_HFP_CALL) || (usecase->type == PCM_CAPTURE) || (usecase->type == ICC_CALL) || (usecase->type == ANC_LOOPBACK))
         snd_device = usecase->in_snd_device;
 
     acdb_dev_id = acdb_device_table[audio_extn_get_spkr_prot_snd_device(snd_device)];
@@ -2134,6 +2136,20 @@ int platform_get_usecase_acdb_id(void *platform,
             return -EINVAL;
         }
         break;
+    case ANC_LOOPBACK:
+        switch (usecase->id) {
+        case USECASE_ANC_LOOPBACK:
+            if (capability == ACDB_DEV_TYPE_IN)
+                acdb_dev_id = 46;
+            else
+                acdb_dev_id = 16;
+            break;
+        default:
+            ALOGE("%s: no acdb id supported for usecase id (%d)",
+                __func__, usecase->id);
+            return -EINVAL;
+        }
+        break;
     default:
         ALOGE("%s: no acdb id supported for usecase type (%d)",
             __func__, usecase->type);
@@ -2184,7 +2200,7 @@ int platform_send_audio_calibration_for_usecase(void *platform,
                                          usecase->stream.in->app_type_cfg.app_type,
                                          usecase->stream.in->app_type_cfg.sample_rate);
         }
-    } else if (((usecase->type == PCM_HFP_CALL) || (usecase->type == ICC_CALL)) &&
+    } else if (((usecase->type == PCM_HFP_CALL) || (usecase->type == ICC_CALL) || (usecase->type == ANC_LOOPBACK)) &&
         (my_data->acdb_send_audio_cal)) {
         /* calibrate rx */
         acdb_dev_id = platform_get_usecase_acdb_id(platform, usecase,
@@ -2713,7 +2729,7 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
     }    
 
     if ((out_device != AUDIO_DEVICE_NONE) && ((mode == AUDIO_MODE_IN_CALL) ||
-        voice_extn_compress_voip_is_active(adev) || audio_extn_hfp_is_active(adev) || audio_extn_icc_is_active(adev) )) {
+        voice_extn_compress_voip_is_active(adev) || audio_extn_hfp_is_active(adev) || audio_extn_icc_is_active(adev) || audio_extn_anc_is_active(adev) )) {
         if ((adev->voice.tty_mode != TTY_MODE_OFF) &&
             !voice_extn_compress_voip_is_active(adev)) {
             if (out_device & AUDIO_DEVICE_OUT_WIRED_HEADPHONE ||
