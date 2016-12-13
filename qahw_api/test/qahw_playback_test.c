@@ -500,6 +500,7 @@ int main(int argc, char* argv[]) {
     char *kvpair_values = NULL;
     char kvpair[1000] = {0};
     struct proxy_data proxy_params;
+    bool proxy_thread_active = false;
 
     /*
      * Default values
@@ -760,24 +761,29 @@ int main(int argc, char* argv[]) {
         proxy_params.acp.kInputSource = AUDIO_SOURCE_UNPROCESSED;
         proxy_params.acp.thread_exit = false;
         fprintf(log_file, "create thread to read data from proxy \n");
-        pthread_create(&proxy_thread, NULL, proxy_read, (void *)&proxy_params);
+        rc = pthread_create(&proxy_thread, NULL, proxy_read, (void *)&proxy_params);
+        if (!rc)
+            proxy_thread_active = true;
     }
     play_file(out_handle,
               file_stream,
              (flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD));
 
-    /*
-     * DSP gives drain ack for last buffer which will close proxy thread before
-     * app reads last buffer. So add sleep before exiting proxy thread to read
-     * last buffer of data. This is not a calculated value.
-     */
-    usleep(500000);
-    proxy_params.acp.thread_exit = true;
-    fprintf(log_file, "wait for thread exit\n");
+    if (proxy_thread_active) {
+
+       /*
+        * DSP gives drain ack for last buffer which will close proxy thread before
+        * app reads last buffer. So add sleep before exiting proxy thread to read
+        * last buffer of data. This is not a calculated value.
+        */
+        usleep(500000);
+        proxy_params.acp.thread_exit = true;
+        fprintf(log_file, "wait for thread exit\n");
+    }
 
 EXIT:
-
-    pthread_join(proxy_thread, NULL);
+    if (proxy_thread_active)
+        pthread_join(proxy_thread, NULL);
     if (out_handle != nullptr) {
         rc = qahw_out_standby(out_handle);
         if (rc) {
