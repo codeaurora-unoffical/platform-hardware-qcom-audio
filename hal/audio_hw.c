@@ -1205,6 +1205,10 @@ int start_input_stream(struct stream_in *in)
         goto error_open;
     }
 
+    if (platform_get_eccarstate(adev->platform)) {
+        (void)platform_set_multi_channel_ec_pri_mic_ch(adev->platform);
+    }
+
     audio_extn_perf_lock_release();
 
     if (uc_info->in_snd_device != SND_DEVICE_NONE) {

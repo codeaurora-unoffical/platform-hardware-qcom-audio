@@ -120,7 +120,7 @@
 #define AUDIO_PARAMETER_KEY_AUD_CALRESULT "cal_result"
 #define AUDIO_PARAMETER_KEY_EC_CAR_STATE  "ec_car_state"
 #define AUDIO_PARAMETER_KEY_CONVERSATION_MODE_STATE  "conversation_mode_state"
-
+#define AUDIO_PARAMETER_KEY_MULTI_CHANNEL_EC_PRIMARY_MIC_CH "multi_channel_ec_pri_mic_ch"
 
 /* Query external audio device connection status */
 #define AUDIO_PARAMETER_KEY_EXT_AUDIO_DEVICE "ext_audio_device"
@@ -164,6 +164,15 @@ enum {
     CAL_MODE_SEND           = 0x1,
     CAL_MODE_PERSIST        = 0x2,
     CAL_MODE_RTAC           = 0x4
+};
+
+enum {
+    MULTI_CHANNEL_EC_MIC_CH_MIN = 0,
+    MULTI_CHANNEL_EC_MIC_CH_FRONT_LEFT = MULTI_CHANNEL_EC_MIC_CH_MIN,
+    MULTI_CHANNEL_EC_MIC_CH_FRONT_RIGHT,
+    MULTI_CHANNEL_EC_MIC_CH_REAR_LEFT,
+    MULTI_CHANNEL_EC_MIC_CH_REAR_RIGHT,
+    MULTI_CHANNEL_EC_MIC_CH_MAX = MULTI_CHANNEL_EC_MIC_CH_REAR_RIGHT
 };
 
 /* Audio calibration related functions */
@@ -212,6 +221,7 @@ struct platform_data {
     bool is_i2s_ext_modem;
     bool is_acdb_initialized;
     bool ec_car_state;
+    int multi_channel_ec_pri_mic_ch;
     bool conversation_mode_state;
     /* Vbat monitor related flags */
     bool is_vbat_speaker;
@@ -1406,6 +1416,7 @@ void *platform_init(struct audio_device *adev)
     my_data->slowtalk = false;
     my_data->hd_voice = false;
     my_data->edid_info = NULL;
+    my_data->multi_channel_ec_pri_mic_ch = MULTI_CHANNEL_EC_MIC_CH_FRONT_LEFT;
 
     property_get("ro.qc.sdk.audio.fluencetype", my_data->fluence_cap, "");
     if (!strncmp("fluencepro", my_data->fluence_cap, sizeof("fluencepro"))) {
@@ -3126,6 +3137,33 @@ bool platform_get_eccarstate(void *platform)
     return my_data->ec_car_state;
 }
 
+int platform_set_multi_channel_ec_pri_mic_ch(void *platform)
+{
+    int ret = 0;
+    struct platform_data *my_data = (struct platform_data *)platform;
+    struct audio_device *adev = my_data->adev;
+    struct mixer_ctl *ctl;
+    const char *mixer_ctl_name = "Multichannel EC Primary Mic Ch";
+
+    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+    if (!ctl) {
+        ALOGE("%s: Could not get ctl for mixer cmd - %s",
+              __func__, mixer_ctl_name);
+        return -EINVAL;
+    }
+
+    ret = mixer_ctl_set_value(ctl, 0, my_data->multi_channel_ec_pri_mic_ch);
+
+    if (ret < 0)
+        ALOGE("%s: Could not set pri mic ch %d- %s",
+              __func__, my_data->multi_channel_ec_pri_mic_ch);
+    else
+        ALOGV("%s: Successfully set pri mic ch %d- %s",
+              __func__, my_data->multi_channel_ec_pri_mic_ch);
+
+    return ret;
+}
+
 static int update_external_device_status(struct platform_data *my_data,
                                  char* event_name, bool status)
 {
@@ -3353,7 +3391,7 @@ int platform_set_parameters(void *platform, struct str_parms *parms)
         }
     }
 
-    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_EC_CAR_STATE, 
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_EC_CAR_STATE,
                             value, len);
     if (err >= 0) {
         bool state = false;
@@ -3364,7 +3402,29 @@ int platform_set_parameters(void *platform, struct str_parms *parms)
         str_parms_del(parms, AUDIO_PARAMETER_KEY_EC_CAR_STATE);
         platform_set_eccarstate(my_data, state);
     }
-    
+
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_MULTI_CHANNEL_EC_PRIMARY_MIC_CH,
+                            value, len);
+    if (err >= 0) {
+        int pri_mic_ch = atoi(value);
+        struct audio_device *adev = my_data->adev;
+        if ((pri_mic_ch >= MULTI_CHANNEL_EC_MIC_CH_MIN) &&
+            (pri_mic_ch <= MULTI_CHANNEL_EC_MIC_CH_MAX)) {
+            my_data->multi_channel_ec_pri_mic_ch = pri_mic_ch;
+
+            if (adev->active_input && my_data->ec_car_state)
+                (void)platform_set_multi_channel_ec_pri_mic_ch(platform);
+
+            ALOGV("%s: Value of multi channel ec primary mic ch set to %d!",
+                  __func__, pri_mic_ch);
+        } else {
+            ALOGE("%s: Invalid value of multi channel ec primary mic ch %d!",
+                  __func__, pri_mic_ch);
+        }
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_MULTI_CHANNEL_EC_PRIMARY_MIC_CH);
+    }
+
     err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_EXT_AUDIO_DEVICE,
                             value, len);
     if (err >= 0) {
