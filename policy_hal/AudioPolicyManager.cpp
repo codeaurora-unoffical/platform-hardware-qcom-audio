@@ -1292,7 +1292,7 @@ status_t AudioPolicyManager::stopOutput(audio_io_handle_t output,
 
     // handle special case for sonification while in call
     if (isInCall()) {
-        handleIncallSonification(stream, false, false);
+        handleIncallSonification(stream, false, false, output);
     }
 
     if (outputDesc->mRefCount[stream] > 0) {
@@ -1533,8 +1533,11 @@ void AudioPolicyManager::setPhoneState(int state)
     // pertaining to sonification strategy see handleIncallSonification()
     if (isInCall()) {
         ALOGV("setPhoneState() in call state management: new state is %d", state);
-        for (int stream = 0; stream < AudioSystem::NUM_STREAM_TYPES; stream++) {
-            handleIncallSonification(stream, false, true);
+        for (size_t j = 0; j < mOutputs.size(); j++) {
+            audio_io_handle_t curOutput = mOutputs.keyAt(j);
+            for (int stream = 0; stream < AudioSystem::NUM_STREAM_TYPES; stream++) {
+                handleIncallSonification(stream, false, true, curOutput);
+            }
         }
     }
 
@@ -1746,8 +1749,11 @@ void AudioPolicyManager::setPhoneState(int state)
     // pertaining to sonification strategy see handleIncallSonification()
     if (isStateInCall(state)) {
         ALOGV("setPhoneState() in call state management: new state is %d", state);
-        for (int stream = 0; stream < AudioSystem::NUM_STREAM_TYPES; stream++) {
-            handleIncallSonification(stream, true, true);
+        for (size_t j = 0; j < mOutputs.size(); j++) {
+            audio_io_handle_t curOutput = mOutputs.keyAt(j);
+            for (int stream = 0; stream < AudioSystem::NUM_STREAM_TYPES; stream++) {
+                handleIncallSonification(stream, true, true, curOutput);
+            }
         }
     }
 
