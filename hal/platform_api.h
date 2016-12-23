@@ -86,6 +86,13 @@ bool platform_sound_trigger_usecase_needs_event(audio_usecase_t uc_id);
 
 int platform_set_snd_device_backend(snd_device_t snd_device, const char * backend);
 
+int platform_split_snd_device(void *platform,
+                              snd_device_t snd_device,
+                              int *num_devices,
+                              snd_device_t *new_snd_devices);
+
+bool platform_check_backends_match(snd_device_t snd_device1, snd_device_t snd_device2);
+
 /* From platform_info_parser.c */
 int platform_info_init(const char *filename);
 

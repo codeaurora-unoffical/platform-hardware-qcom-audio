@@ -445,6 +445,8 @@ struct snd_device_index {
 
 #define TO_NAME_INDEX(X)   #X, X
 
+static char * hw_interface_table[SND_DEVICE_MAX] = {0};
+
 /* Used to get index from parsed sting */
 struct snd_device_index snd_device_name_index[SND_DEVICE_MAX] = {
     {TO_NAME_INDEX(SND_DEVICE_OUT_HANDSET)},
@@ -777,6 +779,17 @@ static void query_platform(const char *snd_card_name,
     }
 }
 
+static void set_platform_defaults(struct platform_data * my_data)
+{
+   int32_t dev, count = 0;
+
+   for (dev = 0; dev < SND_DEVICE_MAX; dev++) {
+       hw_interface_table[dev] = NULL;
+   }
+
+      hw_interface_table[SND_DEVICE_OUT_SPEAKER_AND_BT_A2DP] = strdup("PRI_MI2S_RX");
+      hw_interface_table[SND_DEVICE_OUT_BT_A2DP] = strdup("INTERNAL_A2DP_RX");
+}
 void platform_set_echo_reference(void *platform, bool enable)
 {
     struct platform_data *my_data = (struct platform_data *)platform;
@@ -1344,6 +1357,9 @@ void *platform_init(struct audio_device *adev)
     audio_extn_pm_vote();
 
 acdb_init_fail:
+
+    set_platform_defaults(my_data);
+
     /* Initialize ACDB ID's */
     platform_info_init(PLATFORM_INFO_XML_PATH);
 
@@ -1448,6 +1464,37 @@ void platform_add_backend_name(char *mixer_path, snd_device_t snd_device)
         strlcat(mixer_path, " transmission-fm", MIXER_PATH_MAX_LENGTH);
 }
 
+bool platform_check_backends_match(snd_device_t snd_device1, snd_device_t snd_device2)
+{
+    bool result = true;
+    ALOGV("%s: snd_device1 = %s, snd_device2 = %s", __func__,
+          platform_get_snd_device_name(snd_device1),
+          platform_get_snd_device_name(snd_device2));
+
+    if ((snd_device1 < SND_DEVICE_MIN) || (snd_device1 >= SND_DEVICE_OUT_END)) {
+         ALOGE("%s: Invalid snd_device = %s", __func__,
+         platform_get_snd_device_name(snd_device1));
+         return false;
+    }
+    if ((snd_device2 < SND_DEVICE_MIN) || (snd_device2 >= SND_DEVICE_OUT_END)) {
+        ALOGE("%s: Invalid snd_device = %s", __func__,
+              platform_get_snd_device_name(snd_device2));
+        return false;
+    }
+    const char * be_itf1 = hw_interface_table[snd_device1];
+    const char * be_itf2 = hw_interface_table[snd_device2];
+
+    if (NULL != be_itf1 && NULL != be_itf2) {
+        if ((NULL == strstr(be_itf2, be_itf1)) && (NULL == strstr(be_itf1, be_itf2)))
+        result = false;
+   } else if (NULL == be_itf1 && NULL != be_itf2) {
+           result = false;
+   } else if (NULL != be_itf1 && NULL == be_itf2) {
+          result = false;
+   }
+   ALOGV("%s: be_itf1 = %s, be_itf2 = %s, match %d", __func__, be_itf1, be_itf2, result);
+  return result;
+}
 int platform_get_pcm_device_id(audio_usecase_t usecase, int device_type)
 {
     int device_id = -1;
@@ -1608,8 +1655,10 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
 {
     struct platform_data *my_data = (struct platform_data *)platform;
     int acdb_dev_id, acdb_dev_type;
+    int new_snd_device[SND_DEVICE_OUT_END];
     struct audio_device *adev = my_data->adev;
     int snd_device = SND_DEVICE_OUT_SPEAKER;
+    int num_devices = 1;
 
     if (usecase->type == PCM_PLAYBACK) {
         snd_device = usecase->out_snd_device;
@@ -1621,6 +1670,12 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
     }
 
     acdb_dev_id = acdb_device_table[snd_device];
+
+    if (platform_split_snd_device(platform, snd_device, &num_devices,
+                                  new_snd_device) < 0) {
+               new_snd_device[0] = snd_device;
+       }
+
     if (acdb_dev_id < 0) {
         ALOGE("%s: Could not find acdb id for device(%d)",
               __func__, snd_device);
@@ -1883,6 +1938,30 @@ int platform_set_device_mute(void *platform, bool state, char *dir)
     mixer_ctl_set_array(ctl, set_values, ARRAY_SIZE(set_values));
 
     return ret;
+}
+
+int platform_split_snd_device(void *platform,
+                              snd_device_t snd_device,
+                              int *num_devices,
+                              snd_device_t *new_snd_devices)
+{
+     int ret = -EINVAL;
+     struct platform_data *my_data = (struct platform_data *)platform;
+     if (NULL == num_devices || NULL == new_snd_devices) {
+       ALOGE("%s: NULL pointer ..", __func__);
+       return -EINVAL;
+    }
+
+    if (SND_DEVICE_OUT_SPEAKER_AND_BT_A2DP == snd_device) {
+       *num_devices = 2;
+        new_snd_devices[0] = SND_DEVICE_OUT_SPEAKER;
+        new_snd_devices[1] = SND_DEVICE_OUT_BT_A2DP;
+        ret = 0;
+   }
+
+   ALOGD("%s: snd_device(%d) num devices(%d) new_snd_devices(%d)", __func__,
+         snd_device, *num_devices, *new_snd_devices);
+   return ret;
 }
 
 snd_device_t platform_get_output_snd_device(void *platform, audio_devices_t devices)

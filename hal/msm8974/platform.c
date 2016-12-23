@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2016 The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -1454,6 +1454,10 @@ int platform_send_audio_calibration(void *platform, snd_device_t snd_device,
         snd_device = platform_get_input_snd_device(adev->platform,
                                             adev->primary_output->devices);
     acdb_dev_id = acdb_device_table[audio_extn_get_spkr_prot_snd_device(snd_device)];
+    if (platform_split_snd_device(platform, snd_device, &num_devices,
+                                  new_snd_device) < 0) {
+               new_snd_device[0] = snd_device;
+       }
     if (acdb_dev_id < 0) {
         ALOGE("%s: Could not find acdb id for device(%d)",
               __func__, snd_device);
@@ -1728,6 +1732,72 @@ int platform_set_device_mute(void *platform, bool state, char *dir)
     mixer_ctl_set_array(ctl, set_values, ARRAY_SIZE(set_values));
 
     return ret;
+}
+
+int platform_split_snd_device(void *platform,
+                              snd_device_t snd_device,
+                              int *num_devices,
+                              snd_device_t *new_snd_devices)
+{
+     int ret = -EINVAL;
+     struct platform_data *my_data = (struct platform_data *)platform;
+     if (NULL == num_devices || NULL == new_snd_devices) {
+       ALOGE("%s: NULL pointer ..", __func__);
+       return -EINVAL;
+    }
+
+    /* If wired headset/headphones/line devices share the same backend
+     * with speaker/earpiece this routine returns -EINVAL.
+     */
+    if (snd_device == SND_DEVICE_OUT_SPEAKER_AND_HEADPHONES &&
+        !platform_check_backends_match(SND_DEVICE_OUT_SPEAKER, SND_DEVICE_OUT_HEADPHONES)) {
+        *num_devices = 2;
+        if (my_data->is_vbat_speaker)
+        new_snd_devices[0] = SND_DEVICE_OUT_SPEAKER_VBAT;
+        else if (my_data->is_wsa_speaker)
+        new_snd_devices[0] = SND_DEVICE_OUT_SPEAKER_WSA;
+        else
+        new_snd_devices[0] = SND_DEVICE_OUT_SPEAKER;
+        new_snd_devices[1] = SND_DEVICE_OUT_HEADPHONES;
+        ret = 0;
+    } else if (snd_device == SND_DEVICE_OUT_SPEAKER_AND_HDMI &&
+               !platform_check_backends_match(SND_DEVICE_OUT_SPEAKER, SND_DEVICE_OUT_HDMI)) {
+       *num_devices = 2;
+    if (my_data->is_vbat_speaker)
+       new_snd_devices[0] = SND_DEVICE_OUT_SPEAKER_VBAT;
+    else if (my_data->is_wsa_speaker)
+       new_snd_devices[0] = SND_DEVICE_OUT_SPEAKER_WSA;
+    else
+       new_snd_devices[0] = SND_DEVICE_OUT_SPEAKER;
+       new_snd_devices[1] = SND_DEVICE_OUT_HDMI;
+   ret = 0;
+   }  else if (snd_device == SND_DEVICE_OUT_SPEAKER_AND_DISPLAY_PORT &&
+              !platform_check_backends_match(SND_DEVICE_OUT_SPEAKER, SND_DEVICE_OUT_DISPLAY_PORT)) {
+         *num_devices = 2;
+         if (my_data->is_vbat_speaker)
+         new_snd_devices[0] = SND_DEVICE_OUT_SPEAKER_VBAT;
+         else if (my_data->is_wsa_speaker)
+         new_snd_devices[0] = SND_DEVICE_OUT_SPEAKER_WSA;
+         else
+         new_snd_devices[0] = SND_DEVICE_OUT_SPEAKER;
+         new_snd_devices[1] = SND_DEVICE_OUT_DISPLAY_PORT;
+         ret = 0;
+   } else if (snd_device == SND_DEVICE_OUT_SPEAKER_AND_USB_HEADSET &&
+              !platform_check_backends_match(SND_DEVICE_OUT_SPEAKER, SND_DEVICE_OUT_USB_HEADSET)) {
+        *num_devices = 2;
+         new_snd_devices[0] = SND_DEVICE_OUT_SPEAKER;
+         new_snd_devices[1] = SND_DEVICE_OUT_USB_HEADSET;
+         ret = 0;
+   } else if (SND_DEVICE_OUT_SPEAKER_AND_BT_A2DP == snd_device) {
+       *num_devices = 2;
+        new_snd_devices[0] = SND_DEVICE_OUT_SPEAKER;
+        new_snd_devices[1] = SND_DEVICE_OUT_BT_A2DP;
+        ret = 0;
+   }
+
+   ALOGD("%s: snd_device(%d) num devices(%d) new_snd_devices(%d)", __func__,
+         snd_device, *num_devices, *new_snd_devices);
+   return ret;
 }
 
 snd_device_t platform_get_output_snd_device(void *platform, audio_devices_t devices)
@@ -2910,6 +2980,10 @@ bool platform_check_and_set_codec_backend_cfg(struct audio_device* adev, struct 
 
     new_bit_width = old_bit_width = adev->cur_codec_backend_bit_width;
     new_sample_rate = old_sample_rate = adev->cur_codec_backend_samplerate;
+
+   if (platform_split_snd_device(my_data, snd_device, &num_devices,
+                                 new_snd_devices) < 0)
+       new_snd_devices[0] = snd_device;
 
     ALOGW("Codec backend bitwidth %d, samplerate %d", old_bit_width, old_sample_rate);
     if (platform_check_codec_backend_cfg(adev, usecase,
