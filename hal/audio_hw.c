@@ -3914,6 +3914,7 @@ static int adev_create_audio_patch(struct audio_hw_device *dev,
     audio_usecase_t usecase = USECASE_INVALID;
     audio_io_handle_t input_io_handle = AUDIO_IO_HANDLE_NONE;
     audio_io_handle_t output_io_handle = AUDIO_IO_HANDLE_NONE;
+    audio_devices_t device = AUDIO_DEVICE_NONE;
 
     ALOGV("adev_create_audio_patch enter");
 
@@ -3932,53 +3933,128 @@ static int adev_create_audio_patch(struct audio_hw_device *dev,
 
     /* No validation on num of sources and sinks to allow patch with multiple sinks */
     /* being created, but only the first source and sink are used to create patch*/
+
+    /* Stream set_parameters for AUDIO_PARAMETER_STREAM_ROUTING and
+     * AUDIO_PARAMETER_STREAM_INPUT_SOURCE is replaced with audio_path
+     * callback in audioflinger for AUDIO_DEVICE_API_VERSION_3_0 and above.
+     * Need to take care of device change notification to AHAL for
+     *   Capture:  DEVICE -> MIX
+     *   Playback: MIX -> DEVICE
+     */
     if ((sources->type == AUDIO_PORT_TYPE_DEVICE) &&
         (sinks->type == AUDIO_PORT_TYPE_MIX)) {
-        /* set source for recording */
+        /* set source and device for recording */
         pthread_mutex_lock(&adev->lock);
         streams_input_ctxt_t *in_ctxt = in_get_stream(adev, sinks->ext.mix.handle);
         if (!in_ctxt) {
             ALOGE("%s, failed to find input stream", __func__);
             ret = -EINVAL;
-        } else {
-            in_ctxt->input->source = sinks->ext.mix.usecase.source;
-            input_io_handle = sinks->ext.mix.handle;
         }
         pthread_mutex_unlock(&adev->lock);
         if(ret)
             return ret;
+        input_io_handle = sinks->ext.mix.handle;
+        lock_input_stream(in_ctxt->input);
+        if ((in_ctxt->input->device != sources->ext.device.type) &&
+            (sources->ext.device.type != 0)) {
+            in_ctxt->input->device = sources->ext.device.type;
+            /* If recording is in progress, change the tx device to new device */
+            if (!in_ctxt->input->standby && !in_ctxt->input->is_st_session)
+                ret = select_devices(adev, in_ctxt->input->usecase);
+            ALOGV("%s: audio input updated device %x",
+                __func__, in_ctxt->input->device);
+        }
+
+        /* no audio source uses sinks->ext.mix.usecase.source == 0 */
+        if ((in_ctxt->input->source != sinks->ext.mix.usecase.source) &&
+            (sinks->ext.mix.usecase.source != 0)) {
+            in_ctxt->input->source = sinks->ext.mix.usecase.source;
+            if ((in_ctxt->input->source == AUDIO_SOURCE_VOICE_COMMUNICATION) &&
+                (in_ctxt->input->dev->mode == AUDIO_MODE_IN_COMMUNICATION) &&
+                (voice_extn_compress_voip_is_format_supported(in_ctxt->input->format)) &&
+                (in_ctxt->input->config.rate == 8000 || in_ctxt->input->config.rate == 16000) &&
+                (audio_channel_count_from_in_mask(in_ctxt->input->channel_mask) == 1)) {
+                ret = voice_extn_compress_voip_open_input_stream(in_ctxt->input);
+                if (ret != 0) {
+                    ALOGE("%s: Compress voip input cannot be opened, ret:%d",
+                          __func__, ret);
+                }
+            }
+            ALOGV("%s: audio input updated source %x",
+                __func__, in_ctxt->input->source);
+        }
+        pthread_mutex_unlock(&in_ctxt->input->lock);
     } else if ((sources->type == AUDIO_PORT_TYPE_MIX) &&
         (sinks->type == AUDIO_PORT_TYPE_DEVICE)) {
-        /* start voice call */
-        if(sinks->ext.device.type == 1) {
-            pthread_mutex_lock(&adev->lock);
-            streams_output_ctxt_t *out_ctxt = out_get_stream(adev,
-                sources->ext.mix.handle);
-            if (!out_ctxt) {
-                ALOGE("%s, failed to find output stream", __func__);
-                ret = -EINVAL;
-            }
-            pthread_mutex_unlock(&adev->lock);
-            if(ret)
-                return ret;
-            output_io_handle = sources->ext.mix.handle;
-            if(!voice_is_in_call(adev)) {
-                if (adev->mode == AUDIO_MODE_IN_CALL) {
-                    adev->current_call_output = out_ctxt->output;
-                    ret = voice_start_call(adev);
-                    ALOGV("%s: started voice call", __func__);
-                }
-            } else {
-                adev->current_call_output = out_ctxt->output;
-                voice_update_devices_for_all_voice_usecases(adev);
-                ALOGV("%s: voice updated devices", __func__);
-            }
-        } else
-            ALOGV("%s: skip mix to device audio patch creation", __func__);
+        /* set device for playback */
+        pthread_mutex_lock(&adev->lock);
+        streams_output_ctxt_t *out_ctxt = out_get_stream(adev,
+            sources->ext.mix.handle);
+        if (!out_ctxt) {
+            ALOGE("%s, failed to find output stream", __func__);
+            ret = -EINVAL;
+        }
+        pthread_mutex_unlock(&adev->lock);
+        if(ret)
+            return ret;
+        output_io_handle = sources->ext.mix.handle;
+        lock_output_stream(out_ctxt->output);
+        /*
+         * When HDMI cable is unplugged/usb hs is disconnected the
+         * music playback is paused and the policy manager sends routing=0
+         * But the audioflingercontinues to write data until standby time
+         * (3sec). As the HDMI core is turned off, the write gets blocked.
+         * Avoid this by routing audio to speaker until standby.
+         */
+        device = sinks->ext.device.type;
+        if ((out_ctxt->output->devices == AUDIO_DEVICE_OUT_AUX_DIGITAL ||
+            out_ctxt->output->devices == AUDIO_DEVICE_OUT_ANLG_DOCK_HEADSET) &&
+                device == AUDIO_DEVICE_NONE) {
+            if (!audio_extn_dolby_is_passthrough_stream(out_ctxt->output->flags))
+                device = AUDIO_DEVICE_OUT_SPEAKER;
+        }
 
-        /* TODO - do not return for voice call to create patch record when */
-        /*  framework changed to do release audio patch for CS voice call */
-        return ret;
+        /*
+         * select_devices() call below switches all the usecases on the same
+         * backend to the new device. Refer to check_usecases_codec_backend() in
+         * the select_devices(). But how do we undo this?
+         *
+         * For example, music playback is active on headset (deep-buffer usecase)
+         * and if we go to ringtones and select a ringtone, low-latency usecase
+         * will be started on headset+speaker. As we can't enable headset+speaker
+         * and headset devices at the same time, select_devices() switches the music
+         * playback to headset+speaker while starting low-lateny usecase for ringtone.
+         * So when the ringtone playback is completed, how do we undo the same?
+         *
+         * We are relying on the out_set_parameters() call on deep-buffer output,
+         * once the ringtone playback is ended.
+         * NOTE: We should not check if the current devices are same as new devices.
+         *       Because select_devices() must be called to switch back the music
+         *       playback to headset.
+         */
+        if (device != 0) {
+            out_ctxt->output->devices = device;
+
+            if (!out_ctxt->output->standby)
+                select_devices(adev, out_ctxt->output->usecase);
+
+            if (output_drives_call(adev, out_ctxt->output)) {
+                if(!voice_is_in_call(adev)) {
+                    if (adev->mode == AUDIO_MODE_IN_CALL) {
+                        adev->current_call_output = out_ctxt->output;
+                        ret = voice_start_call(adev);
+                        ALOGV("%s: started voice call", __func__);
+                    }
+                } else {
+                    adev->current_call_output = out_ctxt->output;
+                    voice_update_devices_for_all_voice_usecases(adev);
+                    ALOGV("%s: voice updated devices", __func__);
+                }
+            }
+            ALOGV("%s: audio output updated device %x",
+                __func__, out_ctxt->output->devices);
+        }
+        pthread_mutex_unlock(&out_ctxt->output->lock);
     } else if ((sources->type == AUDIO_PORT_TYPE_DEVICE) &&
         (sinks->type == AUDIO_PORT_TYPE_DEVICE)) {
         /* allocate use case and call to plugin driver*/
@@ -4027,7 +4103,7 @@ static int adev_create_audio_patch(struct audio_hw_device *dev,
     patch_record = (struct audio_patch_record *)calloc(1,
         sizeof(struct audio_patch_record));
 
-    ALOGD("%s: enter: num_src(%d) num_src(%d) src_id(%d) src_role(%d) \
+    ALOGD("%s: num_src(%d) num_src(%d) src_id(%d) src_role(%d) \
         src_dev_type(%d) sink_id(%d) sink_role(%d) sink_dev_type(%d)",__func__,
         num_sources, num_sinks, sources->id, sources->role,
         sources->ext.device.type, sinks->id, sinks->role,
@@ -4051,6 +4127,7 @@ static int adev_create_audio_patch(struct audio_hw_device *dev,
     pthread_mutex_unlock(&adev->lock);
 
     *handle = patch_record->handle;
+    ALOGV("adev_create_audio_patch exit");
     return ret;
 
 error_config:
@@ -4093,6 +4170,9 @@ static int adev_release_audio_patch(struct audio_hw_device *dev,
             ALOGI("%s, Could not find input stream", __func__);
         } else {
             in_ctxt->input->source = AUDIO_SOURCE_DEFAULT;
+            in_ctxt->input->device = AUDIO_DEVICE_NONE;
+            ALOGV("%s: audio input reset source %x device %x",
+                __func__, in_ctxt->input->source, in_ctxt->input->device);
         }
     }
 
@@ -4100,8 +4180,11 @@ static int adev_release_audio_patch(struct audio_hw_device *dev,
         out_ctxt = out_get_stream(adev, patch_record->output_io_handle);
         if (!out_ctxt) {
             ALOGI("%s, Could not find output stream", __func__);
+        } else {
+            out_ctxt->output->devices = AUDIO_DEVICE_NONE;
+            ALOGV("%s: audio output reset device %x",
+                __func__, out_ctxt->output->devices);
         }
-        /* TODO - check anything to be done here */
     }
 
     if (patch_record->usecase != USECASE_INVALID) {
@@ -4130,6 +4213,7 @@ static int adev_release_audio_patch(struct audio_hw_device *dev,
 
 exit:
     pthread_mutex_unlock(&adev->lock);
+    ALOGV("adev_release_audio_patch exit");
     return ret;
 }
 

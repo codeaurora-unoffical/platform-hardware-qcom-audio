@@ -2036,6 +2036,12 @@ int platform_get_usecase_acdb_id(void *platform,
 {
     struct platform_data *my_data = (struct platform_data *)platform;
     int acdb_dev_id = 0;
+    int snd_device = SND_DEVICE_NONE;
+
+    if (capability == ACDB_DEV_TYPE_IN)
+        snd_device = usecase->in_snd_device;
+    else
+        snd_device = usecase->out_snd_device;
 
     switch(usecase->type) {
     case VOICE_CALL:
@@ -2106,7 +2112,11 @@ int platform_get_usecase_acdb_id(void *platform,
 #endif
         case USECASE_AUDIO_PLAYBACK_ULL:
         case USECASE_AUDIO_DIRECT_PCM_OFFLOAD:
-            acdb_dev_id = 41;
+            /* If HDMI audio is enabled, calibrate HDMI speaker */
+            if (snd_device == SND_DEVICE_OUT_HDMI)
+                acdb_dev_id = 18;
+            else
+                acdb_dev_id = 41;
             break;
         case USECASE_AUDIO_PLAYBACK_DRIVER_SIDE:
             acdb_dev_id = 14;
