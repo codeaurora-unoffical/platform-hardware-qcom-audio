@@ -469,6 +469,27 @@ static int check_and_set_gapless_mode(struct audio_device *adev, bool enable_gap
     return 0;
 }
 
+__attribute__ ((visibility ("default")))
+int audio_hw_get_gain_level_mapping(struct amp_db_and_gain_table *mapping_tbl,
+                                    int table_size) {
+     int ret_val = 0;
+     ALOGV("%s: enter ... ", __func__);
+
+     pthread_mutex_lock(&adev_init_lock);
+     if (adev == NULL) {
+         ALOGW("%s: adev is NULL .... ", __func__);
+         goto done;
+     }
+
+     pthread_mutex_lock(&adev->lock);
+     ret_val = platform_get_gain_level_mapping(mapping_tbl, table_size);
+     pthread_mutex_unlock(&adev->lock);
+done:
+     pthread_mutex_unlock(&adev_init_lock);
+     ALOGV("%s: exit ... ", __func__);
+     return ret_val;
+}
+
 static bool is_supported_format(audio_format_t format)
 {
     if (format == AUDIO_FORMAT_MP3 ||
@@ -1628,11 +1649,35 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
                                                 &usecase->stream.out->app_type_cfg);
         ALOGI("%s Selected apptype: %d", __func__, usecase->stream.out->app_type_cfg.app_type);
 
+        if ((24 == usecase->stream.out->bit_width) &&
+                (usecase->stream.out->devices & AUDIO_DEVICE_OUT_SPEAKER)) {
+            usecase->stream.out->app_type_cfg.sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
+        } else if ((out_snd_device == SND_DEVICE_OUT_HDMI ||
+                    out_snd_device == SND_DEVICE_OUT_USB_HEADSET ||
+                    out_snd_device == SND_DEVICE_OUT_DISPLAY_PORT) &&
+                   (usecase->stream.out->sample_rate >= OUTPUT_SAMPLING_RATE_44100)) {
+            /*
+             * To best utlize DSP, check if the stream sample rate is supported/multiple of
+             * configured device sample rate, if not update the COPP rate to be equal to the
+             * device sample rate, else open COPP at stream sample rate
+             */
+            platform_check_and_update_copp_sample_rate(adev->platform, out_snd_device,
+                    usecase->stream.out->sample_rate,
+                    &usecase->stream.out->app_type_cfg.sample_rate);
+        } else if ((out_snd_device != SND_DEVICE_OUT_HEADPHONES_44_1 &&
+                    usecase->stream.out->sample_rate == OUTPUT_SAMPLING_RATE_44100) ||
+                    (usecase->stream.out->sample_rate < OUTPUT_SAMPLING_RATE_44100)) {
+            usecase->stream.out->app_type_cfg.sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
+        }
+
         /* Notify device change info to effect clients registered */
+        pthread_mutex_unlock(&adev->lock);
         audio_extn_gef_notify_device_config(
                 usecase->stream.out->devices,
                 usecase->stream.out->channel_mask,
+                usecase->stream.out->app_type_cfg.sample_rate,
                 platform_get_snd_device_acdb_id(usecase->out_snd_device));
+        pthread_mutex_lock(&adev->lock);
     }
 
     enable_audio_route(adev, usecase);
@@ -3625,7 +3670,8 @@ static ssize_t in_read(struct audio_stream_in *stream, void *buffer,
                 if (bytes % 4 == 0) {
                     /* data from DSP comes in 24_8 format, convert it to 8_24 */
                     int_buf_stream = buffer;
-                    for (size_t itt=0; itt < bytes/4 ; itt++) {
+                    size_t itt = 0;
+                    for (itt = 0; itt < bytes/4 ; itt++) {
                         int_buf_stream[itt] >>= 8;
                     }
                 } else {
@@ -4397,7 +4443,8 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
              */
             ret = str_parms_get_str(parms, "card", value, sizeof(value));
             if (ret >= 0) {
-                audio_extn_usb_add_device(val, atoi(value));
+                audio_extn_usb_add_device(AUDIO_DEVICE_OUT_USB_DEVICE, atoi(value));
+                audio_extn_usb_add_device(AUDIO_DEVICE_IN_USB_DEVICE, atoi(value));
             }
             ALOGV("detected USB connect .. disable proxy");
             adev->allow_afe_proxy_usage = false;
@@ -4417,7 +4464,8 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
                    !(val ^ AUDIO_DEVICE_IN_USB_DEVICE)) {
             ret = str_parms_get_str(parms, "card", value, sizeof(value));
             if (ret >= 0) {
-                audio_extn_usb_remove_device(val, atoi(value));
+                audio_extn_usb_remove_device(AUDIO_DEVICE_OUT_USB_DEVICE, atoi(value));
+                audio_extn_usb_remove_device(AUDIO_DEVICE_IN_USB_DEVICE, atoi(value));
             }
             ALOGV("detected USB disconnect .. enable proxy");
             adev->allow_afe_proxy_usage = true;
@@ -4668,11 +4716,14 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
     }
     in->bit_width = 16;
 
-    if (in->device == AUDIO_DEVICE_IN_TELEPHONY_RX) {
-        if (adev->mode != AUDIO_MODE_IN_CALL) {
-            ret = -EINVAL;
-            goto err_open;
-        }
+    if ((in->device == AUDIO_DEVICE_IN_TELEPHONY_RX) &&
+          (adev->mode != AUDIO_MODE_IN_CALL)) {
+        ret = -EINVAL;
+        goto err_open;
+    }
+
+    if ((in->device == AUDIO_DEVICE_IN_TELEPHONY_RX) ||
+             (in->device == AUDIO_DEVICE_IN_PROXY)) {
         if (config->sample_rate == 0)
             config->sample_rate = AFE_PROXY_SAMPLING_RATE;
         if (config->sample_rate != 48000 && config->sample_rate != 16000 &&
@@ -4990,6 +5041,7 @@ static int adev_open(const hw_module_t *module, const char *name,
                                                         "visualizer_hal_stop_output");
         }
     }
+    audio_extn_init();
     audio_extn_listen_init(adev, adev->snd_card);
     audio_extn_sound_trigger_init(adev);
     audio_extn_gef_init(adev);

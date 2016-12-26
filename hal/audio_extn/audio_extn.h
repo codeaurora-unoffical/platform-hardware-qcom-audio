@@ -44,6 +44,10 @@
 #define AUDIO_DEVICE_OUT_PROXY 0x40000
 #endif
 
+#ifndef AUDIO_DEVICE_IN_PROXY
+#define AUDIO_DEVICE_IN_PROXY (AUDIO_DEVICE_BIT_IN | 0x1000000)
+#endif
+
 #ifndef INCALL_MUSIC_ENABLED
 #define AUDIO_OUTPUT_FLAG_INCALL_MUSIC 0x8000
 #endif
@@ -158,6 +162,7 @@ int32_t audio_extn_get_afe_proxy_channel_count();
 #define audio_extn_usb_is_config_supported(bit_width, sample_rate, ch, pb) (0)
 #define audio_extn_usb_enable_sidetone(device, enable)                 (0)
 #define audio_extn_usb_set_sidetone_gain(parms, value, len)            (0)
+#define audio_extn_usb_is_capture_supported()                          (0)
 #else
 void audio_extn_usb_init(void *adev);
 void audio_extn_usb_deinit();
@@ -170,6 +175,7 @@ bool audio_extn_usb_is_config_supported(unsigned int *bit_width,
 int audio_extn_usb_enable_sidetone(int device, bool enable);
 int audio_extn_usb_set_sidetone_gain(struct str_parms *parms,
                                      char *value, int len);
+bool audio_extn_usb_is_capture_supported();
 #endif
 
 #ifndef SPLIT_A2DP_ENABLED
@@ -234,6 +240,7 @@ int audio_extn_check_and_set_multichannel_usecase(struct audio_device *adev,
 #define hw_info_append_hw_type(hw_info,\
         snd_device, device_name)                         (0)
 #define hw_info_enable_wsa_combo_usecase_support(hw_info)   (0)
+#define hw_info_is_stereo_spkr(hw_info)   (0)
 
 #else
 void *hw_info_init(const char *snd_card_name);
@@ -241,6 +248,7 @@ void hw_info_deinit(void *hw_info);
 void hw_info_append_hw_type(void *hw_info, snd_device_t snd_device,
                              char *device_name);
 void hw_info_enable_wsa_combo_usecase_support(void *hw_info);
+bool hw_info_is_stereo_spkr(void *hw_info);
 
 #endif
 
@@ -501,6 +509,7 @@ int audio_extn_pm_vote (void);
 void audio_extn_pm_unvote(void);
 #endif
 
+void audio_extn_init(void);
 void audio_extn_utils_update_streams_output_cfg_list(void *platform,
                                   struct mixer *mixer,
                                   struct listnode *streams_output_cfg_list);
@@ -638,7 +647,7 @@ int audio_extn_keep_alive_set_parameters(struct audio_device *adev,
 
 #define audio_extn_gef_init(adev) (0)
 #define audio_extn_gef_deinit() (0)
-#define audio_extn_gef_notify_device_config(devices, cmask, acdb_id) (0)
+#define audio_extn_gef_notify_device_config(devices, cmask, sample_rate, acdb_id) (0)
 #define audio_extn_gef_send_audio_cal(dev, acdb_dev_id, acdb_device_type,\
     app_type, topology_id, sample_rate, module_id, param_id, data, length, persist) (0)
 #define audio_extn_gef_get_audio_cal(adev, acdb_dev_id, acdb_device_type,\
@@ -654,7 +663,7 @@ void audio_extn_gef_init(struct audio_device *adev);
 void audio_extn_gef_deinit();
 
 void audio_extn_gef_notify_device_config(audio_devices_t audio_device,
-    audio_channel_mask_t channel_mask, int acdb_id);
+    audio_channel_mask_t channel_mask, int sample_rate, int acdb_id);
 int audio_extn_gef_send_audio_cal(void* adev, int acdb_dev_id, int acdb_device_type,
     int app_type, int topology_id, int sample_rate, uint32_t module_id, uint32_t param_id,
     void* data, int length, bool persist);

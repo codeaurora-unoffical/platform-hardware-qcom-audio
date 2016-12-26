@@ -52,7 +52,7 @@
 // type alone is not enough: the address must match too
 #define APM_AUDIO_DEVICE_MATCH_ADDRESS_ALL (AUDIO_DEVICE_IN_REMOTE_SUBMIX | \
                                             AUDIO_DEVICE_OUT_REMOTE_SUBMIX)
-
+#define SAMPLE_RATE_8000 8000
 #include <inttypes.h>
 #include <math.h>
 
@@ -520,7 +520,7 @@ bool AudioPolicyManagerCustom::isOffloadSupported(const audio_offload_info_t& of
     }
 
     if ((prop_rec_play_enabled) &&
-         ((true == mIsInputRequestOnProgress) || (mInputs.activeInputsCount() > 0))) {
+         ((true == mIsInputRequestOnProgress) || (mInputs.activeInputsCountOnDevices() > 0))) {
         ALOGD("copl: blocking  compress offload for record concurrency");
         return false;
     }
@@ -843,8 +843,14 @@ void AudioPolicyManagerCustom::setPhoneState(audio_mode_t state)
                     closeOutput(mOutputs.keyAt(i));
                 }
             } else if (AUDIO_OUTPUT_FLAG_DEEP_BUFFER == mFallBackflag) {
-                if ((outputDesc->mProfile->mFlags & AUDIO_OUTPUT_FLAG_DIRECT)
-                                &&  prop_playback_enabled) {
+                if (outputDesc->mProfile->mFlags & AUDIO_OUTPUT_FLAG_VOIP_RX) {
+                    if (prop_voip_enabled) {
+                        ALOGD("voice_conc:calling closeOutput on call mode for DIRECT  output");
+                        closeOutput(mOutputs.keyAt(i));
+                    }
+                }
+                else if (prop_playback_enabled
+                           && (outputDesc->mProfile->mFlags & AUDIO_OUTPUT_FLAG_DIRECT)) {
                     ALOGD("voice_conc:calling closeOutput on call mode for COMPRESS output");
                     closeOutput(mOutputs.keyAt(i));
                 }
@@ -1405,7 +1411,7 @@ bool AudioPolicyManagerCustom::isDirectOutput(audio_io_handle_t output) {
     return false;
 }
 
-bool static tryForDirectPCM(int bitWidth, audio_output_flags_t *flags)
+bool static tryForDirectPCM(int bitWidth, audio_output_flags_t *flags, uint32_t samplingRate)
 {
     bool playerDirectPCM = false; // Output request for Track created by mediaplayer
     bool trackDirectPCM = false;  // Output request for track created by other apps
@@ -1432,7 +1438,7 @@ bool static tryForDirectPCM(int bitWidth, audio_output_flags_t *flags)
        // Reset flag to NONE so that we can still reuse direct pcm criteria check
        // in getOutputforDevice
        *flags = AUDIO_OUTPUT_FLAG_NONE;
-    } else if ( *flags == AUDIO_OUTPUT_FLAG_NONE) {
+    } else if ((*flags == AUDIO_OUTPUT_FLAG_NONE) && (samplingRate % SAMPLE_RATE_8000 == 0)) {
         trackDirectPCM = property_get_bool("audio.offload.track.enable", true);
     }
 
@@ -1459,7 +1465,7 @@ status_t AudioPolicyManagerCustom::getOutputForAttr(const audio_attributes_t *at
     uint32_t bitWidth = (audio_bytes_per_sample(format) * 8);
 
 
-    if (tryForDirectPCM(bitWidth, &flags) &&
+    if (tryForDirectPCM(bitWidth, &flags, samplingRate) &&
         (offloadInfo == NULL)) {
 
         tOffloadInfo.sample_rate  = samplingRate;
@@ -1655,7 +1661,7 @@ audio_io_handle_t AudioPolicyManagerCustom::getOutputForDevice(
         prop_rec_play_enabled = atoi(recConcPropValue) || !strncmp("true", recConcPropValue, 4);
     }
     if ((prop_rec_play_enabled) &&
-            ((true == mIsInputRequestOnProgress) || (mInputs.activeInputsCount() > 0))) {
+            ((true == mIsInputRequestOnProgress) || (mInputs.activeInputsCountOnDevices() > 0))) {
         if (AUDIO_MODE_IN_COMMUNICATION == mEngine->getPhoneState()) {
             if (AUDIO_OUTPUT_FLAG_VOIP_RX & flags) {
                 // allow VoIP using voice path
@@ -2092,7 +2098,7 @@ status_t AudioPolicyManagerCustom::startInput(audio_io_handle_t input,
         prop_rec_play_enabled = atoi(getPropValue) || !strncmp("true", getPropValue, 4);
     }
 
-    if ((prop_rec_play_enabled) &&(mInputs.activeInputsCount() == 0)){
+    if ((prop_rec_play_enabled) &&(mInputs.activeInputsCountOnDevices() == 0)){
         // send update to HAL on record playback concurrency
         AudioParameter param = AudioParameter();
         param.add(String8("rec_play_conc_on"), String8("true"));
@@ -2138,7 +2144,7 @@ status_t AudioPolicyManagerCustom::startInput(audio_io_handle_t input,
                     MIX_STATE_MIXING);
         }
 
-        if (mInputs.activeInputsCount() == 0) {
+        if (mInputs.activeInputsCountOnDevices() == 0) {
             SoundTrigger::setCaptureState(true);
         }
         setInputDevice(input, getNewInputDevice(input), true /* force */);
@@ -2183,7 +2189,7 @@ status_t AudioPolicyManagerCustom::stopInput(audio_io_handle_t input,
         prop_rec_play_enabled = atoi(propValue) || !strncmp("true", propValue, 4);
     }
 
-    if ((prop_rec_play_enabled) && (mInputs.activeInputsCount() == 0)) {
+    if ((prop_rec_play_enabled) && (mInputs.activeInputsCountOnDevices() == 0)) {
 
         //send update to HAL on record playback concurrency
         AudioParameter param = AudioParameter();

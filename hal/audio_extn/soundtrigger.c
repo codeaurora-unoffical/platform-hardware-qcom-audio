@@ -43,6 +43,7 @@
 
 #define XSTR(x) STR(x)
 #define STR(x) #x
+#define MAX_LIBRARY_PATH 100
 
 struct sound_trigger_info  {
     struct sound_trigger_session_info st_ses;
@@ -59,6 +60,21 @@ struct sound_trigger_audio_device {
 };
 
 static struct sound_trigger_audio_device *st_dev;
+
+#if LINUX_ENABLED
+static void get_library_path(char *lib_path)
+{
+    snprintf(lib_path, MAX_LIBRARY_PATH,
+             "/usr/lib/sound_trigger.primary.default.so");
+}
+#else
+static void get_library_path(char *lib_path)
+{
+    snprintf(lib_path, MAX_LIBRARY_PATH,
+             "/system/vendor/lib/hw/sound_trigger.primary.%s.so",
+             XSTR(SOUND_TRIGGER_PLATFORM_NAME));
+}
+#endif
 
 static struct sound_trigger_info *
 get_sound_trigger_info(int capture_handle)
@@ -333,6 +349,18 @@ void audio_extn_sound_trigger_set_parameters(struct audio_device *adev __unused,
         event.u.value = val;
         st_dev->st_callback(AUDIO_EVENT_NUM_ST_SESSIONS, &event);
     }
+
+    ret = str_parms_get_int(params, AUDIO_PARAMETER_DEVICE_CONNECT, &val);
+    if ((ret >= 0) && audio_is_input_device(val)) {
+        event.u.value = val;
+        st_dev->st_callback(AUDIO_EVENT_DEVICE_CONNECT, &event);
+    }
+
+    ret = str_parms_get_int(params, AUDIO_PARAMETER_DEVICE_DISCONNECT, &val);
+    if ((ret >= 0) && audio_is_input_device(val)) {
+        event.u.value = val;
+        st_dev->st_callback(AUDIO_EVENT_DEVICE_DISCONNECT, &event);
+    }
 }
 
 int audio_extn_sound_trigger_init(struct audio_device *adev)
@@ -349,10 +377,7 @@ int audio_extn_sound_trigger_init(struct audio_device *adev)
         return -ENOMEM;
     }
 
-    snprintf(sound_trigger_lib, sizeof(sound_trigger_lib),
-             "/system/vendor/lib/hw/sound_trigger.primary.%s.so",
-              XSTR(SOUND_TRIGGER_PLATFORM_NAME));
-
+    get_library_path(sound_trigger_lib);
     st_dev->lib_handle = dlopen(sound_trigger_lib, RTLD_NOW);
 
     if (st_dev->lib_handle == NULL) {
