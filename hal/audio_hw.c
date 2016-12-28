@@ -602,7 +602,7 @@ static void check_usecases_codec_backend(struct audio_device *adev,
     int i, num_uc_to_switch = 0;
     int backend_idx = DEFAULT_CODEC_BACKEND;
     int usecase_backend_idx = DEFAULT_CODEC_BACKEND;
-    int status = 0;
+
     /*
      * This function is to make sure that all the usecases that are active on
      * the hardware codec backend are always routed to any one device that is
@@ -679,12 +679,7 @@ static void check_usecases_codec_backend(struct audio_device *adev,
             /* Update the out_snd_device only before enabling the audio route */
             if (switch_device[usecase->id] ) {
                 usecase->out_snd_device = snd_device;
-                if (usecase->type != VOICE_CALL) {
-                    /* Update voc calibration before enabling VoIP route */
-                    if (usecase->type == VOIP_CALL)
-                        status = platform_switch_voice_call_device_post(adev->platform,
-                                                                        usecase->out_snd_device,
-                                                                        usecase->in_snd_device);
+                if (usecase->type != VOICE_CALL)
                     enable_audio_route(adev, usecase);
             }
         }
@@ -699,7 +694,6 @@ static void check_and_route_capture_usecases(struct audio_device *adev,
     struct audio_usecase *usecase;
     bool switch_device[AUDIO_USECASE_MAX];
     int i, num_uc_to_switch = 0;
-    int status = 0;
 
     /*
      * This function is to make sure that all the active capture usecases
@@ -759,11 +753,6 @@ static void check_and_route_capture_usecases(struct audio_device *adev,
             if (switch_device[usecase->id] ) {
                 usecase->in_snd_device = snd_device;
                 if (usecase->type != VOICE_CALL)
-                    /* Update voc calibration before enabling VoIP route */
-                    if (usecase->type == VOIP_CALL)
-                        status = platform_switch_voice_call_device_post(adev->platform,
-                                                                        usecase->out_snd_device,
-                                                                        usecase->in_snd_device);
                     enable_audio_route(adev, usecase);
             }
         }
