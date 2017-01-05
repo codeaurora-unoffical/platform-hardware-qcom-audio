@@ -268,6 +268,7 @@ struct stream_out {
     struct audio_out_render_window_param render_window; /*render winodw*/
 
     audio_offload_info_t info;
+    qahwi_stream_out_t qahwi_out;
 };
 
 struct stream_in {

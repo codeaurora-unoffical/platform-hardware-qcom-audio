@@ -114,6 +114,11 @@
 #define AUDIO_INPUT_FLAG_TIMESTAMP 0x80000000
 #define AUDIO_INPUT_FLAG_COMPRESS  0x40000000
 
+/* audio output flag for timestamp mode.
+ * check other output flags defined in audio.h for conflicts
+ */
+#define AUDIO_OUTPUT_FLAG_TIMESTAMP 0x80000000
+
 /* MAX SECTORS for sourcetracking feature */
 #define MAX_SECTORS 8
 
