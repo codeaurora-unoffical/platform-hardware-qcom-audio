@@ -2639,6 +2639,10 @@ static int in_standby(struct audio_stream *stream)
         ALOGV("%s: Ignore Standby in VOIP call", __func__);
         return status;
     }
+    else if (adev->voice_barge_in_enabled) {
+        ALOGD("%s: Ignore Standby because Voice Barge-In enabled.", __func__);
+        return status;
+    }
 
     lock_input_stream(in);
     if (!in->standby && in->is_st_session) {
@@ -2785,7 +2789,7 @@ static ssize_t in_read(struct audio_stream_in *stream, void *buffer,
         goto exit;
     }
 
-    if (in->standby) {
+    if (in->standby && !adev->vad_stream_running) {
         pthread_mutex_lock(&adev->lock);
         if (in->usecase == USECASE_COMPRESS_VOIP_CALL)
             ret = voice_extn_compress_voip_start_input_stream(in);
@@ -2803,6 +2807,16 @@ static ssize_t in_read(struct audio_stream_in *stream, void *buffer,
     if (adev->adm_request_focus)
         adev->adm_request_focus(adev->adm_data, in->capture_handle);
 
+    if (adev->voice_barge_in_enabled && !adev->vad_stream_running){
+        audio_extn_vad_circ_buf_create_read_loop(in);
+        adev->vad_stream = stream;
+        adev->vad_stream_running = true;
+    }
+
+    if (adev->vad_stream_running){
+      in = adev->vad_stream;
+    }
+
     if (in->pcm) {
         if (audio_extn_ssr_get_enabled() &&
                 audio_channel_count_from_in_mask(in->channel_mask) == 6)
@@ -2811,6 +2825,8 @@ static ssize_t in_read(struct audio_stream_in *stream, void *buffer,
             ret = audio_extn_compr_cap_read(in, buffer, bytes);
         else if (in->usecase == USECASE_AUDIO_RECORD_AFE_PROXY)
             ret = pcm_mmap_read(in->pcm, buffer, bytes);
+        else if (adev->vad_stream_running)
+            ret = audio_extn_vad_circ_buf_read(in, buffer, bytes);
         else
             ret = pcm_read(in->pcm, buffer, bytes);
         if (ret < 0)
@@ -3679,6 +3695,14 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
     bool is_low_latency = false;
 
     *stream_in = NULL;
+
+    if (adev->vad_stream_running)
+    {
+      *stream_in = &adev->vad_stream->stream;
+      ALOGD("%s: VAD Stream running. Returning VAD stream 0x%08x. exit", __func__, &adev->vad_stream->stream);
+      return ret;
+    }
+
     if (check_input_parameters(config->sample_rate, config->format, channel_count) != 0)
         return -EINVAL;
 
@@ -3845,6 +3869,11 @@ static void adev_close_input_stream(struct audio_hw_device *dev,
 
     ALOGD("%s: enter:stream_handle(%p)",__func__, in);
 
+    if (adev->voice_barge_in_enabled) {
+      ALOGD("%s: Ignore Close Stream if Voice Barge-In Enabled",__func__);
+      audio_extn_vad_circ_buf_start_read_loop();
+      return;
+    }
     /* Disable echo reference while closing input stream */
     platform_set_echo_reference(adev, false, AUDIO_DEVICE_NONE);
 
@@ -4143,6 +4172,7 @@ static int adev_close(hw_device_t *device)
     pthread_mutex_lock(&adev_init_lock);
 
     if ((--audio_device_ref_count) == 0) {
+        audio_extn_vad_deinit();
         audio_extn_sound_trigger_deinit(adev);
         audio_extn_listen_deinit(adev);
         audio_extn_utils_release_streams_cfg_list(&adev->streams_output_cfg_list,
@@ -4333,6 +4363,12 @@ static int adev_open(const hw_module_t *module, const char *name,
             adev->adm_abandon_focus = (adm_abandon_focus_t)
                                     dlsym(adev->adm_lib, "adm_abandon_focus");
         }
+    }
+
+    ret = audio_extn_vad_init(adev);
+    if (ret) {
+        ALOGE("%s: Audio Extn VAD Init Failed", __func__);
+        return ret;
     }
 
     adev->bt_wb_speech_enabled = false;
