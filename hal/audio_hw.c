@@ -998,6 +998,7 @@ static void check_usecases_codec_backend(struct audio_device *adev,
     struct audio_usecase *usecase;
     bool switch_device[AUDIO_USECASE_MAX];
     int i, num_uc_to_switch = 0;
+    int status = 0;
     bool force_restart_session = false;
     /*
      * This function is to make sure that all the usecases that are active on
@@ -1098,6 +1099,11 @@ static void check_usecases_codec_backend(struct audio_device *adev,
                     ALOGD("%s:becf: enabling usecase (%s) on (%s)", __func__,
                          use_case_table[usecase->id],
                          platform_get_snd_device_name(usecase->out_snd_device));
+                    /* Update voc calibration before enabling VoIP route */
+                    if (usecase->type == VOIP_CALL)
+                        status = platform_switch_voice_call_device_post(adev->platform,
+                                                                        usecase->out_snd_device,
+                                                                        usecase->in_snd_device);
                     enable_audio_route(adev, usecase);
                 }
             }
@@ -1114,6 +1120,7 @@ static void check_usecases_capture_codec_backend(struct audio_device *adev,
     bool switch_device[AUDIO_USECASE_MAX];
     int i, num_uc_to_switch = 0;
     int backend_check_cond = AUDIO_DEVICE_OUT_ALL_CODEC_BACKEND;
+    int status = 0;
 
     bool force_routing = platform_check_and_set_capture_codec_backend_cfg(adev, uc_info,
                          snd_device);
@@ -1186,8 +1193,14 @@ static void check_usecases_capture_codec_backend(struct audio_device *adev,
             /* Update the in_snd_device only before enabling the audio route */
             if (switch_device[usecase->id] ) {
                 usecase->in_snd_device = snd_device;
-                if (usecase->type != VOICE_CALL)
+                if (usecase->type != VOICE_CALL) {
+                    /* Update voc calibration before enabling VoIP route */
+                    if (usecase->type == VOIP_CALL)
+                        status = platform_switch_voice_call_device_post(adev->platform,
+                                                                        usecase->out_snd_device,
+                                                                        usecase->in_snd_device);
                     enable_audio_route(adev, usecase);
+                }
             }
         }
     }
@@ -3870,7 +3883,7 @@ int adev_open_output_stream(struct audio_hw_device *dev,
         out->config.rate = config->sample_rate;
         out->config.channels = audio_channel_count_from_out_mask(out->channel_mask);
         out->config.period_size = HDMI_MULTI_PERIOD_BYTES / (out->config.channels * 2);
-    } else if ((out->dev->mode == AUDIO_MODE_IN_COMMUNICATION) &&
+    } else if ((out->dev->mode == AUDIO_MODE_IN_COMMUNICATION || voice_extn_compress_voip_is_active(out->dev)) &&
                (out->flags == (AUDIO_OUTPUT_FLAG_DIRECT | AUDIO_OUTPUT_FLAG_VOIP_RX)) &&
                (voice_extn_compress_voip_is_config_supported(config))) {
         ret = voice_extn_compress_voip_open_output_stream(out);
@@ -4810,7 +4823,7 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
         }
 
         if ((in->source == AUDIO_SOURCE_VOICE_COMMUNICATION) &&
-               (in->dev->mode == AUDIO_MODE_IN_COMMUNICATION) &&
+               (in->dev->mode == AUDIO_MODE_IN_COMMUNICATION || voice_extn_compress_voip_is_active(in->dev)) &&
                (voice_extn_compress_voip_is_format_supported(in->format)) &&
                (in->config.rate == 8000 || in->config.rate == 16000 ||
                 in->config.rate == 32000 || in->config.rate == 48000) &&
