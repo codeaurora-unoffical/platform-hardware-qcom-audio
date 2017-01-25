@@ -128,9 +128,23 @@ AM_CFLAGS += -DCOMPRESS_INPUT_ENABLED
 c_sources += audio_extn/compress_in.c
 endif
 
+if COMPRESS_PASSTHROUGH
+AM_CFLAGS += -DHDMI_PASSTHROUGH_ENABLED
+c_sources += audio_extn/passthru.c
+endif
+
+if KEEP_ALIVE
+AM_CFLAGS += -DKEEP_ALIVE_ENABLED
+c_sources += audio_extn/keep_alive.c
+endif
+
 if AUDIO_HW_EXTN_API
 AM_CFLAGS += -DAUDIO_HW_EXTN_API_ENABLED
 c_sources += audio_hw_extn_api.c
+endif
+
+if AFE_PROXY
+AM_CFLAGS += -DAFE_PROXY_ENABLED
 endif
 
 h_sources = audio_extn/audio_defs.h \
@@ -149,5 +163,5 @@ audio_primary_default_la_CFLAGS = $(AM_CFLAGS) $(GLIB_CFLAGS)
 audio_primary_default_la_CFLAGS += -Dstrlcat=g_strlcat
 audio_primary_default_la_CFLAGS += -DINT_MAX=0x7fffffff
 audio_primary_default_la_CFLAGS += -D__unused=__attribute__\(\(__unused__\)\)
-audio_primary_default_la_CFLAGS += -DLINUX_ENABLED $(TARGET_CFLAGS)
+audio_primary_default_la_CFLAGS += -DLINUX_ENABLED $(TARGET_CFLAGS) -DAUDIO_EXTN_FORMATS_ENABLED
 audio_primary_default_la_LDFLAGS = -module -shared -avoid-version
