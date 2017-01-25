@@ -25,6 +25,7 @@
 #include <string.h>
 #include <errno.h>
 #include <time.h>
+#include <signal.h>
 #include "qahw_api.h"
 #include "qahw_defs.h"
 #include "qahw_effect_api.h"
@@ -80,6 +81,7 @@ struct proxy_data {
     struct wav_header hdr;
 };
 FILE * log_file = NULL;
+volatile bool stop_playback = false;
 const char *log_filename = NULL;
 float vol_level = 0.01;
 pthread_t proxy_thread;
@@ -94,6 +96,7 @@ enum {
     FILE_VORBIS,
     FILE_WMA,
     FILE_AC3,
+    FILE_AAC_LATM,
     FILE_EAC3,
     FILE_EAC3_JOC,
     FILE_DTS,
@@ -152,6 +155,11 @@ static pthread_cond_t drain_cond = PTHREAD_COND_INITIALIZER;
                    "music_offload_wma_encode_option1=%d;" \
                    "music_offload_wma_encode_option2=%d;" \
                    "music_offload_wma_format_tag=%d;"
+
+void stop_signal_handler(int signal)
+{
+   stop_playback = true;
+}
 
 void read_kvpair(char *kvpair, char* kvpair_values, int filetype)
 {
@@ -350,7 +358,7 @@ int play_file(qahw_stream_handle_t* out_handle, FILE* in_file,
         return -ENOMEM;
     }
 
-    while (!exit) {
+    while (!exit && !stop_playback) {
         if (!bytes_remaining) {
             bytes_read = fread(data, 1, bytes_wanted, in_file);
             fprintf(log_file, "fread from file %zd\n", bytes_read);
@@ -362,6 +370,7 @@ int play_file(qahw_stream_handle_t* out_handle, FILE* in_file,
                         qahw_out_drain(out_handle, QAHW_DRAIN_ALL);
                         pthread_cond_wait(&drain_cond, &drain_lock);
                         fprintf(log_file, "Out of compress drain\n");
+                        fprintf(stdout, "Playback completed sucessfully\n");
                         pthread_mutex_unlock(&drain_lock);
                     }
                 } else {
@@ -439,6 +448,20 @@ audio_format_t get_aac_format(int filetype, aac_format_type_t format_type)
             break;
         case AAC_HE_V2:
             aac_format = AUDIO_FORMAT_AAC_HE_V2;
+            break;
+        default:
+            break;
+        }
+    } else if (filetype == FILE_AAC_LATM) {
+        switch (format_type) {
+        case AAC_LC:
+            aac_format = AUDIO_FORMAT_AAC_LATM_LC;
+            break;
+        case AAC_HE_V1:
+            aac_format = AUDIO_FORMAT_AAC_LATM_HE_V1;
+            break;
+        case AAC_HE_V2:
+            aac_format = AUDIO_FORMAT_AAC_LATM_HE_V2;
             break;
         default:
             break;
@@ -546,7 +569,7 @@ void usage() {
     printf(" -d  --device <decimal value>              - see system/media/audio/include/system/audio.h for device values\n");
     printf("                                             Optional Argument and Default value is 2, i.e Speaker\n\n");
     printf(" -t  --file-type <file type>               - 1:WAV 2:MP3 3:AAC 4:AAC_ADTS 5:FLAC\n");
-    printf("                                             6:ALAC 7:VORBIS 8:WMA\n");
+    printf("                                             6:ALAC 7:VORBIS 8:WMA 10:AAC_LATM \n");
     printf("                                             Required for non WAV formats\n\n");
     printf(" -a  --aac-type <aac type>                 - Required for AAC streams\n");
     printf("                                             1: LC 2: HE_V1 3: HE_V2\n\n");
@@ -840,6 +863,7 @@ int main(int argc, char* argv[]) {
 
         case FILE_AAC:
         case FILE_AAC_ADTS:
+        case FILE_AAC_LATM:
             if (!is_valid_aac_format_type(format_type)) {
                 fprintf(log_file, "Invalid format type for AAC %d\n", format_type);
                 goto EXIT;
@@ -968,6 +992,9 @@ int main(int argc, char* argv[]) {
         // enable effect
         effect_thread_command(ethread_data, EFFECT_CMD, QAHW_EFFECT_CMD_ENABLE, 0, NULL);
     }
+    /* Register the SIGINT to close the App properly */
+    if (signal(SIGINT, stop_signal_handler) == SIG_ERR)
+        fprintf(log_file, "Failed to register SIGINT:%d\n",errno);
 
     play_file(out_handle,
               file_stream,
