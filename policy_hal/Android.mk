@@ -13,7 +13,8 @@ LOCAL_C_INCLUDES := $(TOPDIR)frameworks/av/services \
                     $(TOPDIR)frameworks/av/services/audiopolicy/engine/interface \
                     $(TOPDIR)frameworks/av/services/audiopolicy \
                     $(TOPDIR)frameworks/av/services/audiopolicy/common/managerdefinitions/include \
-                    $(call include-path-for, avextension)
+                    $(call include-path-for, avextension) \
+                    $(TOPDIR)system/core/base/include
 
 
 LOCAL_SHARED_LIBRARIES := \
@@ -65,6 +66,10 @@ endif
 
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_DRIVER_SIDE_PLAYBACK)),true)
     LOCAL_CFLAGS += -DDRIVER_SIDE_PLAYBACK_ENABLED
+endif
+
+ifeq ($(USE_XML_AUDIO_POLICY_CONF), 1)
+LOCAL_CFLAGS += -DUSE_XML_AUDIO_POLICY_CONF
 endif
 
 LOCAL_MODULE := libaudiopolicymanager
