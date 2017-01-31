@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2017 The Linux Foundation. All rights reserved.
  * Not a contribution.
  *
  * Copyright (C) 2009 The Android Open Source Project
@@ -52,7 +52,7 @@
 // type alone is not enough: the address must match too
 #define APM_AUDIO_DEVICE_MATCH_ADDRESS_ALL (AUDIO_DEVICE_IN_REMOTE_SUBMIX | \
                                             AUDIO_DEVICE_OUT_REMOTE_SUBMIX)
-
+#define SAMPLE_RATE_8000 8000
 #include <inttypes.h>
 #include <math.h>
 
@@ -69,6 +69,10 @@
 #endif // DOLBY_END
 
 namespace android {
+/*audio policy: workaround for truncated touch sounds*/
+//FIXME: workaround for truncated touch sounds
+// to be removed when the problem is handled by system UI
+#define TOUCH_SOUND_FIXED_DELAY_MS 100
 #ifdef VOICE_CONCURRENCY
 audio_output_flags_t AudioPolicyManagerCustom::getFallBackPath()
 {
@@ -417,6 +421,10 @@ status_t AudioPolicyManagerCustom::setDeviceConnectionStateInt(audio_devices_t d
         }
 
         closeAllInputs();
+        /*audio policy: fix call volume over USB*/
+        // As the input device list can impact the output device selection, update
+        // getDeviceForStrategy() cache
+        updateDevicesAndOutputs();
 
         if (mEngine->getPhoneState() == AUDIO_MODE_IN_CALL && hasPrimaryOutput()) {
             audio_devices_t newDevice = getNewOutputDevice(mPrimaryOutput, false /*fromCache*/);
@@ -520,7 +528,7 @@ bool AudioPolicyManagerCustom::isOffloadSupported(const audio_offload_info_t& of
     }
 
     if ((prop_rec_play_enabled) &&
-         ((true == mIsInputRequestOnProgress) || (mInputs.activeInputsCount() > 0))) {
+         ((true == mIsInputRequestOnProgress) || (mInputs.activeInputsCountOnDevices() > 0))) {
         ALOGD("copl: blocking  compress offload for record concurrency");
         return false;
     }
@@ -826,8 +834,11 @@ void AudioPolicyManagerCustom::setPhoneState(audio_mode_t state)
                continue;
             }
 
-            if (AUDIO_OUTPUT_FLAG_FAST == mFallBackflag) {
-                if (((!outputDesc->isDuplicated() &&outputDesc->mProfile->mFlags & AUDIO_OUTPUT_FLAG_PRIMARY))
+            bool isFastFallBackNeeded =
+               ((AUDIO_OUTPUT_FLAG_DEEP_BUFFER | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD | AUDIO_OUTPUT_FLAG_DIRECT_PCM) & outputDesc->mProfile->mFlags);
+
+            if ((AUDIO_OUTPUT_FLAG_FAST == mFallBackflag) && isFastFallBackNeeded) {
+                if (((!outputDesc->isDuplicated() && outputDesc->mProfile->mFlags & AUDIO_OUTPUT_FLAG_PRIMARY))
                             && prop_playback_enabled) {
                     ALOGD("voice_conc:calling suspendOutput on call mode for primary output");
                     mpClientInterface->suspendOutput(mOutputs.keyAt(i));
@@ -1065,9 +1076,17 @@ void AudioPolicyManagerCustom::setForceUse(audio_policy_force_use_t usage,
     checkOutputForAllStrategies();
     updateDevicesAndOutputs();
 
+    /*audio policy: workaround for truncated touch sounds*/
+    //FIXME: workaround for truncated touch sounds
+    // to be removed when the problem is handled by system UI
+    uint32_t delayMs = 0;
+    uint32_t waitMs = 0;
+    if (usage == AUDIO_POLICY_FORCE_FOR_COMMUNICATION) {
+        delayMs = TOUCH_SOUND_FIXED_DELAY_MS;
+    }
     if (mEngine->getPhoneState() == AUDIO_MODE_IN_CALL && hasPrimaryOutput()) {
         audio_devices_t newDevice = getNewOutputDevice(mPrimaryOutput, true /*fromCache*/);
-        updateCallRouting(newDevice);
+        waitMs = updateCallRouting(newDevice, delayMs);
     }
     // Use reverse loop to make sure any low latency usecases (generally tones)
     // are not routed before non LL usecases (generally music).
@@ -1079,11 +1098,12 @@ void AudioPolicyManagerCustom::setForceUse(audio_policy_force_use_t usage,
     for (size_t i = mOutputs.size(); i > 0; i--) {
         sp<SwAudioOutputDescriptor> outputDesc = mOutputs.valueAt(i-1);
         audio_devices_t newDevice = getNewOutputDevice(outputDesc, true /*fromCache*/);
-        if ((mEngine->getPhoneState() != AUDIO_MODE_IN_CALL) || outputDesc != mPrimaryOutput) {
-            setOutputDevice(outputDesc, newDevice, (newDevice != AUDIO_DEVICE_NONE));
+        if ((mEngine->getPhoneState() != AUDIO_MODE_IN_CALL) || (outputDesc != mPrimaryOutput)) {
+            waitMs = setOutputDevice(outputDesc, newDevice, (newDevice != AUDIO_DEVICE_NONE),
+                                     delayMs);
         }
         if (forceVolumeReeval && (newDevice != AUDIO_DEVICE_NONE)) {
-            applyStreamVolumes(outputDesc, newDevice, 0, true);
+            applyStreamVolumes(outputDesc, newDevice, waitMs, true);
         }
     }
 
@@ -1157,6 +1177,11 @@ status_t AudioPolicyManagerCustom::stopSource(sp<AudioOutputDescriptor> outputDe
                                     dev,
                                     force,
                                     delayMs);
+                    /*audio policy: fix media volume after ringtone*/
+                    // re-apply device specific volume if not done by setOutputDevice()
+                     if (!force) {
+                         applyStreamVolumes(desc, dev, delayMs);
+                     }
                 }
             }
             // update the outputs if stopping one with a stream that can affect notification routing
@@ -1196,8 +1221,10 @@ status_t AudioPolicyManagerCustom::startSource(sp<AudioOutputDescriptor> outputD
         beaconMuteLatency = handleEventForBeacon(STARTING_OUTPUT);
     }
 
+    // force device change if the output is inactive and no audio patch is already present.
     // check active before incrementing usage count
-    bool force = !outputDesc->isActive();
+    bool force = !outputDesc->isActive() &&
+            (outputDesc->getPatchHandle() == AUDIO_PATCH_HANDLE_NONE);
 
     // increment usage count for this stream on the requested output:
     // NOTE that the usage count is the same for duplicated output and hardware output which is
@@ -1217,12 +1244,17 @@ status_t AudioPolicyManagerCustom::startSource(sp<AudioOutputDescriptor> outputD
         for (size_t i = 0; i < mOutputs.size(); i++) {
             sp<AudioOutputDescriptor> desc = mOutputs.valueAt(i);
             if (desc != outputDesc) {
-                // force a device change if any other output is managed by the same hw
-                // module and has a current device selection that differs from selected device.
+                // force a device change if any other output is:
+                // - managed by the same hw module
+                // - has a current device selection that differs from selected device.
+                // - supports currently selected device
+                // - has an active audio patch
                 // In this case, the audio HAL must receive the new device selection so that it can
                 // change the device currently selected by the other active output.
                 if (outputDesc->sharesHwModuleWith(desc) &&
-                    desc->device() != device) {
+                        desc->device() != device &&
+                        desc->supportedDevices() & device &&
+                        desc->getPatchHandle() != AUDIO_PATCH_HANDLE_NONE) {
                     force = true;
                 }
                 // wait for audio on other active outputs to be presented when starting
@@ -1256,6 +1288,10 @@ status_t AudioPolicyManagerCustom::startSource(sp<AudioOutputDescriptor> outputD
         if (strategy == STRATEGY_SONIFICATION) {
             mpClientInterface->invalidateStream(AUDIO_STREAM_ACCESSIBILITY);
         }
+        if (waitMs > muteWaitMs) {
+            *delayMs = waitMs - muteWaitMs;
+        }
+
     }
     else {
         // handle special case for sonification while in call
@@ -1411,7 +1447,7 @@ bool AudioPolicyManagerCustom::isDirectOutput(audio_io_handle_t output) {
     return false;
 }
 
-bool static tryForDirectPCM(int bitWidth, audio_output_flags_t *flags)
+bool static tryForDirectPCM(int bitWidth, audio_output_flags_t *flags, uint32_t samplingRate)
 {
     bool playerDirectPCM = false; // Output request for Track created by mediaplayer
     bool trackDirectPCM = false;  // Output request for track created by other apps
@@ -1438,7 +1474,7 @@ bool static tryForDirectPCM(int bitWidth, audio_output_flags_t *flags)
        // Reset flag to NONE so that we can still reuse direct pcm criteria check
        // in getOutputforDevice
        *flags = AUDIO_OUTPUT_FLAG_NONE;
-    } else if ( *flags == AUDIO_OUTPUT_FLAG_NONE) {
+    } else if ((*flags == AUDIO_OUTPUT_FLAG_NONE) && (samplingRate % SAMPLE_RATE_8000 == 0)) {
         trackDirectPCM = property_get_bool("audio.offload.track.enable", true);
     }
 
@@ -1465,7 +1501,7 @@ status_t AudioPolicyManagerCustom::getOutputForAttr(const audio_attributes_t *at
     uint32_t bitWidth = (audio_bytes_per_sample(format) * 8);
 
 
-    if (tryForDirectPCM(bitWidth, &flags) &&
+    if (tryForDirectPCM(bitWidth, &flags, samplingRate) &&
         (offloadInfo == NULL)) {
 
         tOffloadInfo.sample_rate  = samplingRate;
@@ -1608,6 +1644,11 @@ audio_io_handle_t AudioPolicyManagerCustom::getOutputForDevice(
        prop_voip_enabled = atoi(propValue) || !strncmp("true", propValue, 4);
     }
 
+    bool isDeepBufferFallBackNeeded =
+        ((AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD | AUDIO_OUTPUT_FLAG_DIRECT_PCM) & flags);
+    bool isFastFallBackNeeded =
+        ((AUDIO_OUTPUT_FLAG_DEEP_BUFFER | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD | AUDIO_OUTPUT_FLAG_DIRECT_PCM) & flags);
+
     if (prop_play_enabled && mvoice_call_state) {
         //check if voice call is active  / running in background
         if((AUDIO_MODE_IN_CALL == mEngine->getPhoneState()) ||
@@ -1622,10 +1663,12 @@ audio_io_handle_t AudioPolicyManagerCustom::getOutputForDevice(
                 }
             }
             else {
-                if (AUDIO_OUTPUT_FLAG_FAST == mFallBackflag) {
+                if (isFastFallBackNeeded &&
+                    (AUDIO_OUTPUT_FLAG_FAST == mFallBackflag)) {
                     ALOGD("voice_conc:IN call mode adding ULL flags .. flags: %x ", flags );
                     flags = AUDIO_OUTPUT_FLAG_FAST;
-                } else if (AUDIO_OUTPUT_FLAG_DEEP_BUFFER == mFallBackflag) {
+                } else if (isDeepBufferFallBackNeeded &&
+                           (AUDIO_OUTPUT_FLAG_DEEP_BUFFER == mFallBackflag)) {
                     if (AUDIO_STREAM_MUSIC == stream) {
                         flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
                         ALOGD("voice_conc:IN call mode adding deep-buffer flags %x ", flags );
@@ -1661,7 +1704,7 @@ audio_io_handle_t AudioPolicyManagerCustom::getOutputForDevice(
         prop_rec_play_enabled = atoi(recConcPropValue) || !strncmp("true", recConcPropValue, 4);
     }
     if ((prop_rec_play_enabled) &&
-            ((true == mIsInputRequestOnProgress) || (mInputs.activeInputsCount() > 0))) {
+            ((true == mIsInputRequestOnProgress) || (mInputs.activeInputsCountOnDevices() > 0))) {
         if (AUDIO_MODE_IN_COMMUNICATION == mEngine->getPhoneState()) {
             if (AUDIO_OUTPUT_FLAG_VOIP_RX & flags) {
                 // allow VoIP using voice path
@@ -2098,7 +2141,7 @@ status_t AudioPolicyManagerCustom::startInput(audio_io_handle_t input,
         prop_rec_play_enabled = atoi(getPropValue) || !strncmp("true", getPropValue, 4);
     }
 
-    if ((prop_rec_play_enabled) &&(mInputs.activeInputsCount() == 0)){
+    if ((prop_rec_play_enabled) &&(mInputs.activeInputsCountOnDevices() == 0)){
         // send update to HAL on record playback concurrency
         AudioParameter param = AudioParameter();
         param.add(String8("rec_play_conc_on"), String8("true"));
@@ -2143,11 +2186,16 @@ status_t AudioPolicyManagerCustom::startInput(audio_io_handle_t input,
             mpClientInterface->onDynamicPolicyMixStateUpdate(inputDesc->mPolicyMix->mDeviceAddress,
                     MIX_STATE_MIXING);
         }
-
-        if (mInputs.activeInputsCount() == 0) {
+        /*audio policy: fix capture indication to sound trigger service*/
+        // indicate active capture to sound trigger service if starting capture from a mic on
+        // primary HW module
+        audio_devices_t device = getNewInputDevice(input);
+        audio_devices_t primaryInputDevices = availablePrimaryInputDevices();
+        if (((device & primaryInputDevices & ~AUDIO_DEVICE_BIT_IN) != 0) &&
+                mInputs.activeInputsCountOnDevices(primaryInputDevices) == 0) {
             SoundTrigger::setCaptureState(true);
         }
-        setInputDevice(input, getNewInputDevice(input), true /* force */);
+        setInputDevice(input, device, true /* force */);
 
         // automatically enable the remote submix output when input is started if not
         // used by a policy mix of type MIX_TYPE_RECORDERS
@@ -2189,7 +2237,7 @@ status_t AudioPolicyManagerCustom::stopInput(audio_io_handle_t input,
         prop_rec_play_enabled = atoi(propValue) || !strncmp("true", propValue, 4);
     }
 
-    if ((prop_rec_play_enabled) && (mInputs.activeInputsCount() == 0)) {
+    if ((prop_rec_play_enabled) && (mInputs.activeInputsCountOnDevices() == 0)) {
 
         //send update to HAL on record playback concurrency
         AudioParameter param = AudioParameter();
@@ -2224,13 +2272,7 @@ void AudioPolicyManagerCustom::closeAllInputs() {
             mAudioPatches.removeItemsAt(patch_index);
             patchRemoved = true;
         }
-        if ((inputDesc->getOpenRefCount() > 0) && inputDesc->isSoundTrigger()
-            && (mInputs.size() == 1)) {
-            ALOGD("Do not close sound trigger input handle");
-        } else {
-            mpClientInterface->closeInput(mInputs.keyAt(input_index-1));
-            mInputs.removeItem(mInputs.keyAt(input_index-1));
-        }
+        mpClientInterface->closeInput(mInputs.keyAt(input_index-1));
     }
     mInputs.clear();
     SoundTrigger::setCaptureState(false);

@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2016, The Linux Foundation. All rights reserved.
+* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -48,7 +48,13 @@
 #define QAHW_MODULE_API_VERSION_CURRENT QAHW_MODULE_API_VERSION_0_0
 
 typedef uint64_t (*qahwi_in_read_v2_t)(audio_stream_in_t *in, void* buffer,
-                                       size_t bytes, uint64_t *timestamp);
+                                       size_t bytes, int64_t *timestamp);
+
+typedef int (*qahwi_get_param_data_t) (const audio_hw_device_t *,
+                              qahw_param_id, qahw_param_payload *);
+
+typedef int (*qahwi_set_param_data_t) (audio_hw_device_t *,
+                              qahw_param_id, qahw_param_payload *);
 
 typedef struct {
     audio_hw_device_t *audio_device;
@@ -59,6 +65,8 @@ typedef struct {
     pthread_mutex_t lock;
     uint32_t ref_count;
     const hw_module_t* module;
+    qahwi_get_param_data_t qahwi_get_param_data;
+    qahwi_set_param_data_t qahwi_set_param_data;
 } qahw_module_t;
 
 typedef struct {
@@ -91,9 +99,6 @@ static struct listnode qahw_module_list;
 static int qahw_list_count;
 static pthread_mutex_t qahw_module_init_lock = PTHREAD_MUTEX_INITIALIZER;
 
-typedef int (*qahwi_get_param_data_t) (const struct audio_device *,
-                              qahw_param_id, qahw_param_payload *);
-qahwi_get_param_data_t qahwi_get_param_data;
 
 /** Start of internal functions */
 /******************************************************************************/
@@ -1137,8 +1142,7 @@ int qahw_get_mic_mute(qahw_module_handle_t *hw_module, bool *state)
     pthread_mutex_lock(&qahw_module->lock);
     audio_device = qahw_module->audio_device;
     if (qahw_module->audio_device->get_mic_mute) {
-        rc = audio_device->get_mic_mute(qahw_module->audio_device,
-                                                 &state);
+        rc = audio_device->get_mic_mute(qahw_module->audio_device, state);
     } else {
         rc = -ENOSYS;
         ALOGW("%s not supported", __func__);
@@ -1233,8 +1237,43 @@ int qahw_get_param_data(const qahw_module_handle_t *hw_module,
 
     pthread_mutex_lock(&qahw_module->lock);
 
-    if (qahwi_get_param_data){
-        ret = qahwi_get_param_data (qahw_module->audio_device, param_id, payload);
+    if (qahw_module->qahwi_get_param_data){
+        ret = qahw_module->qahwi_get_param_data (qahw_module->audio_device,
+                                   param_id, payload);
+    } else {
+         ret = -ENOSYS;
+         ALOGE("%s not supported\n",__func__);
+    }
+    pthread_mutex_unlock(&qahw_module->lock);
+
+exit:
+     return ret;
+}
+
+/* Api to implement set parameters  based on keyword param_id
+ * and data present in payload.
+ */
+int qahw_set_param_data(const qahw_module_handle_t *hw_module,
+                        qahw_param_id param_id,
+                        qahw_param_payload *payload)
+{
+    int ret = 0;
+    qahw_module_t *qahw_module = (qahw_module_t *)hw_module;
+    qahw_module_t *qahw_module_temp;
+
+    pthread_mutex_lock(&qahw_module_init_lock);
+    qahw_module_temp = get_qahw_module_by_ptr(qahw_module);
+    pthread_mutex_unlock(&qahw_module_init_lock);
+    if (qahw_module_temp == NULL) {
+        ALOGE("%s:: invalid hw module %p", __func__, qahw_module);
+        goto exit;
+    }
+
+    pthread_mutex_lock(&qahw_module->lock);
+
+    if (qahw_module->qahwi_set_param_data){
+        ret = qahw_module->qahwi_set_param_data (qahw_module->audio_device,
+                                   param_id, payload);
     } else {
          ret = -ENOSYS;
          ALOGE("%s not supported\n",__func__);
@@ -1544,10 +1583,15 @@ qahw_module_handle_t *qahw_load_module(const char *hw_module_id)
     qahw_module->module = module;
     ALOGD("%s::Loaded HAL %s module %p", __func__, ahal_name, qahw_module);
 
-    qahwi_get_param_data = (qahwi_get_param_data_t) dlsym (module->dso,
+    qahw_module->qahwi_get_param_data = (qahwi_get_param_data_t) dlsym (module->dso,
                             "qahwi_get_param_data");
-    if (!qahwi_get_param_data)
+    if (!qahw_module->qahwi_get_param_data)
          ALOGD("%s::qahwi_get_param_data api is not defined\n",__func__);
+
+    qahw_module->qahwi_set_param_data = (qahwi_set_param_data_t) dlsym (module->dso,
+                            "qahwi_set_param_data");
+    if (!qahw_module->qahwi_set_param_data)
+         ALOGD("%s::qahwi_set_param_data api is not defined\n",__func__);
 
     if (!qahw_list_count)
         list_init(&qahw_module_list);
@@ -1630,7 +1674,6 @@ int qahw_unload_module(qahw_module_handle_t *hw_module)
 error_exit:
     pthread_mutex_unlock(&qahw_module_init_lock);
 
-exit:
     return rc;
 }
 

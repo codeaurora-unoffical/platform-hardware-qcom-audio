@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2015 The Android Open Source Project *
@@ -22,11 +22,15 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <unistd.h>
 #include <string.h>
 #include <errno.h>
 #include <time.h>
+#include <signal.h>
 #include "qahw_api.h"
 #include "qahw_defs.h"
+#include "qahw_effect_api.h"
+#include "qahw_effect_test.h"
 
 #define nullptr NULL
 
@@ -42,6 +46,8 @@
 #define ID_DATA 0x61746164
 
 #define FORMAT_PCM 1
+
+static thread_data_t *ethread_data = NULL;
 
 struct wav_header {
     uint32_t riff_id;
@@ -76,6 +82,7 @@ struct proxy_data {
     struct wav_header hdr;
 };
 FILE * log_file = NULL;
+volatile bool stop_playback = false;
 const char *log_filename = NULL;
 float vol_level = 0.01;
 pthread_t proxy_thread;
@@ -88,7 +95,13 @@ enum {
     FILE_FLAC,
     FILE_ALAC,
     FILE_VORBIS,
-    FILE_WMA
+    FILE_WMA,
+    FILE_AC3,
+    FILE_AAC_LATM,
+    FILE_EAC3,
+    FILE_EAC3_JOC,
+    FILE_DTS,
+    FILE_MP2
 };
 
 typedef enum {
@@ -96,6 +109,12 @@ typedef enum {
     AAC_HE_V1,
     AAC_HE_V2
 } aac_format_type_t;
+
+typedef enum {
+    WMA = 1,
+    WMA_PRO,
+    WMA_LOSSLESS
+} wma_format_type_t;
 
 static pthread_mutex_t write_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t write_cond = PTHREAD_COND_INITIALIZER;
@@ -134,12 +153,18 @@ static pthread_cond_t drain_cond = PTHREAD_COND_INITIALIZER;
                    "music_offload_wma_block_align=%d;" \
                    "music_offload_wma_channel_mask=%d;" \
                    "music_offload_wma_encode_option=%d;" \
+                   "music_offload_wma_encode_option1=%d;" \
+                   "music_offload_wma_encode_option2=%d;" \
                    "music_offload_wma_format_tag=%d;"
+
+void stop_signal_handler(int signal __unused)
+{
+   stop_playback = true;
+}
 
 void read_kvpair(char *kvpair, char* kvpair_values, int filetype)
 {
-    char *kvpair_type;
-    char param[100];
+    char *kvpair_type = NULL;
     char *token = NULL;
     int value = 0;
     int len = 0;
@@ -266,6 +291,7 @@ void *proxy_read (void* data)
         }
         fprintf(log_file, "pcm data saved to file %s", params->acp.file_name);
     }
+    return 0;
 }
 
 int write_to_hal(qahw_stream_handle_t* out_handle, char *data,
@@ -333,7 +359,7 @@ int play_file(qahw_stream_handle_t* out_handle, FILE* in_file,
         return -ENOMEM;
     }
 
-    while (!exit) {
+    while (!exit && !stop_playback) {
         if (!bytes_remaining) {
             bytes_read = fread(data, 1, bytes_wanted, in_file);
             fprintf(log_file, "fread from file %zd\n", bytes_read);
@@ -345,6 +371,7 @@ int play_file(qahw_stream_handle_t* out_handle, FILE* in_file,
                         qahw_out_drain(out_handle, QAHW_DRAIN_ALL);
                         pthread_cond_wait(&drain_cond, &drain_lock);
                         fprintf(log_file, "Out of compress drain\n");
+                        fprintf(stdout, "Playback completed sucessfully\n");
                         pthread_mutex_unlock(&drain_lock);
                     }
                 } else {
@@ -364,6 +391,11 @@ int play_file(qahw_stream_handle_t* out_handle, FILE* in_file,
         bytes_remaining -= bytes_written;
         fprintf(log_file, "bytes_written %zd, bytes_remaining %zd\n",
                 bytes_written, bytes_remaining);
+
+        // set eq preset
+        if (ethread_data) {
+            effect_thread_command(ethread_data, EFFECT_CMD, QAHW_EFFECT_CMD_SET_PARAM, 0, NULL);
+        }
     }
 
     return rc;
@@ -417,6 +449,20 @@ audio_format_t get_aac_format(int filetype, aac_format_type_t format_type)
             break;
         case AAC_HE_V2:
             aac_format = AUDIO_FORMAT_AAC_HE_V2;
+            break;
+        default:
+            break;
+        }
+    } else if (filetype == FILE_AAC_LATM) {
+        switch (format_type) {
+        case AAC_LC:
+            aac_format = AUDIO_FORMAT_AAC_LATM_LC;
+            break;
+        case AAC_HE_V1:
+            aac_format = AUDIO_FORMAT_AAC_LATM_HE_V1;
+            break;
+        case AAC_HE_V2:
+            aac_format = AUDIO_FORMAT_AAC_LATM_HE_V2;
             break;
         default:
             break;
@@ -519,14 +565,17 @@ void usage() {
     printf(" -r  --sample-rate <sampling rate>         - Required for Non-WAV streams\n");
     printf("                                             For AAC-HE pls specify half the sample rate\n\n");
     printf(" -c  --channel count <channels>            - Required for Non-WAV streams\n\n");
+    printf(" -b  --bitwidth <bitwidth>                 - Give either 16 or 24.Default value is 16.\n\n");
     printf(" -v  --volume <float volume level>         - Volume level float value between 0.0 - 1.0.\n");
     printf(" -d  --device <decimal value>              - see system/media/audio/include/system/audio.h for device values\n");
     printf("                                             Optional Argument and Default value is 2, i.e Speaker\n\n");
     printf(" -t  --file-type <file type>               - 1:WAV 2:MP3 3:AAC 4:AAC_ADTS 5:FLAC\n");
-    printf("                                             6:ALAC 7:VORBIS 8:WMA\n");
+    printf("                                             6:ALAC 7:VORBIS 8:WMA 10:AAC_LATM \n");
     printf("                                             Required for non WAV formats\n\n");
     printf(" -a  --aac-type <aac type>                 - Required for AAC streams\n");
     printf("                                             1: LC 2: HE_V1 3: HE_V2\n\n");
+    printf(" -w  --wma-type <wma type>                 - Required for WMA clips.Default vlaue is 1\n");
+    printf("                                             1: WMA 2: WMAPRO 3:WMA_LOSSLESS \n\n");
     printf(" -k  --kvpairs <values>                    - Metadata information of clip\n");
     printf("                                             See Example for more info\n\n");
     printf(" -l  --log-file <ABSOLUTE FILEPATH>        - File path for debug msg, to print\n");
@@ -536,6 +585,8 @@ void usage() {
     printf(" -k  --kpi-mode                            - Required for Latency KPI measurement\n");
     printf("                                             file path is not used here as file playback is not done in this mode\n");
     printf("                                             file path and other file specific options would be ignored in this mode.\n\n");
+    printf(" -e  --effect-type <effect type>           - Effect used for test\n");
+    printf("                                             0:bassboost 1:virtualizer 2:equalizer 3:visualizer 4:reverb others:null");
     printf(" \n Examples \n");
     printf(" hal_play_test -f /etc/Anukoledenadu.wav     -> plays Wav stream with default params\n\n");
     printf(" hal_play_test -f /etc/MateRani.mp3 -t 2 -d 2 -v 0.01 -r 44100 -c 2 \n");
@@ -569,12 +620,16 @@ void usage() {
     printf("                                          -> Play vorbis clip (-t = 7)\n");
     printf("                                          -> kvpair(-k) values represent media-info of clip & values should be in below mentioned sequence\n");
     printf("                                          ->avg_bit_rate,sample_rate,vorbis_bitstream_fmt\n");
-    printf(" hal_play_test -f /etc/file.wma -k 192000,48000,16,8192,3,15,353 -t 8 -r 48000 -c 2 -v 0.5 \n");
+    printf(" hal_play_test -f /etc/file.wma -k 192000,48000,16,8192,3,15,0,0,353 -t 8 -w 1 -r 48000 -c 2 -v 0.5 \n");
     printf("                                          -> Play wma clip (-t = 8)\n");
     printf("                                          -> kvpair(-k) values represent media-info of clip & values should be in below mentioned sequence\n");
     printf("                                          ->avg_bit_rate,sample_rate,wma_bit_per_sample,wma_block_align\n");
     printf("                                          ->wma_channel_mask,wma_encode_option,wma_format_tag\n");
     printf(" hal_play_test -K -F 4                    -> Measure latency KPIs for low latency output\n\n");
+    printf(" hal_play_test /etc//Moto_320kbps.mp3 -t 2 -d 2 -v 0.1 -r 44100 -c 2 -e 2\n");
+    printf("                                          -> plays MP3 stream(-t = 2) on speaker device(-d = 2)\n");
+    printf("                                          -> 2 channels and 44100 sample rate\n\n");
+    printf("                                          -> sound effect equalizer enabled\n\n");
 }
 
 int main(int argc, char* argv[]) {
@@ -582,7 +637,7 @@ int main(int argc, char* argv[]) {
     FILE *file_stream = NULL;
     char header[44] = {0};
     char* filename = nullptr;
-    qahw_module_handle_t *qahw_mod_handle;
+    qahw_module_handle_t *qahw_mod_handle = NULL;
     const char *mod_name = "audio.primary";
     qahw_stream_handle_t* out_handle = nullptr;
     int rc = 0;
@@ -599,7 +654,9 @@ int main(int argc, char* argv[]) {
     int filetype = FILE_WAV;
     int sample_rate = 44100;
     int channels = 2;
+    int bitwidth = 16;
     aac_format_type_t format_type = AAC_LC;
+    wma_format_type_t wma_format_type = WMA;
     log_file = stdout;
     audio_devices_t output_device = AUDIO_DEVICE_OUT_SPEAKER;
     audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE;
@@ -611,20 +668,25 @@ int main(int argc, char* argv[]) {
         {"device",        required_argument,    0, 'd'},
         {"sample-rate",   required_argument,    0, 'r'},
         {"channels",      required_argument,    0, 'c'},
+        {"bitwidth",      required_argument,    0, 'b'},
         {"volume",        required_argument,    0, 'v'},
         {"log-file",      required_argument,    0, 'l'},
         {"dump-file",     required_argument,    0, 'D'},
         {"file-type",     required_argument,    0, 't'},
         {"aac-type",      required_argument,    0, 'a'},
+        {"wma-type",      required_argument,    0, 'w'},
         {"kvpairs",       required_argument,    0, 'k'},
         {"flags",         required_argument,    0, 'F'},
         {"kpi-mode",      no_argument,          0, 'K'},
+        {"effect-path",   required_argument,    0, 'e'},
         {"help",          no_argument,          0, 'h'},
         {0, 0, 0, 0}
     };
 
     int opt = 0;
     int option_index = 0;
+    int effect_index = -1;
+    thread_func_t ethread_func = NULL;
     proxy_params.hdr.riff_id = ID_RIFF;
     proxy_params.hdr.riff_sz = 0;
     proxy_params.hdr.riff_fmt = ID_WAVE;
@@ -640,7 +702,7 @@ int main(int argc, char* argv[]) {
     proxy_params.hdr.data_sz = 0;
     while ((opt = getopt_long(argc,
                               argv,
-                              "-f:r:c:d:v:l:t:a:k:D:KF:h",
+                              "-f:r:c:b:d:v:l:t:a:w:k:D:KF:e:h",
                               long_options,
                               &option_index)) != -1) {
             switch (opt) {
@@ -650,8 +712,11 @@ int main(int argc, char* argv[]) {
             case 'r':
                 sample_rate = atoi(optarg);
                 break;
-            case 'c':;
+            case 'c':
                 channels = atoi(optarg);
+                break;
+            case 'b':
+                bitwidth = atoi(optarg);
                 break;
             case 'd':
                 output_device = atoll(optarg);
@@ -676,6 +741,9 @@ int main(int argc, char* argv[]) {
             case 'a':
                 format_type = atoi(optarg);
                 break;
+            case 'w':
+                wma_format_type = atoi(optarg);
+                break;
             case 'k':
                 kvpair_values = optarg;
                 break;
@@ -688,6 +756,14 @@ int main(int argc, char* argv[]) {
             case 'F':
                 flags = atoll(optarg);
                 flags_set = true;
+            case 'e':
+                effect_index = atoi(optarg);
+                if (effect_index < 0 || effect_index >= EFFECT_NUM) {
+                    fprintf(stderr, "Invalid effect type %d\n", effect_index);
+                    effect_index = -1;
+                } else {
+                    ethread_func = effect_thread_funcs[effect_index];
+                }
                 break;
             case 'h':
                 usage();
@@ -712,6 +788,7 @@ int main(int argc, char* argv[]) {
 
     fprintf(stdout, "Sample Rate:%d\n", sample_rate);
     fprintf(stdout, "Channels:%d\n", channels);
+    fprintf(stdout, "Bitwidth:%d\n", bitwidth);
     fprintf(stdout, "Log file:%s\n", log_filename);
     fprintf(stdout, "Volume level:%f\n", vol_level);
     fprintf(stdout, "Output Device:%d\n", output_device);
@@ -726,6 +803,9 @@ int main(int argc, char* argv[]) {
 
     if (output_device & AUDIO_DEVICE_OUT_ALL_A2DP)
         fprintf(stdout, "Saving pcm data to file: %s\n", proxy_params.acp.file_name);
+
+    if (effect_index != -1)
+        fprintf(stdout, "Effect type:%s\n", effect_str[effect_index]);
 
     fprintf(stdout, "Starting audio hal tests.\n");
 
@@ -749,6 +829,7 @@ int main(int argc, char* argv[]) {
 
         if (!flags_set)
             flags = AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD|AUDIO_OUTPUT_FLAG_NON_BLOCKING;
+            flags |= AUDIO_OUTPUT_FLAG_DIRECT;
 
         switch (filetype) {
         case FILE_WAV:
@@ -766,7 +847,13 @@ int main(int argc, char* argv[]) {
             }
             memcpy (&channels, &header[22], 2);
             memcpy (&sample_rate, &header[24], 4);
-            config.offload_info.format = AUDIO_FORMAT_PCM_16_BIT;
+            memcpy (&bitwidth, &header[34], 2);
+            if (bitwidth == 32)
+                config.offload_info.format = AUDIO_FORMAT_PCM_32_BIT;
+            else if (bitwidth == 24)
+                config.offload_info.format = AUDIO_FORMAT_PCM_24_BIT_PACKED;
+            else
+                config.offload_info.format = AUDIO_FORMAT_PCM_16_BIT;
             if (!flags_set)
                 flags = AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD;
             break;
@@ -777,6 +864,7 @@ int main(int argc, char* argv[]) {
 
         case FILE_AAC:
         case FILE_AAC_ADTS:
+        case FILE_AAC_LATM:
             if (!is_valid_aac_format_type(format_type)) {
                 fprintf(log_file, "Invalid format type for AAC %d\n", format_type);
                 goto EXIT;
@@ -793,7 +881,23 @@ int main(int argc, char* argv[]) {
             config.offload_info.format = AUDIO_FORMAT_VORBIS;
             break;
         case FILE_WMA:
-            config.offload_info.format = AUDIO_FORMAT_WMA;
+            if (wma_format_type == WMA)
+               config.offload_info.format = AUDIO_FORMAT_WMA;
+            else
+               config.offload_info.format = AUDIO_FORMAT_WMA_PRO;
+            break;
+        case FILE_MP2:
+            config.offload_info.format = AUDIO_FORMAT_MP2;
+            break;
+        case FILE_AC3:
+            config.offload_info.format = AUDIO_FORMAT_AC3;
+            break;
+        case FILE_EAC3:
+        case FILE_EAC3_JOC:
+            config.offload_info.format = AUDIO_FORMAT_E_AC3;
+            break;
+        case FILE_DTS:
+            config.offload_info.format = AUDIO_FORMAT_DTS;
             break;
         default:
            fprintf(stderr, "Does not support given filetype\n");
@@ -806,6 +910,7 @@ int main(int argc, char* argv[]) {
     config.format = config.offload_info.format;
     config.offload_info.channel_mask = config.channel_mask;
     config.offload_info.sample_rate = sample_rate;
+    config.offload_info.bit_width = bitwidth;
     config.offload_info.version = AUDIO_OFFLOAD_INFO_VERSION_CURRENT;
     config.offload_info.size = sizeof(audio_offload_info_t);
 
@@ -869,16 +974,56 @@ int main(int argc, char* argv[]) {
         if (!rc)
             proxy_thread_active = true;
     }
+
+    // create effect thread, use thread_data to transfer command
+    if (ethread_func)
+        ethread_data = create_effect_thread(ethread_func);
+
+    if (ethread_data) {
+        // load effect module
+        effect_thread_command(ethread_data, EFFECT_LOAD_LIB, -1, 0, NULL);
+
+        // get effect desc
+        effect_thread_command(ethread_data, EFFECT_GET_DESC, -1, 0, NULL);
+
+        // create effect
+        ethread_data->io_handle = handle;
+        effect_thread_command(ethread_data, EFFECT_CREATE, -1, 0, NULL);
+
+        // enable effect
+        effect_thread_command(ethread_data, EFFECT_CMD, QAHW_EFFECT_CMD_ENABLE, 0, NULL);
+    }
+    /* Register the SIGINT to close the App properly */
+    if (signal(SIGINT, stop_signal_handler) == SIG_ERR)
+        fprintf(log_file, "Failed to register SIGINT:%d\n",errno);
+
     play_file(out_handle,
               file_stream,
              (flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD));
 
+    if (ethread_data) {
+        // disable effect
+        effect_thread_command(ethread_data, EFFECT_CMD, QAHW_EFFECT_CMD_DISABLE, 0, NULL);
+
+        // release effect
+        effect_thread_command(ethread_data, EFFECT_RELEASE, -1, 0, NULL);
+
+        // unload effect module
+        effect_thread_command(ethread_data, EFFECT_UNLOAD_LIB, -1, 0, NULL);
+
+        // destroy effect thread
+        destroy_effect_thread(ethread_data);
+
+        free(ethread_data);
+        ethread_data = NULL;
+    }
+
     if (proxy_thread_active) {
-        /*
-         * DSP gives drain ack for last buffer which will close proxy thread before
-         * app reads last buffer. So add sleep before exiting proxy thread to read
-         * last buffer of data. This is not a calculated value.
-         */
+       /*
+        * DSP gives drain ack for last buffer which will close proxy thread before
+        * app reads last buffer. So add sleep before exiting proxy thread to read
+        * last buffer of data. This is not a calculated value.
+        */
         usleep(500000);
         proxy_params.acp.thread_exit = true;
         fprintf(log_file, "wait for proxy thread exit\n");
