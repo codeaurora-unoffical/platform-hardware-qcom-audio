@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2014, 2017 The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -38,6 +38,7 @@
 #define MIXER_XML_PATH_QRD_SKUH "/system/etc/mixer_paths_qrd_skuh.xml"
 #define MIXER_XML_PATH_QRD_SKUI "/system/etc/mixer_paths_qrd_skui.xml"
 #define MIXER_XML_PATH_QRD_SKUHF "/system/etc/mixer_paths_qrd_skuhf.xml"
+#define MIXER_XML_PATH_QRD_SKUB "/system/etc/mixer_paths_qrd_skub.xml"
 #define MIXER_XML_PATH_SKUK "/system/etc/mixer_paths_skuk.xml"
 #define MIXER_XML_PATH_SKUA "/system/etc/mixer_paths_skua.xml"
 #define MIXER_XML_PATH_SKUC "/system/etc/mixer_paths_skuc.xml"
@@ -459,6 +460,10 @@ static void query_platform(const char *snd_card_name,
                  sizeof("msm8909-skua-snd-card"))) {
         strlcpy(mixer_xml_path, MIXER_XML_PATH_SKUA,
                 sizeof(MIXER_XML_PATH_SKUA));
+    } else if (!strncmp(snd_card_name, "msm8909-skub-snd-card",
+                 sizeof("msm8909-skub-snd-card"))) {
+        strlcpy(mixer_xml_path, MIXER_XML_PATH_QRD_SKUB,
+                sizeof(MIXER_XML_PATH_QRD_SKUB));
     } else if (!strncmp(snd_card_name, "msm8909-skuc-snd-card",
                  sizeof("msm8909-skuc-snd-card"))) {
         strlcpy(mixer_xml_path, MIXER_XML_PATH_SKUC,

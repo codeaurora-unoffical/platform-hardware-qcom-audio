@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014, 2017 The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -188,6 +188,12 @@ static void update_hardware_info_8x16(struct hardware_info *hw_info, const char 
         strlcpy(hw_info->dev_extn, "", sizeof(hw_info->dev_extn));
     } else if (!strcmp(snd_card_name, "msm8909-skua-snd-card")) {
         strlcpy(hw_info->type, "skua", sizeof(hw_info->type));
+        strlcpy(hw_info->name, "msm8909", sizeof(hw_info->name));
+        hw_info->snd_devices = NULL;
+        hw_info->num_snd_devices = 0;
+        strlcpy(hw_info->dev_extn, "", sizeof(hw_info->dev_extn));
+    } else if (!strcmp(snd_card_name, "msm8909-skub-snd-card")) {
+        strlcpy(hw_info->type, "skub", sizeof(hw_info->type));
         strlcpy(hw_info->name, "msm8909", sizeof(hw_info->name));
         hw_info->snd_devices = NULL;
         hw_info->num_snd_devices = 0;
