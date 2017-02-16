@@ -521,7 +521,8 @@ static bool is_supported_format(audio_format_t format)
         format == AUDIO_FORMAT_DSD ||
         format == AUDIO_FORMAT_VORBIS ||
         format == AUDIO_FORMAT_WMA ||
-        format == AUDIO_FORMAT_WMA_PRO)
+        format == AUDIO_FORMAT_WMA_PRO ||
+        format == AUDIO_FORMAT_APTX)
            return true;
 
     return false;
@@ -618,41 +619,60 @@ static void check_and_set_asrc_mode(struct audio_device *adev, snd_device_t snd_
         struct audio_usecase *uc = NULL;
         struct stream_out *curr_out = NULL;
         int usecase_backend_idx = DEFAULT_CODEC_BACKEND;
+        int i, num_devices, ret = 0;
+        snd_device_t split_snd_devices[SND_DEVICE_OUT_END];
 
         list_for_each(node, &adev->usecase_list) {
             uc = node_to_item(node, struct audio_usecase, list);
             curr_out = (struct stream_out*) uc->stream.out;
-            if (curr_out && PCM_PLAYBACK == uc->type) {
-                usecase_backend_idx = platform_get_backend_index(uc->out_snd_device);
 
-                if((new_backend_idx == HEADPHONE_BACKEND) &&
-                       ((usecase_backend_idx == HEADPHONE_44_1_BACKEND) ||
-                       (usecase_backend_idx == DSD_NATIVE_BACKEND))) {
-                    ALOGD("%s:DSD or native stream detected enabling asrcmode in hardware",
-                          __func__);
-                    enable_asrc_mode(adev);
-                    break;
-                } else if(((new_backend_idx == HEADPHONE_44_1_BACKEND) ||
-                          (new_backend_idx == DSD_NATIVE_BACKEND)) &&
-                          (usecase_backend_idx == HEADPHONE_BACKEND)) {
-                    ALOGD("%s:48K stream detected, disabling and enabling it with asrcmode in hardware",
-                          __func__);
-                    disable_audio_route(adev, uc);
-                    disable_snd_device(adev, uc->out_snd_device);
-                    // Apply true-high-quality-mode if DSD or > 44.1KHz or >=24-bit
-                    if (new_backend_idx == DSD_NATIVE_BACKEND)
-                        audio_route_apply_and_update_path(adev->audio_route,
-                                                "hph-true-highquality-mode");
-                    else if ((new_backend_idx == HEADPHONE_44_1_BACKEND) &&
-                             (curr_out->bit_width >= 24))
-                        audio_route_apply_and_update_path(adev->audio_route,
-                                                     "hph-highquality-mode");
-                    enable_asrc_mode(adev);
-                    enable_snd_device(adev, uc->out_snd_device);
-                    enable_audio_route(adev, uc);
-                    break;
+            if (curr_out && PCM_PLAYBACK == uc->type) {
+                ret = platform_split_snd_device(adev->platform,
+                                         uc->out_snd_device,
+                                         &num_devices,
+                                         split_snd_devices);
+                if (ret < 0 || num_devices == 0) {
+                    ALOGV("%s: Unable to split uc->out_snd_device: %d",__func__, uc->out_snd_device);
+                    split_snd_devices[0] = uc->out_snd_device;
+                    num_devices = 1;
                 }
+                for (i = 0; i < num_devices; i++) {
+                    usecase_backend_idx = platform_get_backend_index(split_snd_devices[i]);
+                    ALOGD("%s:snd_dev %d usecase_backend_idx %d",__func__, split_snd_devices[i],usecase_backend_idx);
+                    if((new_backend_idx == HEADPHONE_BACKEND) &&
+                           ((usecase_backend_idx == HEADPHONE_44_1_BACKEND) ||
+                           (usecase_backend_idx == DSD_NATIVE_BACKEND))) {
+                        ALOGD("%s:DSD or native stream detected enabling asrcmode in hardware",
+                              __func__);
+                        enable_asrc_mode(adev);
+                        break;
+                    } else if(((new_backend_idx == HEADPHONE_44_1_BACKEND) ||
+                              (new_backend_idx == DSD_NATIVE_BACKEND)) &&
+                              (usecase_backend_idx == HEADPHONE_BACKEND)) {
+                        ALOGD("%s:48K stream detected, disabling and enabling it with asrcmode in hardware",
+                              __func__);
+                        disable_audio_route(adev, uc);
+                        disable_snd_device(adev, uc->out_snd_device);
+                        // Apply true-high-quality-mode if DSD or > 44.1KHz or >=24-bit
+                        if (new_backend_idx == DSD_NATIVE_BACKEND)
+                          audio_route_apply_and_update_path(adev->audio_route,
+                                                    "hph-true-highquality-mode");
+                        else if ((new_backend_idx == HEADPHONE_44_1_BACKEND) &&
+                                 (curr_out->bit_width >= 24))
+                            audio_route_apply_and_update_path(adev->audio_route,
+                                                         "hph-highquality-mode");
+                        enable_asrc_mode(adev);
+                        enable_snd_device(adev, uc->out_snd_device);
+                        enable_audio_route(adev, uc);
+                        break;
+                    }
+                }
+                // reset split devices count
+                num_devices = 0;
             }
+            if (adev->asrc_mode_enabled)
+                break;
+
         }
     }
 }
@@ -777,6 +797,9 @@ int enable_snd_device(struct audio_device *adev,
         }
     } else {
         ALOGD("%s: snd_device(%d: %s)", __func__, snd_device, device_name);
+
+       if (platform_check_codec_asrc_support(adev->platform))
+           check_and_set_asrc_mode(adev, snd_device);
 
        if ((SND_DEVICE_OUT_BT_A2DP == snd_device) &&
            (audio_extn_a2dp_start_playback() < 0)) {
@@ -1106,7 +1129,7 @@ static void check_usecases_codec_backend(struct audio_device *adev,
                     if (usecase->type == VOIP_CALL)
                         status = platform_switch_voice_call_device_post(adev->platform,
                                                                         usecase->out_snd_device,
-                                                                        usecase->in_snd_device);
+                                                                        platform_get_input_snd_device(adev->platform, uc_info->devices));
                     enable_audio_route(adev, usecase);
                 }
             }
@@ -1597,8 +1620,6 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
     /* Enable new sound devices */
     if (out_snd_device != SND_DEVICE_NONE) {
         check_usecases_codec_backend(adev, usecase, out_snd_device);
-        if (platform_check_codec_asrc_support(adev->platform))
-            check_and_set_asrc_mode(adev, out_snd_device);
         enable_snd_device(adev, out_snd_device);
     }
 
@@ -1635,7 +1656,8 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
             platform_check_and_update_copp_sample_rate(adev->platform, out_snd_device,
                     usecase->stream.out->sample_rate,
                     &usecase->stream.out->app_type_cfg.sample_rate);
-        } else if ((out_snd_device != SND_DEVICE_OUT_HEADPHONES_44_1 &&
+        } else if (((out_snd_device != SND_DEVICE_OUT_HEADPHONES_44_1 &&
+                     !audio_is_true_native_stream_active(adev)) &&
                     usecase->stream.out->sample_rate == OUTPUT_SAMPLING_RATE_44100) ||
                     (usecase->stream.out->sample_rate < OUTPUT_SAMPLING_RATE_44100)) {
             usecase->stream.out->app_type_cfg.sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
@@ -2283,7 +2305,8 @@ int start_output_stream(struct stream_out *out)
         if (audio_extn_is_dolby_format(out->format))
             audio_extn_dolby_send_ddp_endp_params(adev);
 #endif
-        if (!(audio_extn_passthru_is_passthrough_stream(out))) {
+        if (!(audio_extn_passthru_is_passthrough_stream(out)) &&
+                (out->sample_rate != 176400 && out->sample_rate <= 192000)) {
             if (adev->visualizer_start_output != NULL)
                 adev->visualizer_start_output(out->handle, out->pcm_device_id);
             if (adev->offload_effects_start_output != NULL)
@@ -2871,6 +2894,10 @@ static uint32_t out_get_latency(const struct audio_stream_out *stream)
         latency = (out->config.period_count * out->config.period_size * 1000) /
            (out->config.rate);
     }
+
+    if ((AUDIO_DEVICE_OUT_BLUETOOTH_A2DP == out->devices) &&
+            !(out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD))
+        latency += audio_extn_a2dp_get_encoder_latency();
 
     ALOGV("%s: Latency %d", __func__, latency);
     return latency;
@@ -3985,7 +4012,11 @@ int adev_open_output_stream(struct audio_hw_device *dev,
         out->compr_config.codec->ch_in =
                 audio_channel_count_from_out_mask(out->channel_mask);
         out->compr_config.codec->ch_out = out->compr_config.codec->ch_in;
-        out->bit_width = AUDIO_OUTPUT_BIT_WIDTH;
+        /* Update bit width only for non passthrough usecases.
+         * For passthrough usecases, the output will always be opened @16 bit
+         */
+        if (!audio_extn_passthru_is_passthrough_stream(out))
+            out->bit_width = AUDIO_OUTPUT_BIT_WIDTH;
         /*TODO: Do we need to change it for passthrough */
         out->compr_config.codec->format = SND_AUDIOSTREAMFORMAT_RAW;
 
@@ -4050,6 +4081,10 @@ int adev_open_output_stream(struct audio_hw_device *dev,
 
         if (config->offload_info.format == AUDIO_FORMAT_FLAC)
             out->compr_config.codec->options.flac_dec.sample_size = AUDIO_OUTPUT_BIT_WIDTH;
+
+        if (config->offload_info.format == AUDIO_FORMAT_APTX) {
+            audio_extn_send_aptx_dec_bt_addr_to_dsp(out);
+        }
 
         if (flags & AUDIO_OUTPUT_FLAG_NON_BLOCKING)
             out->non_blocking = 1;
@@ -4195,7 +4230,7 @@ int adev_open_output_stream(struct audio_hw_device *dev,
         out->bit_width = 16;
     audio_extn_utils_update_stream_output_app_type_cfg(adev->platform,
                                                 &adev->streams_output_cfg_list,
-                                                devices, flags, format, out->sample_rate,
+                                                devices, out->flags, format, out->sample_rate,
                                                 out->bit_width, out->channel_mask, out->profile,
                                                 &out->app_type_cfg);
     if ((out->usecase == USECASE_AUDIO_PLAYBACK_PRIMARY) ||
@@ -4303,6 +4338,9 @@ void adev_close_output_stream(struct audio_hw_device *dev __unused,
 
     if (adev->voice_tx_output == out)
         adev->voice_tx_output = NULL;
+
+    if (adev->primary_output == out)
+        adev->primary_output = NULL;
 
     pthread_cond_destroy(&out->cond);
     pthread_mutex_destroy(&out->lock);
@@ -4704,6 +4742,16 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
     in->capture_handle = handle;
     in->flags = flags;
 
+    in->usecase = USECASE_AUDIO_RECORD;
+    if (config->sample_rate == LOW_LATENCY_CAPTURE_SAMPLE_RATE &&
+            (flags & AUDIO_INPUT_FLAG_FAST) != 0) {
+        is_low_latency = true;
+#if LOW_LATENCY_CAPTURE_USE_CASE
+        in->usecase = USECASE_AUDIO_RECORD_LOW_LATENCY;
+#endif
+        in->realtime = may_use_noirq_mode(adev, in->usecase, in->flags);
+    }
+
     in->format = config->format;
     if (in->realtime) {
         in->config = pcm_config_audio_capture_rt;
@@ -4756,16 +4804,6 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
             ret = -EINVAL;
             goto err_open;
         }
-    }
-
-    in->usecase = USECASE_AUDIO_RECORD;
-    if (config->sample_rate == LOW_LATENCY_CAPTURE_SAMPLE_RATE &&
-            (flags & AUDIO_INPUT_FLAG_FAST) != 0) {
-        is_low_latency = true;
-#if LOW_LATENCY_CAPTURE_USE_CASE
-        in->usecase = USECASE_AUDIO_RECORD_LOW_LATENCY;
-#endif
-        in->realtime = may_use_noirq_mode(adev, in->usecase, in->flags);
     }
 
     /* Update config params with the requested sample rate and channels */
@@ -5068,7 +5106,7 @@ static int adev_open(const hw_module_t *module, const char *name,
                                                         "visualizer_hal_stop_output");
         }
     }
-    audio_extn_init();
+    audio_extn_init(adev);
     audio_extn_listen_init(adev, adev->snd_card);
     audio_extn_sound_trigger_init(adev);
     audio_extn_gef_init(adev);

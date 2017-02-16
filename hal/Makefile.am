@@ -143,6 +143,15 @@ AM_CFLAGS += -DAUDIO_HW_EXTN_API_ENABLED
 c_sources += audio_hw_extn_api.c
 endif
 
+if GEF
+AM_CFLAGS += -DAUDIO_GENERIC_EFFECT_FRAMEWORK_ENABLED
+c_sources += audio_extn/gef.c
+endif
+
+if APTX_DECODER
+AM_CFLAGS += -DAPTX_DECODER_ENABLED
+endif
+
 if AFE_PROXY
 AM_CFLAGS += -DAFE_PROXY_ENABLED
 endif

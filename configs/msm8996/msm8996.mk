@@ -52,6 +52,7 @@ MM_AUDIO_ENABLED_FTM := true
 TARGET_USES_QCOM_MM_AUDIO := true
 AUDIO_FEATURE_ENABLED_SOURCE_TRACKING := true
 AUDIO_FEATURE_ENABLED_GEF_SUPPORT := true
+BOARD_SUPPORTS_QAHW := true
 ##AUDIO_FEATURE_FLAGS
 
 #Audio Specific device overlays
@@ -160,10 +161,6 @@ audio.offload.multiaac.enable=true
 PRODUCT_PROPERTY_OVERRIDES += \
 audio.dolby.ds2.enabled=true\
 audio.dolby.ds2.hardbypass=true
-
-#Enable compress passthrough session
-PRODUCT_PROPERTY_OVERRIDES += \
-audio.offload.passthrough=true
 
 #Disable Multiple offload sesison
 PRODUCT_PROPERTY_OVERRIDES += \
