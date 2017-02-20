@@ -30,6 +30,7 @@ AUDIO_FEATURE_ENABLED_HW_ACCELERATED_EFFECTS := false
 AUDIO_FEATURE_ENABLED_AUDIOSPHERE := true
 AUDIO_FEATURE_ENABLED_USB_TUNNEL_AUDIO := true
 AUDIO_FEATURE_ENABLED_SPLIT_A2DP := true
+AUDIO_FEATURE_ENABLED_3D_AUDIO := true
 endif
 
 USE_XML_AUDIO_POLICY_CONF := 1
@@ -180,9 +181,9 @@ audio.dolby.ds2.hardbypass=true
 PRODUCT_PROPERTY_OVERRIDES += \
 audio.offload.multiple.enabled=false
 
-#Enable Compress passthrough playback
+#Disable Compress passthrough playback
 PRODUCT_PROPERTY_OVERRIDES += \
-audio.offload.passthrough=true
+audio.offload.passthrough=false
 
 #Disable surround sound recording
 PRODUCT_PROPERTY_OVERRIDES += \
@@ -206,7 +207,7 @@ flac.sw.decoder.24bit.support=true
 
 #split a2dp DSP supported encoder list
 PRODUCT_PROPERTY_OVERRIDES += \
-persist.bt.a2dp_offload_cap=sbc-aptx
+persist.bt.a2dp_offload_cap=sbc-aptx-aptxhd-aac
 
 #enable software decoders for ALAC and APE
 PRODUCT_PROPERTY_OVERRIDES += \
