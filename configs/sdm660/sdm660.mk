@@ -54,6 +54,7 @@ AUDIO_FEATURE_ENABLED_AUDIOSPHERE := true
 AUDIO_FEATURE_ENABLED_GEF_SUPPORT := true
 AUDIO_FEATURE_ENABLED_USB_TUNNEL_AUDIO := true
 AUDIO_FEATURE_ENABLED_SPLIT_A2DP := true
+AUDIO_FEATURE_ENABLED_RAS := true
 ##AUDIO_FEATURE_FLAGS
 
 #Audio Specific device overlays
@@ -72,6 +73,7 @@ PRODUCT_COPY_FILES += \
     hardware/qcom/audio/configs/sdm660/audio_output_policy.conf:system/vendor/etc/audio_output_policy.conf \
     hardware/qcom/audio/configs/sdm660/audio_effects.conf:system/vendor/etc/audio_effects.conf \
     hardware/qcom/audio/configs/sdm660/mixer_paths.xml:system/etc/mixer_paths.xml \
+    hardware/qcom/audio/configs/sdm660/mixer_paths_mtp.xml:system/etc/mixer_paths_mtp.xml \
     hardware/qcom/audio/configs/sdm660/mixer_paths_wcd9335.xml:system/etc/mixer_paths_wcd9335.xml \
     hardware/qcom/audio/configs/sdm660/mixer_paths_wcd9340.xml:system/etc/mixer_paths_wcd9340.xml \
     hardware/qcom/audio/configs/sdm660/mixer_paths_wcd9326.xml:system/etc/mixer_paths_wcd9326.xml \
@@ -83,6 +85,7 @@ PRODUCT_COPY_FILES += \
     hardware/qcom/audio/configs/sdm660/audio_platform_info.xml:system/etc/audio_platform_info.xml \
     hardware/qcom/audio/configs/sdm660/sound_trigger_mixer_paths.xml:system/etc/sound_trigger_mixer_paths.xml \
     hardware/qcom/audio/configs/sdm660/sound_trigger_mixer_paths_wcd9330.xml:system/etc/sound_trigger_mixer_paths_wcd9330.xml \
+    hardware/qcom/audio/configs/sdm660/sound_trigger_mixer_paths_wcd9335.xml:system/etc/sound_trigger_mixer_paths_wcd9335.xml \
     hardware/qcom/audio/configs/sdm660/sound_trigger_mixer_paths_wcd9340.xml:system/etc/sound_trigger_mixer_paths_wcd9340.xml \
     hardware/qcom/audio/configs/sdm660/sound_trigger_platform_info.xml:system/etc/sound_trigger_platform_info.xml \
     hardware/qcom/audio/configs/sdm660/graphite_ipc_platform_info.xml:system/etc/graphite_ipc_platform_info.xml
@@ -127,9 +130,17 @@ persist.audio.fluence.speaker=true
 PRODUCT_PROPERTY_OVERRIDES += \
 tunnel.audio.encode=false
 
+#Disable RAS Feature by default
+PRODUCT_PROPERTY_OVERRIDES += \
+persist.audio.ras.enabled=false
+
 #Buffer size in kbytes for compress offload playback
 PRODUCT_PROPERTY_OVERRIDES += \
-audio.offload.buffer.size.kb=32
+audio.offload.buffer.size.kb=64
+
+#Minimum duration for offload playback in secs
+PRODUCT_PROPERTY_OVERRIDES += \
+audio.offload.min.duration.secs=30
 
 #Enable offload audio video playback by default
 PRODUCT_PROPERTY_OVERRIDES += \
@@ -172,9 +183,9 @@ audio.dolby.ds2.hardbypass=true
 PRODUCT_PROPERTY_OVERRIDES += \
 audio.offload.multiple.enabled=false
 
-#Enable Compress passthrough playback
+#Disable Compress passthrough playback
 PRODUCT_PROPERTY_OVERRIDES += \
-audio.offload.passthrough=true
+audio.offload.passthrough=false
 
 #Disable surround sound recording
 PRODUCT_PROPERTY_OVERRIDES += \
@@ -198,7 +209,7 @@ flac.sw.decoder.24bit.support=true
 
 #split a2dp DSP supported encoder list
 PRODUCT_PROPERTY_OVERRIDES += \
-persist.bt.a2dp_offload_cap=sbc-aptx
+persist.bt.a2dp_offload_cap=sbc-aptx-aptxhd-aac
 
 #enable software decoders for ALAC and APE
 PRODUCT_PROPERTY_OVERRIDES += \

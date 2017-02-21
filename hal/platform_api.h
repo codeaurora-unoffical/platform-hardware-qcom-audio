@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
  * Not a contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -31,6 +31,7 @@
 #define SAMPLE_RATE_11025 11025
 #define sample_rate_multiple(sr, base) ((sr % base)== 0?true:false)
 #define MAX_VOLUME_CAL_STEPS 15
+#define ACDB_METAINFO_KEY_MODULE_NAME_LEN 100
 
 struct amp_db_and_gain_table {
     float amp;
@@ -50,6 +51,12 @@ typedef struct {
     bool ui_na_prop_enabled;
     int na_mode;
 } native_audio_prop;
+
+#define BE_DAI_NAME_MAX_LENGTH 24
+struct be_dai_name_struct {
+    unsigned int be_id;
+    char be_name[BE_DAI_NAME_MAX_LENGTH];
+};
 
 enum card_status_t;
 
@@ -82,6 +89,8 @@ int platform_set_snd_device_acdb_id(snd_device_t snd_device, unsigned int acdb_i
 int platform_get_snd_device_acdb_id(snd_device_t snd_device);
 int platform_set_snd_device_bit_width(snd_device_t snd_device, unsigned int bit_width);
 int platform_get_snd_device_bit_width(snd_device_t snd_device);
+int platform_set_acdb_metainfo_key(void *platform, char *name, int key);
+int platform_get_meta_info_key_from_list(void *platform, char *mod_name);
 int platform_set_native_support(int na_mode);
 int platform_get_native_support();
 int platform_send_audio_calibration(void *platform, struct audio_usecase *usecase,
@@ -130,6 +139,7 @@ bool platform_sound_trigger_usecase_needs_event(audio_usecase_t uc_id);
 
 int platform_set_snd_device_backend(snd_device_t snd_device, const char * backend,
                                     const char * hw_interface);
+int platform_get_snd_device_backend_index(snd_device_t device);
 
 /* From platform_info.c */
 int platform_info_init(const char *filename, void *);
