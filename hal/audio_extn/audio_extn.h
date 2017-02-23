@@ -422,6 +422,20 @@ bool audio_extn_icc_is_active(struct audio_device *adev);
 audio_usecase_t audio_extn_icc_get_usecase();
 #endif
 
+#ifndef ANC_ENABLED
+#define audio_extn_anc_is_active(adev)                  (0)
+#define audio_extn_anc_get_usecase()                    (-1)
+#define audio_extn_anc_get_parameters(adev, query, reply)   (0)
+
+#else
+#define AUDIO_INPUT_FLAG_ANC 0x20
+bool audio_extn_anc_is_active(struct audio_device *adev);
+audio_usecase_t audio_extn_anc_get_usecase();
+void audio_extn_anc_get_parameters(struct audio_device *adev,
+                                  struct str_parms *query,
+                                  struct str_parms *reply);
+#endif
+
 #ifndef DEV_ARBI_ENABLED
 #define audio_extn_dev_arbi_init()                  (0)
 #define audio_extn_dev_arbi_deinit()                (0)
@@ -543,6 +557,7 @@ void audio_utils_set_hdmi_channel_status(struct stream_out *out, char * buffer, 
 #define audio_extn_ext_hw_plugin_deinit(plugin)              (0)
 #define audio_extn_ext_hw_plugin_enable(plugin, out, enable) (0)
 #define audio_extn_ext_hw_plugin_set_parameters(plugin, parms) (0)
+#define audio_extn_ext_hw_plugin_set_mic_mute(plugin, mute) (0)
 #else
 void* audio_extn_ext_hw_plugin_init(struct audio_device *adev);
 int audio_extn_ext_hw_plugin_deinit(void *plugin);
@@ -552,6 +567,7 @@ int audio_extn_ext_hw_plugin_set_parameters(void *plugin,
                                            struct str_parms *parms);
 int audio_extn_ext_hw_plugin_get_parameters(void *plugin,
                   struct str_parms *query, struct str_parms *reply);
+int audio_extn_ext_hw_plugin_set_mic_mute(void *plugin, bool mute);
 #endif
 
 #ifndef ICC_ENABLED
@@ -578,6 +594,6 @@ void audio_extn_vad_get_parameters(struct audio_device *adev,
 void audio_extn_vad_circ_buf_create_read_loop(struct stream_in *in);
 void audio_extn_vad_circ_buf_start_read_loop();
 size_t audio_extn_vad_circ_buf_read(struct stream_in *in,
-                                        void *buffer, size_t bytes);
+                                  void *buffer, size_t bytes);
 #endif
 #endif /* AUDIO_EXTN_H */

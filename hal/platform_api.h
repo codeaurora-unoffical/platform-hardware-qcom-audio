@@ -129,4 +129,5 @@ int platform_set_audio_device_interface(const char * device_name, const char *in
 void platform_set_gsm_mode(void *platform, bool enable);
 int platform_hal_plugin_enable(void *platform, struct stream_out *out, bool enable);
 bool platform_get_eccarstate(void *platform);
+int platform_set_multi_channel_ec_pri_mic_ch(void *platform);
 #endif // AUDIO_PLATFORM_API_H

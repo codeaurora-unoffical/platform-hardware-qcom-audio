@@ -2122,6 +2122,12 @@ bool platform_get_eccarstate(void *platform)
     return -ENOSYS;
 }
 
+int platform_set_multi_channel_ec_pri_mic_ch(void *platform)
+{
+    ALOGE("%s: Not implemented", __func__);
+    return -ENOSYS;
+}
+
 int platform_switch_voice_call_device_pre(void *platform)
 {
     struct platform_data *my_data = (struct platform_data *)platform;

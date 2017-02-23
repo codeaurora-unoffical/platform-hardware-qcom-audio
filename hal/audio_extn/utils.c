@@ -81,7 +81,9 @@ struct string_to_enum {
 
 const struct string_to_enum s_flag_name_to_enum_table[] = {
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_DIRECT),
+#if 0
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_DIRECT_PCM),
+#endif
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_PRIMARY),
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_FAST),
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_DEEP_BUFFER),
@@ -102,7 +104,12 @@ const struct string_to_enum s_flag_name_to_enum_table[] = {
     STRING_TO_ENUM(AUDIO_INPUT_FLAG_HW_HOTWORD),
     STRING_TO_ENUM(AUDIO_INPUT_FLAG_RAW),
     STRING_TO_ENUM(AUDIO_INPUT_FLAG_SYNC),
+#ifdef ICC_ENABLED
     STRING_TO_ENUM(AUDIO_INPUT_FLAG_ICC),
+#endif
+#ifdef ANC_ENABLED
+    STRING_TO_ENUM(AUDIO_INPUT_FLAG_ANC),
+#endif
 };
 
 const struct string_to_enum s_format_name_to_enum_table[] = {
@@ -709,9 +716,35 @@ void audio_extn_utils_update_stream_app_type_cfg_for_usecase(
         audio_extn_utils_update_stream_input_app_type_cfg(adev->platform,
                                                 &adev->streams_input_cfg_list,
                                                 AUDIO_DEVICE_IN_DEFAULT,
+#ifdef ICC_ENABLED
                                                 AUDIO_INPUT_FLAG_ICC,
+#else
+                                                AUDIO_INPUT_FLAG_NONE,
+#endif
                                                 AUDIO_FORMAT_PCM_16_BIT,
-                                                16000,
+                                                48000,
+                                                16,
+                                                &usecase->in_app_type_cfg);
+        ALOGV("%s Selected apptype: playback %d capture %d",
+            __func__, usecase->out_app_type_cfg.app_type, usecase->in_app_type_cfg.app_type);
+        break;
+    case ANC_LOOPBACK:
+        /* ANC usecase: ASM loopback from TDM_TX to TDM RX */
+        /* update out_app_type_cfg */
+        usecase->out_app_type_cfg.sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
+        usecase->out_app_type_cfg.bit_width = 16;
+        usecase->out_app_type_cfg.app_type = platform_get_default_app_type_v2(adev->platform, PCM_PLAYBACK);
+        /* update in_app_type_cfg */
+        audio_extn_utils_update_stream_input_app_type_cfg(adev->platform,
+                                                &adev->streams_input_cfg_list,
+                                                AUDIO_DEVICE_IN_DEFAULT,
+#ifdef ANC_ENABLED
+                                                AUDIO_INPUT_FLAG_ANC,
+#else
+                                                AUDIO_INPUT_FLAG_NONE,
+#endif
+                                                AUDIO_FORMAT_PCM_16_BIT,
+                                                48000,
                                                 16,
                                                 &usecase->in_app_type_cfg);
         ALOGV("%s Selected apptype: playback %d capture %d",
@@ -736,8 +769,8 @@ int audio_extn_utils_send_app_type_cfg(struct audio_device *adev,
     ALOGV("%s", __func__);
 
     if (usecase->type != PCM_PLAYBACK && usecase->type != PCM_CAPTURE &&
-        usecase->type != PCM_HFP_CALL && usecase->type != ICC_CALL) {
-        ALOGE("%s: not a playback/capture/hfp/icc path, no need to cfg app type", __func__);
+        usecase->type != PCM_HFP_CALL && usecase->type != ICC_CALL && usecase->type != ANC_LOOPBACK) {
+        ALOGE("%s: not a playback/capture/hfp/icc/anc path, no need to cfg app type", __func__);
         rc = 0;
         goto exit_send_app_type_cfg;
     }
@@ -748,7 +781,8 @@ int audio_extn_utils_send_app_type_cfg(struct audio_device *adev,
         (usecase->type != PCM_CAPTURE) &&
         (usecase->id != USECASE_AUDIO_HFP_SCO) &&
         (usecase->id != USECASE_AUDIO_HFP_SCO_WB) &&
-        (usecase->id != USECASE_ICC_CALL)) {
+        (usecase->id != USECASE_ICC_CALL) &&
+        (usecase->id != USECASE_ANC_LOOPBACK)) {
         ALOGV("%s: a rx/tx/loopback path where app type cfg is not required %d", __func__, usecase->id);
         rc = 0;
         goto exit_send_app_type_cfg;
@@ -779,7 +813,7 @@ int audio_extn_utils_send_app_type_cfg(struct audio_device *adev,
         snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
             "Audio Stream %d App Type Cfg", pcm_device_id);
         acdb_dev_id = platform_get_usecase_acdb_id(adev->platform, usecase, ACDB_DEV_TYPE_OUT);
-    } else if (usecase->type == ICC_CALL) {
+    } else if ((usecase->type == ICC_CALL) || (usecase->type == ANC_LOOPBACK)) {
         snd_device = usecase->out_snd_device;
         pcm_device_id = platform_get_pcm_device_id(usecase->id, PCM_PLAYBACK);
         snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
@@ -853,12 +887,12 @@ int audio_extn_utils_send_app_type_cfg(struct audio_device *adev,
         ALOGI("%s CAPTURE app_type %d, acdb_dev_id %d, sample_rate %d",
            __func__, usecase->stream.in->app_type_cfg.app_type, acdb_dev_id,
            usecase->stream.in->app_type_cfg.sample_rate);
-    } else if ((usecase->type == PCM_HFP_CALL) || (usecase->type == ICC_CALL)) {
+    } else if ((usecase->type == PCM_HFP_CALL) || (usecase->type == ICC_CALL) || (usecase->type == ANC_LOOPBACK)) {
         /* config playback path */
         app_type_cfg[len++] = usecase->out_app_type_cfg.app_type;
         app_type_cfg[len++] = acdb_dev_id;
         app_type_cfg[len++] = usecase->out_app_type_cfg.sample_rate;
-        ALOGI("%s HFP/ICC PLAYBACK: app_type %d, acdb_dev_id %d, sample_rate %d",
+        ALOGI("%s HFP/ICC/ANC PLAYBACK: app_type %d, acdb_dev_id %d, sample_rate %d",
               __func__, usecase->out_app_type_cfg.app_type, acdb_dev_id,
               usecase->out_app_type_cfg.sample_rate);
         mixer_ctl_set_array(ctl, app_type_cfg, len);
@@ -883,7 +917,7 @@ int audio_extn_utils_send_app_type_cfg(struct audio_device *adev,
         app_type_cfg[len++] = usecase->in_app_type_cfg.app_type;
         app_type_cfg[len++] = acdb_dev_id;
         app_type_cfg[len++] = usecase->in_app_type_cfg.sample_rate;
-        ALOGI("%s HFP/ICC CAPTURE: app_type %d, acdb_dev_id %d, sample_rate %d",
+        ALOGI("%s HFP/ICC/ANC CAPTURE: app_type %d, acdb_dev_id %d, sample_rate %d",
               __func__, usecase->in_app_type_cfg.app_type,
               platform_get_usecase_acdb_id(adev->platform, usecase, ACDB_DEV_TYPE_IN),
               usecase->in_app_type_cfg.sample_rate);

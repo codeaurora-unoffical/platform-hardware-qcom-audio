@@ -102,6 +102,13 @@ void audio_extn_icc_set_parameters(struct audio_device *adev,
                                            struct str_parms *parms);
 #endif
 
+#ifndef ANC_ENABLED
+#define audio_extn_anc_set_parameters(adev, parms) (0)
+#else
+void audio_extn_anc_set_parameters(struct audio_device *adev,
+                                           struct str_parms *parms);
+#endif
+
 #ifndef VAD_ENABLED
 #define audio_extn_vad_set_parameters(adev, parms)          (0)
 #else
@@ -591,6 +598,7 @@ void audio_extn_set_parameters(struct audio_device *adev,
    if (adev->offload_effects_set_parameters != NULL)
        adev->offload_effects_set_parameters(parms);
    audio_extn_icc_set_parameters(adev, parms);
+   audio_extn_anc_set_parameters(adev, parms);
    audio_extn_ext_hw_plugin_set_parameters(adev->ext_hw_plugin, parms);
 }
 
@@ -605,8 +613,9 @@ void audio_extn_get_parameters(const struct audio_device *adev,
     audio_extn_dts_eagle_get_parameters(adev, query, reply);
     audio_extn_hpx_get_parameters(query, reply);
     audio_extn_source_track_get_parameters(adev, query, reply);
-    audio_extn_vad_get_parameters(adev, query, reply);
     audio_extn_icc_get_parameters(adev, query, reply);
+    audio_extn_anc_get_parameters(adev, query, reply);
+    audio_extn_vad_get_parameters(adev, query, reply);
     if (adev->offload_effects_get_parameters != NULL)
         adev->offload_effects_get_parameters(query, reply);
     audio_extn_ext_hw_plugin_get_parameters(adev->ext_hw_plugin, query, reply);
@@ -625,6 +634,7 @@ int audio_extn_parse_compress_metadata(struct stream_out *out,
     int ret = 0;
     char value[32];
 
+#ifdef FLAC_OFFLOAD_ENABLED
     if (out->format == AUDIO_FORMAT_FLAC) {
         ret = str_parms_get_str(parms, AUDIO_OFFLOAD_CODEC_FLAC_MIN_BLK_SIZE, value, sizeof(value));
         if (ret >= 0) {
@@ -791,8 +801,9 @@ int audio_extn_parse_compress_metadata(struct stream_out *out,
                 out->compr_config.codec->options.ape.sample_rate,
                 out->compr_config.codec->options.ape.seek_table_present);
     }
-
-    else if (out->format == AUDIO_FORMAT_VORBIS) {
+    else
+#endif
+    if (out->format == AUDIO_FORMAT_VORBIS) {
         ret = str_parms_get_str(parms, AUDIO_OFFLOAD_CODEC_VORBIS_BITSTREAM_FMT, value, sizeof(value));
         if (ret >= 0) {
         // transcoded bitstream mode
@@ -800,7 +811,7 @@ int audio_extn_parse_compress_metadata(struct stream_out *out,
             out->is_compr_metadata_avail = true;
         }
     }
-
+#ifdef WMA_OFFLOAD_ENABLED
     else if (out->format == AUDIO_FORMAT_WMA || out->format == AUDIO_FORMAT_WMA_PRO) {
         ret = str_parms_get_str(parms, AUDIO_OFFLOAD_CODEC_WMA_FORMAT_TAG, value, sizeof(value));
         if (ret >= 0) {
@@ -853,7 +864,7 @@ int audio_extn_parse_compress_metadata(struct stream_out *out,
                 out->compr_config.codec->options.wma.encodeopt1,
                 out->compr_config.codec->options.wma.encodeopt2);
     }
-
+#endif
     return ret;
 }
 #endif

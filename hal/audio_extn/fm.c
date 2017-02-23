@@ -30,8 +30,23 @@
 #include "platform_api.h"
 #include <stdlib.h>
 #include <cutils/str_parms.h>
+#include "audio_extn.h"
 
 #ifdef FM_POWER_OPT
+#ifdef FM_TUNER_EXT_ENABLED
+#define AUDIO_PARAMETER_KEY_FM_ENABLE "fm_enable"
+#define AUDIO_PARAMETER_KEY_FM_VOLUME "fm_volume"
+
+struct fm_module {
+    bool is_fm_running;
+    float fm_volume;
+};
+
+static struct fm_module fmmod = {
+  .fm_volume = 1,
+  .is_fm_running = 0,
+};
+#else
 #define AUDIO_PARAMETER_KEY_HANDLE_FM "handle_fm"
 #define AUDIO_PARAMETER_KEY_FM_VOLUME "fm_volume"
 #define AUDIO_PARAMETER_KEY_REC_PLAY_CONC "rec_play_conc_on"
@@ -65,6 +80,7 @@ static struct fm_module fmmod = {
   .restart_fm = 0,
   .scard_state = SND_CARD_STATE_ONLINE,
 };
+#endif
 
 static int32_t fm_set_volume(struct audio_device *adev, float value, bool persist)
 {
@@ -105,12 +121,26 @@ static int32_t fm_set_volume(struct audio_device *adev, float value, bool persis
 
 static int32_t fm_stop(struct audio_device *adev)
 {
-    int32_t i, ret = 0;
+    int32_t ret = 0;
     struct audio_usecase *uc_info;
 
     ALOGD("%s: enter", __func__);
     fmmod.is_fm_running = false;
+#ifdef FM_TUNER_EXT_ENABLED
+    uc_info = get_usecase_from_list(adev, USECASE_AUDIO_FM_TUNER_EXT);
+    if (uc_info == NULL) {
+        ALOGE("%s: Could not find the usecase (%d) in the list",
+            __func__, USECASE_AUDIO_FM_TUNER_EXT);
+        return -EINVAL;
+    }
 
+    if ((uc_info->out_snd_device != SND_DEVICE_NONE) ||
+        (uc_info->in_snd_device != SND_DEVICE_NONE)) {
+        ret = audio_extn_ext_hw_plugin_usecase_stop(adev->ext_hw_plugin, uc_info);
+        if (ret)
+            ALOGE("%s: failed to stop ext hw plugin", __func__);
+    }
+#else
     /* 1. Close the PCM devices */
     if (fmmod.fm_pcm_rx) {
         pcm_close(fmmod.fm_pcm_rx);
@@ -134,7 +164,7 @@ static int32_t fm_stop(struct audio_device *adev)
     /* 3. Disable the rx and tx devices */
     disable_snd_device(adev, uc_info->out_snd_device);
     disable_snd_device(adev, uc_info->in_snd_device);
-
+#endif
     list_remove(&uc_info->list);
     free(uc_info);
 
@@ -144,9 +174,8 @@ static int32_t fm_stop(struct audio_device *adev)
 
 static int32_t fm_start(struct audio_device *adev)
 {
-    int32_t i, ret = 0;
+    int32_t ret = 0;
     struct audio_usecase *uc_info;
-    int32_t pcm_dev_rx_id, pcm_dev_tx_id;
 
     ALOGD("%s: enter", __func__);
 
@@ -154,6 +183,27 @@ static int32_t fm_start(struct audio_device *adev)
 
     if (!uc_info)
         return -ENOMEM;
+#ifdef FM_TUNER_EXT_ENABLED
+    uc_info->id = USECASE_AUDIO_FM_TUNER_EXT;
+    uc_info->type = PCM_PASSTHROUGH;
+    uc_info->devices = AUDIO_DEVICE_IN_FM_TUNER;
+    uc_info->in_snd_device = SND_DEVICE_IN_CAPTURE_FM;
+    uc_info->out_snd_device = SND_DEVICE_OUT_SPEAKER;
+
+    list_add_tail(&adev->usecase_list, &uc_info->list);
+
+    if ((uc_info->out_snd_device != SND_DEVICE_NONE) ||
+        (uc_info->in_snd_device != SND_DEVICE_NONE)) {
+        ret = audio_extn_ext_hw_plugin_usecase_start(adev->ext_hw_plugin, uc_info);
+        if (ret) {
+            ALOGE("%s: failed to start ext hw plugin", __func__);
+            goto exit;
+        }
+    }
+
+    fmmod.is_fm_running = true;
+#else
+    int32_t pcm_dev_rx_id, pcm_dev_tx_id;
 
     uc_info->id = USECASE_AUDIO_PLAYBACK_FM;
     uc_info->type = PCM_PLAYBACK;
@@ -205,7 +255,7 @@ static int32_t fm_start(struct audio_device *adev)
 
     fmmod.is_fm_running = true;
     fm_set_volume(adev, fmmod.fm_volume, false);
-
+#endif
     ALOGD("%s: exit: status(%d)", __func__, ret);
     return 0;
 
@@ -223,6 +273,30 @@ void audio_extn_fm_set_parameters(struct audio_device *adev,
     float vol =0.0;
 
     ALOGV("%s: enter", __func__);
+#ifdef FM_TUNER_EXT_ENABLED
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_FM_ENABLE,
+                            value, sizeof(value));
+    if (ret >= 0) {
+        ALOGD("%s: FM usecase", __func__);
+        if (!strncmp(value, "true", sizeof(value))
+           && fmmod.is_fm_running == false)
+            fm_start(adev);
+        else if (fmmod.is_fm_running == true)
+            fm_stop(adev);
+    }
+
+    memset(value, 0, sizeof(value));
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_FM_VOLUME,
+                            value, sizeof(value));
+    if (ret >= 0) {
+        if (sscanf(value, "%f", &vol) != 1){
+            ALOGE("%s: error in retrieving fm volume", __func__);
+            ret = -EIO;
+            goto exit;
+        }
+        ALOGD("%s: FM volume usecase not supported", __func__);
+    }
+#else
     ret = str_parms_get_str(parms, "SND_CARD_STATUS", value, sizeof(value));
     if (ret >= 0) {
         char *snd_card_status = value+2;
@@ -300,6 +374,7 @@ void audio_extn_fm_set_parameters(struct audio_device *adev,
         select_devices(adev, USECASE_AUDIO_PLAYBACK_FM);
         fm_set_volume(adev, fmmod.fm_volume, false);
     }
+#endif
 #endif
 exit:
     ALOGV("%s: exit", __func__);

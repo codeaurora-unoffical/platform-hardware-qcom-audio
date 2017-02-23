@@ -90,6 +90,10 @@ ifeq ($(strip $(AUDIO_FEATURE_ENABLED_FM_POWER_OPT)),true)
     LOCAL_SRC_FILES += audio_extn/fm.c
 endif
 
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_FM_TUNER_EXT)),true)
+    LOCAL_CFLAGS += -DFM_TUNER_EXT_ENABLED
+endif
+
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_USBAUDIO)),true)
     LOCAL_CFLAGS += -DUSB_HEADSET_ENABLED
     LOCAL_SRC_FILES += audio_extn/usb.c
@@ -103,6 +107,11 @@ endif
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_ICC)),true)
     LOCAL_CFLAGS += -DICC_ENABLED
     LOCAL_SRC_FILES += audio_extn/icc.c
+endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_ANC)),true)
+    LOCAL_CFLAGS += -DANC_ENABLED
+    LOCAL_SRC_FILES += audio_extn/anc.c
 endif
 
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_VAD)),true)

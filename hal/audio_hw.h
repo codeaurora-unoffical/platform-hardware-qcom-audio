@@ -74,8 +74,6 @@
 #define SND_CARD_STATE_OFFLINE 0
 #define SND_CARD_STATE_ONLINE 1
 
-#define MAX_PLATFORM_ID_BUFFER_SIZE   64
-
 /* These are the supported use cases by the hardware.
  * Each usecase is mapped to a specific PCM device.
  * Refer to pcm_device_table[].
@@ -144,8 +142,16 @@ enum {
     USECASE_AUDIO_PLAYBACK_AFE_PROXY,
     USECASE_AUDIO_RECORD_AFE_PROXY,
     USECASE_AUDIO_PLAYBACK_DRIVER_SIDE,
+
+    /*Audio FM Tuner usecase*/
+    USECASE_AUDIO_FM_TUNER_EXT,
+
     /* In Car Communication usecase*/
     USECASE_ICC_CALL,
+
+    /* Active Noise Cancellation usecase*/
+    USECASE_ANC_LOOPBACK,
+
     AUDIO_USECASE_MAX
 };
 
@@ -264,7 +270,9 @@ typedef enum {
     VOICE_CALL,
     VOIP_CALL,
     PCM_HFP_CALL,
-    ICC_CALL
+    PCM_PASSTHROUGH,
+    ICC_CALL,
+    ANC_LOOPBACK
 } usecase_type_t;
 
 union stream_ptr {
@@ -314,6 +322,16 @@ struct streams_input_cfg {
     struct listnode sample_rate_list;
     struct stream_app_type_cfg app_type_cfg;
 };
+
+typedef struct streams_input_ctxt {
+    struct listnode list;
+    struct stream_in *input;
+} streams_input_ctxt_t;
+
+typedef struct streams_output_ctxt {
+    struct listnode list;
+    struct stream_out *output;
+} streams_output_ctxt_t;
 
 typedef void* (*adm_init_t)();
 typedef void (*adm_deinit_t)(void *);
@@ -380,9 +398,18 @@ struct audio_device {
                                            struct str_parms *);
     void (*offload_effects_set_parameters)(struct str_parms *);
     void *ext_hw_plugin;
+    struct listnode audio_patch_record_list;
+    unsigned int audio_patch_index;
+    struct listnode active_inputs_list;
+    struct listnode active_outputs_list;
+};
 
-    char hw_platfom_name[MAX_PLATFORM_ID_BUFFER_SIZE];
-    int  hw_platfom_soc_id;
+struct audio_patch_record {
+    struct listnode list;
+    audio_patch_handle_t handle;
+    audio_usecase_t usecase;
+    audio_io_handle_t input_io_handle;
+    audio_io_handle_t output_io_handle;
 };
 
 int select_devices(struct audio_device *adev,
