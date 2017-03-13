@@ -23,7 +23,7 @@ AUDIO_FEATURE_ENABLED_AAC_ADTS_OFFLOAD := true
 AUDIO_FEATURE_ENABLED_PROXY_DEVICE := true
 AUDIO_FEATURE_ENABLED_SSR := true
 AUDIO_FEATURE_ENABLED_DTS_EAGLE := false
-BOARD_USES_SRS_TRUEMEDIA := true
+BOARD_USES_SRS_TRUEMEDIA := false
 DTS_CODEC_M_ := true
 MM_AUDIO_ENABLED_SAFX := true
 AUDIO_FEATURE_ENABLED_HW_ACCELERATED_EFFECTS := false
@@ -161,10 +161,6 @@ audio.offload.multiaac.enable=true
 PRODUCT_PROPERTY_OVERRIDES += \
 audio.dolby.ds2.enabled=true\
 audio.dolby.ds2.hardbypass=true
-
-#Enable compress passthrough session
-PRODUCT_PROPERTY_OVERRIDES += \
-audio.offload.passthrough=true
 
 #Disable Multiple offload sesison
 PRODUCT_PROPERTY_OVERRIDES += \

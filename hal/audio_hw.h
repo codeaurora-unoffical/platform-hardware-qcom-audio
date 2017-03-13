@@ -280,8 +280,8 @@ struct stream_in {
     char profile[MAX_STREAM_PROFILE_STR_LEN];
     bool is_st_session;
     bool is_st_session_active;
-    int sample_rate;
-    int bit_width;
+    unsigned int sample_rate;
+    unsigned int bit_width;
     bool realtime;
     int af_period_multiplier;
     struct stream_app_type_cfg app_type_cfg;
@@ -428,6 +428,7 @@ struct audio_device {
     bool native_playback_enabled;
     bool asrc_mode_enabled;
     qahwi_device_t qahwi_dev;
+    bool vr_audio_mode_enabled;
 };
 
 int select_devices(struct audio_device *adev,

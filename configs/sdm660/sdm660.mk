@@ -85,6 +85,7 @@ PRODUCT_COPY_FILES += \
     hardware/qcom/audio/configs/sdm660/audio_platform_info.xml:system/etc/audio_platform_info.xml \
     hardware/qcom/audio/configs/sdm660/sound_trigger_mixer_paths.xml:system/etc/sound_trigger_mixer_paths.xml \
     hardware/qcom/audio/configs/sdm660/sound_trigger_mixer_paths_wcd9330.xml:system/etc/sound_trigger_mixer_paths_wcd9330.xml \
+    hardware/qcom/audio/configs/sdm660/sound_trigger_mixer_paths_wcd9335.xml:system/etc/sound_trigger_mixer_paths_wcd9335.xml \
     hardware/qcom/audio/configs/sdm660/sound_trigger_mixer_paths_wcd9340.xml:system/etc/sound_trigger_mixer_paths_wcd9340.xml \
     hardware/qcom/audio/configs/sdm660/sound_trigger_platform_info.xml:system/etc/sound_trigger_platform_info.xml \
     hardware/qcom/audio/configs/sdm660/graphite_ipc_platform_info.xml:system/etc/graphite_ipc_platform_info.xml
@@ -182,9 +183,9 @@ audio.dolby.ds2.hardbypass=true
 PRODUCT_PROPERTY_OVERRIDES += \
 audio.offload.multiple.enabled=false
 
-#Enable Compress passthrough playback
+#Disable Compress passthrough playback
 PRODUCT_PROPERTY_OVERRIDES += \
-audio.offload.passthrough=true
+audio.offload.passthrough=false
 
 #Disable surround sound recording
 PRODUCT_PROPERTY_OVERRIDES += \
@@ -208,7 +209,7 @@ flac.sw.decoder.24bit.support=true
 
 #split a2dp DSP supported encoder list
 PRODUCT_PROPERTY_OVERRIDES += \
-persist.bt.a2dp_offload_cap=sbc-aptx
+persist.bt.a2dp_offload_cap=sbc-aptx-aptxhd-aac
 
 #enable software decoders for ALAC and APE
 PRODUCT_PROPERTY_OVERRIDES += \

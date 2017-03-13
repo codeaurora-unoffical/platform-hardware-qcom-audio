@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2015-16, The Linux Foundation. All rights reserved.
+* Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -79,6 +79,7 @@ typedef void (*audio_handoff_triggered_t)(void);
 typedef void (*clear_a2dpsuspend_flag_t)(void);
 typedef void * (*audio_get_codec_config_t)(uint8_t *multicast_status,uint8_t *num_dev,
                                audio_format_t *codec_type);
+typedef int (*audio_check_a2dp_ready_t)(void);
 
 enum A2DP_STATE {
     A2DP_STATE_CONNECTED,
@@ -102,6 +103,7 @@ struct a2dp_data {
     audio_handoff_triggered_t audio_handoff_triggered;
     clear_a2dpsuspend_flag_t clear_a2dpsuspend_flag;
     audio_get_codec_config_t audio_get_codec_config;
+    audio_check_a2dp_ready_t audio_check_a2dp_ready;
     enum A2DP_STATE bt_state;
     audio_format_t bt_encoder_format;
     uint32_t enc_sampling_rate;
@@ -187,6 +189,14 @@ static void a2dp_offload_codec_cap_parser(char *value)
             ALOGD("%s: aptx offload supported\n",__func__);
             a2dp.is_a2dp_offload_supported = true;
             break;
+        } else if (strcmp(tok, "aptxhd") == 0) {
+            ALOGD("%s: aptx HD offload supported\n",__func__);
+            a2dp.is_a2dp_offload_supported = true;
+            break;
+        } else if (strcmp(tok, "aac") == 0) {
+            ALOGD("%s: aac offload supported\n",__func__);
+            a2dp.is_a2dp_offload_supported = true;
+            break;
         }
         tok = strtok_r(NULL, "-", &saveptr);
     };
@@ -236,6 +246,8 @@ static void open_a2dp_output()
                           dlsym(a2dp.bt_lib_handle, "audio_stop_stream");
             a2dp.audio_stream_close = (audio_stream_close_t)
                           dlsym(a2dp.bt_lib_handle, "audio_stream_close");
+            a2dp.audio_check_a2dp_ready = (audio_check_a2dp_ready_t)
+                        dlsym(a2dp.bt_lib_handle,"audio_check_a2dp_ready");
         }
     }
 
@@ -271,27 +283,17 @@ static int close_a2dp_output()
         ALOGE("a2dp handle is not identified, Ignoring close request");
         return -ENOSYS;
     }
-    if ((a2dp.bt_state == A2DP_STATE_CONNECTED) &&
-        (a2dp.bt_state == A2DP_STATE_STARTED) &&
-        (a2dp.bt_state == A2DP_STATE_STOPPED)) {
+    if (a2dp.bt_state != A2DP_STATE_DISCONNECTED) {
         ALOGD("calling BT stream close");
         if(a2dp.audio_stream_close() == false)
             ALOGE("failed close a2dp control path from BT library");
-        a2dp.a2dp_started = false;
-        a2dp.a2dp_total_active_session_request = 0;
-        a2dp.a2dp_suspended = false;
-        a2dp.bt_encoder_format = AUDIO_FORMAT_INVALID;
-        a2dp.enc_sampling_rate = 48000;
-        a2dp.bt_state = A2DP_STATE_DISCONNECTED;
-    } else {
-        ALOGD("close a2dp called in improper state");
-        a2dp.a2dp_started = false;
-        a2dp.a2dp_total_active_session_request = 0;
-        a2dp.a2dp_suspended = false;
-        a2dp.bt_encoder_format = AUDIO_FORMAT_INVALID;
-        a2dp.enc_sampling_rate = 48000;
-        a2dp.bt_state = A2DP_STATE_DISCONNECTED;
     }
+    a2dp.a2dp_started = false;
+    a2dp.a2dp_total_active_session_request = 0;
+    a2dp.a2dp_suspended = false;
+    a2dp.bt_encoder_format = AUDIO_FORMAT_INVALID;
+    a2dp.enc_sampling_rate = 48000;
+    a2dp.bt_state = A2DP_STATE_DISCONNECTED;
 
     return 0;
 }
@@ -623,7 +625,6 @@ int audio_extn_a2dp_start_playback()
         if (ret != 0 ) {
            ALOGE("BT controller start failed");
            a2dp.a2dp_started = false;
-           ret = -ETIMEDOUT;
         } else {
            if(configure_a2dp_encoder_format() == true) {
                 a2dp.a2dp_started = true;
@@ -684,7 +685,7 @@ int audio_extn_a2dp_stop_playback()
         return -ENOSYS;
     }
 
-    if (a2dp.a2dp_started && (a2dp.a2dp_total_active_session_request > 0))
+    if (a2dp.a2dp_total_active_session_request > 0)
         a2dp.a2dp_total_active_session_request--;
 
     if ( a2dp.a2dp_started && !a2dp.a2dp_total_active_session_request) {
@@ -802,6 +803,17 @@ void audio_extn_a2dp_get_apptype_params(uint32_t *sample_rate,
         *bit_width = 16;
     *sample_rate = a2dp.enc_sampling_rate;
 }
+
+bool audio_extn_a2dp_is_ready()
+{
+    bool ret = false;
+
+    if ((a2dp.is_a2dp_offload_supported) &&
+        (a2dp.audio_check_a2dp_ready))
+           ret = a2dp.audio_check_a2dp_ready();
+    return ret;
+}
+
 void audio_extn_a2dp_init (void *adev)
 {
   a2dp.adev = (struct audio_device*)adev;
@@ -815,5 +827,52 @@ void audio_extn_a2dp_init (void *adev)
   a2dp.is_a2dp_offload_supported = false;
   a2dp.is_handoff_in_progress = false;
   update_offload_codec_capabilities();
+}
+
+uint32_t audio_extn_a2dp_get_encoder_latency()
+{
+    void *codec_info = NULL;
+    uint8_t multi_cast = 0, num_dev = 1;
+    audio_format_t codec_type = AUDIO_FORMAT_INVALID;
+    uint32_t latency = 0;
+    int avsync_runtime_prop = 0;
+    int sbc_offset = 0, aptx_offset = 0, aptxhd_offset = 0, aac_offset = 0;
+    char value[PROPERTY_VALUE_MAX];
+
+    if (!a2dp.audio_get_codec_config) {
+        ALOGE(" a2dp handle is not identified");
+        return latency;
+    }
+    codec_info = a2dp.audio_get_codec_config(&multi_cast, &num_dev,
+                               &codec_type);
+
+    memset(value, '\0', sizeof(char)*PROPERTY_VALUE_MAX);
+    avsync_runtime_prop = property_get("audio.a2dp.codec.latency", value, NULL);
+    if (avsync_runtime_prop > 0) {
+        if (sscanf(value, "%d/%d/%d/%d",
+                  &sbc_offset, &aptx_offset, &aptxhd_offset, &aac_offset) != 4) {
+            ALOGI("Failed to parse avsync offset params from '%s'.", value);
+            avsync_runtime_prop = 0;
+        }
+    }
+
+    switch(codec_type) {
+        case AUDIO_FORMAT_SBC:
+            latency = (avsync_runtime_prop > 0) ? sbc_offset : 150;
+            break;
+        case AUDIO_FORMAT_APTX:
+            latency = (avsync_runtime_prop > 0) ? aptx_offset : 200;
+            break;
+        case AUDIO_FORMAT_APTX_HD:
+            latency = (avsync_runtime_prop > 0) ? aptxhd_offset : 200;
+            break;
+        case AUDIO_FORMAT_AAC:
+            latency = (avsync_runtime_prop > 0) ? aac_offset : 250;
+            break;
+        default:
+            latency = 200;
+            break;
+    }
+    return latency;
 }
 #endif // SPLIT_A2DP_ENABLED
