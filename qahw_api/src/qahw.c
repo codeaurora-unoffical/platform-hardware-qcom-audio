@@ -542,7 +542,7 @@ ssize_t qahw_out_write(qahw_stream_handle_t *out_handle,
     /*TBD:: validate other meta data parameters */
     pthread_mutex_lock(&qahw_stream_out->lock);
     out = qahw_stream_out->stream;
-    if (qahw_stream_out->qahwi_out_write_v2) {
+    if (qahw_stream_out->qahwi_out_write_v2 && out_buf->timestamp) {
         rc = qahw_stream_out->qahwi_out_write_v2(out, out_buf->buffer,
                                          out_buf->bytes, *(out_buf->timestamp));
         out_buf->offset = 0;

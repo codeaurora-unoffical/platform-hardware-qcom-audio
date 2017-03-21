@@ -334,10 +334,10 @@ ssize_t qahwi_out_write_v2(struct audio_stream_out *stream, const void* buffer,
         if (ret <= 0) {
             ALOGE("%s: error! write returned %zd", __func__, ret);
         } else {
-            bytes_written = out->qahwi_out.buf_size - mdata_size;
+            bytes_written = bytes;
         }
     } else {
-        bytes_written = out->qahwi_out.base.write(stream, buffer, bytes);
+        bytes_written = out->qahwi_out.base.write(&out->stream, buffer, bytes);
     }
     ALOGV("%s: flag 0x%x, bytes %zd, read %zd, ret %zd timestamp %lu",
           __func__, out->flags, bytes, bytes_written, ret, timestamp);
