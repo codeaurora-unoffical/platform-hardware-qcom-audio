@@ -92,6 +92,7 @@ const struct string_to_enum s_flag_name_to_enum_table[] = {
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_DIRECT_PCM),
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_PRIMARY),
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_FAST),
+    STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_RAW),
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_DEEP_BUFFER),
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD),
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_NON_BLOCKING),
@@ -155,6 +156,17 @@ const struct string_to_enum s_format_name_to_enum_table[] = {
 #endif
 };
 
+/* payload structure avt_device drift query */
+struct audio_avt_device_drift_stats {
+    uint32_t       minor_version;
+    /* Indicates the device interface direction as either
+     * source (Tx) or sink (Rx).
+    */
+    uint16_t        device_direction;
+    /*params exposed to client */
+    struct audio_avt_device_drift_param drift_param;
+};
+
 static char bTable[BASE_TABLE_SIZE] = {
             'A','B','C','D','E','F','G','H','I','J','K','L',
             'M','N','O','P','Q','R','S','T','U','V','W','X',
@@ -192,7 +204,7 @@ static audio_io_flags_t parse_flag_names(char *name)
         flag_name = strtok_r(NULL, "|", &last_r);
     }
 
-    ALOGV("parse_flag_names: flag - %d", flag);
+    ALOGV("parse_flag_names: flag - %x", flag);
     io_flags.in_flags = (audio_input_flags_t)flag;
     io_flags.out_flags = (audio_output_flags_t)flag;
     return io_flags;
@@ -676,8 +688,8 @@ void audio_extn_utils_update_stream_output_app_type_cfg(void *platform,
               __func__, sample_rate, bit_width);
     }
 
-    ALOGV("%s: flags: %x, format: %x sample_rate %d, profile %s",
-           __func__, flags, format, sample_rate, profile);
+    ALOGV("%s: flags: %x, format: %x sample_rate %d, profile %s, app_type %d",
+           __func__, flags, format, sample_rate, profile, app_type_cfg->app_type);
     list_for_each(node_i, streams_output_cfg_list) {
         s_info = node_to_item(node_i, struct streams_io_cfg, list);
         /* Along with flags do profile matching if set at either end.*/
@@ -723,6 +735,12 @@ static bool audio_is_this_native_usecase(struct audio_usecase *uc)
         native_usecase = true;
 
     return native_usecase;
+}
+
+
+static inline bool audio_is_vr_mode_on(struct audio_device *(__attribute__((unused)) adev))
+{
+    return adev->vr_audio_mode_enabled;
 }
 
 void audio_extn_utils_update_stream_app_type_cfg_for_usecase(
@@ -789,12 +807,21 @@ static int send_app_type_cfg_for_device(struct audio_device *adev,
     if ((usecase->id != USECASE_AUDIO_PLAYBACK_DEEP_BUFFER) &&
         (usecase->id != USECASE_AUDIO_PLAYBACK_LOW_LATENCY) &&
         (usecase->id != USECASE_AUDIO_PLAYBACK_MULTI_CH) &&
+        (usecase->id != USECASE_AUDIO_PLAYBACK_ULL) &&
         (!is_offload_usecase(usecase->id)) &&
         (usecase->type != PCM_CAPTURE)) {
         ALOGV("%s: a rx/tx/loopback path where app type cfg is not required %d", __func__, usecase->id);
         rc = 0;
         goto exit_send_app_type_cfg;
     }
+
+    //if VR is active then only send the mixer control
+    if (usecase->id == USECASE_AUDIO_PLAYBACK_ULL && !audio_is_vr_mode_on(adev)) {
+            ALOGI("ULL doesnt need sending app type cfg, returning");
+            rc = 0;
+            goto exit_send_app_type_cfg;
+    }
+
     if (usecase->type == PCM_PLAYBACK) {
         pcm_device_id = platform_get_pcm_device_id(usecase->id, PCM_PLAYBACK);
         snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
@@ -1243,11 +1270,15 @@ void audio_extn_utils_send_audio_calibration(struct audio_device *adev,
         platform_send_audio_calibration(adev->platform, usecase,
                          usecase->stream.in->app_type_cfg.app_type,
                          usecase->stream.in->app_type_cfg.sample_rate);
-    } else {
+    } else if (type == PCM_HFP_CALL) {
         /* when app type is default. the sample rate is not used to send cal */
         platform_send_audio_calibration(adev->platform, usecase,
                          platform_get_default_app_type_v2(adev->platform, usecase->type),
                          48000);
+    } else {
+        /* No need to send audio calibration for voice and voip call usecases */
+        if ((type != VOICE_CALL) && (type != VOIP_CALL))
+            ALOGW("%s: No audio calibration for usecase type = %d",  __func__, type);
     }
 }
 
@@ -1548,3 +1579,75 @@ void audio_utils_set_hdmi_channel_status(struct stream_out *out, char * buffer, 
 
 }
 #endif
+
+int audio_extn_utils_get_avt_device_drift(
+                struct audio_usecase *usecase,
+                struct audio_avt_device_drift_param *drift_param)
+{
+    int ret = 0, count = 0;
+    char avt_device_drift_mixer_ctl_name[MIXER_PATH_MAX_LENGTH] = {0};
+    struct mixer_ctl *ctl = NULL;
+    struct audio_avt_device_drift_stats drift_stats;
+    struct audio_device *adev = NULL;
+
+    if (usecase != NULL && usecase->type == PCM_PLAYBACK) {
+        adev = usecase->stream.out->dev;
+        switch(usecase->out_snd_device) {
+            case SND_DEVICE_OUT_HDMI:
+                strlcpy(avt_device_drift_mixer_ctl_name,
+                        "HDMI RX Drift",
+                        MIXER_PATH_MAX_LENGTH);
+                break;
+            case SND_DEVICE_OUT_DISPLAY_PORT:
+                strlcpy(avt_device_drift_mixer_ctl_name,
+                        "DISPLAY Port RX Drift",
+                        MIXER_PATH_MAX_LENGTH);
+                break;
+            default :
+                ALOGE("%s: Unsupported device %d",__func__,
+                        usecase->stream.out->devices);
+                ret = -EINVAL;
+        }
+    } else {
+        ALOGE("%s: Invalid usecase %d ",__func__, usecase->type);
+        ret = -EINVAL;
+    }
+
+    if(ret)
+        goto done;
+
+    ctl = mixer_get_ctl_by_name(adev->mixer, avt_device_drift_mixer_ctl_name);
+    if (!ctl) {
+        ALOGE("%s: Could not get ctl for mixer cmd - %s",
+                __func__, avt_device_drift_mixer_ctl_name);
+
+        ret = -EINVAL;
+        goto done;
+    }
+
+    ALOGV("%s: Getting AV Timer vs Device Drift mixer ctrl name %s", __func__,
+            avt_device_drift_mixer_ctl_name);
+
+    mixer_ctl_update(ctl);
+    count = mixer_ctl_get_num_values(ctl);
+    if (count != sizeof(struct audio_avt_device_drift_stats)) {
+        ALOGE("%s: mixer_ctl_get_num_values() invalid drift_stats data size",
+                __func__);
+
+        ret = -EINVAL;
+        goto done;
+    }
+
+    ret = mixer_ctl_get_array(ctl, (void *)&drift_stats, count);
+    if (ret != 0) {
+        ALOGE("%s: mixer_ctl_get_array() failed to get drift_stats Params",
+                __func__);
+
+        ret = -EINVAL;
+        goto done;
+    }
+    memcpy(drift_param, &drift_stats.drift_param,
+            sizeof(struct audio_avt_device_drift_param));
+done:
+    return ret;
+}
