@@ -777,6 +777,7 @@ int audio_extn_utils_send_app_type_cfg(struct audio_device *adev,
     if ((usecase->id != USECASE_AUDIO_PLAYBACK_DEEP_BUFFER) &&
         (usecase->id != USECASE_AUDIO_PLAYBACK_LOW_LATENCY) &&
         (usecase->id != USECASE_AUDIO_PLAYBACK_MULTI_CH) &&
+        (usecase->id != USECASE_AUDIO_PLAYBACK_DRIVER_SIDE) &&
         (!is_offload_usecase(usecase->id)) &&
         (usecase->type != PCM_CAPTURE) &&
         (usecase->id != USECASE_AUDIO_HFP_SCO) &&
