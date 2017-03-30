@@ -43,6 +43,9 @@ int platform_get_snd_device_bit_width(snd_device_t snd_device);
 int platform_set_native_support(bool codec_support);
 int platform_get_native_support();
 int platform_get_backend_index(snd_device_t snd_device);
+int platform_set_usecase_acdb_id(audio_usecase_t usecase_idx,
+                                 int type,
+                                 int acdb_id);
 int platform_send_audio_calibration(void *platform, struct audio_usecase *usecase,
                                     int app_type, int sample_rate);
 int platform_get_usecase_acdb_id(void *platform,

@@ -50,6 +50,7 @@ typedef enum {
     BACKEND_NAME,
     INTERFACE_NAME,
     CONFIG_PARAMS,
+    USECASES,
 } section_t;
 
 typedef void (* section_process_fn)(const XML_Char **attr);
@@ -62,6 +63,7 @@ static void process_backend_name(const XML_Char **attr);
 static void process_interface_name(const XML_Char **attr);
 static void process_config_params(const XML_Char **attr);
 static void process_root(const XML_Char **attr);
+static void process_usecases(const XML_Char **attr);
 
 static section_process_fn section_table[] = {
     [ROOT] = process_root,
@@ -72,6 +74,7 @@ static section_process_fn section_table[] = {
     [BACKEND_NAME] = process_backend_name,
     [INTERFACE_NAME] = process_interface_name,
     [CONFIG_PARAMS] = process_config_params,
+    [USECASES] = process_usecases,
 };
 
 static section_t section;
@@ -110,7 +113,11 @@ static struct platform_info my_data;
  *      ...
  *      ...
  * </config_params>
- *
+ * <usecases>
+ *      <usecase name="USECASE_PLAYBACK_DEEP_BUFFER" type="in/out" acdb_id="41"/>
+ * ...
+ * ...
+ * </usecases>
  * </audio_platform_info>
  */
 
@@ -342,6 +349,61 @@ done:
     return;
 }
 
+/*
+ * parsing usecase-section:
+ * <usecase name="USECASE_AUDIO_RECORD" type="in" acdb_id="11"/>
+ */
+static void process_usecases(const XML_Char **attr)
+{
+    char *uc_name = NULL;
+    int uc_id;
+    int type;
+    int acdb_id;
+
+    if (strcmp(attr[0], "name") != 0) {
+        ALOGE("%s: 'name' not found, no ACDB ID set!", __func__);
+        goto done;
+    }
+
+    uc_name = (char *)attr[1];
+    uc_id = platform_get_usecase_index(uc_name);
+    if (uc_id < 0) {
+        ALOGE("%s: usecase %s not found!",
+              __func__, uc_name);
+        goto done;
+    }
+
+    if (strcmp(attr[2], "type") != 0) {
+        ALOGE("%s: usecase type not mentioned", __func__);
+        goto done;
+    }
+
+    if (!strcasecmp((char *)attr[3], "in")) {
+        type = 1;
+    } else if (!strcasecmp((char *)attr[3], "out")) {
+        type = 0;
+    } else {
+        ALOGE("%s: type must be IN or OUT", __func__);
+        goto done;
+    }
+
+    if (strcmp(attr[4], "acdb_id") != 0) {
+        ALOGE("%s: Device %s in platform info xml has no acdb_id, no ACDB ID set!",
+            __func__, uc_name);
+        goto done;
+    }
+
+    acdb_id = atoi((char *)attr[5]);
+    if (platform_set_usecase_acdb_id(uc_id, type, acdb_id) < 0) {
+        ALOGE("%s: usecase %s uc_id=%d acdb_id=%d was not set!",
+              __func__, uc_name, uc_id, acdb_id);
+        goto done;
+    }
+
+done:
+    return;
+}
+
 static void start_tag(void *userdata __unused, const XML_Char *tag_name,
                       const XML_Char **attr)
 {
@@ -363,6 +425,8 @@ static void start_tag(void *userdata __unused, const XML_Char *tag_name,
         section = INTERFACE_NAME;
     } else if (strcmp(tag_name, "native_configs") == 0) {
         section = NATIVESUPPORT;
+    } else if (strcmp(tag_name, "usecases") == 0) {
+        section = USECASES;
     } else if (strcmp(tag_name, "device") == 0) {
         if ((section != ACDB) && (section != BACKEND_NAME) && (section != BITWIDTH) &&
             (section != INTERFACE_NAME)) {
@@ -374,12 +438,11 @@ static void start_tag(void *userdata __unused, const XML_Char *tag_name,
         section_process_fn fn = section_table[section];
         fn(attr);
     } else if (strcmp(tag_name, "usecase") == 0) {
-        if (section != PCM_ID) {
-            ALOGE("usecase tag only supported with PCM_ID section");
+        if ((section != PCM_ID) && (section != USECASES)) {
+            ALOGE("usecase tag only supported with PCM_ID/usecases section");
             return;
         }
-
-        section_process_fn fn = section_table[PCM_ID];
+        section_process_fn fn = section_table[section];
         fn(attr);
     } else if (strcmp(tag_name, "feature") == 0) {
         if (section != NATIVESUPPORT) {
@@ -418,6 +481,8 @@ static void end_tag(void *userdata __unused, const XML_Char *tag_name)
     } else if (strcmp(tag_name, "interface_names") == 0) {
         section = ROOT;
     } else if (strcmp(tag_name, "native_configs") == 0) {
+        section = ROOT;
+    } else if (strcmp(tag_name, "usecases") == 0) {
         section = ROOT;
     }
 }

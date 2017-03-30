@@ -535,6 +535,29 @@ static int acdb_device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_SPEAKER_QMIC_AEC_NS] = 129,
 };
 
+/* usecase to acdb_dev_id mapping table */
+struct acdb_uc_item {
+    int uc_id;      /* usecase id*/
+    int type;       /* 0=out, 1=in*/
+    int acdb_id;
+};
+
+#define ACDB_USECASE_TABLE_MAXCOUNT (AUDIO_USECASE_MAX * ACDB_DEV_TYPE_MAX)
+static unsigned int acdb_usecase_table_count = 0;
+static struct acdb_uc_item acdb_usecase_mapping_table[ACDB_USECASE_TABLE_MAXCOUNT];
+
+static struct acdb_uc_item* acdb_usecase_mapping_find(int uc_id, int type) {
+    int i;
+    struct acdb_uc_item *entry;
+
+    for (i = 0; i < acdb_usecase_table_count; i++) {
+        entry = &acdb_usecase_mapping_table[i];
+        if ((entry->uc_id == uc_id) && (entry->type == type))
+            return entry;
+    }
+    return NULL;
+}
+
 struct name_to_index {
     char name[100];
     unsigned int index;
@@ -640,7 +663,6 @@ static char * backend_table[SND_DEVICE_MAX] = {0};
 static struct name_to_index usecase_name_index[AUDIO_USECASE_MAX] = {
     {TO_NAME_INDEX(USECASE_AUDIO_PLAYBACK_DEEP_BUFFER)},
     {TO_NAME_INDEX(USECASE_AUDIO_PLAYBACK_LOW_LATENCY)},
-    {TO_NAME_INDEX(USECASE_AUDIO_PLAYBACK_ULL)},
     {TO_NAME_INDEX(USECASE_AUDIO_PLAYBACK_MULTI_CH)},
     {TO_NAME_INDEX(USECASE_AUDIO_PLAYBACK_OFFLOAD)},
 #ifdef MULTIPLE_OFFLOAD_ENABLED
@@ -653,18 +675,39 @@ static struct name_to_index usecase_name_index[AUDIO_USECASE_MAX] = {
     {TO_NAME_INDEX(USECASE_AUDIO_PLAYBACK_OFFLOAD8)},
     {TO_NAME_INDEX(USECASE_AUDIO_PLAYBACK_OFFLOAD9)},
 #endif
+    {TO_NAME_INDEX(USECASE_AUDIO_PLAYBACK_ULL)},
     {TO_NAME_INDEX(USECASE_AUDIO_DIRECT_PCM_OFFLOAD)},
+    {TO_NAME_INDEX(USECASE_AUDIO_PLAYBACK_FM)},
+    {TO_NAME_INDEX(USECASE_AUDIO_HFP_SCO)},
+    {TO_NAME_INDEX(USECASE_AUDIO_HFP_SCO_LINK)},
+    {TO_NAME_INDEX(USECASE_AUDIO_HFP_SCO_WB)},
+    {TO_NAME_INDEX(USECASE_AUDIO_HFP_SCO_LINK_WB)},
     {TO_NAME_INDEX(USECASE_AUDIO_RECORD)},
+    {TO_NAME_INDEX(USECASE_AUDIO_RECORD_COMPRESS)},
     {TO_NAME_INDEX(USECASE_AUDIO_RECORD_LOW_LATENCY)},
+    {TO_NAME_INDEX(USECASE_AUDIO_RECORD_FM_VIRTUAL)},
     {TO_NAME_INDEX(USECASE_VOICE_CALL)},
     {TO_NAME_INDEX(USECASE_VOICE2_CALL)},
     {TO_NAME_INDEX(USECASE_VOLTE_CALL)},
     {TO_NAME_INDEX(USECASE_QCHAT_CALL)},
     {TO_NAME_INDEX(USECASE_VOWLAN_CALL)},
+    {TO_NAME_INDEX(USECASE_VOICEMMODE1_CALL)},
+    {TO_NAME_INDEX(USECASE_VOICEMMODE2_CALL)},
+    {TO_NAME_INDEX(USECASE_COMPRESS_VOIP_CALL)},
     {TO_NAME_INDEX(USECASE_INCALL_REC_UPLINK)},
     {TO_NAME_INDEX(USECASE_INCALL_REC_DOWNLINK)},
     {TO_NAME_INDEX(USECASE_INCALL_REC_UPLINK_AND_DOWNLINK)},
-    {TO_NAME_INDEX(USECASE_AUDIO_HFP_SCO)},
+    {TO_NAME_INDEX(USECASE_INCALL_REC_UPLINK_COMPRESS)},
+    {TO_NAME_INDEX(USECASE_INCALL_REC_DOWNLINK_COMPRESS)},
+    {TO_NAME_INDEX(USECASE_INCALL_REC_UPLINK_AND_DOWNLINK_COMPRESS)},
+    {TO_NAME_INDEX(USECASE_INCALL_MUSIC_UPLINK)},
+    {TO_NAME_INDEX(USECASE_INCALL_MUSIC_UPLINK2)},
+    {TO_NAME_INDEX(USECASE_AUDIO_SPKR_CALIB_RX)},
+    {TO_NAME_INDEX(USECASE_AUDIO_SPKR_CALIB_TX)},
+    {TO_NAME_INDEX(USECASE_AUDIO_PLAYBACK_AFE_PROXY)},
+    {TO_NAME_INDEX(USECASE_AUDIO_RECORD_AFE_PROXY)},
+    {TO_NAME_INDEX(USECASE_AUDIO_PLAYBACK_DRIVER_SIDE)},
+    {TO_NAME_INDEX(USECASE_AUDIO_FM_TUNER_EXT)},
     {TO_NAME_INDEX(USECASE_ICC_CALL)},
     {TO_NAME_INDEX(USECASE_ANC_LOOPBACK)},
 };
@@ -1998,6 +2041,47 @@ int platform_get_backend_index(snd_device_t snd_device)
     return port;
 }
 
+int platform_set_usecase_acdb_id(audio_usecase_t usecase,
+                                 int type, int acdb_id)
+{
+    int ret = 0;
+    int i;
+    struct acdb_uc_item *entry;
+
+    if ((usecase <= USECASE_INVALID) || (usecase >= AUDIO_USECASE_MAX)) {
+        ALOGE("%s: invalid usecase %d", __func__, usecase);
+        ret = -EINVAL;
+        goto done;
+    }
+
+    entry = acdb_usecase_mapping_find(usecase, type);
+    if (entry) {
+        /* item found, override acdb_id */
+        entry->acdb_id = acdb_id;
+        ALOGV("%s: override uc=%d type=%d acdb_id=%d",
+            __func__, usecase, type, acdb_id);
+    } else {
+        /* nothing found, add new entry */
+        if (acdb_usecase_table_count < ACDB_USECASE_TABLE_MAXCOUNT) {
+            entry = &acdb_usecase_mapping_table[acdb_usecase_table_count];
+            entry->uc_id = usecase;
+            entry->type = type;
+            entry->acdb_id = acdb_id;
+            acdb_usecase_table_count++;
+            ALOGV("%s: add uc=%d type=%d acdb_id=%d",
+                __func__, usecase, type, acdb_id);
+        } else {
+            /* no space left */
+            ALOGE("%s: no space left in acdb_usecase_mapping_table! count=%d",
+                __func__, acdb_usecase_table_count);
+            ret = -EINVAL;
+            goto done;
+        }
+    }
+done:
+    return ret;
+}
+
 int platform_send_audio_calibration(void *platform, struct audio_usecase *usecase,
                                     int app_type, int sample_rate)
 {
@@ -2038,11 +2122,21 @@ int platform_get_usecase_acdb_id(void *platform,
     struct platform_data *my_data = (struct platform_data *)platform;
     int acdb_dev_id = 0;
     int snd_device = SND_DEVICE_NONE;
+    struct acdb_uc_item *uc_mapping;
 
     if (capability == ACDB_DEV_TYPE_IN)
         snd_device = usecase->in_snd_device;
     else
         snd_device = usecase->out_snd_device;
+
+    uc_mapping = acdb_usecase_mapping_find(usecase->id,
+                                           (capability == ACDB_DEV_TYPE_IN)? 1:0);
+    if (uc_mapping) {
+        /* mapping found */
+        ALOGV("%s: use mapping usecase=%d type=%d acdb_id=%d",
+            __func__, uc_mapping->uc_id, uc_mapping->type, uc_mapping->acdb_id);
+        return uc_mapping->acdb_id;
+    }
 
     switch(usecase->type) {
     case VOICE_CALL:
