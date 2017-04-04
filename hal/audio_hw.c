@@ -3954,10 +3954,17 @@ static int adev_create_audio_patch(struct audio_hw_device *dev,
 
     /* Release patch if valid handle */
     if (*handle != AUDIO_PATCH_HANDLE_NONE) {
+        /* TODO: pending fix in AOSP HIDL audio patch
+         * to initialize handle before passing into hal */
+        ALOGE("%s: non-null handle (%d)", __func__, *handle);
+#if 0
         ret = adev->device.release_audio_patch(dev, *handle);
         if (ret) {
             ALOGE("%s: failed to release patch (%d)", __func__, *handle);
+            return ret;
         }
+#endif
+        *handle = AUDIO_PATCH_HANDLE_NONE;
     }
 
     /* No validation on num of sources and sinks to allow patch with multiple sinks */
