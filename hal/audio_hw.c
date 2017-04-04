@@ -4091,6 +4091,9 @@ static int adev_create_audio_patch(struct audio_hw_device *dev,
                 __func__, out_ctxt->output->devices);
         }
         pthread_mutex_unlock(&out_ctxt->output->lock);
+        /* To avoid resource leak due to treble framework not releasing
+         * audio patch. To be fixed in the framework. */
+        return ret;
     } else if ((sources->type == AUDIO_PORT_TYPE_DEVICE) &&
         (sinks->type == AUDIO_PORT_TYPE_DEVICE)) {
         /* allocate use case and call to plugin driver*/
