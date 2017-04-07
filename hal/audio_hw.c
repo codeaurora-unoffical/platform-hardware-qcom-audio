@@ -2076,9 +2076,9 @@ static void *offload_thread_loop(void *context)
         lock_output_stream(out);
         out->offload_thread_blocked = false;
         pthread_cond_signal(&out->cond);
-        if (send_callback && out->offload_callback) {
-            ALOGVV("%s: sending offload_callback event %d", __func__, event);
-            out->offload_callback(event, NULL, out->offload_cookie);
+        if (send_callback && out->client_callback) {
+            ALOGVV("%s: sending client_callback event %d", __func__, event);
+            out->client_callback(event, NULL, out->client_cookie);
         }
         free(cmd);
     }
@@ -2163,6 +2163,9 @@ static int stop_output_stream(struct stream_out *out)
     /* Must be called after removing the usecase from list */
     if (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL)
         audio_extn_keep_alive_start();
+
+    /*reset delay_param to 0*/
+    out->delay_param.start_delay = 0;
 
     ALOGV("%s: exit: status(%d)", __func__, ret);
     return ret;
@@ -2328,7 +2331,7 @@ int start_output_stream(struct stream_out *out)
         /* compress_open sends params of the track, so reset the flag here */
         out->is_compr_metadata_avail = false;
 
-        if (out->offload_callback)
+        if (out->client_callback)
             compress_nonblock(out->compr, out->non_blocking);
 
         /* Since small bufs uses blocking writes, a write will be blocked
@@ -2345,6 +2348,7 @@ int start_output_stream(struct stream_out *out)
         if (out->render_window.render_ws != 0 && out->render_window.render_we != 0)
             audio_extn_utils_compress_set_render_window(out,
                                             &out->render_window);
+        audio_extn_utils_compress_set_start_delay(out, &out->delay_param);
 
         audio_extn_dts_create_state_notifier_node(out->usecase);
         audio_extn_dts_notify_playback_state(out->usecase, 0, out->sample_rate,
@@ -3397,11 +3401,21 @@ static int out_set_callback(struct audio_stream_out *stream,
             stream_callback_t callback, void *cookie)
 {
     struct stream_out *out = (struct stream_out *)stream;
+    int ret;
 
     ALOGV("%s", __func__);
     lock_output_stream(out);
-    out->offload_callback = callback;
-    out->offload_cookie = cookie;
+    out->client_callback = callback;
+    out->client_cookie = cookie;
+    if (out->adsp_hdlr_stream_handle) {
+        ret = audio_extn_adsp_hdlr_stream_set_callback(
+                                out->adsp_hdlr_stream_handle,
+                                callback,
+                                cookie);
+        if (ret)
+            ALOGW("%s:adsp hdlr callback registration failed %d",
+                   __func__, ret);
+    }
     pthread_mutex_unlock(&out->lock);
     return 0;
 }
@@ -3811,7 +3825,10 @@ exit:
             pthread_mutex_unlock(&adev->lock);
             in->standby = true;
         }
-        memset(buffer, 0, bytes);
+        if (!audio_extn_cin_attached_usecase(in->usecase)) {
+            bytes_read = bytes;
+            memset(buffer, 0, bytes);
+        }
         in_standby(&in->stream.common);
         ALOGV("%s: read failed status %d- sleeping for buffer duration", __func__, ret);
         usleep((uint64_t)bytes * 1000000 / audio_stream_in_frame_size(stream) /
@@ -3884,6 +3901,7 @@ int adev_open_output_stream(struct audio_hw_device *dev,
     struct stream_out *out;
     int ret = 0;
     audio_format_t format;
+    struct adsp_hdlr_stream_cfg hdlr_stream_cfg;
 
     *stream_out = NULL;
 
@@ -4020,6 +4038,7 @@ int adev_open_output_stream(struct audio_hw_device *dev,
         }
 
         if (out->flags & AUDIO_OUTPUT_FLAG_DIRECT_PCM) {
+            out->stream.set_callback = out_set_callback;
             out->stream.pause = out_pause;
             out->stream.flush = out_flush;
             out->stream.resume = out_resume;
@@ -4376,7 +4395,20 @@ int adev_open_output_stream(struct audio_hw_device *dev,
     if (out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)
         audio_extn_dts_notify_playback_state(out->usecase, 0, out->sample_rate,
                                              popcount(out->channel_mask), out->playback_started);
-
+    /* setup a channel for client <--> adsp communication for stream events */
+    if ((out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) ||
+            (out->flags & AUDIO_OUTPUT_FLAG_DIRECT_PCM)) {
+        hdlr_stream_cfg.pcm_device_id = platform_get_pcm_device_id(
+                out->usecase, PCM_PLAYBACK);
+        hdlr_stream_cfg.flags = out->flags;
+        hdlr_stream_cfg.type = PCM_PLAYBACK;
+        ret = audio_extn_adsp_hdlr_stream_open(&out->adsp_hdlr_stream_handle,
+                &hdlr_stream_cfg);
+        if (ret) {
+            ALOGE("%s: adsp_hdlr_stream_open failed %d",__func__, ret);
+            out->adsp_hdlr_stream_handle = NULL;
+        }
+    }
     ALOGV("%s: exit", __func__);
     return 0;
 
@@ -4397,6 +4429,14 @@ void adev_close_output_stream(struct audio_hw_device *dev __unused,
     int ret = 0;
 
     ALOGD("%s: enter:stream_handle(%p)",__func__, out);
+
+    /* close adsp hdrl session before standby */
+    if (out->adsp_hdlr_stream_handle) {
+        ret = audio_extn_adsp_hdlr_stream_close(out->adsp_hdlr_stream_handle);
+        if (ret)
+            ALOGE("%s: adsp_hdlr_stream_close failed %d",__func__, ret);
+        out->adsp_hdlr_stream_handle = NULL;
+    }
 
     if (out->usecase == USECASE_COMPRESS_VOIP_CALL) {
         pthread_mutex_lock(&adev->lock);
@@ -5091,6 +5131,7 @@ static int adev_close(hw_device_t *device)
         if (adev->adm_deinit)
             adev->adm_deinit(adev->adm_data);
         qahwi_deinit(device);
+        audio_extn_adsp_hdlr_deinit();
         free(device);
         adev = NULL;
     }
@@ -5345,6 +5386,7 @@ static int adev_open(const hw_module_t *module, const char *name,
 
     qahwi_init(*device);
     audio_extn_perf_lock_init();
+    audio_extn_adsp_hdlr_init(adev->mixer);
     ALOGV("%s: exit", __func__);
     return 0;
 }
