@@ -296,6 +296,7 @@ static const struct string_to_enum out_formats_name_to_enum_table[] = {
     STRING_TO_ENUM(AUDIO_FORMAT_DOLBY_TRUEHD),
     STRING_TO_ENUM(AUDIO_FORMAT_DTS),
     STRING_TO_ENUM(AUDIO_FORMAT_DTS_HD),
+    STRING_TO_ENUM(AUDIO_FORMAT_IEC61937)
 };
 
 //list of all supported sample rates by HDMI specification.
@@ -522,7 +523,8 @@ static bool is_supported_format(audio_format_t format)
         format == AUDIO_FORMAT_VORBIS ||
         format == AUDIO_FORMAT_WMA ||
         format == AUDIO_FORMAT_WMA_PRO ||
-        format == AUDIO_FORMAT_APTX)
+        format == AUDIO_FORMAT_APTX ||
+        format == AUDIO_FORMAT_IEC61937)
            return true;
 
     return false;
@@ -1328,6 +1330,11 @@ static int read_hdmi_sink_caps(struct stream_out *out)
     if (platform_is_edid_supported_format(out->dev->platform, AUDIO_FORMAT_DTS_HD)) {
         ALOGV(":%s HDMI supports DTS HD format", __func__);
         out->supported_formats[i++] = AUDIO_FORMAT_DTS_HD;
+    }
+
+    if (platform_is_edid_supported_format(out->dev->platform, AUDIO_FORMAT_IEC61937)) {
+        ALOGV(":%s HDMI supports IEC61937 format", __func__);
+        out->supported_formats[i++] = AUDIO_FORMAT_IEC61937;
     }
 
 
@@ -4248,6 +4255,7 @@ int adev_open_output_stream(struct audio_hw_device *dev,
          */
         if (audio_extn_passthru_is_passthrough_stream(out) ||
                 (config->format == AUDIO_FORMAT_DSD) ||
+                (config->format == AUDIO_FORMAT_IEC61937) ||
                 config->offload_info.has_video ||
                 out->flags & AUDIO_OUTPUT_FLAG_DIRECT_PCM) {
             check_and_set_gapless_mode(adev, false);
