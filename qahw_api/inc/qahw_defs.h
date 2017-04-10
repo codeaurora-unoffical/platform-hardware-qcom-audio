@@ -294,6 +294,8 @@ typedef union {
     struct qahw_aptx_dec_param aptx_params;
     struct qahw_avt_device_drift_param drift_params;
     struct qahw_out_render_window_param render_window_params;
+    struct qahw_out_start_delay_param start_delay;
+    struct qahw_adsp_event adsp_event_params;
 } qahw_param_payload;
 
 typedef enum {

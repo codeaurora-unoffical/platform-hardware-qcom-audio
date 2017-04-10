@@ -31,6 +31,7 @@
 /*#define LOG_NDEBUG 0*/
 #define LOG_NDDEBUG 0
 
+#include <inttypes.h>
 #include <errno.h>
 #include <cutils/log.h>
 
@@ -287,7 +288,7 @@ static int qahwi_open_input_stream(struct audio_hw_device *dev,
 }
 
 ssize_t qahwi_out_write_v2(struct audio_stream_out *stream, const void* buffer,
-                          size_t bytes, uint64_t timestamp)
+                          size_t bytes, int64_t* timestamp)
 {
     struct stream_out *out = (struct stream_out *)stream;
     struct snd_codec_metadata *mdata = NULL;
@@ -308,7 +309,7 @@ ssize_t qahwi_out_write_v2(struct audio_stream_out *stream, const void* buffer,
             mdata = (struct snd_codec_metadata *) buf;
             mdata->length = bytes;
             mdata->offset = mdata_size;
-            mdata->timestamp = timestamp;
+            mdata->timestamp = *timestamp;
         }
         memcpy(buf + mdata_size, buffer, bytes);
         ret = out->qahwi_out.base.write(&out->stream, (void *)buf, out->qahwi_out.buf_size);
@@ -317,12 +318,13 @@ ssize_t qahwi_out_write_v2(struct audio_stream_out *stream, const void* buffer,
         } else {
             bytes_written = bytes;
         }
+        ALOGV("%s: flag 0x%x, bytes %zd, read %zd, ret %zd timestamp 0x%"PRIx64"",
+              __func__, out->flags, bytes, bytes_written, ret, *timestamp);
     } else {
         bytes_written = out->qahwi_out.base.write(&out->stream, buffer, bytes);
+        ALOGV("%s: flag 0x%x, bytes %zd, read %zd, ret %zd",
+              __func__, out->flags, bytes, bytes_written, ret);
     }
-    ALOGV("%s: flag 0x%x, bytes %zd, read %zd, ret %zd timestamp %lu",
-          __func__, out->flags, bytes, bytes_written, ret, timestamp);
-
     return bytes_written;
 }
 
@@ -381,7 +383,7 @@ static int qahwi_open_output_stream(struct audio_hw_device *dev,
 
         mdata_size = sizeof(struct snd_codec_metadata);
         buf_size = out->qahwi_out.base.common.get_buffer_size(&out->stream.common);
-	buf_size += mdata_size;
+        buf_size += mdata_size;
         out->qahwi_out.buf_size = buf_size;
         out->qahwi_out.obuf = malloc(buf_size);
         if (!out->qahwi_out.obuf) {
