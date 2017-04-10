@@ -51,6 +51,7 @@
 #define MIXER_XML_PATH_SKUE "/system/etc/mixer_paths_skue.xml"
 #define MIXER_XML_PATH_SKUL "/system/etc/mixer_paths_skul.xml"
 #define MIXER_XML_PATH_SKUS "/system/etc/mixer_paths_skus.xml"
+#define MIXER_XML_PATH_SKUSH "/system/etc/mixer_paths_skush.xml"
 #define MIXER_XML_PATH_SKUM "/system/etc/mixer_paths_qrd_skum.xml"
 #define MIXER_XML_PATH_SKU1 "/system/etc/mixer_paths_qrd_sku1.xml"
 #define MIXER_XML_PATH_SKUN_CAJON "/system/etc/mixer_paths_qrd_skun_cajon.xml"
@@ -70,6 +71,7 @@
 #define MIXER_XML_PATH_WCD9326 "/etc/mixer_paths_wcd9326.xml"
 #define MIXER_XML_PATH_WCD9335 "/etc/mixer_paths_wcd9335.xml"
 #define PLATFORM_INFO_XML_PATH_EXTCODEC  "/etc/audio_platform_info_extcodec.xml"
+#define PLATFORM_INFO_XML_PATH_SKUSH  "/etc/audio_platform_info_skush.xml"
 #define PLATFORM_INFO_XML_PATH      "/etc/audio_platform_info.xml"
 #define MIXER_XML_PATH_WCD9326_I2S "/etc/mixer_paths_wcd9326_i2s.xml"
 #define MIXER_XML_PATH_WCD9330_I2S "/etc/mixer_paths_wcd9330_i2s.xml"
@@ -80,6 +82,7 @@
 #define MIXER_XML_PATH_MTP "/system/etc/mixer_paths_mtp.xml"
 #define MIXER_XML_PATH_SKU2 "/system/etc/mixer_paths_qrd_sku2.xml"
 #define PLATFORM_INFO_XML_PATH_EXTCODEC  "/system/etc/audio_platform_info_extcodec.xml"
+#define PLATFORM_INFO_XML_PATH_SKUSH "/system/etc/audio_platform_info_skush.xml"
 #define MIXER_XML_PATH_WCD9326 "/system/etc/mixer_paths_wcd9326.xml"
 #define MIXER_XML_PATH_WCD9335 "/system/etc/mixer_paths_wcd9335.xml"
 #define MIXER_XML_PATH_SKUN "/system/etc/mixer_paths_qrd_skun.xml"
@@ -257,6 +260,7 @@ struct platform_data {
     bool fluence_in_voice_call;
     bool fluence_in_voice_rec;
     bool fluence_in_audio_rec;
+    bool fluence_in_hfp_call;
     bool external_spk_1;
     bool external_spk_2;
     bool external_mic;
@@ -1245,6 +1249,13 @@ static void query_platform(const char *snd_card_name,
         msm_device_to_be_id = msm_device_to_be_id_internal_codec;
         msm_be_id_array_len  =
             sizeof(msm_device_to_be_id_internal_codec) / sizeof(msm_device_to_be_id_internal_codec[0]);
+    } else if (!strncmp(snd_card_name, "sdm660-snd-card-skush",
+                  sizeof("sdm660-snd-card-skush"))) {
+        strlcpy(mixer_xml_path, MIXER_XML_PATH_SKUSH,
+               MAX_MIXER_XML_PATH);
+        msm_device_to_be_id = msm_device_to_be_id_internal_codec;
+        msm_be_id_array_len  =
+            sizeof(msm_device_to_be_id_internal_codec) / sizeof(msm_device_to_be_id_internal_codec[0]);
     } else if (!strncmp(snd_card_name, "sdm660-tasha-snd-card",
                  sizeof("sdm660-tasha-snd-card"))) {
         strlcpy(mixer_xml_path, MIXER_XML_PATH_WCD9335,
@@ -2084,6 +2095,7 @@ void *platform_init(struct audio_device *adev)
     my_data->fluence_in_voice_call = false;
     my_data->fluence_in_voice_rec = false;
     my_data->fluence_in_audio_rec = false;
+    my_data->fluence_in_hfp_call = false;
     my_data->external_spk_1 = false;
     my_data->external_spk_2 = false;
     my_data->external_mic = false;
@@ -2133,6 +2145,11 @@ void *platform_init(struct audio_device *adev)
         if (!strncmp("broadside", value, sizeof("broadside"))) {
             my_data->fluence_mode = FLUENCE_BROADSIDE;
         }
+
+        property_get("persist.audio.fluence.hfpcall",value,"");
+        if (!strncmp("true", value, sizeof("true"))) {
+            my_data->fluence_in_hfp_call = true;
+        }
     }
 
     if (check_and_get_wsa_info((char *)snd_card_name, &wsaCount, &is_wsa_combo_supported)) {
@@ -2180,6 +2197,9 @@ void *platform_init(struct audio_device *adev)
     /* Initialize ACDB and PCM ID's */
     if (is_external_codec)
         platform_info_init(PLATFORM_INFO_XML_PATH_EXTCODEC, my_data);
+    else if (!strncmp(snd_card_name, "sdm660-snd-card-skush",
+               sizeof("sdm660-snd-card-skush")))
+        platform_info_init(PLATFORM_INFO_XML_PATH_SKUSH, my_data);
     else
         platform_info_init(PLATFORM_INFO_XML_PATH, my_data);
 
@@ -2317,10 +2337,10 @@ acdb_init_fail:
     /* obtain source mic type from max mic count*/
     get_source_mic_type(my_data);
     ALOGD("%s: Fluence_Type(%d) max_mic_count(%d) mic_type(0x%x) fluence_in_voice_call(%d)"
-          " fluence_in_voice_rec(%d) fluence_in_spkr_mode(%d) ",
+          " fluence_in_voice_rec(%d) fluence_in_spkr_mode(%d) fluence_in_hfp_call(%d) ",
           __func__, my_data->fluence_type, my_data->max_mic_count, my_data->source_mic_type,
           my_data->fluence_in_voice_call, my_data->fluence_in_voice_rec,
-          my_data->fluence_in_spkr_mode);
+          my_data->fluence_in_spkr_mode, my_data->fluence_in_hfp_call);
 
     /* init usb */
     audio_extn_usb_init(adev);
@@ -3862,7 +3882,8 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
                 snd_device = SND_DEVICE_IN_AANC_HANDSET_MIC;
                 adev->acdb_settings |= ANC_FLAG;
             } else if (my_data->fluence_type == FLUENCE_NONE ||
-                my_data->fluence_in_voice_call == false) {
+                my_data->fluence_in_voice_call == false ||
+                my_data->fluence_in_hfp_call == false) {
                 snd_device = SND_DEVICE_IN_HANDSET_MIC;
                 if (audio_extn_hfp_is_active(adev))
                     platform_set_echo_reference(adev, true, out_device);
@@ -3888,7 +3909,8 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
             }
         } else if (out_device & AUDIO_DEVICE_OUT_SPEAKER) {
             if (my_data->fluence_type != FLUENCE_NONE &&
-                my_data->fluence_in_voice_call &&
+                (my_data->fluence_in_voice_call ||
+                 my_data->fluence_in_hfp_call) &&
                 my_data->fluence_in_spkr_mode) {
                 if((my_data->fluence_type & FLUENCE_QUAD_MIC) &&
                    (my_data->source_mic_type & SOURCE_QUAD_MIC)) {
@@ -5166,6 +5188,7 @@ static bool platform_check_codec_backend_cfg(struct audio_device* adev,
     unsigned int sample_rate;
     unsigned int channels;
     bool passthrough_enabled = false;
+    bool voice_call_active = false;
     int backend_idx = DEFAULT_CODEC_BACKEND;
     struct platform_data *my_data = (struct platform_data *)adev->platform;
     int na_mode = platform_get_native_support();
@@ -5198,6 +5221,7 @@ static bool platform_check_codec_backend_cfg(struct audio_device* adev,
         bit_width = CODEC_BACKEND_DEFAULT_BIT_WIDTH;
         sample_rate =  CODEC_BACKEND_DEFAULT_SAMPLE_RATE;
         channels = CODEC_BACKEND_DEFAULT_CHANNELS;
+        voice_call_active = true;
     } else {
         /*
          * The backend should be configured at highest bit width and/or
@@ -5237,7 +5261,7 @@ static bool platform_check_codec_backend_cfg(struct audio_device* adev,
     }
 
     /* Native playback is preferred for Headphone/HS device over 192Khz */
-    if (codec_device_supports_native_playback(usecase->devices)) {
+    if (!voice_call_active && codec_device_supports_native_playback(usecase->devices)) {
         if (audio_is_true_native_stream_active(adev)) {
             if (check_hdset_combo_device(snd_device)) {
                 /*
@@ -5248,8 +5272,8 @@ static bool platform_check_codec_backend_cfg(struct audio_device* adev,
                  */
                     sample_rate = CODEC_BACKEND_DEFAULT_SAMPLE_RATE;
                     bit_width = CODEC_BACKEND_DEFAULT_BIT_WIDTH;
-                    ALOGD("%s:becf: afe: port has to run at 48k for a combo device",
-                          __func__);
+                    ALOGD("%s:becf: afe: port to run at 48k if combo device or in voice call"
+                           , __func__);
             } else {
              /*
               * in single BE mode, if native audio playback
@@ -5487,9 +5511,9 @@ static bool platform_check_capture_codec_backend_cfg(struct audio_device* adev,
         /* update cfg against other existing capture usecases on same backend */
         list_for_each(node, &adev->usecase_list) {
             uc = node_to_item(node, struct audio_usecase, list);
-            if (uc->type == PCM_CAPTURE &&
+            in = (struct stream_in *) uc->stream.in;
+            if (in != NULL && uc->type == PCM_CAPTURE &&
                 backend_idx == platform_get_backend_index(uc->in_snd_device)) {
-                in = (struct stream_in *) uc->stream.in;
                 uc_channels = audio_channel_count_from_in_mask(in->channel_mask);
 
                 ALOGV("%s:txbecf: uc %s, id %d, sr %d, bw %d, ch %d, device %s",
@@ -5906,12 +5930,12 @@ int platform_set_channel_map(void *platform, int ch_count, char *ch_map, int snd
     char mixer_ctl_name[44] = {0}; // max length of name is 44 as defined
     int ret;
     unsigned int i;
-    int set_values[8] = {0};
+    int set_values[FCC_8] = {0};
     struct platform_data *my_data = (struct platform_data *)platform;
     struct audio_device *adev = my_data->adev;
     ALOGV("%s channel_count:%d",__func__, ch_count);
-    if (NULL == ch_map) {
-        ALOGE("%s: Invalid channel mapping used", __func__);
+    if (NULL == ch_map || (ch_count < 1) || (ch_count > FCC_8)) {
+        ALOGE("%s: Invalid channel mapping or channel count value", __func__);
         return -EINVAL;
     }
 
@@ -5933,7 +5957,7 @@ int platform_set_channel_map(void *platform, int ch_count, char *ch_map, int snd
               __func__, mixer_ctl_name);
         return -EINVAL;
     }
-    for (i = 0; i< ARRAY_SIZE(set_values); i++) {
+    for (i = 0; i < (unsigned int)ch_count; i++) {
         set_values[i] = ch_map[i];
     }
 
@@ -5941,7 +5965,7 @@ int platform_set_channel_map(void *platform, int ch_count, char *ch_map, int snd
         set_values[0], set_values[1], set_values[2], set_values[3], set_values[4],
         set_values[5], set_values[6], set_values[7], ch_count);
 
-    ret = mixer_ctl_set_array(ctl, set_values, ch_count);
+    ret = mixer_ctl_set_array(ctl, set_values, ARRAY_SIZE(set_values));
     if (ret < 0) {
         ALOGE("%s: Could not set ctl, error:%d ch_count:%d",
               __func__, ret, ch_count);
