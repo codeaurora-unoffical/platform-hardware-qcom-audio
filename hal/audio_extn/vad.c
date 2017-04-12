@@ -109,7 +109,7 @@ typedef struct vad_circ_buf_t {
 /* VAD CSIM functions */
 typedef int (*vad_init_t)(void *, vad_cfg_t *, uint8_t *, uint32_t);
 typedef int (*vad_get_size_t) (vad_cfg_t *, vad_size_t *);
-typedef int (*vad_process_t)(void *, uint8_t *, uint32_t, uint8_t *);
+typedef int (*vad_process_t)(void *, uint8_t **, uint32_t, uint8_t **);
 typedef int (*vad_get_param_t)(void *, uint8_t *, uint32_t, uint32_t, uint32_t *);
 typedef int (*vad_set_param_t)(void *, uint8_t *, uint32_t, uint32_t);
 
@@ -174,7 +174,7 @@ static void * vad_pcm_read_loop(void *context)
   struct audio_device *adev = in->dev;
   uint8_t* vad_process_ptr = NULL;
   int ret = 0;
-  int i;
+  uint32_t i;
   int vad_detected_per_frame_count = 0;
   FILE *vad_fp, *pcm_fp;
 
@@ -307,7 +307,7 @@ static void * vad_pcm_read_loop(void *context)
 static int vad_init ()
 {
   int ret = 0;
-  int mem_size_written = 0;
+  uint32_t mem_size_written = 0;
   int init_buf_mem_size = 0;
 
   ALOGD("%s: start",__func__);
@@ -405,7 +405,7 @@ static int vad_init ()
     goto error;
   }
 
-  ret = self.vad_func.vad_get_param(&self.vad_lib, &self.vad_params, 0, sizeof(self.vad_params), &mem_size_written);
+  ret = self.vad_func.vad_get_param(&self.vad_lib, (uint8_t *)&self.vad_params, 0, sizeof(self.vad_params), &mem_size_written);
 
   if (ret) {
     ALOGE("%s: Failed to Get VAD Module Params with error %d",
@@ -434,7 +434,7 @@ static int vad_init ()
   self.vad_params.vad_hangover = 15;
   self.vad_params.vad_min_noise_floor = 13000;
 
-  ret = self.vad_func.vad_set_param(&self.vad_lib, &self.vad_params, 0, sizeof(self.vad_params));
+  ret = self.vad_func.vad_set_param(&self.vad_lib, (uint8_t *)&self.vad_params, 0, sizeof(self.vad_params));
 
   if (ret) {
     ALOGE("%s: Failed to Set VAD Module Params with error %d",
@@ -444,7 +444,7 @@ static int vad_init ()
   else
     ALOGD("%s: VAD Set Param Successful", __func__);
 
-  ret = self.vad_func.vad_get_param(&self.vad_lib, &self.vad_params, 0, sizeof(self.vad_params), &mem_size_written);
+  ret = self.vad_func.vad_get_param(&self.vad_lib, (uint8_t *)&self.vad_params, 0, sizeof(self.vad_params), &mem_size_written);
 
   if (ret) {
     ALOGE("%s: Failed to Get VAD Module Params with error %d",
