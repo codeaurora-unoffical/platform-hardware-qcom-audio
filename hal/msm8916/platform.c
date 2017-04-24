@@ -5188,6 +5188,7 @@ static bool platform_check_codec_backend_cfg(struct audio_device* adev,
     unsigned int sample_rate;
     unsigned int channels;
     bool passthrough_enabled = false;
+    bool voice_call_active = false;
     int backend_idx = DEFAULT_CODEC_BACKEND;
     struct platform_data *my_data = (struct platform_data *)adev->platform;
     int na_mode = platform_get_native_support();
@@ -5220,6 +5221,7 @@ static bool platform_check_codec_backend_cfg(struct audio_device* adev,
         bit_width = CODEC_BACKEND_DEFAULT_BIT_WIDTH;
         sample_rate =  CODEC_BACKEND_DEFAULT_SAMPLE_RATE;
         channels = CODEC_BACKEND_DEFAULT_CHANNELS;
+        voice_call_active = true;
     } else {
         /*
          * The backend should be configured at highest bit width and/or
@@ -5259,7 +5261,7 @@ static bool platform_check_codec_backend_cfg(struct audio_device* adev,
     }
 
     /* Native playback is preferred for Headphone/HS device over 192Khz */
-    if (codec_device_supports_native_playback(usecase->devices)) {
+    if (!voice_call_active && codec_device_supports_native_playback(usecase->devices)) {
         if (audio_is_true_native_stream_active(adev)) {
             if (check_hdset_combo_device(snd_device)) {
                 /*
@@ -5270,8 +5272,8 @@ static bool platform_check_codec_backend_cfg(struct audio_device* adev,
                  */
                     sample_rate = CODEC_BACKEND_DEFAULT_SAMPLE_RATE;
                     bit_width = CODEC_BACKEND_DEFAULT_BIT_WIDTH;
-                    ALOGD("%s:becf: afe: port has to run at 48k for a combo device",
-                          __func__);
+                    ALOGD("%s:becf: afe: port to run at 48k if combo device or in voice call"
+                           , __func__);
             } else {
              /*
               * in single BE mode, if native audio playback
@@ -5336,7 +5338,7 @@ static bool platform_check_codec_backend_cfg(struct audio_device* adev,
                sample_rate = CODEC_BACKEND_DEFAULT_SAMPLE_RATE;
     }
 
-    if (backend_idx == HDMI_RX_BACKEND) {
+    if ((backend_idx == HDMI_RX_BACKEND) || (backend_idx == DISP_PORT_RX_BACKEND)) {
         struct audio_backend_cfg hdmi_backend_cfg;
         hdmi_backend_cfg.bit_width = bit_width;
         hdmi_backend_cfg.sample_rate = sample_rate;

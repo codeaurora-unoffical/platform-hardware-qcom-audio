@@ -237,6 +237,40 @@ audio_io_handle_t stream_handle = 0x999;
                    "music_offload_wma_encode_option2=%d;" \
                    "music_offload_wma_format_tag=%d;"
 
+static bool request_wake_lock(bool wakelock_acquired, bool enable)
+{
+   int system_ret;
+
+   if (enable) {
+       if (!wakelock_acquired) {
+           system_ret = system("echo audio_services > /sys/power/wake_lock");
+           if (system_ret < 0) {
+               fprintf(stderr, "%s.Failed to acquire audio_service lock\n", __func__);
+               fprintf(log_file, "%s.Failed to acquire audio_service lock\n", __func__);
+           } else {
+               wakelock_acquired = true;
+               fprintf(log_file, "%s.Success to acquire audio_service lock\n", __func__);
+           }
+       } else
+            fprintf(log_file, "%s.Lock is already acquired\n", __func__);
+   }
+
+   if (!enable) {
+       if (wakelock_acquired) {
+           system_ret = system("echo audio_services > /sys/power/wake_unlock");
+           if (system_ret < 0) {
+               fprintf(stderr, "%s.Failed to release audio_service lock\n", __func__);
+               fprintf(log_file, "%s.Failed to release audio_service lock\n", __func__);
+           } else {
+               wakelock_acquired = false;
+               fprintf(log_file, "%s.Success to release audio_service lock\n", __func__);
+           }
+       } else
+            fprintf(log_file, "%s.No Lock is acquired to release\n", __func__);
+   }
+   return wakelock_acquired;
+}
+
 void stop_signal_handler(int signal __unused)
 {
    stop_playback = true;
@@ -1145,6 +1179,9 @@ static int get_kvpairs_string(char *kvpairs, const char *key, char *value) {
         return -1;
 
     parms = str_parms_create_str(kvpairs);
+    if (parms == NULL)
+        return -1;
+
     if (str_parms_get_str(parms, key, value, KVPAIRS_MAX) < 0)
         return -1;
 
@@ -1169,7 +1206,7 @@ static int get_pcm_format(char *kvpairs) {
    /*
     * for now we assume usb hal/pcm device announces suport for one format ONLY
     */
-    for (i = 0; i < sizeof(format_table); i++) {
+    for (i = 0; i < (sizeof(format_table)/sizeof(format_table[0])); i++) {
         if(!strncmp(format_table[i].string, value, sizeof(value))) {
             match = true;
             break;
@@ -1307,8 +1344,8 @@ static int detect_stream_params(stream_config *stream) {
         param_string = qahw_out_get_parameters(stream->out_handle, QAHW_PARAMETER_STREAM_SUP_CHANNELS);
 
     if ((ch = get_channels(param_string)) <= 0) {
-        fprintf(log_file, "Unable to extract channels =(%d) string(%s)\n", ch, param_string);
-        fprintf(stderr, "Unable to extract channels =(%d) string(%s)\n", ch, param_string);
+        fprintf(log_file, "Unable to extract channels =(%d) string(%s)\n", ch, param_string == NULL ? "null":param_string);
+        fprintf(stderr, "Unable to extract channels =(%d) string(%s)\n", ch, param_string == NULL ? "null":param_string);
         return -1;
     }
     stream->config.channel_mask = audio_channel_in_mask_from_count(ch);
@@ -1578,6 +1615,7 @@ int main(int argc, char* argv[]) {
     int j = 0;
     kpi_mode = false;
     event_trigger = false;
+    bool wakelock_acquired = false;
 
     log_file = stdout;
     proxy_params.acp.file_name = "/data/pcm_dump.wav";
@@ -1743,6 +1781,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    wakelock_acquired = request_wake_lock(wakelock_acquired, true);
     num_of_streams = i+1;
     fprintf(log_file, "Starting audio hal tests for streams : %d\n", num_of_streams);
 
@@ -1901,7 +1940,7 @@ exit:
         if (stream_param[i].file_stream != nullptr)
             fclose(stream_param[i].file_stream);
         else if (AUDIO_DEVICE_NONE != stream_param[i].input_device) {
-            if (stream->in_handle) {
+            if (stream != NULL && stream->in_handle) {
                 rc = qahw_close_input_stream(stream->in_handle);
                 if (rc) {
                     fprintf(log_file, "input stream could not be closed\n");
@@ -1917,6 +1956,7 @@ exit:
     if ((log_file != stdout) && (log_file != nullptr))
         fclose(log_file);
 
+    wakelock_acquired = request_wake_lock(wakelock_acquired, false);
     fprintf(log_file, "\nBYE BYE\n");
     return 0;
 }
