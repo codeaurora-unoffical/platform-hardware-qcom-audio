@@ -58,6 +58,7 @@ void qahwi_init(hw_device_t *device);
 void qahwi_deinit(hw_device_t *device);
 #else
 typedef void *qahwi_stream_in_t;
+typedef void *qahwi_stream_out_t;
 typedef void *qahwi_device_t;
 
 #define qahwi_init(device) (0)
