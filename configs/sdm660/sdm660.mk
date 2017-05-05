@@ -22,7 +22,7 @@ AUDIO_FEATURE_ENABLED_HDMI_EDID := true
 AUDIO_FEATURE_ENABLED_HDMI_PASSTHROUGH := true
 #AUDIO_FEATURE_ENABLED_KEEP_ALIVE := true
 AUDIO_FEATURE_ENABLED_DISPLAY_PORT := true
-AUDIO_FEATURE_ENABLED_DS2_DOLBY_DAP := true
+AUDIO_FEATURE_ENABLED_DS2_DOLBY_DAP := false
 AUDIO_FEATURE_ENABLED_HFP := true
 AUDIO_FEATURE_ENABLED_INCALL_MUSIC := false
 AUDIO_FEATURE_ENABLED_MULTI_VOICE_SESSIONS := true
@@ -38,7 +38,7 @@ AUDIO_FEATURE_ENABLED_PROXY_DEVICE := true
 AUDIO_FEATURE_ENABLED_KPI_OPTIMIZE := true
 AUDIO_FEATURE_ENABLED_SPKR_PROTECTION := true
 AUDIO_FEATURE_ENABLED_SSR := true
-AUDIO_FEATURE_ENABLED_ACDB_LICENSE := true
+AUDIO_FEATURE_ENABLED_ACDB_LICENSE := false
 
 AUDIO_FEATURE_ENABLED_DTS_EAGLE := false
 BOARD_USES_SRS_TRUEMEDIA := false
@@ -80,8 +80,9 @@ PRODUCT_COPY_FILES += \
     hardware/qcom/audio/configs/sdm660/mixer_paths_skus.xml:system/etc/mixer_paths_skus.xml \
     hardware/qcom/audio/configs/sdm660/mixer_paths_skush.xml:system/etc/mixer_paths_skush.xml \
     hardware/qcom/audio/configs/sdm660/mixer_paths_i2s.xml:system/etc/mixer_paths_i2s.xml \
-    hardware/qcom/audio/configs/sdm660/aanc_tuning_mixer.txt:system/etc/aanc_tuning_mixer.txt \
-    hardware/qcom/audio/configs/sdm660/aanc_tuning_mixer_tavil.txt:system/etc/aanc_tuning_mixer_tavil.txt \
+    hardware/qcom/audio/configs/sdm660/audio_tuning_mixer.txt:system/etc/audio_tuning_mixer.txt \
+    hardware/qcom/audio/configs/sdm660/audio_tuning_mixer_tavil.txt:system/etc/audio_tuning_mixer_tavil.txt \
+    hardware/qcom/audio/configs/sdm660/audio_tuning_mixer_tasha.txt:system/etc/audio_tuning_mixer_tasha.txt \
     hardware/qcom/audio/configs/sdm660/audio_platform_info_extcodec.xml:system/etc/audio_platform_info_extcodec.xml \
     hardware/qcom/audio/configs/sdm660/audio_platform_info.xml:system/etc/audio_platform_info.xml \
     hardware/qcom/audio/configs/sdm660/audio_platform_info_skush.xml:system/etc/audio_platform_info_skush.xml \
@@ -178,8 +179,8 @@ audio.offload.multiaac.enable=true
 
 #Enable DS2, Hardbypass feature for Dolby
 PRODUCT_PROPERTY_OVERRIDES += \
-audio.dolby.ds2.enabled=true\
-audio.dolby.ds2.hardbypass=true
+audio.dolby.ds2.enabled=false\
+audio.dolby.ds2.hardbypass=false
 
 #Disable Multiple offload sesison
 PRODUCT_PROPERTY_OVERRIDES += \
