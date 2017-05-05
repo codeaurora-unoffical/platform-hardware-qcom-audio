@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -143,11 +143,13 @@ bool audio_extn_usb_is_proxy_inuse();
 #define audio_extn_a2dp_start_playback()             (0)
 #define audio_extn_a2dp_stop_playback()              (0)
 #define audio_extn_a2dp_set_parameters(parms)        (0)
+#define audio_extn_a2dp_is_ready()                   (0)
 #else
 void audio_extn_a2dp_init (void *adev);
 void audio_extn_a2dp_start_playback();
 void audio_extn_a2dp_stop_playback();
 void audio_extn_a2dp_set_parameters(struct str_parms *parms);
+bool audio_extn_a2dp_is_ready();
 #endif
 
 
