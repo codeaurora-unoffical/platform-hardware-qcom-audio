@@ -58,8 +58,13 @@
 #define KVPAIRS_MAX 100
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[1]))
 
+#define FORMAT_DESCRIPTOR_SIZE 12
+#define SUBCHUNK1_SIZE(x) ((8) + (x))
+#define SUBCHUNK2_SIZE 8
+
 static int get_wav_header_length (FILE* file_stream);
 static void init_streams(void);
+int pthread_cancel(pthread_t thread);
 
 
 enum {
@@ -237,6 +242,15 @@ audio_io_handle_t stream_handle = 0x999;
                    "music_offload_wma_encode_option2=%d;" \
                    "music_offload_wma_format_tag=%d;"
 
+
+#ifndef AUDIO_FORMAT_AAC_LATM
+#define AUDIO_FORMAT_AAC_LATM 0x23000000UL
+#define AUDIO_FORMAT_AAC_LATM_LC (AUDIO_FORMAT_AAC_LATM | AUDIO_FORMAT_AAC_SUB_LC)
+#define AUDIO_FORMAT_AAC_LATM_HE_V1 (AUDIO_FORMAT_AAC_LATM | AUDIO_FORMAT_AAC_SUB_HE_V1)
+#define AUDIO_FORMAT_AAC_LATM_HE_V2 (AUDIO_FORMAT_AAC_LATM | AUDIO_FORMAT_AAC_SUB_HE_V2)
+#endif
+
+
 static bool request_wake_lock(bool wakelock_acquired, bool enable)
 {
    int system_ret;
@@ -407,7 +421,7 @@ void *proxy_read (void* data)
     qahw_in_buffer_t in_buf;
     char *buffer;
     int rc = 0;
-    int bytes_to_read, bytes_written = 0;
+    int bytes_to_read, bytes_written = 0, bytes_wrote = 0;
     FILE *fp = NULL;
     qahw_stream_handle_t* in_handle = nullptr;
 
@@ -449,7 +463,13 @@ void *proxy_read (void* data)
         while (!(params->acp.thread_exit)) {
             rc = qahw_in_read(in_handle, &in_buf);
             if (rc > 0) {
-                bytes_written += fwrite((char *)(in_buf.buffer), sizeof(char), (int)in_buf.bytes, fp);
+                bytes_wrote = fwrite((char *)(in_buf.buffer), sizeof(char), (int)in_buf.bytes, fp);
+                bytes_written += bytes_wrote;
+                if(bytes_wrote < in_buf.bytes) {
+                   stop_playback = true;
+                   fprintf(log_file, "Error in fwrite due to no memory(%d)=%s\n",ferror(fp), strerror(ferror(fp)));
+                   break;
+                }
             }
         }
         params->hdr.data_sz = bytes_written;
@@ -495,6 +515,7 @@ void *drift_read(void* data)
 
         usleep(100000);
     }
+    return NULL;
 }
 static int is_eof(stream_config *stream) {
     if (stream->filename) {
@@ -520,7 +541,33 @@ static int read_bytes(stream_config *stream, void *buff, int size) {
         in_buf.bytes = size;
         return qahw_in_read(stream->in_handle, &in_buf);
     }
+    return 0;
+}
 
+int write_to_hal(qahw_stream_handle_t* out_handle, char *data, size_t bytes, void *params_ptr)
+{
+    stream_config *stream_params = (stream_config*) params_ptr;
+
+    ssize_t ret;
+    pthread_mutex_lock(&stream_params->write_lock);
+    qahw_out_buffer_t out_buf;
+
+    memset(&out_buf,0, sizeof(qahw_out_buffer_t));
+    out_buf.buffer = data;
+    out_buf.bytes = bytes;
+
+    ret = qahw_out_write(out_handle, &out_buf);
+    if (ret < 0) {
+        fprintf(log_file, "stream %d: writing data to hal failed (ret = %zd)\n", stream_params->stream_index, ret);
+    } else if (ret != bytes) {
+        fprintf(log_file, "stream %d: provided bytes %zd, written bytes %d\n",stream_params->stream_index, bytes, ret);
+        fprintf(log_file, "stream %d: waiting for event write ready\n", stream_params->stream_index);
+        pthread_cond_wait(&stream_params->write_cond, &stream_params->write_lock);
+        fprintf(log_file, "stream %d: out of wait for event write ready\n", stream_params->stream_index);
+    }
+
+    pthread_mutex_unlock(&stream_params->write_lock);
+    return ret;
 }
 
 /* Entry point function for stream playback
@@ -541,8 +588,6 @@ void *start_stream_playback (void* stream_data)
     pthread_t drift_query_thread;
     struct drift_data drift_params;
 
-    if (params->output_device & AUDIO_DEVICE_OUT_ALL_A2DP)
-        params->output_device = AUDIO_DEVICE_OUT_PROXY;
     rc = qahw_open_output_stream(params->qahw_out_hal_handle,
                              params->handle,
                              params->output_device,
@@ -563,10 +608,10 @@ void *start_stream_playback (void* stream_data)
         measure_kpi_values(params->out_handle, params->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD);
         rc = qahw_close_output_stream(params->out_handle);
         if (rc) {
-            fprintf(log_file, "stream %d: could not close output stream %d, error - %d \n", params->stream_index, rc);
-            fprintf(stderr, "stream %d: could not close output stream %d, error - %d \n", params->stream_index, rc);
+            fprintf(log_file, "stream %d: could not close output stream, error - %d \n", params->stream_index, rc);
+            fprintf(stderr, "stream %d: could not close output stream, error - %d \n", params->stream_index, rc);
         }
-        return;
+        return NULL;
     }
 
     switch(params->filetype) {
@@ -713,9 +758,12 @@ void *start_stream_playback (void* stream_data)
                         qahw_out_drain(params->out_handle, QAHW_DRAIN_ALL);
                         pthread_cond_wait(&params->drain_cond, &params->drain_lock);
                         fprintf(log_file, "stream %d: out of compress drain\n", params->stream_index);
-                        fprintf(log_file, "stream %d: playback completed successfully\n", params->stream_index);
                         pthread_mutex_unlock(&params->drain_lock);
                     }
+            /* Caution: Below ADL log shouldnt be altered without notifying automation APT since
+             * it used for automation testing
+             */
+                    fprintf(log_file, "ADL: stream %d: playback completed successfully\n", params->stream_index);
                 }
                 exit = true;
                 continue;
@@ -804,34 +852,8 @@ void *start_stream_playback (void* stream_data)
         free(data_ptr);
 
     fprintf(log_file, "stream %d: stream closed\n", params->stream_index);
-    return;
+    return NULL;
 
-}
-
-int write_to_hal(qahw_stream_handle_t* out_handle, char *data, size_t bytes, void *params_ptr)
-{
-    stream_config *stream_params = (stream_config*) params_ptr;
-
-    ssize_t ret;
-    pthread_mutex_lock(&stream_params->write_lock);
-    qahw_out_buffer_t out_buf;
-
-    memset(&out_buf,0, sizeof(qahw_out_buffer_t));
-    out_buf.buffer = data;
-    out_buf.bytes = bytes;
-
-    ret = qahw_out_write(out_handle, &out_buf);
-    if (ret < 0) {
-        fprintf(log_file, "stream %d: writing data to hal failed (ret = %zd)\n", stream_params->stream_index, ret);
-    } else if (ret != bytes) {
-        fprintf(log_file, "stream %d: provided bytes %zd, written bytes %d\n",stream_params->stream_index, bytes, ret);
-        fprintf(log_file, "stream %d: waiting for event write ready\n", stream_params->stream_index);
-        pthread_cond_wait(&stream_params->write_cond, &stream_params->write_lock);
-        fprintf(log_file, "stream %d: out of wait for event write ready\n", stream_params->stream_index);
-    }
-
-    pthread_mutex_unlock(&stream_params->write_lock);
-    return ret;
 }
 
 bool is_valid_aac_format_type(aac_format_type_t format_type)
@@ -952,7 +974,7 @@ static void get_file_format(stream_config *stream_info)
             else
                 stream_info->config.offload_info.format = AUDIO_FORMAT_PCM_16_BIT;
             if (!(stream_info->flags_set))
-                stream_info->flags = AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD;
+                stream_info->flags = AUDIO_OUTPUT_FLAG_DIRECT_PCM|AUDIO_OUTPUT_FLAG_DIRECT;
             break;
 
         case FILE_MP3:
@@ -1008,7 +1030,7 @@ static void get_file_format(stream_config *stream_info)
     }
     stream_info->config.sample_rate = stream_info->config.offload_info.sample_rate;
     stream_info->config.format = stream_info->config.offload_info.format;
-    stream_info->config.channel_mask = stream_info->config.offload_info.channel_mask = audio_channel_in_mask_from_count(stream_info->channels);
+    stream_info->config.channel_mask = stream_info->config.offload_info.channel_mask = audio_channel_out_mask_from_count(stream_info->channels);
     return;
 }
 
@@ -1089,8 +1111,8 @@ int measure_kpi_values(qahw_stream_handle_t* out_handle, bool is_offload) {
     fread((void *) latency_buf, 100, 1, fd_latency_node);
     fclose(fd_latency_node);
     sscanf(latency_buf, " %llu,%llu,%*llu,%*llu,%llu,%llu", &scold, &uscold, &scont, &uscont);
-    tcold = scold*1000 - ts_cold.tv_sec*1000 + uscold/1000 - ts_cold.tv_nsec/1000000;
-    tcont = scont*1000 - ts_cont.tv_sec*1000 + uscont/1000 - ts_cont.tv_nsec/1000000;
+    tcold = scold*1000 - ((uint64_t)ts_cold.tv_sec)*1000 + uscold/1000 - ((uint64_t)ts_cold.tv_nsec)/1000000;
+    tcont = scont*1000 - ((uint64_t)ts_cont.tv_sec)*1000 + uscont/1000 - ((uint64_t)ts_cont.tv_nsec)/1000000;
     fprintf(log_file, "\n values from debug node %s\n", latency_buf);
     fprintf(log_file, " cold latency %llums, continuous latency %llums,\n", tcold, tcont);
     fprintf(log_file, " **Note: please add DSP Pipe/PP latency numbers to this, for final latency values\n");
@@ -1277,9 +1299,7 @@ static int get_channels(char *kvpairs) {
 
 static int detect_stream_params(stream_config *stream) {
     bool detection_needed = false;
-    bool is_usb_loopback = false;
     int direction = PCM_OUT;
-    audio_devices_t dev = stream->input_device;
 
     int rc = 0;
     char *param_string = NULL;
@@ -1309,7 +1329,7 @@ static int detect_stream_params(stream_config *stream) {
                                 stream->input_device,
                                 &(stream->config),
                                 &(stream->in_handle),
-                                AUDIO_OUTPUT_FLAG_NONE,
+                                AUDIO_INPUT_FLAG_NONE,
                                 stream->device_url,
                                 AUDIO_SOURCE_DEFAULT);
     else
@@ -1440,10 +1460,13 @@ void usage() {
     printf(" hal_play_test -f /data/MateRani.mp3 -t 2 -d 2 -v 0.01 -r 44100 -c 2 \n");
     printf("                                          -> plays MP3 stream(-t = 2) on speaker device(-d = 2)\n");
     printf("                                          -> 2 channels and 44100 sample rate\n\n");
-    printf(" hal_play_test -f /data/v1-CBR-32kHz-stereo-40kbps.mp3 -t 2 -d 128 -v 0.01 -r 32000 -c 2 -D /data/proxy_dump.wav\n");
-    printf("                                          -> plays MP3 stream(-t = 2) on BT device(-d = 128)\n");
+    printf(" hal_play_test -f /data/v1-CBR-32kHz-stereo-40kbps.mp3 -t 2 -d 33554432 -v 0.01 -r 32000 -c 2 -D /data/proxy_dump.wav\n");
+    printf("                                          -> plays MP3 stream(-t = 2) on BT device in non-split path (-d = 33554432)\n");
     printf("                                          -> 2 channels and 32000 sample rate\n");
     printf("                                          -> dumps pcm data to file at /data/proxy_dump.wav\n\n");
+    printf(" hal_play_test -f /data/v1-CBR-32kHz-stereo-40kbps.mp3 -t 2 -d 128 -v 0.01 -r 32000 -c 2 \n");
+    printf("                                          -> plays MP3 stream(-t = 2) on BT device in split path (-d = 128)\n");
+    printf("                                          -> 2 channels and 32000 sample rate\n");
     printf(" hal_play_test -f /data/AACLC-71-48000Hz-384000bps.aac  -t 4 -d 2 -v 0.05 -r 48000 -c 2 -a 1 \n");
     printf("                                          -> plays AAC-ADTS stream(-t = 4) on speaker device(-d = 2)\n");
     printf("                                          -> AAC format type is LC(-a = 1)\n");
@@ -1513,20 +1536,7 @@ static int get_wav_header_length (FILE* file_stream)
         fprintf(log_file, "This is not a valid wav file \n");
         fprintf(stderr, "This is not a valid wav file \n");
     } else {
-          switch (subchunk_size) {
-          case 16:
-              fprintf(log_file, "44-byte wav header \n");
-              wav_header_len = 44;
-              break;
-          case 18:
-              fprintf(log_file, "46-byte wav header \n");
-              wav_header_len = 46;
-              break;
-          default:
-              fprintf(log_file, "Header contains extra data and is larger than 46 bytes: subchunk_size=%d \n", subchunk_size);
-              wav_header_len = subchunk_size;
-              break;
-          }
+         wav_header_len = FORMAT_DESCRIPTOR_SIZE + SUBCHUNK1_SIZE(subchunk_size) + SUBCHUNK2_SIZE;
     }
     return wav_header_len;
 }
@@ -1612,7 +1622,6 @@ int main(int argc, char* argv[]) {
     struct qahw_aptx_dec_param aptx_params;
     int rc = 0;
     int i = 0;
-    int j = 0;
     kpi_mode = false;
     event_trigger = false;
     bool wakelock_acquired = false;
@@ -1783,7 +1792,10 @@ int main(int argc, char* argv[]) {
 
     wakelock_acquired = request_wake_lock(wakelock_acquired, true);
     num_of_streams = i+1;
-    fprintf(log_file, "Starting audio hal tests for streams : %d\n", num_of_streams);
+    /* Caution: Below ADL log shouldnt be altered without notifying automation APT since it used
+     * for automation testing
+     */
+    fprintf(log_file, "ADL: Starting audio hal tests for streams : %d\n", num_of_streams);
 
     if (kpi_mode == true && num_of_streams > 1) {
         fprintf(log_file, "kpi-mode is not supported for multi-playback usecase\n");
@@ -1795,7 +1807,7 @@ int main(int argc, char* argv[]) {
         goto exit;
     }
 
-    if (num_of_streams > 1 && stream_param[num_of_streams-1].output_device & AUDIO_DEVICE_OUT_ALL_A2DP) {
+    if (num_of_streams > 1 && stream_param[num_of_streams-1].output_device & AUDIO_DEVICE_OUT_PROXY) {
         fprintf(log_file, "Proxy thread is not supported for multi-playback usecase\n");
         fprintf(stderr, "Proxy thread is not supported for multi-playback usecase\n");
         goto exit;
@@ -1853,7 +1865,7 @@ int main(int argc, char* argv[]) {
                                     stream->input_device,
                                     &(stream->config),
                                     &(stream->in_handle),
-                                    AUDIO_OUTPUT_FLAG_NONE,
+                                    AUDIO_INPUT_FLAG_NONE,
                                     stream->device_url,
                                     AUDIO_SOURCE_UNPROCESSED);
             if (rc) {
@@ -1866,13 +1878,14 @@ int main(int argc, char* argv[]) {
         } else if (kpi_mode == true)
             stream->config.format = stream->config.offload_info.format = AUDIO_FORMAT_PCM_16_BIT;
 
-        if (stream->output_device & AUDIO_DEVICE_OUT_ALL_A2DP)
+        if (stream->output_device & AUDIO_DEVICE_OUT_PROXY)
             fprintf(log_file, "Saving pcm data to file: %s\n", proxy_params.acp.file_name);
 
         /* Set device connection state for HDMI */
-        if (stream->output_device == AUDIO_DEVICE_OUT_AUX_DIGITAL) {
+        if ((stream->output_device == AUDIO_DEVICE_OUT_AUX_DIGITAL) ||
+            (stream->output_device == AUDIO_DEVICE_OUT_BLUETOOTH_A2DP)) {
             char param[100] = {0};
-            snprintf(param, sizeof(param), "%s=%d", "connect", AUDIO_DEVICE_OUT_AUX_DIGITAL);
+            snprintf(param, sizeof(param), "%s=%d", "connect", stream->output_device);
             qahw_set_parameters(stream->qahw_out_hal_handle, param);
         }
 
@@ -1931,9 +1944,10 @@ exit:
      * reset device connection state for HDMI and close the file streams
      */
      for (i = 0; i < num_of_streams; i++) {
-         if (stream_param[i].output_device == AUDIO_DEVICE_OUT_AUX_DIGITAL) {
+         if ((stream_param[i].output_device == AUDIO_DEVICE_OUT_AUX_DIGITAL) ||
+             (stream_param[i].output_device == AUDIO_DEVICE_OUT_BLUETOOTH_A2DP)) {
              char param[100] = {0};
-             snprintf(param, sizeof(param), "%s=%d", "disconnect", AUDIO_DEVICE_OUT_AUX_DIGITAL);
+             snprintf(param, sizeof(param), "%s=%d", "disconnect", stream_param[i].output_device);
              qahw_set_parameters(stream_param[i].qahw_out_hal_handle, param);
          }
 
@@ -1957,6 +1971,9 @@ exit:
         fclose(log_file);
 
     wakelock_acquired = request_wake_lock(wakelock_acquired, false);
-    fprintf(log_file, "\nBYE BYE\n");
+    /* Caution: Below ADL log shouldnt be altered without notifying automation APT since it used
+     * for automation testing
+     */
+    fprintf(log_file, "\nADL: BYE BYE\n");
     return 0;
 }
