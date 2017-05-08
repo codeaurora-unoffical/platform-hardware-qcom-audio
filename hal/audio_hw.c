@@ -2200,9 +2200,6 @@ static int stop_output_stream(struct stream_out *out)
     if (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL)
         audio_extn_keep_alive_start();
 
-    /*reset delay_param to 0*/
-    out->delay_param.start_delay = 0;
-
     ALOGV("%s: exit: status(%d)", __func__, ret);
     return ret;
 }
@@ -2380,11 +2377,6 @@ int start_output_stream(struct stream_out *out)
 
         audio_extn_utils_compress_set_render_mode(out);
         audio_extn_utils_compress_set_clk_rec_mode(uc_info);
-        /* set render window if it was set before compress_open() */
-        if (out->render_window.render_ws != 0 && out->render_window.render_we != 0)
-            audio_extn_utils_compress_set_render_window(out,
-                                            &out->render_window);
-        audio_extn_utils_compress_set_start_delay(out, &out->delay_param);
 
         audio_extn_dts_create_state_notifier_node(out->usecase);
         audio_extn_dts_notify_playback_state(out->usecase, 0, out->sample_rate,
@@ -4225,9 +4217,6 @@ int adev_open_output_stream(struct audio_hw_device *dev,
         } else {
             out->render_mode = RENDER_MODE_AUDIO_NO_TIMESTAMP;
         }
-
-        memset(&out->render_window, 0,
-                sizeof(struct audio_out_render_window_param));
 
         out->send_new_metadata = 1;
         out->send_next_track_params = false;
