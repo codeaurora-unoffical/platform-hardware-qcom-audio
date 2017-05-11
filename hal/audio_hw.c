@@ -1248,7 +1248,7 @@ static void check_usecases_capture_codec_backend(struct audio_device *adev,
                     /* Update voc calibration before enabling VoIP route */
                     if (usecase->type == VOIP_CALL)
                         status = platform_switch_voice_call_device_post(adev->platform,
-                                                                        usecase->out_snd_device,
+                                                                        platform_get_output_snd_device(adev->platform, uc_info->stream.out),
                                                                         usecase->in_snd_device);
                     enable_audio_route(adev, usecase);
                 }
@@ -1534,6 +1534,7 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
             }
         } else if (voice_extn_compress_voip_is_active(adev)) {
             bool out_snd_device_backend_match = true;
+            voip_usecase = get_usecase_from_list(adev, USECASE_COMPRESS_VOIP_CALL);
             if (usecase->stream.out != NULL) {
                 out_snd_device_backend_match = platform_check_backends_match(
                                                    voip_usecase->out_snd_device,
@@ -1541,7 +1542,6 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
                                                        adev->platform,
                                                        usecase->stream.out));
             }
-            voip_usecase = get_usecase_from_list(adev, USECASE_COMPRESS_VOIP_CALL);
             if ((voip_usecase) && ((voip_usecase->devices & AUDIO_DEVICE_OUT_ALL_CODEC_BACKEND) &&
                 ((usecase->devices & AUDIO_DEVICE_OUT_ALL_CODEC_BACKEND) ||
                   ((usecase->devices & ~AUDIO_DEVICE_BIT_IN) & AUDIO_DEVICE_IN_ALL_CODEC_BACKEND)) &&
