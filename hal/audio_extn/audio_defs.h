@@ -193,18 +193,25 @@ struct audio_out_correct_drift {
 /* type of asynchronous write callback events. Mutually exclusive
  * event enums append those defined for stream_callback_event_t in audio.h */
 typedef enum {
-    AUDIO_EXTN_STREAM_CBK_EVENT_ADSP = 0x100    /* callback event from ADSP PP,
+    AUDIO_EXTN_STREAM_CBK_EVENT_ERROR = 0x2,  /* Remove this enum if its already in audio.h */
+    AUDIO_EXTN_STREAM_CBK_EVENT_ADSP = 0x100      /* callback event from ADSP PP,
                                                  * corresponding payload will be
                                                  * sent as is to the client
                                                  */
 } audio_extn_callback_id;
 
-#define AUDIO_MAX_ADSP_STREAM_CMD_PAYLOAD_LEN 508
+#define AUDIO_MAX_ADSP_STREAM_CMD_PAYLOAD_LEN 504
+
+typedef enum {
+    AUDIO_STREAM_PP_EVENT = 0,
+    AUDIO_STREAM_ENCDEC_EVENT = 1,
+} audio_event_id;
 
 /* payload format for HAL parameter
  * AUDIO_EXTN_PARAM_ADSP_STREAM_CMD
  */
 struct audio_adsp_event {
+ audio_event_id event_type;                  /* type of the event */
  uint32_t payload_length;                    /* length in bytes of the payload */
  void    *payload;                           /* the actual payload */
 };

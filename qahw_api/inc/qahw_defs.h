@@ -181,6 +181,7 @@ __BEGIN_DECLS
 typedef enum {
     QAHW_STREAM_CBK_EVENT_WRITE_READY, /* non blocking write completed */
     QAHW_STREAM_CBK_EVENT_DRAIN_READY,  /* drain completed */
+    QAHW_STREAM_CBK_EVENT_ERROR,  /* stream hit some error */
 
     QAHW_STREAM_CBK_EVENT_ADSP = 0x100    /* callback event from ADSP PP,
                                            * corresponding payload will be
@@ -293,10 +294,16 @@ struct qahw_out_correct_drift {
 
 #define QAHW_MAX_ADSP_STREAM_CMD_PAYLOAD_LEN 512
 
+typedef enum {
+    QAHW_STREAM_PP_EVENT = 0,
+    QAHW_STREAM_ENCDEC_EVENT = 1,
+} qahw_event_id;
+
 /* payload format for HAL parameter
  * QAHW_PARAM_ADSP_STREAM_CMD
  */
 struct qahw_adsp_event {
+    qahw_event_id event_type;      /* type of the event */
     uint32_t payload_length;       /* length in bytes of the payload */
     void *payload;                 /* the actual payload */
 };
