@@ -266,8 +266,7 @@ struct stream_out {
     struct listnode qaf_offload_cmd_list;
     uint32_t platform_latency;
     render_mode_t render_mode;
-    struct audio_out_render_window_param render_window; /*render winodw*/
-    struct audio_out_start_delay_param delay_param; /*start delay*/
+    bool drift_correction_enabled;
 
     audio_offload_info_t info;
     qahwi_stream_out_t qahwi_out;
@@ -458,6 +457,8 @@ int enable_audio_route(struct audio_device *adev,
 
 struct audio_usecase *get_usecase_from_list(const struct audio_device *adev,
                                                    audio_usecase_t uc_id);
+
+struct stream_in *get_next_active_input(const struct audio_device *adev);
 
 bool is_offload_usecase(audio_usecase_t uc_id);
 

@@ -52,7 +52,7 @@
 #define FORMAT_PCM 1
 #define WAV_HEADER_LENGTH_MAX 46
 
-#define MAX_PLAYBACK_STREAMS   2
+#define MAX_PLAYBACK_STREAMS   3
 #define PRIMARY_STREAM_INDEX   0
 
 #define KVPAIRS_MAX 100
@@ -82,7 +82,8 @@ enum {
     FILE_EAC3_JOC,
     FILE_DTS,
     FILE_MP2,
-    FILE_APTX
+    FILE_APTX,
+    FILE_TRUEHD
 };
 
 typedef enum {
@@ -138,6 +139,7 @@ struct proxy_data {
 
 struct drift_data {
     qahw_module_handle_t *out_handle;
+    bool enable_drift_correction;
     volatile bool thread_exit;
 };
 
@@ -173,6 +175,8 @@ typedef struct {
     usb_mode_type_t usb_mode;
     int effect_index;
     bool drift_query;
+    bool drift_correction;
+    bool play_later;
     char *device_url;
     thread_func_t ethread_func;
     thread_data_t *ethread_data;
@@ -183,6 +187,10 @@ typedef struct {
     pthread_mutex_t drain_lock;
 }stream_config;
 
+/* Lock for dual main usecase */
+pthread_cond_t dual_main_cond;
+pthread_mutex_t dual_main_lock;
+bool is_dual_main = false;
 
 qahw_module_handle_t *primary_hal_handle = NULL;
 qahw_module_handle_t *usb_hal_handle = NULL;
@@ -248,6 +256,10 @@ audio_io_handle_t stream_handle = 0x999;
 #define AUDIO_FORMAT_AAC_LATM_LC (AUDIO_FORMAT_AAC_LATM | AUDIO_FORMAT_AAC_SUB_LC)
 #define AUDIO_FORMAT_AAC_LATM_HE_V1 (AUDIO_FORMAT_AAC_LATM | AUDIO_FORMAT_AAC_SUB_HE_V1)
 #define AUDIO_FORMAT_AAC_LATM_HE_V2 (AUDIO_FORMAT_AAC_LATM | AUDIO_FORMAT_AAC_SUB_HE_V2)
+#endif
+
+#ifndef AUDIO_OUTPUT_FLAG_ASSOCIATED
+#define AUDIO_OUTPUT_FLAG_ASSOCIATED 0x8000
 #endif
 
 
@@ -323,6 +335,7 @@ static void init_streams(void)
         stream_param[i].ethread_func                        =   nullptr;
         stream_param[i].ethread_data                        =   nullptr;
         stream_param[i].device_url                          =   "stream";
+        stream_param[i].play_later                          =   false;
 
         pthread_mutex_init(&stream_param[i].write_lock, (const pthread_mutexattr_t *)NULL);
         pthread_cond_init(&stream_param[i].write_cond, (const pthread_condattr_t *) NULL);
@@ -332,6 +345,8 @@ static void init_streams(void)
         stream_param[i].handle                              =   stream_handle;
         stream_handle--;
     }
+    pthread_mutex_init(&dual_main_lock, (const pthread_mutexattr_t *)NULL);
+    pthread_cond_init(&dual_main_cond, (const pthread_condattr_t *) NULL);
 }
 
 void read_kvpair(char *kvpair, char* kvpair_values, int filetype)
@@ -499,7 +514,7 @@ void *drift_read(void* data)
     struct qahw_avt_device_drift_param drift_param;
     int rc = -EINVAL;
 
-    printf("drift quried at 100ms interval \n");
+    printf("drift queried at 100ms interval\n");
     while (!(params->thread_exit)) {
         memset(&drift_param, 0, sizeof(struct qahw_avt_device_drift_param));
         rc = qahw_out_get_param_data(out_handle, QAHW_PARAM_AVT_DEVICE_DRIFT,
@@ -514,9 +529,23 @@ void *drift_read(void* data)
         }
 
         usleep(100000);
+        if (params->enable_drift_correction &&
+            drift_param.avt_device_drift_value) {
+            struct qahw_out_correct_drift param;
+            param.adjust_time = drift_param.avt_device_drift_value;
+            printf("sending drift correction value %dus\n",
+                    drift_param.avt_device_drift_value);
+            rc = qahw_out_set_param_data(out_handle,
+                          QAHW_PARAM_OUT_CORRECT_DRIFT,
+                         (qahw_param_payload *)&param);
+            if (rc < 0)
+                fprintf(log_file, "qahw_out_set_param_data failed with err %d %d\n",
+                        rc, __LINE__);
+        }
     }
     return NULL;
 }
+
 static int is_eof(stream_config *stream) {
     if (stream->filename) {
         if (feof(stream->file_stream)) {
@@ -570,6 +599,32 @@ int write_to_hal(qahw_stream_handle_t* out_handle, char *data, size_t bytes, voi
     return ret;
 }
 
+static bool is_assoc_active()
+{
+    int i = 0;
+    bool is_assoc_active = false;
+
+    for (i = 0; i < MAX_PLAYBACK_STREAMS; i++) {
+        if (stream_param[i].flags & AUDIO_OUTPUT_FLAG_ASSOCIATED) {
+            is_assoc_active = true;
+            break;
+        }
+    }
+    return is_assoc_active;
+}
+
+static int get_assoc_index()
+{
+    int i = 0;
+
+    for (i = 0; i < MAX_PLAYBACK_STREAMS; i++) {
+        if (stream_param[i].flags & AUDIO_OUTPUT_FLAG_ASSOCIATED) {
+            break;
+        }
+    }
+    return i;
+}
+
 /* Entry point function for stream playback
  * Opens the stream
  * Reads KV pairs, sets volume, allocates input buffer
@@ -588,6 +643,17 @@ void *start_stream_playback (void* stream_data)
     pthread_t drift_query_thread;
     struct drift_data drift_params;
 
+    memset(&drift_params, 0, sizeof(struct drift_data));
+
+    fprintf(log_file, "stream %d: play_later %d \n", params->stream_index, params->play_later);
+
+    if(params->play_later) {
+            pthread_mutex_lock(&dual_main_lock);
+            fprintf(log_file, "stream %d: waiting for dual main signal\n", params->stream_index);
+            pthread_cond_wait(&dual_main_cond, &dual_main_lock);
+            fprintf(log_file, "stream %d: after the dual main signal\n", params->stream_index);
+            pthread_mutex_unlock(&dual_main_lock);
+    }
     rc = qahw_open_output_stream(params->qahw_out_hal_handle,
                              params->handle,
                              params->output_device,
@@ -711,12 +777,24 @@ void *start_stream_playback (void* stream_data)
         rc = pthread_create(&proxy_thread, NULL, proxy_read, (void *)&proxy_params);
         if (!rc)
             proxy_thread_active = true;
-    } else if (params->drift_query &&
-              (params->output_device & AUDIO_DEVICE_OUT_HDMI) &&
-              !drift_thread_active) {
+    } else if (params->drift_query && !drift_thread_active) {
+        struct qahw_out_enable_drift_correction drift_enable_param;
+
         drift_params.out_handle = params->out_handle;
         drift_params.thread_exit = false;
-        fprintf(log_file, "create thread to read avtime vs hdmi drift\n");
+        fprintf(log_file, "create thread to read avtimer vs device drift\n");
+        if(params->drift_correction) {
+            drift_params.enable_drift_correction = true;
+            drift_enable_param.enable = true;
+            rc = qahw_out_set_param_data(params->out_handle,
+                    QAHW_PARAM_OUT_ENABLE_DRIFT_CORRECTION,
+                    (qahw_param_payload *)&drift_enable_param);
+            if (rc < 0) {
+                fprintf(log_file, "qahw_out_set_param_data failed with err %d %d\n",
+                        rc, __LINE__);
+                drift_enable_param.enable = false;
+            }
+        }
         rc = pthread_create(&drift_query_thread, NULL, drift_read, (void *)&drift_params);
         if (!rc)
             drift_thread_active = true;
@@ -835,6 +913,14 @@ void *start_stream_playback (void* stream_data)
         drift_params.thread_exit = true;
         pthread_join(drift_query_thread, NULL);
     }
+    if ((params->flags & AUDIO_OUTPUT_FLAG_MAIN) && is_assoc_active()) {
+        fprintf(log_file, "Closing Associated as Main Stream reached EOF %d \n", params->stream_index, rc);
+        rc = qahw_close_output_stream(stream_param[get_assoc_index()].out_handle);
+        if (rc) {
+            fprintf(log_file, "stream %d: could not close output stream, error - %d \n", params->stream_index, rc);
+            fprintf(stderr, "stream %d: could not close output stream, error - %d \n", params->stream_index, rc);
+        }
+    }
     rc = qahw_out_standby(params->out_handle);
     if (rc) {
         fprintf(log_file, "stream %d: out standby failed %d \n", params->stream_index, rc);
@@ -852,6 +938,16 @@ void *start_stream_playback (void* stream_data)
         free(data_ptr);
 
     fprintf(log_file, "stream %d: stream closed\n", params->stream_index);
+    fprintf(log_file, "stream %d: is_dual_main- %d\n", params->stream_index,is_dual_main);
+    if (is_dual_main) {
+        usleep(500000);
+        pthread_mutex_lock(&dual_main_lock);
+        fprintf(log_file, "Dual main signal as we reached end of current running stream\n");
+        is_dual_main = false;
+        pthread_cond_signal(&dual_main_cond);
+        pthread_mutex_unlock(&dual_main_lock);
+    }
+
     return NULL;
 
 }
@@ -1021,6 +1117,9 @@ static void get_file_format(stream_config *stream_info)
             break;
         case FILE_APTX:
             stream_info->config.offload_info.format = AUDIO_FORMAT_APTX;
+            break;
+        case FILE_TRUEHD:
+            stream_info->config.offload_info.format = AUDIO_FORMAT_DOLBY_TRUEHD;
             break;
         default:
            fprintf(log_file, "Does not support given filetype\n");
@@ -1443,7 +1542,8 @@ void usage() {
     printf(" -e  --effect-type <effect type>           - Effect used for test\n");
     printf("                                             0:bassboost 1:virtualizer 2:equalizer 3:visualizer(NA) 4:reverb 5:audiosphere others:null\n\n");
     printf(" -A  --bt-addr <bt device addr>            - Required to set bt device adress for aptx decoder\n\n");
-    printf(" -q  --query drift                         - Required for querying avtime vs hdmi drift\n");
+    printf(" -q  --drift query                         - Required for querying avtime vs hdmi drift\n");
+    printf(" -Q  --drift query and correction          - Enable Drift query and correction\n");
     printf(" -P                                        - Argument to do multi-stream playback, currently 2 streams are supported to run concurrently\n");
     printf("                                             Put -P and mention required attributes for the next stream\n");
     printf("                                             0:bassboost 1:virtualizer 2:equalizer 3:visualizer(NA) 4:reverb 5:audiosphere others:null");
@@ -1655,6 +1755,7 @@ int main(int argc, char* argv[]) {
         {"effect-path",   required_argument,    0, 'e'},
         {"bt-addr",       required_argument,    0, 'A'},
         {"query drift",   no_argument,          0, 'q'},
+        {"drift correction",   no_argument,     0, 'Q'},
         {"device-nodeurl",required_argument,    0, 'u'},
         {"mode",          required_argument,    0, 'm'},
         {"help",          no_argument,          0, 'h'},
@@ -1680,7 +1781,7 @@ int main(int argc, char* argv[]) {
 
     while ((opt = getopt_long(argc,
                               argv,
-                              "-f:r:c:b:d:s:v:l:t:a:w:k:PD:KF:Ee:A:u:m:qh",
+                              "-f:r:c:b:d:s:v:l:t:a:w:k:PD:KF:Ee:A:u:m:qQh",
                               long_options,
                               &option_index)) != -1) {
 
@@ -1767,6 +1868,10 @@ int main(int argc, char* argv[]) {
         case 'q':
              stream_param[i].drift_query = true;
              break;
+        case 'Q':
+             stream_param[i].drift_query = true;
+             stream_param[i].drift_correction = true;
+             break;
         case 'P':
             if(i >= MAX_PLAYBACK_STREAMS - 1) {
                 fprintf(log_file, "cannot have more than %d streams\n", MAX_PLAYBACK_STREAMS);
@@ -1817,6 +1922,18 @@ int main(int argc, char* argv[]) {
     if (signal(SIGINT, stop_signal_handler) == SIG_ERR) {
         fprintf(log_file, "Failed to register SIGINT:%d\n",errno);
         fprintf(stderr, "Failed to register SIGINT:%d\n",errno);
+    }
+
+    /* Check for Dual main content */
+    if (num_of_streams >= 2) {
+         is_dual_main = true;
+
+         for(i = 0; i < num_of_streams; i++) {
+              fprintf(log_file, "is_dual_main - %d  stream_param[i].flags - %d\n", is_dual_main, stream_param[i].flags);
+              is_dual_main = is_dual_main && (stream_param[i].flags & AUDIO_OUTPUT_FLAG_MAIN);
+              fprintf(log_file, "is_dual_main - %d  stream_param[i].flags - %d\n", is_dual_main, stream_param[i].flags);
+         }
+
     }
 
     for (i = 0; i < num_of_streams; i++) {
@@ -1921,6 +2038,11 @@ int main(int argc, char* argv[]) {
                 goto exit;
             }
         }
+        if (is_dual_main && i >= 2 ) {
+            stream_param[i].play_later = true;
+            fprintf(log_file, "stream %d: play_later = %d\n", i, stream_param[i].play_later);
+        }
+
 
         rc = pthread_create(&playback_thread[i], NULL, start_stream_playback, (void *)&stream_param[i]);
         if (rc) {

@@ -293,6 +293,7 @@ static const struct string_to_enum out_formats_name_to_enum_table[] = {
     STRING_TO_ENUM(AUDIO_FORMAT_AC3),
     STRING_TO_ENUM(AUDIO_FORMAT_E_AC3),
     STRING_TO_ENUM(AUDIO_FORMAT_E_AC3_JOC),
+    STRING_TO_ENUM(AUDIO_FORMAT_DOLBY_TRUEHD),
     STRING_TO_ENUM(AUDIO_FORMAT_DTS),
     STRING_TO_ENUM(AUDIO_FORMAT_DTS_HD),
 };
@@ -511,6 +512,7 @@ static bool is_supported_format(audio_format_t format)
         format == AUDIO_FORMAT_PCM_16_BIT ||
         format == AUDIO_FORMAT_AC3 ||
         format == AUDIO_FORMAT_E_AC3 ||
+        format == AUDIO_FORMAT_DOLBY_TRUEHD ||
         format == AUDIO_FORMAT_DTS ||
         format == AUDIO_FORMAT_DTS_HD ||
         format == AUDIO_FORMAT_FLAC ||
@@ -1246,7 +1248,7 @@ static void check_usecases_capture_codec_backend(struct audio_device *adev,
                     /* Update voc calibration before enabling VoIP route */
                     if (usecase->type == VOIP_CALL)
                         status = platform_switch_voice_call_device_post(adev->platform,
-                                                                        usecase->out_snd_device,
+                                                                        platform_get_output_snd_device(adev->platform, uc_info->stream.out),
                                                                         usecase->in_snd_device);
                     enable_audio_route(adev, usecase);
                 }
@@ -1311,6 +1313,11 @@ static int read_hdmi_sink_caps(struct stream_out *out)
         //EAC3/EAC3_JOC will be converted to AC3 for decoding if needed
         out->supported_formats[i++] = AUDIO_FORMAT_E_AC3;
         out->supported_formats[i++] = AUDIO_FORMAT_E_AC3_JOC;
+    }
+
+    if (platform_is_edid_supported_format(out->dev->platform, AUDIO_FORMAT_DOLBY_TRUEHD)) {
+        ALOGV(":%s HDMI supports TRUE HD format", __func__);
+        out->supported_formats[i++] = AUDIO_FORMAT_DOLBY_TRUEHD;
     }
 
     if (platform_is_edid_supported_format(out->dev->platform, AUDIO_FORMAT_DTS)) {
@@ -1527,6 +1534,7 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
             }
         } else if (voice_extn_compress_voip_is_active(adev)) {
             bool out_snd_device_backend_match = true;
+            voip_usecase = get_usecase_from_list(adev, USECASE_COMPRESS_VOIP_CALL);
             if (usecase->stream.out != NULL) {
                 out_snd_device_backend_match = platform_check_backends_match(
                                                    voip_usecase->out_snd_device,
@@ -1534,7 +1542,6 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
                                                        adev->platform,
                                                        usecase->stream.out));
             }
-            voip_usecase = get_usecase_from_list(adev, USECASE_COMPRESS_VOIP_CALL);
             if ((voip_usecase) && ((voip_usecase->devices & AUDIO_DEVICE_OUT_ALL_CODEC_BACKEND) &&
                 ((usecase->devices & AUDIO_DEVICE_OUT_ALL_CODEC_BACKEND) ||
                   ((usecase->devices & ~AUDIO_DEVICE_BIT_IN) & AUDIO_DEVICE_IN_ALL_CODEC_BACKEND)) &&
@@ -2193,9 +2200,6 @@ static int stop_output_stream(struct stream_out *out)
     if (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL)
         audio_extn_keep_alive_start();
 
-    /*reset delay_param to 0*/
-    out->delay_param.start_delay = 0;
-
     ALOGV("%s: exit: status(%d)", __func__, ret);
     return ret;
 }
@@ -2373,11 +2377,6 @@ int start_output_stream(struct stream_out *out)
 
         audio_extn_utils_compress_set_render_mode(out);
         audio_extn_utils_compress_set_clk_rec_mode(uc_info);
-        /* set render window if it was set before compress_open() */
-        if (out->render_window.render_ws != 0 && out->render_window.render_we != 0)
-            audio_extn_utils_compress_set_render_window(out,
-                                            &out->render_window);
-        audio_extn_utils_compress_set_start_delay(out, &out->delay_param);
 
         audio_extn_dts_create_state_notifier_node(out->usecase);
         audio_extn_dts_notify_playback_state(out->usecase, 0, out->sample_rate,
@@ -4218,9 +4217,6 @@ int adev_open_output_stream(struct audio_hw_device *dev,
         } else {
             out->render_mode = RENDER_MODE_AUDIO_NO_TIMESTAMP;
         }
-
-        memset(&out->render_window, 0,
-                sizeof(struct audio_out_render_window_param));
 
         out->send_new_metadata = 1;
         out->send_next_track_params = false;
