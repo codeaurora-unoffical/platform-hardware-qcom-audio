@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------
-Copyright (c) 2010-2014, The Linux Foundation. All rights reserved.
+Copyright (c) 2010-2017, The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -145,7 +145,7 @@ SIDE EFFECTS:
 =============================================================================*/
 void omx_aac_aenc::wait_for_event()
 {
-    int               rc;
+    int               rc = 0;
     struct timespec   ts;
     pthread_mutex_lock(&m_event_lock);
     while (0 == m_is_event_done)
@@ -155,10 +155,19 @@ void omx_aac_aenc::wait_for_event()
        ts.tv_nsec += ((SLEEP_MS%1000) * 1000000);
        rc = pthread_cond_timedwait(&cond, &m_event_lock, &ts);
        if (rc == ETIMEDOUT && !m_is_event_done) {
-            DEBUG_PRINT("Timed out waiting for flush");
-            if (ioctl( m_drv_fd, AUDIO_FLUSH, 0) == -1)
-                DEBUG_PRINT_ERROR("Flush:Input port, ioctl flush failed %d\n",
-                    errno);
+         DEBUG_PRINT("Timed out waiting for flush");
+         rc = ioctl(m_drv_fd, AUDIO_FLUSH, 0);
+         if (rc == -1)
+         {
+           DEBUG_PRINT_ERROR("Flush:Input port, ioctl flush failed: rc:%d, %s, no:%d \n",
+              rc, strerror(errno), errno);
+         }
+         else if (rc < 0)
+         {
+           DEBUG_PRINT_ERROR("Flush:Input port, ioctl failed error: rc:%d, %s, no:%d \n",
+               rc, strerror(errno), errno);
+           break;
+         }
        }
     }
     m_is_event_done = 0;
@@ -1451,7 +1460,7 @@ OMX_ERRORTYPE  omx_aac_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
                     case 0:
                     case 1:
                     {
-                        drv_aac_enc_config.stream_format = 65535;
+                        drv_aac_enc_config.stream_format = AUDIO_AAC_FORMAT_ADTS;
                         DEBUG_PRINT("Setting AUDIO_AAC_FORMAT_ADTS\n");
                         break;
                     }
@@ -4169,14 +4178,25 @@ OMX_ERRORTYPE  omx_aac_aenc::fill_this_buffer_proxy
             DEBUG_DETAIL("FTBP->Al_len[%lu]buf[%p]size[%d]numOutBuf[%d]\n",\
                          buffer->nAllocLen,m_tmp_out_meta_buf,
                          nReadbytes,nNumOutputBuf);
-            if(*m_tmp_out_meta_buf <= 0)
+            if(m_tmp_out_meta_buf == NULL)
+                return OMX_ErrorUndefined;
+
+            if(*m_tmp_out_meta_buf <= 0 || *m_tmp_out_meta_buf > CHAR_MAX)
                 return OMX_ErrorBadParameter;
-            szadifhr = AUDAAC_MAX_ADIF_HEADER_LENGTH; 
+            szadifhr = AUDAAC_MAX_ADIF_HEADER_LENGTH;
             numframes =  *m_tmp_out_meta_buf;
             metainfo  = (int)((sizeof(ENC_META_OUT) * numframes)+
-			sizeof(unsigned char));
+                sizeof(unsigned char));
+            /*
+            * add bounds checking
+            */
+            if ((metainfo > INT_MAX - szadifhr) ||
+                (buffer->nAllocLen < (nReadbytes + szadifhr)) ||
+                (metainfo > nReadbytes)) {
+                return OMX_ErrorBadParameter;
+            }
             audaac_rec_install_adif_header_variable(0,sample_idx,
-				(OMX_U8)m_aac_param.nChannels);
+                (OMX_U8)m_aac_param.nChannels);
             memcpy(buffer->pBuffer,m_tmp_out_meta_buf,metainfo);
             memcpy(buffer->pBuffer + metainfo,&audaac_header_adif[0],szadifhr);
             memcpy(buffer->pBuffer + metainfo + szadifhr,
