@@ -293,6 +293,7 @@ struct stream_out {
 
     struct audio_out_channel_map_param channel_map_param; /* input channel map */
     audio_offload_info_t info;
+    int started;
     qahwi_stream_out_t qahwi_out;
 
     bool is_iec61937_info_available;
@@ -469,6 +470,7 @@ struct audio_device {
     bool asrc_mode_enabled;
     qahwi_device_t qahwi_dev;
     bool vr_audio_mode_enabled;
+    bool bt_sco_on;
 };
 
 int select_devices(struct audio_device *adev,
