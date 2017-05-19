@@ -84,6 +84,14 @@ public:
 
 protected:
 
+		 // mute/unmute strategies using an incompatible device combination
+		 // if muting, wait for the audio in pcm buffer to be drained before proceeding
+		 // if unmuting, unmute only after the specified delay
+		 // Returns the number of ms waited
+		 virtual uint32_t  checkDeviceMuteStrategies(sp<AudioOutputDescriptor> outputDesc,
+											 audio_devices_t prevDevice,
+											 uint32_t delayMs);
+
          status_t checkAndSetVolume(audio_stream_type_t stream,
                                                    int index,
                                                    const sp<AudioOutputDescriptor>& outputDesc,

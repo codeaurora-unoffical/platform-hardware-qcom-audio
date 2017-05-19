@@ -1094,13 +1094,15 @@ void AudioPolicyManagerCustom::setForceUse(audio_policy_force_use_t usage,
     //       gets routing update while processing first output itself.
     for (size_t i = mOutputs.size(); i > 0; i--) {
         sp<SwAudioOutputDescriptor> outputDesc = mOutputs.valueAt(i-1);
-        audio_devices_t newDevice = getNewOutputDevice(outputDesc, true /*fromCache*/);
-        if ((mEngine->getPhoneState() != AUDIO_MODE_IN_CALL) || (outputDesc != mPrimaryOutput)) {
-            waitMs = setOutputDevice(outputDesc, newDevice, (newDevice != AUDIO_DEVICE_NONE),
+        if (outputDesc->isActive()) {
+            audio_devices_t newDevice = getNewOutputDevice(outputDesc, true /*fromCache*/);
+            if ((mEngine->getPhoneState() != AUDIO_MODE_IN_CALL) || (outputDesc != mPrimaryOutput)) {
+                waitMs = setOutputDevice(outputDesc, newDevice, (newDevice != AUDIO_DEVICE_NONE),
                                      delayMs);
-        }
-        if (forceVolumeReeval && (newDevice != AUDIO_DEVICE_NONE)) {
-            applyStreamVolumes(outputDesc, newDevice, waitMs, true);
+            }
+            if (forceVolumeReeval && (newDevice != AUDIO_DEVICE_NONE)) {
+                applyStreamVolumes(outputDesc, newDevice, waitMs, true);
+            }
         }
     }
 
@@ -1479,6 +1481,99 @@ bool static tryForDirectPCM(int bitWidth, audio_output_flags_t *flags, uint32_t 
        (!offloadDisabled && (trackDirectPCM || playerDirectPCM))?"can be enabled":"is disabled");
 
     return (!offloadDisabled && (trackDirectPCM || playerDirectPCM));
+}
+
+uint32_t AudioPolicyManagerCustom::checkDeviceMuteStrategies(sp<AudioOutputDescriptor> outputDesc,
+                                                       audio_devices_t prevDevice,
+                                                       uint32_t delayMs)
+{
+    // mute/unmute strategies using an incompatible device combination
+    // if muting, wait for the audio in pcm buffer to be drained before proceeding
+    // if unmuting, unmute only after the specified delay
+    if (outputDesc->isDuplicated()) {
+        return 0;
+    }
+
+    uint32_t muteWaitMs = 0;
+    audio_devices_t device = outputDesc->device();
+    bool shouldMute = outputDesc->isActive() && (popcount(device) >= 2);
+
+    for (size_t i = 0; i < NUM_STRATEGIES; i++) {
+        audio_devices_t curDevice = getDeviceForStrategy((routing_strategy)i, false /*fromCache*/);
+        curDevice = curDevice & outputDesc->supportedDevices();
+        bool mute = shouldMute && (curDevice & device) && (curDevice != device);
+        bool doMute = false;
+
+        if (mute && !outputDesc->mStrategyMutedByDevice[i]) {
+            doMute = true;
+            outputDesc->mStrategyMutedByDevice[i] = true;
+        } else if (!mute && outputDesc->mStrategyMutedByDevice[i]){
+            doMute = true;
+            outputDesc->mStrategyMutedByDevice[i] = false;
+        }
+        if (doMute) {
+            for (size_t j = 0; j < mOutputs.size(); j++) {
+                sp<AudioOutputDescriptor> desc = mOutputs.valueAt(j);
+                // skip output if it does not share any device with current output
+                if ((desc->supportedDevices() & outputDesc->supportedDevices())
+                        == AUDIO_DEVICE_NONE) {
+                    continue;
+                }
+                ALOGVV("checkDeviceMuteStrategies() %s strategy %d (curDevice %04x)",
+                      mute ? "muting" : "unmuting", i, curDevice);
+                setStrategyMute((routing_strategy)i, mute, desc, mute ? 0 : delayMs);
+                if (isStrategyActive(desc, (routing_strategy)i)) {
+                    if (mute) {
+                        // FIXME: should not need to double latency if volume could be applied
+                        // immediately by the audioflinger mixer. We must account for the delay
+                        // between now and the next time the audioflinger thread for this output
+                        // will process a buffer (which corresponds to one buffer size,
+                        // usually 1/2 or 1/4 of the latency).
+                        if (muteWaitMs < desc->latency() * 2) {
+                            muteWaitMs = desc->latency() * 2;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // temporary mute output if device selection changes to avoid volume bursts due to
+    // different per device volumes
+    if (outputDesc->isActive() && (device != prevDevice)) {
+        uint32_t tempMuteWaitMs;
+        sp<SwAudioOutputDescriptor> desc = mOutputs.valueFor(outputDesc->mIoHandle);
+        // for compress voip, new volume could be applied immediately in DSP
+        // when below temp mute called, so no need to wait PCMs empty
+        // TODO: the delay time may need to be adjusted according to actual apply latency
+        if (desc->mFlags & AUDIO_OUTPUT_FLAG_DIRECT)
+            tempMuteWaitMs = 0;
+        else
+            tempMuteWaitMs = outputDesc->latency() * 2;
+        // temporary mute duration is conservatively set to 4 times the reported latency
+        uint32_t tempMuteDurationMs = outputDesc->latency() * 4;
+        if (muteWaitMs < tempMuteWaitMs) {
+            muteWaitMs = tempMuteWaitMs;
+        }
+
+        for (size_t i = 0; i < NUM_STRATEGIES; i++) {
+            if (isStrategyActive(outputDesc, (routing_strategy)i)) {
+                // make sure that we do not start the temporary mute period too early in case of
+                // delayed device change
+                setStrategyMute((routing_strategy)i, true, outputDesc, delayMs);
+                setStrategyMute((routing_strategy)i, false, outputDesc,
+                                delayMs + tempMuteDurationMs, device);
+            }
+        }
+    }
+
+    // wait for the PCM output buffers to empty before proceeding with the rest of the command
+    if (muteWaitMs > delayMs) {
+        muteWaitMs -= delayMs;
+        usleep(muteWaitMs * 1000);
+        return muteWaitMs;
+    }
+    return 0;
 }
 
 status_t AudioPolicyManagerCustom::getOutputForAttr(const audio_attributes_t *attr,
