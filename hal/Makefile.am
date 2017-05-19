@@ -176,6 +176,11 @@ AM_CFLAGS += -DQAF_EXTN_ENABLED
 c_sources += audio_extn/qaf.c
 endif
 
+if AUDIO_HW_LOOPBACK
+c_sources += audio_extn/hw_loopback.c
+AM_CFLAGS += -DAUDIO_HW_LOOPBACK_ENABLED
+endif
+
 h_sources = audio_extn/audio_defs.h \
             audio_extn/audio_extn.h \
             audio_hw.h \
