@@ -1182,6 +1182,8 @@ int audio_extn_utils_get_license_params(const struct audio_device *adev,  struct
 #define audio_extn_auto_hal_get_audio_port(dev, config) (0)
 #define audio_extn_auto_hal_set_audio_port_config(dev, config) (0)
 #define audio_extn_auto_hal_set_parameters(adev, parms) (0)
+#define audio_extn_auto_hal_start_hfp_downlink(adev, uc_info) (0)
+#define audio_extn_auto_hal_stop_hfp_downlink(adev, uc_info) (0)
 #else
 int32_t audio_extn_auto_hal_init(struct audio_device *adev);
 void audio_extn_auto_hal_deinit(void);
@@ -1203,6 +1205,10 @@ int audio_extn_auto_hal_set_audio_port_config(struct audio_hw_device *dev,
                                 const struct audio_port_config *config);
 void audio_extn_auto_hal_set_parameters(struct audio_device *adev,
                                         struct str_parms *parms);
+int audio_extn_auto_hal_start_hfp_downlink(struct audio_device *adev,
+                                struct audio_usecase *uc_info);
+int audio_extn_auto_hal_stop_hfp_downlink(struct audio_device *adev,
+                                struct audio_usecase *uc_info);
 #endif
 
 #ifndef EXT_HW_PLUGIN_ENABLED
