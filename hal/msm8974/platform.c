@@ -289,10 +289,10 @@ static int pcm_device_table[AUDIO_USECASE_MAX][2] = {
     [USECASE_AUDIO_RECORD_FM_VIRTUAL] = {MULTIMEDIA2_PCM_DEVICE,
                                   MULTIMEDIA2_PCM_DEVICE},
     [USECASE_AUDIO_PLAYBACK_FM] = {FM_PLAYBACK_PCM_DEVICE, FM_CAPTURE_PCM_DEVICE},
-    [USECASE_AUDIO_HFP_SCO] = {HFP_PCM_RX, HFP_SCO_RX},
-    [USECASE_AUDIO_HFP_SCO_LINK] = {HFP_ASM_RX_TX, HFP_ASM_RX_TX},
-    [USECASE_AUDIO_HFP_SCO_WB] = {HFP_PCM_RX, HFP_SCO_RX},
-    [USECASE_AUDIO_HFP_SCO_LINK_WB] = {HFP_ASM_RX_TX, HFP_ASM_RX_TX},
+    [USECASE_AUDIO_HFP_SCO_UPLINK] = {HFP_PCM_UPLINK, HFP_PCM_UPLINK},
+    [USECASE_AUDIO_HFP_SCO_DOWNLINK] = {HFP_PCM_DOWNLINK, HFP_PCM_DOWNLINK},
+    [USECASE_AUDIO_HFP_SCO_WB_UPLINK] = {HFP_PCM_UPLINK, HFP_PCM_UPLINK},
+    [USECASE_AUDIO_HFP_SCO_WB_DOWNLINK] = {HFP_PCM_DOWNLINK, HFP_PCM_DOWNLINK},
     [USECASE_VOICE_CALL] = {VOICE_CALL_PCM_DEVICE, VOICE_CALL_PCM_DEVICE},
     [USECASE_VOICE2_CALL] = {VOICE2_CALL_PCM_DEVICE, VOICE2_CALL_PCM_DEVICE},
     [USECASE_VOLTE_CALL] = {VOLTE_CALL_PCM_DEVICE, VOLTE_CALL_PCM_DEVICE},
@@ -678,10 +678,10 @@ static struct name_to_index usecase_name_index[AUDIO_USECASE_MAX] = {
     {TO_NAME_INDEX(USECASE_AUDIO_PLAYBACK_ULL)},
     {TO_NAME_INDEX(USECASE_AUDIO_DIRECT_PCM_OFFLOAD)},
     {TO_NAME_INDEX(USECASE_AUDIO_PLAYBACK_FM)},
-    {TO_NAME_INDEX(USECASE_AUDIO_HFP_SCO)},
-    {TO_NAME_INDEX(USECASE_AUDIO_HFP_SCO_LINK)},
-    {TO_NAME_INDEX(USECASE_AUDIO_HFP_SCO_WB)},
-    {TO_NAME_INDEX(USECASE_AUDIO_HFP_SCO_LINK_WB)},
+    {TO_NAME_INDEX(USECASE_AUDIO_HFP_SCO_UPLINK)},
+    {TO_NAME_INDEX(USECASE_AUDIO_HFP_SCO_DOWNLINK)},
+    {TO_NAME_INDEX(USECASE_AUDIO_HFP_SCO_WB_UPLINK)},
+    {TO_NAME_INDEX(USECASE_AUDIO_HFP_SCO_WB_DOWNLINK)},
     {TO_NAME_INDEX(USECASE_AUDIO_RECORD)},
     {TO_NAME_INDEX(USECASE_AUDIO_RECORD_COMPRESS)},
     {TO_NAME_INDEX(USECASE_AUDIO_RECORD_LOW_LATENCY)},
@@ -2163,25 +2163,37 @@ int platform_get_usecase_acdb_id(void *platform,
         break;
     case PCM_HFP_CALL:
         switch (usecase->id) {
-        case USECASE_AUDIO_HFP_SCO:
+        case USECASE_AUDIO_HFP_SCO_UPLINK:
             if (capability == ACDB_DEV_TYPE_IN) {
                 if (my_data->ec_car_state)
                     acdb_dev_id = 12;
                 else
-                    acdb_dev_id = 11;
+                    acdb_dev_id = 95;
             } else
                 /* calibration device is PRI_PCM_RX */
                 acdb_dev_id = 21;
             break;
-        case USECASE_AUDIO_HFP_SCO_WB:
+        case USECASE_AUDIO_HFP_SCO_DOWNLINK:
+            if (capability == ACDB_DEV_TYPE_IN) {
+                acdb_dev_id = 20;
+            } else
+                acdb_dev_id = 94;
+            break;
+        case USECASE_AUDIO_HFP_SCO_WB_UPLINK:
             if (capability == ACDB_DEV_TYPE_IN) {
                 if (my_data->ec_car_state)
                     acdb_dev_id = 12;
                 else
-                    acdb_dev_id = 11;
+                    acdb_dev_id = 95;
             } else
                 /* calibration device is PRI_PCM_RX */
                 acdb_dev_id = 39;
+            break;
+        case USECASE_AUDIO_HFP_SCO_WB_DOWNLINK:
+            if (capability == ACDB_DEV_TYPE_IN) {
+                acdb_dev_id = 38;
+            } else
+                acdb_dev_id = 94;
             break;
         default:
             ALOGE("%s: no acdb id supported for usecase id (%d)",
