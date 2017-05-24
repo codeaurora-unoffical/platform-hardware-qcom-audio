@@ -1,37 +1,37 @@
 /*--------------------------------------------------------------------------
-
-Copyright (c) 2010,2014 The Linux Foundation. All rights reserved.
+Copyright (c) 2010, 2014, 2016 The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
+modification, are permitted provided that the following conditions are
+met:
     * Redistributions of source code must retain the above copyright
       notice, this list of conditions and the following disclaimer.
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    * Neither the name of The Linux Foundation nor
-      the names of its contributors may be used to endorse or promote
-      products derived from this software without specific prior written
-      permission.
+    * Redistributions in binary form must reproduce the above
+      copyright notice, this list of conditions and the following
+      disclaimer in the documentation and/or other materials provided
+      with the distribution.
+    * Neither the name of The Linux Foundation nor the names of its
+      contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NON-INFRINGEMENT ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
-OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
-WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
-OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
-ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
+ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --------------------------------------------------------------------------*/
-#ifndef _AMR_ENC_H_
-#define _AMR_ENC_H_
+#ifndef _G711_ENC_H_
+#define _G711_ENC_H_
 /*============================================================================
                     Audio Encoder
 
-@file omx_amr_aenc.h
+@file omx_g711_aenc.h
 This module contains the class definition for openMAX encoder component.
 
 
@@ -59,9 +59,7 @@ This module contains the class definition for openMAX encoder component.
 #include "Map.h"
 #include <semaphore.h>
 #include <linux/msm_audio.h>
-#include <linux/msm_audio_amrnb.h>
-#include <linux/msm_audio_amrwb.h>
-
+#include <linux/msm_audio_g711.h>
 extern "C" {
     void * get_omx_component_factory_fn(void);
 }
@@ -111,10 +109,10 @@ extern "C" {
             (((mArray)[BITMASK_OFFSET(mIndex)] & \
             BITMASK_FLAG(mIndex)) == 0x0)
 
-#define OMX_CORE_NUM_INPUT_BUFFERS    2
-#define OMX_CORE_NUM_OUTPUT_BUFFERS   16
+#define OMX_CORE_NUM_INPUT_BUFFERS    4
+#define OMX_CORE_NUM_OUTPUT_BUFFERS   8
 
-#define OMX_CORE_INPUT_BUFFER_SIZE    8160 // Multiple of 160
+#define OMX_CORE_INPUT_BUFFER_SIZE    4096 // Multiple of 160
 #define OMX_CORE_CONTROL_CMDQ_SIZE   100
 #define OMX_AENC_VOLUME_STEP         0x147
 #define OMX_AENC_MIN                 0
@@ -125,9 +123,9 @@ extern "C" {
 #define OP_PORT_BITMASK                 0x01
 #define IP_OP_PORT_BITMASK              0x03
 
-#define OMX_AMR_DEFAULT_SF            8000
-#define OMX_AMR_DEFAULT_CH_CFG        1
-#define OMX_AMR_DEFAULT_VOL         25
+#define OMX_G711_DEFAULT_SF            8000
+#define OMX_G711_DEFAULT_CH_CFG        1
+#define OMX_G711_DEFAULT_VOL         25
 // 14 bytes for input meta data
 #define OMX_AENC_SIZEOF_META_BUF     (OMX_CORE_INPUT_BUFFER_SIZE+14)
 
@@ -135,23 +133,19 @@ extern "C" {
 #define FALSE 0
 
 #define NUMOFFRAMES                   1
-#define AMRNB_MAXFRAMELENGTH                32
-#define AMRWB_MAXFRAMELENGTH                62
-#define OMX_AMRNB_OUTPUT_BUFFER_SIZE    ((NUMOFFRAMES * (sizeof(ENC_META_OUT) + AMRNB_MAXFRAMELENGTH) \
+#define MAXFRAMELENGTH                360
+#define OMX_G711_OUTPUT_BUFFER_SIZE    ((NUMOFFRAMES * (sizeof(ENC_META_OUT) + MAXFRAMELENGTH) \
                         + 1))
-#define OMX_AMRWB_OUTPUT_BUFFER_SIZE    ((NUMOFFRAMES * (sizeof(ENC_META_OUT) + AMRWB_MAXFRAMELENGTH) \
-                        + 1))
-#define FRAMEDURATION                 20000
 
-class omx_amr_aenc;
 
-// OMX AMR audio encoder class
-class omx_amr_aenc: public qc_omx_component
+class omx_g711_aenc;
+
+// OMX mo3 audio encoder class
+class omx_g711_aenc: public qc_omx_component
 {
 public:
-    int amrwb_enable;
-    omx_amr_aenc();                             // constructor
-    virtual ~omx_amr_aenc();                    // destructor
+    omx_g711_aenc();                             // constructor
+    virtual ~omx_g711_aenc();                    // destructor
 
     OMX_ERRORTYPE allocate_buffer(OMX_HANDLETYPE             hComp,
                                   OMX_BUFFERHEADERTYPE **bufferHdr,
@@ -337,7 +331,7 @@ private:
 
     typedef struct metadata_input
     {
-        unsigned short   offsetVal;
+        unsigned short offsetVal;
         TIMESTAMP      nTimeStamp;
         unsigned int   nFlags;
     }__attribute__((packed)) META_IN;
@@ -361,7 +355,7 @@ private:
         OMX_U32 ftb_cnt;
         OMX_U32 etb_cnt;
         OMX_U32 ebd_cnt;
-    }AMR_PB_STATS;
+    }G711_PB_STATS;
 
     ///////////////////////////////////////////////////////////
     // Member variables
@@ -381,8 +375,7 @@ private:
     bool                           is_in_th_sleep;
     bool                           is_out_th_sleep;
     unsigned int                   m_flags;      //encapsulate the waiting states.
-    OMX_U64                        nTimestamp;
-    OMX_U64                        ts;  
+    OMX_TICKS                      nTimestamp;
     unsigned int                   pcm_input; //tunnel or non-tunnel
     unsigned int                   m_inp_act_buf_count;    // Num of Input Buffers
     unsigned int                   m_out_act_buf_count;    // Numb of Output Buffers
@@ -391,6 +384,7 @@ private:
     unsigned int                   output_buffer_size;
     unsigned int                   input_buffer_size;
     unsigned short                 m_session_id;
+	bool                           is_mlaw;
     // store I/P PORT state
     OMX_BOOL                       m_inp_bEnabled;
     // store O/P PORT state
@@ -448,12 +442,13 @@ private:
     OMX_STATETYPE                  m_state;      // OMX State
     OMX_STATETYPE                  nState;
     OMX_CALLBACKTYPE               m_cb;         // Application callbacks
-    AMR_PB_STATS                  m_amr_pb_stats;
-    struct amr_ipc_info           *m_ipc_to_in_th;    // for input thread
-    struct amr_ipc_info           *m_ipc_to_out_th;    // for output thread
-    struct amr_ipc_info           *m_ipc_to_cmd_th;    // for command thread
+    G711_PB_STATS                  m_g711_pb_stats;
+    struct g711_ipc_info           *m_ipc_to_in_th;    // for input thread
+    struct g711_ipc_info           *m_ipc_to_out_th;    // for output thread
+    struct g711_ipc_info           *m_ipc_to_cmd_th;    // for command thread
+    struct g711_ipc_info          *m_ipc_to_event_th;    //for txco event thread
     OMX_PRIORITYMGMTTYPE           m_priority_mgm ;
-    OMX_AUDIO_PARAM_AMRTYPE m_amr_param; // Cache AMR encoder parameter
+    OMX_AUDIO_PARAM_PCMMODETYPE    m_g711_param; // Cache G711 encoder parameter
     OMX_AUDIO_PARAM_PCMMODETYPE    m_pcm_param;  // Cache pcm  parameter
     OMX_PARAM_COMPONENTROLETYPE    component_Role;
     OMX_PARAM_BUFFERSUPPLIERTYPE   m_buffer_supplier;
@@ -519,7 +514,7 @@ private:
     bool post_output(unsigned long p1, unsigned long p2,
                      unsigned char id);
 
-    void process_events(omx_amr_aenc *client_data);
+    void process_events(omx_g711_aenc *client_data);
 
     void buffer_done_cb(OMX_BUFFERHEADERTYPE *bufHdr);
 

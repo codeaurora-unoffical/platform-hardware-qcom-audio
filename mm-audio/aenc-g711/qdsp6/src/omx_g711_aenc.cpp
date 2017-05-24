@@ -1,32 +1,33 @@
 /*--------------------------------------------------------------------------
-Copyright (c) 2010, 2014-2016, The Linux Foundation. All rights reserved.
+Copyright (c) 2010, 2014, 2016 The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
+modification, are permitted provided that the following conditions are
+met:
     * Redistributions of source code must retain the above copyright
       notice, this list of conditions and the following disclaimer.
-    * Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    * Neither the name of The Linux Foundation nor
-      the names of its contributors may be used to endorse or promote
-      products derived from this software without specific prior written
-      permission.
+    * Redistributions in binary form must reproduce the above
+      copyright notice, this list of conditions and the following
+      disclaimer in the documentation and/or other materials provided
+      with the distribution.
+    * Neither the name of The Linux Foundation nor the names of its
+      contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NON-INFRINGEMENT ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
-OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
-WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
-OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
-ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
+ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --------------------------------------------------------------------------*/
 /*============================================================================
-@file omx_aenc_qcelp13.c
+@file omx_aenc_g711.c
   This module contains the implementation of the OpenMAX core & component.
 
 *//*========================================================================*/
@@ -38,26 +39,27 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include<string.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
-#include "omx_qcelp13_aenc.h"
+#include "omx_g711_aenc.h"
+#include "omx_log.h"
 #include <errno.h>
 
 using namespace std;
 #define SLEEP_MS 100
 
 // omx_cmd_queue destructor
-omx_qcelp13_aenc::omx_cmd_queue::~omx_cmd_queue()
+omx_g711_aenc::omx_cmd_queue::~omx_cmd_queue()
 {
     // Nothing to do
 }
 
 // omx cmd queue constructor
-omx_qcelp13_aenc::omx_cmd_queue::omx_cmd_queue(): m_read(0),m_write(0),m_size(0)
+omx_g711_aenc::omx_cmd_queue::omx_cmd_queue(): m_read(0),m_write(0),m_size(0)
 {
     memset(m_q,      0,sizeof(omx_event)*OMX_CORE_CONTROL_CMDQ_SIZE);
 }
 
 // omx cmd queue insert
-bool omx_qcelp13_aenc::omx_cmd_queue::insert_entry(unsigned long p1,
+bool omx_g711_aenc::omx_cmd_queue::insert_entry(unsigned long p1,
                                                 unsigned long p2,
                                                 unsigned char id)
 {
@@ -76,12 +78,12 @@ bool omx_qcelp13_aenc::omx_cmd_queue::insert_entry(unsigned long p1,
     } else
     {
         ret = false;
-        DEBUG_PRINT_ERROR("ERROR!!! Command Queue Full");
+        OMX_LOGE("ERROR!!! Command Queue Full");
     }
     return ret;
 }
 
-bool omx_qcelp13_aenc::omx_cmd_queue::pop_entry(unsigned long *p1,
+bool omx_g711_aenc::omx_cmd_queue::pop_entry(unsigned long *p1,
                                         unsigned long *p2, unsigned char *id)
 {
     bool ret = true;
@@ -101,7 +103,7 @@ bool omx_qcelp13_aenc::omx_cmd_queue::pop_entry(unsigned long *p1,
     } else
     {
         ret = false;
-        DEBUG_PRINT_ERROR("ERROR Delete!!! Command Queue Empty");
+        OMX_LOGE("ERROR Delete!!! Command Queue Empty");
     }
     return ret;
 }
@@ -109,14 +111,14 @@ bool omx_qcelp13_aenc::omx_cmd_queue::pop_entry(unsigned long *p1,
 // factory function executed by the core to create instances
 void *get_omx_component_factory_fn(void)
 {
-    return(new omx_qcelp13_aenc);
+    return(new omx_g711_aenc);
 }
-bool omx_qcelp13_aenc::omx_cmd_queue::get_msg_id(unsigned char *id)
+bool omx_g711_aenc::omx_cmd_queue::get_msg_id(unsigned char *id)
 {
    if(m_size > 0)
    {
        *id = m_q[m_read].id;
-       DEBUG_PRINT("get_msg_id=%d\n",*id);
+       OMX_LOGV("get_msg_id=%d\n",*id);
    }
    else{
        return false;
@@ -142,9 +144,9 @@ Dependency:
 SIDE EFFECTS:
    None
 =============================================================================*/
-void omx_qcelp13_aenc::wait_for_event()
+void omx_g711_aenc::wait_for_event()
 {
-    int               rc = 0;
+    int               rc;
     struct timespec   ts;
     pthread_mutex_lock(&m_event_lock);
     while (0 == m_is_event_done)
@@ -154,19 +156,17 @@ void omx_qcelp13_aenc::wait_for_event()
        ts.tv_nsec += ((SLEEP_MS%1000) * 1000000);
        rc = pthread_cond_timedwait(&cond, &m_event_lock, &ts);
        if (rc == ETIMEDOUT && !m_is_event_done) {
-          DEBUG_PRINT("Timed out waiting for flush");
-          rc = ioctl( m_drv_fd, AUDIO_FLUSH, 0);
-          if (rc == -1)
-          {
-            DEBUG_PRINT_ERROR("Flush:Input port, ioctl flush failed: rc:%d, %s, no:%d \n",
-               rc, strerror(errno), errno);
-          }
-          else if (rc < 0)
-          {
-            DEBUG_PRINT_ERROR("Flush:Input port, ioctl failed error: rc:%d, %s, no:%d \n",
-               rc, strerror(errno), errno);
-            break;
-          }
+            OMX_LOGV("Timed out waiting for flush");
+            if (ioctl(m_drv_fd, AUDIO_FLUSH, 0) < 0)
+            {
+                OMX_LOGE("Flush:Input port, ioctl failed error: rc:%d, %s, no:%d \n",
+                        rc, strerror(errno), errno);
+                if (m_cb.EventHandler)
+                    m_cb.EventHandler(&this->m_cmp, this->m_app_data,
+                            OMX_EventError, OMX_ErrorInvalidState,
+                            OMX_COMPONENT_GENERATE_EVENT, NULL);
+                break;
+            }
        }
     }
     m_is_event_done = 0;
@@ -192,7 +192,7 @@ Dependency:
 SIDE EFFECTS:
    None
 =============================================================================*/
-void omx_qcelp13_aenc::event_complete()
+void omx_g711_aenc::event_complete()
 {
     pthread_mutex_lock(&m_event_lock);
     if (0 == m_is_event_done)
@@ -203,8 +203,8 @@ void omx_qcelp13_aenc::event_complete()
     pthread_mutex_unlock(&m_event_lock);
 }
 
-// All this non-sense because of a single qcelp13 object
-void omx_qcelp13_aenc::in_th_goto_sleep()
+// All this non-sense because of a single g711 object
+void omx_g711_aenc::in_th_goto_sleep()
 {
     pthread_mutex_lock(&m_in_th_lock);
     while (0 == m_is_in_th_sleep)
@@ -215,7 +215,7 @@ void omx_qcelp13_aenc::in_th_goto_sleep()
     pthread_mutex_unlock(&m_in_th_lock);
 }
 
-void omx_qcelp13_aenc::in_th_wakeup()
+void omx_g711_aenc::in_th_wakeup()
 {
     pthread_mutex_lock(&m_in_th_lock);
     if (0 == m_is_in_th_sleep)
@@ -226,7 +226,7 @@ void omx_qcelp13_aenc::in_th_wakeup()
     pthread_mutex_unlock(&m_in_th_lock);
 }
 
-void omx_qcelp13_aenc::out_th_goto_sleep()
+void omx_g711_aenc::out_th_goto_sleep()
 {
 
     pthread_mutex_lock(&m_out_th_lock);
@@ -238,7 +238,7 @@ void omx_qcelp13_aenc::out_th_goto_sleep()
     pthread_mutex_unlock(&m_out_th_lock);
 }
 
-void omx_qcelp13_aenc::out_th_wakeup()
+void omx_g711_aenc::out_th_wakeup()
 {
     pthread_mutex_lock(&m_out_th_lock);
     if (0 == m_is_out_th_sleep)
@@ -250,7 +250,7 @@ void omx_qcelp13_aenc::out_th_wakeup()
 }
 /* ======================================================================
 FUNCTION
-  omx_qcelp13_aenc::omx_qcelp13_aenc
+  omx_g711_aenc::omx_g711_aenc
 
 DESCRIPTION
   Constructor
@@ -261,7 +261,7 @@ PARAMETERS
 RETURN VALUE
   None.
 ========================================================================== */
-omx_qcelp13_aenc::omx_qcelp13_aenc(): m_tmp_meta_buf(NULL),
+omx_g711_aenc::omx_g711_aenc(): m_tmp_meta_buf(NULL),
         m_tmp_out_meta_buf(NULL),
         m_flush_cnt(255),
         m_comp_deinit(0),
@@ -280,9 +280,10 @@ omx_qcelp13_aenc::omx_qcelp13_aenc(): m_tmp_meta_buf(NULL),
         m_out_act_buf_count (OMX_CORE_NUM_OUTPUT_BUFFERS),
         m_inp_current_buf_count(0),
         m_out_current_buf_count(0),
-        output_buffer_size((OMX_U32)OMX_QCELP13_OUTPUT_BUFFER_SIZE),
+        output_buffer_size((OMX_U32)OMX_G711_OUTPUT_BUFFER_SIZE),
         input_buffer_size(OMX_CORE_INPUT_BUFFER_SIZE),
         m_session_id(0),
+        is_mlaw(false),
         m_inp_bEnabled(OMX_TRUE),
         m_out_bEnabled(OMX_TRUE),
         m_inp_bPopulated(OMX_FALSE),
@@ -298,8 +299,8 @@ omx_qcelp13_aenc::omx_qcelp13_aenc(): m_tmp_meta_buf(NULL),
     component_Role.nSize = 0;
     memset(&m_cmp, 0, sizeof(m_cmp));
     memset(&m_cb, 0, sizeof(m_cb));
-    memset(&m_qcelp13_pb_stats, 0, sizeof(m_qcelp13_pb_stats));
-    memset(&m_qcelp13_param, 0, sizeof(m_qcelp13_param));
+    memset(&m_g711_pb_stats, 0, sizeof(m_g711_pb_stats));
+    memset(&m_g711_param, 0, sizeof(m_g711_param));
     memset(&m_pcm_param, 0, sizeof(m_pcm_param));
     memset(&m_buffer_supplier, 0, sizeof(m_buffer_supplier));
     memset(&m_priority_mgm, 0, sizeof(m_priority_mgm));
@@ -341,35 +342,37 @@ omx_qcelp13_aenc::omx_qcelp13_aenc(): m_tmp_meta_buf(NULL),
 
     pthread_mutexattr_init(&in_buf_count_lock_attr);
     pthread_mutex_init(&in_buf_count_lock, &in_buf_count_lock_attr);
+    updateLogLevel();
+
     if ((cond_ret = pthread_cond_init (&cond, NULL)) != 0)
     {
-       DEBUG_PRINT_ERROR("pthread_cond_init returns non zero for cond\n");
+       OMX_LOGE("pthread_cond_init returns non zero for cond\n");
        if (cond_ret == EAGAIN)
-         DEBUG_PRINT_ERROR("The system lacked necessary \
-				resources(other than mem)\n");
+         OMX_LOGE("The system lacked necessary \
+                resources(other than mem)\n");
        else if (cond_ret == ENOMEM)
-          DEBUG_PRINT_ERROR("Insufficient memory to initialise \
-				condition variable\n");
+          OMX_LOGE("Insufficient memory to initialise \
+                condition variable\n");
     }
     if ((cond_ret = pthread_cond_init (&in_cond, NULL)) != 0)
     {
-       DEBUG_PRINT_ERROR("pthread_cond_init returns non zero for in_cond\n");
+       OMX_LOGE("pthread_cond_init returns non zero for in_cond\n");
        if (cond_ret == EAGAIN)
-         DEBUG_PRINT_ERROR("The system lacked necessary \
-				resources(other than mem)\n");
+         OMX_LOGE("The system lacked necessary \
+                resources(other than mem)\n");
        else if (cond_ret == ENOMEM)
-          DEBUG_PRINT_ERROR("Insufficient memory to initialise \
-				condition variable\n");
+          OMX_LOGE("Insufficient memory to initialise \
+                condition variable\n");
     }
     if ((cond_ret = pthread_cond_init (&out_cond, NULL)) != 0)
     {
-       DEBUG_PRINT_ERROR("pthread_cond_init returns non zero for out_cond\n");
+       OMX_LOGE("pthread_cond_init returns non zero for out_cond\n");
        if (cond_ret == EAGAIN)
-         DEBUG_PRINT_ERROR("The system lacked necessary \
-				resources(other than mem)\n");
+         OMX_LOGE("The system lacked necessary \
+                resources(other than mem)\n");
        else if (cond_ret == ENOMEM)
-          DEBUG_PRINT_ERROR("Insufficient memory to initialise \
-				condition variable\n");
+          OMX_LOGE("Insufficient memory to initialise \
+                condition variable\n");
     }
 
     sem_init(&sem_read_msg,0, 0);
@@ -381,7 +384,7 @@ omx_qcelp13_aenc::omx_qcelp13_aenc(): m_tmp_meta_buf(NULL),
 
 /* ======================================================================
 FUNCTION
-  omx_qcelp13_aenc::~omx_qcelp13_aenc
+  omx_g711_aenc::~omx_g711_aenc
 
 DESCRIPTION
   Destructor
@@ -392,10 +395,10 @@ PARAMETERS
 RETURN VALUE
   None.
 ========================================================================== */
-omx_qcelp13_aenc::~omx_qcelp13_aenc()
+omx_g711_aenc::~omx_g711_aenc()
 {
-    DEBUG_PRINT_ERROR("QCELP13 Object getting destroyed comp-deinit=%d\n",
-			m_comp_deinit);
+    OMX_LOGE("G711 Object getting destroyed comp-deinit=%d\n",
+            m_comp_deinit);
     if ( !m_comp_deinit )
     {
         deinit_encoder();
@@ -441,7 +444,7 @@ omx_qcelp13_aenc::~omx_qcelp13_aenc()
     sem_destroy (&sem_read_msg);
     sem_destroy (&sem_write_msg);
     sem_destroy (&sem_States);
-    DEBUG_PRINT_ERROR("OMX QCELP13 component destroyed\n");
+    OMX_LOGE("OMX G711 component destroyed\n");
     return;
 }
 
@@ -452,7 +455,7 @@ omx_qcelp13_aenc::~omx_qcelp13_aenc()
   @param bufHdr OMX buffer header to be passed back to IL client
   @return none
  */
-void omx_qcelp13_aenc::buffer_done_cb(OMX_BUFFERHEADERTYPE *bufHdr)
+void omx_g711_aenc::buffer_done_cb(OMX_BUFFERHEADERTYPE *bufHdr)
 {
     if (m_cb.EmptyBufferDone)
     {
@@ -461,11 +464,11 @@ void omx_qcelp13_aenc::buffer_done_cb(OMX_BUFFERHEADERTYPE *bufHdr)
 
         m_cb.EmptyBufferDone(&m_cmp, m_app_data, bufHdr);
         pthread_mutex_lock(&in_buf_count_lock);
-        m_qcelp13_pb_stats.ebd_cnt++;
+        m_g711_pb_stats.ebd_cnt++;
         nNumInputBuf--;
         DEBUG_DETAIL("EBD CB:: in_buf_len=%d nNumInputBuf=%d\n ebd_cnt=%d",\
-                     m_qcelp13_pb_stats.tot_in_buf_len,
-                     nNumInputBuf, m_qcelp13_pb_stats.ebd_cnt);
+                     m_g711_pb_stats.tot_in_buf_len,
+                     nNumInputBuf, m_g711_pb_stats.ebd_cnt);
         pthread_mutex_unlock(&in_buf_count_lock);
     }
 
@@ -491,7 +494,7 @@ Dependency:
 SIDE EFFECTS:
   None
 =============================================================================*/
-void omx_qcelp13_aenc::flush_ack()
+void omx_g711_aenc::flush_ack()
 {
     // Decrement the FLUSH ACK count and notify the waiting recepients
     pthread_mutex_lock(&m_flush_lock);
@@ -500,26 +503,26 @@ void omx_qcelp13_aenc::flush_ack()
     {
         event_complete();
     }
-    DEBUG_PRINT("Rxed FLUSH ACK cnt=%d\n",m_flush_cnt);
+    OMX_LOGV("Rxed FLUSH ACK cnt=%d\n",m_flush_cnt);
     pthread_mutex_unlock(&m_flush_lock);
 }
-void omx_qcelp13_aenc::frame_done_cb(OMX_BUFFERHEADERTYPE *bufHdr)
+void omx_g711_aenc::frame_done_cb(OMX_BUFFERHEADERTYPE *bufHdr)
 {
     if (m_cb.FillBufferDone)
     {
         PrintFrameHdr(OMX_COMPONENT_GENERATE_FRAME_DONE,bufHdr);
-        m_qcelp13_pb_stats.fbd_cnt++;
+        m_g711_pb_stats.fbd_cnt++;
         pthread_mutex_lock(&out_buf_count_lock);
         nNumOutputBuf--;
-        DEBUG_PRINT("FBD CB:: nNumOutputBuf=%d out_buf_len=%u fbd_cnt=%u\n",\
+        OMX_LOGV("FBD CB:: nNumOutputBuf=%d out_buf_len=%u fbd_cnt=%u\n",\
                     nNumOutputBuf,
-                    m_qcelp13_pb_stats.tot_out_buf_len,
-                    m_qcelp13_pb_stats.fbd_cnt);
-        m_qcelp13_pb_stats.tot_out_buf_len += bufHdr->nFilledLen;
-        m_qcelp13_pb_stats.tot_pb_time  = bufHdr->nTimeStamp;
-        DEBUG_PRINT("FBD:in_buf_len=%u out_buf_len=%u\n",
-                    m_qcelp13_pb_stats.tot_in_buf_len,
-                    m_qcelp13_pb_stats.tot_out_buf_len);
+                    m_g711_pb_stats.tot_out_buf_len,
+                    m_g711_pb_stats.fbd_cnt);
+        m_g711_pb_stats.tot_out_buf_len += bufHdr->nFilledLen;
+        m_g711_pb_stats.tot_pb_time  = bufHdr->nTimeStamp;
+        OMX_LOGV("FBD:in_buf_len=%u out_buf_len=%u\n",
+                    m_g711_pb_stats.tot_in_buf_len,
+                    m_g711_pb_stats.tot_out_buf_len);
 
         pthread_mutex_unlock(&out_buf_count_lock);
         m_cb.FillBufferDone(&m_cmp, m_app_data, bufHdr);
@@ -549,14 +552,14 @@ Dependency:
 SIDE EFFECTS:
   None
 =============================================================================*/
-void omx_qcelp13_aenc::process_out_port_msg(void *client_data, unsigned char id)
+void omx_g711_aenc::process_out_port_msg(void *client_data, unsigned char id)
 {
     unsigned long p1 = 0;                            // Parameter - 1
     unsigned long p2 = 0;                            // Parameter - 2
     unsigned char ident = 0;
     unsigned      qsize     = 0;                 // qsize
     unsigned      tot_qsize = 0;
-    omx_qcelp13_aenc  *pThis    = (omx_qcelp13_aenc *) client_data;
+    omx_g711_aenc  *pThis    = (omx_g711_aenc *) client_data;
     OMX_STATETYPE state;
 
 loopback_out:
@@ -565,7 +568,7 @@ loopback_out:
     pthread_mutex_unlock(&pThis->m_state_lock);
     if ( state == OMX_StateLoaded )
     {
-        DEBUG_PRINT(" OUT: IN LOADED STATE RETURN\n");
+        OMX_LOGV(" OUT: IN LOADED STATE RETURN\n");
         return;
     }
     pthread_mutex_lock(&pThis->m_outputlock);
@@ -616,7 +619,7 @@ loopback_out:
 
         if(pThis->m_output_ctrl_cmd_q.m_size || !(pThis->bFlushinprogress))
         {
-            DEBUG_PRINT("OUT:2. SLEEPING OUT THREAD \n");
+            OMX_LOGV("OUT:2. SLEEPING OUT THREAD \n");
             pthread_mutex_lock(&pThis->m_out_th_lock_1);
             pThis->is_out_th_sleep = true;
             pthread_mutex_unlock(&pThis->m_out_th_lock_1);
@@ -657,14 +660,14 @@ loopback_out:
     } else if ( state == OMX_StateLoaded )
     {
         pthread_mutex_unlock(&pThis->m_outputlock);
-        DEBUG_PRINT("IN: ***in OMX_StateLoaded so exiting\n");
+        OMX_LOGV("IN: ***in OMX_StateLoaded so exiting\n");
         return ;
     } else
     {
         qsize = 0;
-        DEBUG_PRINT("OUT--> Empty Queue state=%d %d %d %d\n",state,
+        OMX_LOGV("OUT--> Empty Queue state=%d %d %d %d\n",state,
                      pThis->m_output_ctrl_cmd_q.m_size,
-		     pThis->m_output_ctrl_fbd_q.m_size,
+                     pThis->m_output_ctrl_fbd_q.m_size,
                      pThis->m_output_q.m_size);
 
         if(state == OMX_StatePause)
@@ -708,7 +711,7 @@ loopback_out:
         }
         else if(id == OMX_COMPONENT_RESUME)
         {
-             DEBUG_PRINT("RESUMED...\n");
+             OMX_LOGV("RESUMED...\n");
         }
         else if(id == OMX_COMPONENT_GENERATE_COMMAND)
         {
@@ -723,7 +726,7 @@ loopback_out:
             }
         } else
         {
-            DEBUG_PRINT_ERROR("ERROR:OUT-->Invalid Id[%d]\n",id);
+            OMX_LOGE("ERROR:OUT-->Invalid Id[%d]\n",id);
         }
     } else
     {
@@ -753,13 +756,13 @@ Dependency:
 SIDE EFFECTS:
   None
 =============================================================================*/
-void omx_qcelp13_aenc::process_command_msg(void *client_data, unsigned char id)
+void omx_g711_aenc::process_command_msg(void *client_data, unsigned char id)
 {
     unsigned long p1 = 0;                             // Parameter - 1
     unsigned long p2 = 0;                             // Parameter - 2
     unsigned char ident = 0;
     unsigned     qsize  = 0;
-    omx_qcelp13_aenc *pThis = (omx_qcelp13_aenc*)client_data;
+    omx_g711_aenc *pThis = (omx_g711_aenc*)client_data;
     pthread_mutex_lock(&pThis->m_commandlock);
 
     qsize = pThis->m_command_q.m_size;
@@ -791,7 +794,7 @@ void omx_qcelp13_aenc::process_command_msg(void *client_data, unsigned char id)
                 pthread_mutex_lock(&pThis->m_state_lock);
                 pThis->m_state = (OMX_STATETYPE) p2;
                 pthread_mutex_unlock(&pThis->m_state_lock);
-                DEBUG_PRINT("CMD:Process->state set to %d \n", \
+                OMX_LOGV("CMD:Process->state set to %d \n", \
                             pThis->m_state);
 
                 if (pThis->m_state == OMX_StateExecuting ||
@@ -841,7 +844,7 @@ void omx_qcelp13_aenc::process_command_msg(void *client_data, unsigned char id)
             }
         } else
         {
-            DEBUG_PRINT_ERROR("ERROR:CMD-->EventHandler NULL \n");
+            OMX_LOGE("ERROR:CMD-->EventHandler NULL \n");
         }
     } else if (OMX_COMPONENT_GENERATE_COMMAND == id)
     {
@@ -858,7 +861,7 @@ void omx_qcelp13_aenc::process_command_msg(void *client_data, unsigned char id)
     }
     else
     {
-       DEBUG_PRINT_ERROR("CMD->state[%d]id[%d]\n",pThis->m_state,ident);
+       OMX_LOGE("CMD->state[%d]id[%d]\n",pThis->m_state,ident);
     }
     return;
 }
@@ -883,19 +886,19 @@ Dependency:
 SIDE EFFECTS:
   None
 =============================================================================*/
-void omx_qcelp13_aenc::process_in_port_msg(void *client_data, unsigned char id)
+void omx_g711_aenc::process_in_port_msg(void *client_data, unsigned char id)
 {
     unsigned long p1 = 0;                            // Parameter - 1
     unsigned long p2 = 0;                            // Parameter - 2
     unsigned char ident = 0;
     unsigned      qsize     = 0;
     unsigned      tot_qsize = 0;
-    omx_qcelp13_aenc  *pThis    = (omx_qcelp13_aenc *) client_data;
+    omx_g711_aenc  *pThis    = (omx_g711_aenc *) client_data;
     OMX_STATETYPE state;
 
     if (!pThis)
     {
-        DEBUG_PRINT_ERROR("ERROR:IN--> Invalid Obj \n");
+        OMX_LOGE("ERROR:IN--> Invalid Obj \n");
         return;
     }
 loopback_in:
@@ -904,7 +907,7 @@ loopback_in:
     pthread_mutex_unlock(&pThis->m_state_lock);
     if ( state == OMX_StateLoaded )
     {
-        DEBUG_PRINT(" IN: IN LOADED STATE RETURN\n");
+        OMX_LOGV(" IN: IN LOADED STATE RETURN\n");
         return;
     }
     // Protect the shared queue data structure
@@ -982,15 +985,15 @@ loopback_in:
     } else if ( state == OMX_StateLoaded )
     {
         pthread_mutex_unlock(&pThis->m_lock);
-        DEBUG_PRINT("IN: ***in OMX_StateLoaded so exiting\n");
+        OMX_LOGV("IN: ***in OMX_StateLoaded so exiting\n");
         return ;
     } else
     {
         qsize = 0;
-        DEBUG_PRINT("IN-->state[%d]cmdq[%d]ebdq[%d]in[%d]\n",\
+        OMX_LOGV("IN-->state[%d]cmdq[%d]ebdq[%d]in[%d]\n",\
                              state,pThis->m_input_ctrl_cmd_q.m_size,
                              pThis->m_input_ctrl_ebd_q.m_size,
-				pThis->m_input_q.m_size);
+                             pThis->m_input_q.m_size);
 
         if(state == OMX_StatePause)
         {
@@ -1040,7 +1043,7 @@ loopback_in:
         }
         else
         {
-            DEBUG_PRINT_ERROR("ERROR:IN-->Invalid Id[%d]\n",id);
+            OMX_LOGE("ERROR:IN-->Invalid Id[%d]\n",id);
         }
     } else
     {
@@ -1055,7 +1058,7 @@ loopback_in:
  @param role C string mandating role of this component
  @return Error status
  */
-OMX_ERRORTYPE omx_qcelp13_aenc::component_init(OMX_STRING role)
+OMX_ERRORTYPE omx_g711_aenc::component_init(OMX_STRING role)
 {
 
     OMX_ERRORTYPE eRet = OMX_ErrorNone;
@@ -1064,19 +1067,16 @@ OMX_ERRORTYPE omx_qcelp13_aenc::component_init(OMX_STRING role)
     /* DSP does not give information about the bitstream
     randomly assign the value right now. Query will result in
     incorrect param */
-    memset(&m_qcelp13_param, 0, sizeof(m_qcelp13_param));
-    m_qcelp13_param.nSize = (OMX_U32)sizeof(m_qcelp13_param);
-    m_qcelp13_param.nChannels = OMX_QCELP13_DEFAULT_CH_CFG;
-    //Current DSP does not have config
-    m_qcelp13_param.eCDMARate = OMX_AUDIO_CDMARateFull;
-    m_qcelp13_param.nMinBitRate = OMX_QCELP13_DEFAULT_MINRATE;
-    m_qcelp13_param.nMaxBitRate = OMX_QCELP13_DEFAULT_MAXRATE;
-    m_volume = OMX_QCELP13_DEFAULT_VOL;             /* Close to unity gain */
-    memset(&m_qcelp13_pb_stats,0,sizeof(QCELP13_PB_STATS));
+    memset(&m_g711_param, 0, sizeof(m_g711_param));
+    m_g711_param.nSize = (OMX_U32)sizeof(m_g711_param);
+    m_g711_param.nChannels = OMX_G711_DEFAULT_CH_CFG;
+    m_g711_param.nSamplingRate = OMX_G711_DEFAULT_SF;
+    m_volume = OMX_G711_DEFAULT_VOL; /* Close to unity gain */
+    memset(&m_g711_pb_stats,0,sizeof(G711_PB_STATS));
     memset(&m_pcm_param, 0, sizeof(m_pcm_param));
     m_pcm_param.nSize = (OMX_U32)sizeof(m_pcm_param);
-    m_pcm_param.nChannels = OMX_QCELP13_DEFAULT_CH_CFG;
-    m_pcm_param.nSamplingRate = OMX_QCELP13_DEFAULT_SF;
+    m_pcm_param.nChannels = OMX_G711_DEFAULT_CH_CFG;
+    m_pcm_param.nSamplingRate = OMX_G711_DEFAULT_SF;
     nTimestamp = 0;
 
 
@@ -1098,30 +1098,46 @@ OMX_ERRORTYPE omx_qcelp13_aenc::component_init(OMX_STRING role)
     memset(&m_buffer_supplier, 0, sizeof(m_buffer_supplier));
     m_buffer_supplier.nPortIndex=OMX_BufferSupplyUnspecified;
 
-    DEBUG_PRINT_ERROR(" component init: role = %s\n",role);
+    OMX_LOGE(" component init: role = %s\n",role);
 
-    DEBUG_PRINT(" component init: role = %s\n",role);
+    OMX_LOGV(" component init: role = %s\n",role);
     component_Role.nVersion.nVersion = OMX_SPEC_VERSION;
-    if (!strcmp(role,"OMX.qcom.audio.encoder.qcelp13"))
+    if (!strcmp(role,"OMX.qcom.audio.encoder.g711mlaw"))
     {
         pcm_input = 1;
         component_Role.nSize = (OMX_U32)sizeof(role);
         strlcpy((char *)component_Role.cRole, (const char*)role,
-		sizeof(component_Role.cRole));
-        DEBUG_PRINT("\ncomponent_init: Component %s LOADED \n", role);
-    } else if (!strcmp(role,"OMX.qcom.audio.encoder.tunneled.qcelp13"))
+                sizeof(component_Role.cRole));
+        OMX_LOGV("\ncomponent_init: Component %s LOADED \n", role);
+        is_mlaw = true;
+    } else if (!strcmp(role,"OMX.qcom.audio.encoder.tunneled.g711mlaw"))
     {
         pcm_input = 0;
         component_Role.nSize = (OMX_U32)sizeof(role);
         strlcpy((char *)component_Role.cRole, (const char*)role,
-		sizeof(component_Role.cRole));
-        DEBUG_PRINT("\ncomponent_init: Component %s LOADED \n", role);
+                sizeof(component_Role.cRole));
+        OMX_LOGV("\ncomponent_init: Component %s LOADED \n", role);
+        is_mlaw = true;
+    } else if (!strcmp(role,"OMX.qcom.audio.encoder.g711alaw"))
+    {
+        pcm_input = 1;
+        component_Role.nSize = (OMX_U32)sizeof(role);
+        strlcpy((char *)component_Role.cRole, (const char*)role,
+                sizeof(component_Role.cRole));
+        OMX_LOGV("\ncomponent_init: Component %s LOADED \n", role);
+    } else if (!strcmp(role,"OMX.qcom.audio.encoder.tunneled.g711alaw"))
+    {
+        pcm_input = 0;
+        component_Role.nSize = (OMX_U32)sizeof(role);
+        strlcpy((char *)component_Role.cRole, (const char*)role,
+                sizeof(component_Role.cRole));
+        OMX_LOGV("\ncomponent_init: Component %s LOADED \n", role);
     } else
     {
         component_Role.nSize = (OMX_U32)sizeof("\0");
         strlcpy((char *)component_Role.cRole, (const char*)"\0",
-		sizeof(component_Role.cRole));
-        DEBUG_PRINT("\ncomponent_init: Component %s LOADED is invalid\n", role);
+                sizeof(component_Role.cRole));
+        OMX_LOGV("\ncomponent_init: Component %s LOADED is invalid\n", role);
     }
     if(pcm_input)
     {
@@ -1131,48 +1147,64 @@ OMX_ERRORTYPE omx_qcelp13_aenc::component_init(OMX_STRING role)
                          (OMX_CORE_INPUT_BUFFER_SIZE + sizeof(META_IN)));
 
         if (m_tmp_meta_buf == NULL){
-            DEBUG_PRINT_ERROR("Mem alloc failed for in meta buf\n");
+            OMX_LOGV("Mem alloc failed for in meta buf\n");
                 return OMX_ErrorInsufficientResources;
             }
     }
     m_tmp_out_meta_buf =
-		(OMX_U8*)malloc(sizeof(OMX_U8)*OMX_QCELP13_OUTPUT_BUFFER_SIZE);
+        (OMX_U8*)malloc(sizeof(OMX_U8)*OMX_G711_OUTPUT_BUFFER_SIZE);
         if ( m_tmp_out_meta_buf == NULL ) {
-            DEBUG_PRINT_ERROR("Mem alloc failed for out meta buf\n");
-                return OMX_ErrorInsufficientResources;
-            }
+            OMX_LOGV("Mem alloc failed for out meta buf\n");
+            return OMX_ErrorInsufficientResources;
+        }
 
     if(0 == pcm_input)
     {
-        m_drv_fd = open("/dev/msm_qcelp_in",O_RDONLY);
-    DEBUG_PRINT("Driver in Tunnel mode open\n");
+        if (is_mlaw)
+        {
+            m_drv_fd = open("/dev/msm_g711mlaw_in",O_RDONLY);
+            OMX_LOGV("Driver msm_g711mlaw_in in Tunnel mode open\n");
+        }
+        else
+        {
+            m_drv_fd = open("/dev/msm_g711alaw_in",O_RDONLY);
+            OMX_LOGV("Driver msm_g711alaw_in in Tunnel mode open\n");
+        }
     }
     else
     {
-        m_drv_fd = open("/dev/msm_qcelp_in",O_RDWR);
-    DEBUG_PRINT("Driver in Non Tunnel mode open\n");
+        if (is_mlaw)
+        {
+            m_drv_fd = open("/dev/msm_g711mlaw_in",O_RDWR);
+            OMX_LOGV("Driver msm_g711mlaw_in in Non Tunnel mode open\n");
+        }
+        else
+        {
+            m_drv_fd = open("/dev/msm_g711alaw_in",O_RDWR);
+            OMX_LOGV("Driver msm_g711alaw_in in Non Tunnel mode open\n");
+        }
     }
     if (m_drv_fd < 0)
     {
-        DEBUG_PRINT_ERROR("Component_init Open Failed[%d] errno[%d]",\
-                                      m_drv_fd,errno);
+        OMX_LOGE("Component_init Open Failed[%d] errno[%d]",\
+                m_drv_fd,errno);
 
         return OMX_ErrorInsufficientResources;
     }
     if(ioctl(m_drv_fd, AUDIO_GET_SESSION_ID,&m_session_id) == -1)
     {
-        DEBUG_PRINT_ERROR("AUDIO_GET_SESSION_ID FAILED\n");
+        OMX_LOGE("AUDIO_GET_SESSION_ID FAILED\n");
     }
     if(pcm_input)
     {
         if (!m_ipc_to_in_th)
         {
-            m_ipc_to_in_th = omx_qcelp13_thread_create(process_in_port_msg,
+            m_ipc_to_in_th = omx_g711_thread_create(process_in_port_msg,
                 this, (char *)"INPUT_THREAD");
             if (!m_ipc_to_in_th)
             {
-                DEBUG_PRINT_ERROR("ERROR!!! Failed to start \
-					Input port thread\n");
+                OMX_LOGE("ERROR!!! Failed to start \
+                    Input port thread\n");
                 return OMX_ErrorInsufficientResources;
             }
         }
@@ -1180,11 +1212,11 @@ OMX_ERRORTYPE omx_qcelp13_aenc::component_init(OMX_STRING role)
 
     if (!m_ipc_to_cmd_th)
     {
-        m_ipc_to_cmd_th = omx_qcelp13_thread_create(process_command_msg,
+        m_ipc_to_cmd_th = omx_g711_thread_create(process_command_msg,
             this, (char *)"CMD_THREAD");
         if (!m_ipc_to_cmd_th)
         {
-            DEBUG_PRINT_ERROR("ERROR!!!Failed to start "
+            OMX_LOGE("ERROR!!!Failed to start "
                               "command message thread\n");
             return OMX_ErrorInsufficientResources;
         }
@@ -1192,11 +1224,11 @@ OMX_ERRORTYPE omx_qcelp13_aenc::component_init(OMX_STRING role)
 
         if (!m_ipc_to_out_th)
         {
-            m_ipc_to_out_th = omx_qcelp13_thread_create(process_out_port_msg,
+            m_ipc_to_out_th = omx_g711_thread_create(process_out_port_msg,
                 this, (char *)"OUTPUT_THREAD");
             if (!m_ipc_to_out_th)
             {
-                DEBUG_PRINT_ERROR("ERROR!!! Failed to start output "
+                OMX_LOGE("ERROR!!! Failed to start output "
                                   "port thread\n");
                 return OMX_ErrorInsufficientResources;
             }
@@ -1219,7 +1251,7 @@ OMX_ERRORTYPE omx_qcelp13_aenc::component_init(OMX_STRING role)
  @param componentUUID
  @return Error status
  */
-OMX_ERRORTYPE  omx_qcelp13_aenc::get_component_version
+OMX_ERRORTYPE  omx_g711_aenc::get_component_version
 (
     OMX_IN OMX_HANDLETYPE               hComp,
     OMX_OUT OMX_STRING          componentName,
@@ -1231,12 +1263,12 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::get_component_version
         (specVersion == NULL) || (componentUUID == NULL))
     {
         componentVersion = NULL;
-        DEBUG_PRINT_ERROR("Returning OMX_ErrorBadParameter\n");
+        OMX_LOGE("Returning OMX_ErrorBadParameter\n");
         return OMX_ErrorBadParameter;
     }
     if (m_state == OMX_StateInvalid)
     {
-        DEBUG_PRINT_ERROR("Get Comp Version in Invalid State\n");
+        OMX_LOGE("Get Comp Version in Invalid State\n");
         return OMX_ErrorInvalidState;
     }
     componentVersion->nVersion = OMX_SPEC_VERSION;
@@ -1255,7 +1287,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::get_component_version
   @param cmdData
   @return Error status
 */
-OMX_ERRORTYPE  omx_qcelp13_aenc::send_command(OMX_IN OMX_HANDLETYPE hComp,
+OMX_ERRORTYPE  omx_g711_aenc::send_command(OMX_IN OMX_HANDLETYPE hComp,
                                            OMX_IN OMX_COMMANDTYPE  cmd,
                                            OMX_IN OMX_U32       param1,
                                            OMX_IN OMX_PTR      cmdData)
@@ -1265,7 +1297,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command(OMX_IN OMX_HANDLETYPE hComp,
     if(hComp == NULL)
     {
         cmdData = cmdData;
-        DEBUG_PRINT_ERROR("Returning OMX_ErrorBadParameter\n");
+        OMX_LOGE("Returning OMX_ErrorBadParameter\n");
         return OMX_ErrorBadParameter;
     }
     if (OMX_StateInvalid == m_state)
@@ -1277,10 +1309,10 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command(OMX_IN OMX_HANDLETYPE hComp,
         return OMX_ErrorBadPortIndex;
     }
     post_command((unsigned)cmd,(unsigned)param1,OMX_COMPONENT_GENERATE_COMMAND);
-    DEBUG_PRINT("Send Command : returns with OMX_ErrorNone \n");
-    DEBUG_PRINT("send_command : recieved state before semwait= %u\n",param1);
+    OMX_LOGV("Send Command : returns with OMX_ErrorNone \n");
+    OMX_LOGV("send_command : recieved state before semwait= %u\n",param1);
     sem_wait (&sem_States);
-    DEBUG_PRINT("send_command : recieved state after semwait\n");
+    OMX_LOGV("send_command : recieved state after semwait\n");
     return OMX_ErrorNone;
 }
 
@@ -1295,7 +1327,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command(OMX_IN OMX_HANDLETYPE hComp,
 
  @return error status
 */
-OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
+OMX_ERRORTYPE  omx_g711_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
                                                  OMX_IN OMX_COMMANDTYPE  cmd,
                                                  OMX_IN OMX_U32       param1,
                                                  OMX_IN OMX_PTR      cmdData)
@@ -1309,7 +1341,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
     if(hComp == NULL)
     {
         cmdData = cmdData;
-        DEBUG_PRINT_ERROR("Returning OMX_ErrorBadParameter\n");
+        OMX_LOGE("Returning OMX_ErrorBadParameter\n");
         return OMX_ErrorBadParameter;
     }
     if (OMX_CommandStateSet == cmd)
@@ -1326,18 +1358,18 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
                         (m_inp_bEnabled == OMX_FALSE
                          && m_out_bEnabled == OMX_FALSE))
                  {
-                       DEBUG_PRINT("SCP-->Allocate Done Complete\n");
+                       OMX_LOGV("SCP-->Allocate Done Complete\n");
                  }
                  else
                  {
-                        DEBUG_PRINT("SCP-->Loaded to Idle-Pending\n");
+                        OMX_LOGV("SCP-->Loaded to Idle-Pending\n");
                         BITMASK_SET(&m_flags, OMX_COMPONENT_IDLE_PENDING);
                         bFlag = 0;
                  }
 
             } else if (eState == OMX_StateLoaded)
             {
-                DEBUG_PRINT("OMXCORE-SM: Loaded-->Loaded\n");
+                OMX_LOGV("OMXCORE-SM: Loaded-->Loaded\n");
                 m_cb.EventHandler(&this->m_cmp,
                                   this->m_app_data,
                                   OMX_EventError,
@@ -1348,13 +1380,13 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
 
             else if (eState == OMX_StateWaitForResources)
             {
-                DEBUG_PRINT("OMXCORE-SM: Loaded-->WaitForResources\n");
+                OMX_LOGV("OMXCORE-SM: Loaded-->WaitForResources\n");
                 eRet = OMX_ErrorNone;
             }
 
             else if (eState == OMX_StateExecuting)
             {
-                DEBUG_PRINT("OMXCORE-SM: Loaded-->Executing\n");
+                OMX_LOGV("OMXCORE-SM: Loaded-->Executing\n");
                 m_cb.EventHandler(&this->m_cmp,
                                   this->m_app_data,
                                   OMX_EventError,
@@ -1365,7 +1397,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
 
             else if (eState == OMX_StatePause)
             {
-                DEBUG_PRINT("OMXCORE-SM: Loaded-->Pause\n");
+                OMX_LOGV("OMXCORE-SM: Loaded-->Pause\n");
                 m_cb.EventHandler(&this->m_cmp,
                                   this->m_app_data,
                                   OMX_EventError,
@@ -1376,7 +1408,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
 
             else if (eState == OMX_StateInvalid)
             {
-                DEBUG_PRINT("OMXCORE-SM: Loaded-->Invalid\n");
+                OMX_LOGV("OMXCORE-SM: Loaded-->Invalid\n");
                 m_cb.EventHandler(&this->m_cmp,
                                   this->m_app_data,
                                   OMX_EventError,
@@ -1386,7 +1418,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
                 eRet = OMX_ErrorInvalidState;
             } else
             {
-                DEBUG_PRINT_ERROR("SCP-->Loaded to Invalid(%d))\n",eState);
+                OMX_LOGE("SCP-->Loaded to Invalid(%d))\n",eState);
                 eRet = OMX_ErrorBadParameter;
             }
         }
@@ -1402,16 +1434,16 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
                 {
                     if (ioctl(m_drv_fd, AUDIO_STOP, 0) == -1)
                     {
-                        DEBUG_PRINT_ERROR("SCP:Idle->Loaded,\
-				ioctl stop failed %d\n", errno);
+                        OMX_LOGE("SCP:Idle->Loaded,\
+                                ioctl stop failed %d\n", errno);
                     }
 
                     nTimestamp=0;
 
-                    DEBUG_PRINT("SCP-->Idle to Loaded\n");
+                    OMX_LOGV("SCP-->Idle to Loaded\n");
                 } else
                 {
-                    DEBUG_PRINT("SCP--> Idle to Loaded-Pending\n");
+                    OMX_LOGV("SCP--> Idle to Loaded-Pending\n");
                     BITMASK_SET(&m_flags, OMX_COMPONENT_LOADING_PENDING);
                     // Skip the event notification
                     bFlag = 0;
@@ -1420,78 +1452,81 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
             else if (OMX_StateExecuting == eState)
             {
 
-                struct msm_audio_qcelp_enc_config drv_qcelp13_enc_config;
+                struct msm_audio_g711_enc_config drv_g711_enc_config;
                 struct msm_audio_stream_config drv_stream_config;
                 struct msm_audio_buf_cfg buf_cfg;
                 struct msm_audio_config pcm_cfg;
 
                 if(ioctl(m_drv_fd, AUDIO_GET_STREAM_CONFIG, &drv_stream_config)
-			== -1)
+                    == -1)
                 {
-                    DEBUG_PRINT_ERROR("ioctl AUDIO_GET_STREAM_CONFIG failed, \
-					errno[%d]\n", errno);
+                    OMX_LOGE("ioctl AUDIO_GET_STREAM_CONFIG failed, \
+                            errno[%d]\n", errno);
                 }
                 if(ioctl(m_drv_fd, AUDIO_SET_STREAM_CONFIG, &drv_stream_config)
-			== -1)
+                    == -1)
                 {
-                    DEBUG_PRINT_ERROR("ioctl AUDIO_SET_STREAM_CONFIG failed, \
-					errno[%d]\n", errno);
+                    OMX_LOGE("ioctl AUDIO_SET_STREAM_CONFIG failed, \
+                            errno[%d]\n", errno);
                 }
 
-                if(ioctl(m_drv_fd, AUDIO_GET_QCELP_ENC_CONFIG,
-			&drv_qcelp13_enc_config) == -1)
+                if(ioctl(m_drv_fd, AUDIO_GET_G711_ENC_CONFIG,
+                    &drv_g711_enc_config) == -1)
                 {
-                    DEBUG_PRINT_ERROR("ioctl AUDIO_GET_QCELP_ENC_CONFIG failed,\
-					errno[%d]\n", errno);
+                    OMX_LOGE("ioctl AUDIO_GET_G711_ENC_CONFIG failed,\
+                            errno[%d]\n", errno);
                 }
-        drv_qcelp13_enc_config.min_bit_rate = m_qcelp13_param.nMinBitRate;
-        drv_qcelp13_enc_config.max_bit_rate = m_qcelp13_param.nMaxBitRate;
-        if(ioctl(m_drv_fd, AUDIO_SET_QCELP_ENC_CONFIG, &drv_qcelp13_enc_config)
-		== -1)
+                if( drv_g711_enc_config.sample_rate != m_g711_param.nSamplingRate)
                 {
-                    DEBUG_PRINT_ERROR("ioctl AUDIO_SET_QCELP_ENC_CONFIG \
-					failed, errno[%d]\n", errno);
+                    drv_g711_enc_config.sample_rate = m_g711_param.nSamplingRate;
+                }
+                OMX_LOGV("sampling rate %d", drv_g711_enc_config.sample_rate);
+                if(ioctl(m_drv_fd, AUDIO_SET_G711_ENC_CONFIG, &drv_g711_enc_config)
+                    == -1)
+                {
+                    OMX_LOGE("ioctl AUDIO_SET_G711_ENC_CONFIG \
+                            failed, errno[%d]\n", errno);
                 }
                 if (ioctl(m_drv_fd, AUDIO_GET_BUF_CFG, &buf_cfg) == -1)
                 {
-                    DEBUG_PRINT_ERROR("ioctl AUDIO_GET_BUF_CFG, errno[%d]\n",
-					errno);
+                    OMX_LOGE("ioctl AUDIO_GET_BUF_CFG, errno[%d]\n",
+                            errno);
                 }
                 buf_cfg.meta_info_enable = 1;
                 buf_cfg.frames_per_buf = NUMOFFRAMES;
                 if (ioctl(m_drv_fd, AUDIO_SET_BUF_CFG, &buf_cfg) == -1)
                 {
-                    DEBUG_PRINT_ERROR("ioctl AUDIO_SET_BUF_CFG, errno[%d]\n",
-					errno);
+                    OMX_LOGE("ioctl AUDIO_SET_BUF_CFG, errno[%d]\n",
+                            errno);
                 }
                 if(pcm_input)
                 {
                     if (ioctl(m_drv_fd, AUDIO_GET_CONFIG, &pcm_cfg) == -1)
                     {
-                        DEBUG_PRINT_ERROR("ioctl AUDIO_GET_CONFIG, errno[%d]\n",
-						errno);
+                        OMX_LOGE("ioctl AUDIO_GET_CONFIG, errno[%d]\n",
+                                errno);
                     }
                     pcm_cfg.channel_count = m_pcm_param.nChannels;
                     pcm_cfg.sample_rate  =  m_pcm_param.nSamplingRate;
-                    DEBUG_PRINT("pcm config %u %u\n",m_pcm_param.nChannels,
-				m_pcm_param.nSamplingRate);
+                    OMX_LOGV("pcm config %u %u\n",m_pcm_param.nChannels,
+                            m_pcm_param.nSamplingRate);
 
                     if (ioctl(m_drv_fd, AUDIO_SET_CONFIG, &pcm_cfg) == -1)
                     {
-                        DEBUG_PRINT_ERROR("ioctl AUDIO_SET_CONFIG, errno[%d]\n",
-						errno);
+                        OMX_LOGE("ioctl AUDIO_SET_CONFIG, errno[%d]\n",
+                                errno);
                     }
                 }
                 if(ioctl(m_drv_fd, AUDIO_START, 0) == -1)
                 {
-                    DEBUG_PRINT_ERROR("ioctl AUDIO_START failed, errno[%d]\n",
-					errno);
+                    OMX_LOGE("ioctl AUDIO_START failed, errno[%d]\n",
+                            errno);
                 }
-                DEBUG_PRINT("SCP-->Idle to Executing\n");
+                OMX_LOGV("SCP-->Idle to Executing\n");
                 nState = eState;
             } else if (eState == OMX_StateIdle)
             {
-                DEBUG_PRINT("OMXCORE-SM: Idle-->Idle\n");
+                OMX_LOGV("OMXCORE-SM: Idle-->Idle\n");
                 m_cb.EventHandler(&this->m_cmp,
                                   this->m_app_data,
                                   OMX_EventError,
@@ -1500,7 +1535,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
                 eRet = OMX_ErrorSameState;
             } else if (eState == OMX_StateWaitForResources)
             {
-                DEBUG_PRINT("OMXCORE-SM: Idle-->WaitForResources\n");
+                OMX_LOGV("OMXCORE-SM: Idle-->WaitForResources\n");
                 this->m_cb.EventHandler(&this->m_cmp, this->m_app_data,
                                         OMX_EventError,
                                         OMX_ErrorIncorrectStateTransition,
@@ -1510,12 +1545,12 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
 
             else if (eState == OMX_StatePause)
             {
-                DEBUG_PRINT("OMXCORE-SM: Idle-->Pause\n");
+                OMX_LOGV("OMXCORE-SM: Idle-->Pause\n");
             }
 
             else if (eState == OMX_StateInvalid)
             {
-                DEBUG_PRINT("OMXCORE-SM: Idle-->Invalid\n");
+                OMX_LOGV("OMXCORE-SM: Idle-->Invalid\n");
                 m_state = OMX_StateInvalid;
                 this->m_cb.EventHandler(&this->m_cmp,
                                         this->m_app_data,
@@ -1525,7 +1560,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
                 eRet = OMX_ErrorInvalidState;
             } else
             {
-                DEBUG_PRINT_ERROR("SCP--> Idle to %d Not Handled\n",eState);
+                OMX_LOGE("SCP--> Idle to %d Not Handled\n",eState);
                 eRet = OMX_ErrorBadParameter;
             }
         }
@@ -1537,7 +1572,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
         {
             if (OMX_StateIdle == eState)
             {
-                DEBUG_PRINT("SCP-->Executing to Idle \n");
+                OMX_LOGV("SCP-->Executing to Idle \n");
                 if(pcm_input)
                     execute_omx_flush(-1,false);
                 else
@@ -1547,12 +1582,12 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
             } else if (OMX_StatePause == eState)
             {
                 DEBUG_DETAIL("*************************\n");
-                DEBUG_PRINT("SCP-->RXED PAUSE STATE\n");
+                OMX_LOGV("SCP-->RXED PAUSE STATE\n");
                 DEBUG_DETAIL("*************************\n");
                 //ioctl(m_drv_fd, AUDIO_PAUSE, 0);
             } else if (eState == OMX_StateLoaded)
             {
-                DEBUG_PRINT("\n OMXCORE-SM: Executing --> Loaded \n");
+                OMX_LOGV("\n OMXCORE-SM: Executing --> Loaded \n");
                 this->m_cb.EventHandler(&this->m_cmp, this->m_app_data,
                                         OMX_EventError,
                                         OMX_ErrorIncorrectStateTransition,
@@ -1560,7 +1595,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
                 eRet = OMX_ErrorIncorrectStateTransition;
             } else if (eState == OMX_StateWaitForResources)
             {
-                DEBUG_PRINT("\n OMXCORE-SM: Executing --> WaitForResources \n");
+                OMX_LOGV("\n OMXCORE-SM: Executing --> WaitForResources \n");
                 this->m_cb.EventHandler(&this->m_cmp, this->m_app_data,
                                         OMX_EventError,
                                         OMX_ErrorIncorrectStateTransition,
@@ -1568,14 +1603,14 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
                 eRet = OMX_ErrorIncorrectStateTransition;
             } else if (eState == OMX_StateExecuting)
             {
-                DEBUG_PRINT("\n OMXCORE-SM: Executing --> Executing \n");
+                OMX_LOGV("\n OMXCORE-SM: Executing --> Executing \n");
                 this->m_cb.EventHandler(&this->m_cmp, this->m_app_data,
                                         OMX_EventError, OMX_ErrorSameState,
                                         0, NULL );
                 eRet = OMX_ErrorSameState;
             } else if (eState == OMX_StateInvalid)
             {
-                DEBUG_PRINT("\n OMXCORE-SM: Executing --> Invalid \n");
+                OMX_LOGV("\n OMXCORE-SM: Executing --> Invalid \n");
                 m_state = OMX_StateInvalid;
                 this->m_cb.EventHandler(&this->m_cmp, this->m_app_data,
                                         OMX_EventError, OMX_ErrorInvalidState,
@@ -1583,8 +1618,8 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
                 eRet = OMX_ErrorInvalidState;
             } else
             {
-                DEBUG_PRINT_ERROR("SCP--> Executing to %d Not Handled\n",
-				eState);
+                OMX_LOGE("SCP--> Executing to %d Not Handled\n",
+                        eState);
                 eRet = OMX_ErrorBadParameter;
             }
         }
@@ -1609,8 +1644,8 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
                 nState = eState;
             } else if ( OMX_StateIdle == eState )
             {
-                DEBUG_PRINT("SCP-->Paused to Idle \n");
-                DEBUG_PRINT ("\n Internal flush issued");
+                OMX_LOGV("SCP-->Paused to Idle \n");
+                OMX_LOGV ("\n Internal flush issued");
                 pthread_mutex_lock(&m_flush_lock);
                 m_flush_cnt = 2;
                 pthread_mutex_unlock(&m_flush_lock);
@@ -1621,30 +1656,30 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
 
             } else if ( eState == OMX_StateLoaded )
             {
-                DEBUG_PRINT("\n Pause --> loaded \n");
+                OMX_LOGV("\n Pause --> loaded \n");
                 this->m_cb.EventHandler(&this->m_cmp, this->m_app_data,
                                         OMX_EventError,
-					OMX_ErrorIncorrectStateTransition,
+                                        OMX_ErrorIncorrectStateTransition,
                                         0, NULL );
                 eRet = OMX_ErrorIncorrectStateTransition;
             } else if (eState == OMX_StateWaitForResources)
             {
-                DEBUG_PRINT("\n Pause --> WaitForResources \n");
+                OMX_LOGV("\n Pause --> WaitForResources \n");
                 this->m_cb.EventHandler(&this->m_cmp, this->m_app_data,
                                         OMX_EventError,
-					OMX_ErrorIncorrectStateTransition,
+                                        OMX_ErrorIncorrectStateTransition,
                                         0, NULL );
                 eRet = OMX_ErrorIncorrectStateTransition;
             } else if (eState == OMX_StatePause)
             {
-                DEBUG_PRINT("\n Pause --> Pause \n");
+                OMX_LOGV("\n Pause --> Pause \n");
                 this->m_cb.EventHandler(&this->m_cmp, this->m_app_data,
                                         OMX_EventError, OMX_ErrorSameState,
                                         0, NULL );
                 eRet = OMX_ErrorSameState;
             } else if (eState == OMX_StateInvalid)
             {
-                DEBUG_PRINT("\n Pause --> Invalid \n");
+                OMX_LOGV("\n Pause --> Invalid \n");
                 m_state = OMX_StateInvalid;
                 this->m_cb.EventHandler(&this->m_cmp, this->m_app_data,
                                         OMX_EventError, OMX_ErrorInvalidState,
@@ -1652,7 +1687,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
                 eRet = OMX_ErrorInvalidState;
             } else
             {
-                DEBUG_PRINT("SCP-->Paused to %d Not Handled\n",eState);
+                OMX_LOGV("SCP-->Paused to %d Not Handled\n",eState);
                 eRet = OMX_ErrorBadParameter;
             }
         }
@@ -1663,18 +1698,17 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
         {
             if (eState == OMX_StateLoaded)
             {
-                DEBUG_PRINT("OMXCORE-SM: WaitForResources-->Loaded\n");
+                OMX_LOGV("OMXCORE-SM: WaitForResources-->Loaded\n");
             } else if (eState == OMX_StateWaitForResources)
             {
-                DEBUG_PRINT("OMXCORE-SM: \
-				WaitForResources-->WaitForResources\n");
+                OMX_LOGV("OMXCORE-SM: waitForResources-->WaitForResources\n");
                 this->m_cb.EventHandler(&this->m_cmp, this->m_app_data,
                                         OMX_EventError, OMX_ErrorSameState,
                                         0, NULL );
                 eRet = OMX_ErrorSameState;
             } else if (eState == OMX_StateExecuting)
             {
-                DEBUG_PRINT("OMXCORE-SM: WaitForResources-->Executing\n");
+                OMX_LOGV("OMXCORE-SM: WaitForResources-->Executing\n");
                 this->m_cb.EventHandler(&this->m_cmp, this->m_app_data,
                                         OMX_EventError,
                                         OMX_ErrorIncorrectStateTransition,
@@ -1682,7 +1716,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
                 eRet = OMX_ErrorIncorrectStateTransition;
             } else if (eState == OMX_StatePause)
             {
-                DEBUG_PRINT("OMXCORE-SM: WaitForResources-->Pause\n");
+                OMX_LOGV("OMXCORE-SM: WaitForResources-->Pause\n");
                 this->m_cb.EventHandler(&this->m_cmp, this->m_app_data,
                                         OMX_EventError,
                                         OMX_ErrorIncorrectStateTransition,
@@ -1690,7 +1724,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
                 eRet = OMX_ErrorIncorrectStateTransition;
             } else if (eState == OMX_StateInvalid)
             {
-                DEBUG_PRINT("OMXCORE-SM: WaitForResources-->Invalid\n");
+                OMX_LOGV("OMXCORE-SM: WaitForResources-->Invalid\n");
                 m_state = OMX_StateInvalid;
                 this->m_cb.EventHandler(&this->m_cmp, this->m_app_data,
                                         OMX_EventError,
@@ -1699,8 +1733,8 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
                 eRet = OMX_ErrorInvalidState;
             } else
             {
-                DEBUG_PRINT_ERROR("SCP--> %d to %d(Not Handled)\n",
-					m_state,eState);
+                OMX_LOGE("SCP--> %d to %d(Not Handled)\n",
+                    m_state,eState);
                 eRet = OMX_ErrorBadParameter;
             }
         }
@@ -1713,7 +1747,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
                 || OMX_StateIdle == eState || OMX_StateExecuting == eState
                 || OMX_StatePause == eState || OMX_StateInvalid == eState)
             {
-                DEBUG_PRINT("OMXCORE-SM: Invalid-->Loaded/Idle/Executing"
+                OMX_LOGV("OMXCORE-SM: Invalid-->Loaded/Idle/Executing"
                             "/Pause/Invalid/WaitForResources\n");
                 m_state = OMX_StateInvalid;
                 this->m_cb.EventHandler(&this->m_cmp, this->m_app_data,
@@ -1723,14 +1757,14 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
             }
         } else
         {
-            DEBUG_PRINT_ERROR("OMXCORE-SM: %d --> %d(Not Handled)\n",\
+            OMX_LOGE("OMXCORE-SM: %d --> %d(Not Handled)\n",\
                               m_state,eState);
             eRet = OMX_ErrorBadParameter;
         }
     } else if (OMX_CommandFlush == cmd)
     {
         DEBUG_DETAIL("*************************\n");
-        DEBUG_PRINT("SCP-->RXED FLUSH COMMAND port=%u\n",param1);
+        OMX_LOGV("SCP-->RXED FLUSH COMMAND port=%u\n",param1);
         DEBUG_DETAIL("*************************\n");
         bFlag = 0;
         if ( param1 == OMX_CORE_INPUT_PORT_INDEX ||
@@ -1749,14 +1783,14 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
     bFlag = 0;
         if ( param1 == OMX_CORE_INPUT_PORT_INDEX || param1 == OMX_ALL )
         {
-            DEBUG_PRINT("SCP: Disabling Input port Indx\n");
+            OMX_LOGV("SCP: Disabling Input port Indx\n");
             m_inp_bEnabled = OMX_FALSE;
             if ( (m_state == OMX_StateLoaded || m_state == OMX_StateIdle)
                 && release_done(0) )
             {
-                DEBUG_PRINT("send_command_proxy:OMX_CommandPortDisable:\
+                OMX_LOGV("send_command_proxy:OMX_CommandPortDisable:\
                             OMX_CORE_INPUT_PORT_INDEX:release_done \n");
-                DEBUG_PRINT("************* OMX_CommandPortDisable:\
+                OMX_LOGV("************* OMX_CommandPortDisable:\
                             m_inp_bEnabled=%d********\n",m_inp_bEnabled);
 
                 post_command(OMX_CommandPortDisable,
@@ -1768,11 +1802,11 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
             {
                 if (m_state == OMX_StatePause ||m_state == OMX_StateExecuting)
                 {
-                    DEBUG_PRINT("SCP: execute_omx_flush in Disable in "\
+                    OMX_LOGV("SCP: execute_omx_flush in Disable in "\
                                 " param1=%u m_state=%d \n",param1, m_state);
                     execute_omx_flush(param1);
                 }
-                DEBUG_PRINT("send_command_proxy:OMX_CommandPortDisable:\
+                OMX_LOGV("send_command_proxy:OMX_CommandPortDisable:\
                             OMX_CORE_INPUT_PORT_INDEX \n");
                 BITMASK_SET(&m_flags, OMX_COMPONENT_INPUT_DISABLE_PENDING);
                 // Skip the event notification
@@ -1783,14 +1817,14 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
         if (param1 == OMX_CORE_OUTPUT_PORT_INDEX || param1 == OMX_ALL)
         {
 
-            DEBUG_PRINT("SCP: Disabling Output port Indx\n");
+            OMX_LOGV("SCP: Disabling Output port Indx\n");
             m_out_bEnabled = OMX_FALSE;
             if ((m_state == OMX_StateLoaded || m_state == OMX_StateIdle)
                 && release_done(1))
             {
-                DEBUG_PRINT("send_command_proxy:OMX_CommandPortDisable:\
+                OMX_LOGV("send_command_proxy:OMX_CommandPortDisable:\
                             OMX_CORE_OUTPUT_PORT_INDEX:release_done \n");
-                DEBUG_PRINT("************* OMX_CommandPortDisable:\
+                OMX_LOGV("************* OMX_CommandPortDisable:\
                             m_out_bEnabled=%d********\n",m_inp_bEnabled);
 
                 post_command(OMX_CommandPortDisable,
@@ -1800,7 +1834,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
             {
                 if (m_state == OMX_StatePause ||m_state == OMX_StateExecuting)
                 {
-                    DEBUG_PRINT("SCP: execute_omx_flush in Disable out "\
+                    OMX_LOGV("SCP: execute_omx_flush in Disable out "\
                                 "param1=%u m_state=%d \n",param1, m_state);
                     execute_omx_flush(param1);
                 }
@@ -1810,7 +1844,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
             }
         } else
         {
-            DEBUG_PRINT_ERROR("OMX_CommandPortDisable: disable wrong port ID");
+            OMX_LOGE("OMX_CommandPortDisable: disable wrong port ID");
         }
 
     } else if (cmd == OMX_CommandPortEnable)
@@ -1819,7 +1853,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
         if (param1 == OMX_CORE_INPUT_PORT_INDEX  || param1 == OMX_ALL)
         {
             m_inp_bEnabled = OMX_TRUE;
-            DEBUG_PRINT("SCP: Enabling Input port Indx\n");
+            OMX_LOGV("SCP: Enabling Input port Indx\n");
             if ((m_state == OMX_StateLoaded
                  && !BITMASK_PRESENT(&m_flags,OMX_COMPONENT_IDLE_PENDING))
                 || (m_state == OMX_StateWaitForResources)
@@ -1840,7 +1874,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
 
         if (param1 == OMX_CORE_OUTPUT_PORT_INDEX || param1 == OMX_ALL)
         {
-            DEBUG_PRINT("SCP: Enabling Output port Indx\n");
+            OMX_LOGV("SCP: Enabling Output port Indx\n");
             m_out_bEnabled = OMX_TRUE;
             if ((m_state == OMX_StateLoaded
                  && !BITMASK_PRESENT(&m_flags,OMX_COMPONENT_IDLE_PENDING))
@@ -1852,7 +1886,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
                              OMX_COMPONENT_GENERATE_EVENT);
             } else
             {
-                DEBUG_PRINT("send_command_proxy:OMX_CommandPortEnable:\
+                OMX_LOGV("send_command_proxy:OMX_CommandPortEnable:\
                             OMX_CORE_OUTPUT_PORT_INDEX:release_done \n");
                 BITMASK_SET(&m_flags, OMX_COMPONENT_OUTPUT_ENABLE_PENDING);
                 // Skip the event notification
@@ -1870,21 +1904,21 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::send_command_proxy(OMX_IN OMX_HANDLETYPE hComp,
             if (is_out_th_sleep)
             {
                 is_out_th_sleep = false;
-                DEBUG_PRINT("SCP:WAKING OUT THR, OMX_CommandPortEnable\n");
+                OMX_LOGV("SCP:WAKING OUT THR, OMX_CommandPortEnable\n");
                 out_th_wakeup();
             }
             pthread_mutex_unlock(&m_out_th_lock_1);
         } else
         {
-            DEBUG_PRINT_ERROR("OMX_CommandPortEnable: disable wrong port ID");
+            OMX_LOGE("OMX_CommandPortEnable: disable wrong port ID");
         }
 
     } else
     {
-        DEBUG_PRINT_ERROR("SCP-->ERROR: Invali Command [%d]\n",cmd);
+        OMX_LOGE("SCP-->ERROR: Invali Command [%d]\n",cmd);
         eRet = OMX_ErrorNotImplemented;
     }
-    DEBUG_PRINT("posting sem_States\n");
+    OMX_LOGV("posting sem_States\n");
     sem_post (&sem_States);
     if (eRet == OMX_ErrorNone && bFlag)
     {
@@ -1914,11 +1948,11 @@ Dependency:
 SIDE EFFECTS:
   None
 =============================================================================*/
-bool omx_qcelp13_aenc::execute_omx_flush(OMX_IN OMX_U32 param1, bool cmd_cmpl)
+bool omx_g711_aenc::execute_omx_flush(OMX_IN OMX_U32 param1, bool cmd_cmpl)
 {
     bool bRet = true;
 
-    DEBUG_PRINT("Execute_omx_flush Port[%u]", param1);
+    OMX_LOGV("Execute_omx_flush Port[%u]", param1);
     struct timespec abs_timeout;
     abs_timeout.tv_sec = 1;
     abs_timeout.tv_nsec = 0;
@@ -1926,7 +1960,7 @@ bool omx_qcelp13_aenc::execute_omx_flush(OMX_IN OMX_U32 param1, bool cmd_cmpl)
     if ((signed)param1 == -1)
     {
         bFlushinprogress = true;
-        DEBUG_PRINT("Execute flush for both I/p O/p port\n");
+        OMX_LOGV("Execute flush for both I/p O/p port\n");
         pthread_mutex_lock(&m_flush_lock);
         m_flush_cnt = 2;
         pthread_mutex_unlock(&m_flush_lock);
@@ -1938,7 +1972,7 @@ bool omx_qcelp13_aenc::execute_omx_flush(OMX_IN OMX_U32 param1, bool cmd_cmpl)
                     OMX_CORE_OUTPUT_PORT_INDEX,OMX_COMPONENT_GENERATE_COMMAND);
         // Send Flush to the kernel so that the in and out buffers are released
         if (ioctl( m_drv_fd, AUDIO_FLUSH, 0) == -1)
-            DEBUG_PRINT_ERROR("FLush:ioctl flush failed errno=%d\n",errno);
+            OMX_LOGE("FLush:ioctl flush failed errno=%d\n",errno);
         DEBUG_DETAIL("****************************************");
         DEBUG_DETAIL("is_in_th_sleep=%d is_out_th_sleep=%d\n",\
                      is_in_th_sleep,is_out_th_sleep);
@@ -1968,34 +2002,34 @@ bool omx_qcelp13_aenc::execute_omx_flush(OMX_IN OMX_U32 param1, bool cmd_cmpl)
         DEBUG_DETAIL("WAITING FOR FLUSH ACK's param1=%d",param1);
         wait_for_event();
 
-        DEBUG_PRINT("RECIEVED BOTH FLUSH ACK's param1=%u cmd_cmpl=%d",\
+        OMX_LOGV("RECIEVED BOTH FLUSH ACK's param1=%u cmd_cmpl=%d",\
                     param1,cmd_cmpl);
 
         // If not going to idle state, Send FLUSH complete message
-	// to the Client, now that FLUSH ACK's have been recieved.
+        // to the Client, now that FLUSH ACK's have been recieved.
         if (cmd_cmpl)
         {
             m_cb.EventHandler(&m_cmp, m_app_data, OMX_EventCmdComplete,
                               OMX_CommandFlush, OMX_CORE_INPUT_PORT_INDEX,
-				NULL );
+                              NULL );
             m_cb.EventHandler(&m_cmp, m_app_data, OMX_EventCmdComplete,
                               OMX_CommandFlush, OMX_CORE_OUTPUT_PORT_INDEX,
-				NULL );
-            DEBUG_PRINT("Inside FLUSH.. sending FLUSH CMPL\n");
+                              NULL );
+            OMX_LOGV("Inside FLUSH.. sending FLUSH CMPL\n");
         }
         bFlushinprogress = false;
     }
     else if (param1 == OMX_CORE_INPUT_PORT_INDEX)
     {
-        DEBUG_PRINT("Execute FLUSH for I/p port\n");
+        OMX_LOGV("Execute FLUSH for I/p port\n");
         pthread_mutex_lock(&m_flush_lock);
         m_flush_cnt = 1;
         pthread_mutex_unlock(&m_flush_lock);
         post_input(OMX_CommandFlush,
                    OMX_CORE_INPUT_PORT_INDEX,OMX_COMPONENT_GENERATE_COMMAND);
         if (ioctl( m_drv_fd, AUDIO_FLUSH, 0) == -1)
-            DEBUG_PRINT_ERROR("Flush:Input port, ioctl flush failed %d\n",
-				errno);
+            OMX_LOGE("Flush:Input port, ioctl flush failed %d\n",
+                errno);
         DEBUG_DETAIL("****************************************");
         DEBUG_DETAIL("is_in_th_sleep=%d is_out_th_sleep=%d\n",\
                      is_in_th_sleep,is_out_th_sleep);
@@ -2031,11 +2065,11 @@ bool omx_qcelp13_aenc::execute_omx_flush(OMX_IN OMX_U32 param1, bool cmd_cmpl)
         {
             m_cb.EventHandler(&m_cmp, m_app_data, OMX_EventCmdComplete,
                               OMX_CommandFlush, OMX_CORE_INPUT_PORT_INDEX,
-				NULL );
+                              NULL );
         }
     } else if (OMX_CORE_OUTPUT_PORT_INDEX == param1)
     {
-        DEBUG_PRINT("Executing FLUSH for O/p port\n");
+        OMX_LOGV("Executing FLUSH for O/p port\n");
         pthread_mutex_lock(&m_flush_lock);
         m_flush_cnt = 1;
         pthread_mutex_unlock(&m_flush_lock);
@@ -2044,8 +2078,8 @@ bool omx_qcelp13_aenc::execute_omx_flush(OMX_IN OMX_U32 param1, bool cmd_cmpl)
         post_output(OMX_CommandFlush,
                     OMX_CORE_OUTPUT_PORT_INDEX,OMX_COMPONENT_GENERATE_COMMAND);
         if (ioctl( m_drv_fd, AUDIO_FLUSH, 0) ==-1)
-            DEBUG_PRINT_ERROR("Flush:Output port, ioctl flush failed %d\n",
-				errno);
+            OMX_LOGE("Flush:Output port, ioctl flush failed %d\n",
+                errno);
         DEBUG_DETAIL("****************************************");
         DEBUG_DETAIL("is_in_th_sleep=%d is_out_th_sleep=%d\n",\
                      is_in_th_sleep,is_out_th_sleep);
@@ -2069,7 +2103,7 @@ bool omx_qcelp13_aenc::execute_omx_flush(OMX_IN OMX_U32 param1, bool cmd_cmpl)
         }
 
         // sleep till the FLUSH ACK are done by both the input and
-	// output threads
+        // output threads
         wait_for_event();
         // Send FLUSH complete message to the Client,
         // now that FLUSH ACK's have been recieved.
@@ -2077,12 +2111,12 @@ bool omx_qcelp13_aenc::execute_omx_flush(OMX_IN OMX_U32 param1, bool cmd_cmpl)
         {
             m_cb.EventHandler(&m_cmp, m_app_data, OMX_EventCmdComplete,
                               OMX_CommandFlush, OMX_CORE_OUTPUT_PORT_INDEX,
-				NULL );
+                              NULL );
         }
         DEBUG_DETAIL("RECIEVED FLUSH ACK FOR O/P PORT param1=%d",param1);
     } else
     {
-        DEBUG_PRINT("Invalid Port ID[%u]",param1);
+        OMX_LOGV("Invalid Port ID[%u]",param1);
     }
     return bRet;
 }
@@ -2107,7 +2141,7 @@ Dependency:
 SIDE EFFECTS:
   None
 =============================================================================*/
-bool omx_qcelp13_aenc::execute_input_omx_flush()
+bool omx_g711_aenc::execute_input_omx_flush()
 {
     OMX_BUFFERHEADERTYPE *omx_buf;
     unsigned long p1 = 0;                            // Parameter - 1
@@ -2116,7 +2150,7 @@ bool omx_qcelp13_aenc::execute_input_omx_flush()
     unsigned      qsize=0;                       // qsize
     unsigned      tot_qsize=0;                   // qsize
 
-    DEBUG_PRINT("Execute_omx_flush on input port");
+    OMX_LOGV("Execute_omx_flush on input port");
 
     pthread_mutex_lock(&m_lock);
     do
@@ -2187,7 +2221,7 @@ Dependency:
 SIDE EFFECTS:
   None
 =============================================================================*/
-bool omx_qcelp13_aenc::execute_output_omx_flush()
+bool omx_g711_aenc::execute_output_omx_flush()
 {
     OMX_BUFFERHEADERTYPE *omx_buf;
     unsigned long p1 = 0;                            // Parameter - 1
@@ -2196,7 +2230,7 @@ bool omx_qcelp13_aenc::execute_output_omx_flush()
     unsigned      qsize=0;                       // qsize
     unsigned      tot_qsize=0;                   // qsize
 
-    DEBUG_PRINT("Execute_omx_flush on output port");
+    OMX_LOGV("Execute_omx_flush on output port");
 
     pthread_mutex_lock(&m_outputlock);
     do
@@ -2273,7 +2307,7 @@ Dependency:
 SIDE EFFECTS:
   None
 =============================================================================*/
-bool omx_qcelp13_aenc::post_input(unsigned long p1,
+bool omx_g711_aenc::post_input(unsigned long p1,
                                unsigned long p2,
                                unsigned char id)
 {
@@ -2297,7 +2331,7 @@ bool omx_qcelp13_aenc::post_input(unsigned long p1,
     if (m_ipc_to_in_th)
     {
         bRet = true;
-        omx_qcelp13_post_msg(m_ipc_to_in_th, id);
+        omx_g711_post_msg(m_ipc_to_in_th, id);
     }
 
     DEBUG_DETAIL("PostInput-->state[%d]id[%d]flushq[%d]ebdq[%d]dataq[%d] \n",\
@@ -2334,7 +2368,7 @@ Dependency:
 SIDE EFFECTS:
   None
 =============================================================================*/
-bool omx_qcelp13_aenc::post_command(unsigned int p1,
+bool omx_g711_aenc::post_command(unsigned int p1,
                                  unsigned int p2,
                                  unsigned char id)
 {
@@ -2347,7 +2381,7 @@ bool omx_qcelp13_aenc::post_command(unsigned int p1,
     if (m_ipc_to_cmd_th)
     {
         bRet = true;
-        omx_qcelp13_post_msg(m_ipc_to_cmd_th, id);
+        omx_g711_post_msg(m_ipc_to_cmd_th, id);
     }
 
     DEBUG_DETAIL("PostCmd-->state[%d]id[%d]cmdq[%d]flags[%x]\n",\
@@ -2383,7 +2417,7 @@ Dependency:
 SIDE EFFECTS:
   None
 =============================================================================*/
-bool omx_qcelp13_aenc::post_output(unsigned long p1,
+bool omx_g711_aenc::post_output(unsigned long p1,
                                 unsigned long p2,
                                 unsigned char id)
 {
@@ -2406,7 +2440,7 @@ bool omx_qcelp13_aenc::post_output(unsigned long p1,
     if ( m_ipc_to_out_th )
     {
         bRet = true;
-        omx_qcelp13_post_msg(m_ipc_to_out_th, id);
+        omx_g711_post_msg(m_ipc_to_out_th, id);
     }
     DEBUG_DETAIL("PostOutput-->state[%d]id[%d]flushq[%d]ebdq[%d]dataq[%d]\n",\
                  m_state,
@@ -2427,7 +2461,7 @@ bool omx_qcelp13_aenc::post_output(unsigned long p1,
         paramter
   @return error status
 */
-OMX_ERRORTYPE  omx_qcelp13_aenc::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
+OMX_ERRORTYPE  omx_g711_aenc::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                                             OMX_IN OMX_INDEXTYPE paramIndex,
                                             OMX_INOUT OMX_PTR     paramData)
 {
@@ -2435,17 +2469,17 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
 
     if(hComp == NULL)
     {
-        DEBUG_PRINT_ERROR("Returning OMX_ErrorBadParameter\n");
+        OMX_LOGE("Returning OMX_ErrorBadParameter\n");
         return OMX_ErrorBadParameter;
     }
     if (m_state == OMX_StateInvalid)
     {
-        DEBUG_PRINT_ERROR("Get Param in Invalid State\n");
+        OMX_LOGE("Get Param in Invalid State\n");
         return OMX_ErrorInvalidState;
     }
     if (paramData == NULL)
     {
-        DEBUG_PRINT("get_parameter: paramData is NULL\n");
+        OMX_LOGV("get_parameter: paramData is NULL\n");
         return OMX_ErrorBadParameter;
     }
 
@@ -2456,9 +2490,9 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                 OMX_PARAM_PORTDEFINITIONTYPE *portDefn;
                 portDefn = (OMX_PARAM_PORTDEFINITIONTYPE *) paramData;
 
-                DEBUG_PRINT("OMX_IndexParamPortDefinition " \
+                OMX_LOGV("OMX_IndexParamPortDefinition " \
                             "portDefn->nPortIndex = %u\n",
-				portDefn->nPortIndex);
+                            portDefn->nPortIndex);
 
                 portDefn->nVersion.nVersion = OMX_SPEC_VERSION;
                 portDefn->nSize = (OMX_U32)sizeof(portDefn);
@@ -2484,12 +2518,12 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                     portDefn->nBufferCountMin    = OMX_CORE_NUM_OUTPUT_BUFFERS;
                     portDefn->nBufferSize        = output_buffer_size;
                     portDefn->format.audio.bFlagErrorConcealment = OMX_TRUE;
-                    portDefn->format.audio.eEncoding = OMX_AUDIO_CodingQCELP13;
+                    portDefn->format.audio.eEncoding = OMX_AUDIO_CodingG711;
                     portDefn->format.audio.pNativeRender = 0;
                 } else
                 {
                     portDefn->eDir =  OMX_DirMax;
-                    DEBUG_PRINT_ERROR("Bad Port idx %d\n",\
+                    OMX_LOGE("Bad Port idx %d\n",\
                                        (int)portDefn->nPortIndex);
                     eRet = OMX_ErrorBadPortIndex;
                 }
@@ -2500,7 +2534,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
             {
                 OMX_PORT_PARAM_TYPE *portParamType =
                 (OMX_PORT_PARAM_TYPE *) paramData;
-                DEBUG_PRINT("OMX_IndexParamAudioInit\n");
+                OMX_LOGV("OMX_IndexParamAudioInit\n");
 
                 portParamType->nVersion.nVersion = OMX_SPEC_VERSION;
                 portParamType->nSize = (OMX_U32)sizeof(portParamType);
@@ -2513,7 +2547,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
             {
                 OMX_AUDIO_PARAM_PORTFORMATTYPE *portFormatType =
                 (OMX_AUDIO_PARAM_PORTFORMATTYPE *) paramData;
-                DEBUG_PRINT("OMX_IndexParamAudioPortFormat\n");
+                OMX_LOGV("OMX_IndexParamAudioPortFormat\n");
                 portFormatType->nVersion.nVersion = OMX_SPEC_VERSION;
                 portFormatType->nSize = (OMX_U32)sizeof(portFormatType);
 
@@ -2521,65 +2555,45 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                 {
 
                     portFormatType->eEncoding = OMX_AUDIO_CodingPCM;
-                } else if (OMX_CORE_OUTPUT_PORT_INDEX ==
-				portFormatType->nPortIndex)
+                } else if (OMX_CORE_OUTPUT_PORT_INDEX == portFormatType->nPortIndex)
                 {
-                    DEBUG_PRINT("get_parameter: OMX_IndexParamAudioFormat: "\
+                    OMX_LOGV("get_parameter: OMX_IndexParamAudioFormat: "\
                                 "%u\n", portFormatType->nIndex);
 
-            portFormatType->eEncoding = OMX_AUDIO_CodingQCELP13;
+                    portFormatType->eEncoding = OMX_AUDIO_CodingG711;
                 } else
                 {
-                    DEBUG_PRINT_ERROR("get_parameter: Bad port index %d\n",
+                    OMX_LOGE("get_parameter: Bad port index %d\n",
                                       (int)portFormatType->nPortIndex);
                     eRet = OMX_ErrorBadPortIndex;
                 }
                 break;
             }
-
-        case OMX_IndexParamAudioQcelp13:
+        case QOMX_IndexParamAudioSessionId:
             {
-                OMX_AUDIO_PARAM_QCELP13TYPE *qcelp13Param =
-                (OMX_AUDIO_PARAM_QCELP13TYPE *) paramData;
-                DEBUG_PRINT("OMX_IndexParamAudioQcelp13\n");
-                if (OMX_CORE_OUTPUT_PORT_INDEX== qcelp13Param->nPortIndex)
-                {
-                    memcpy(qcelp13Param,&m_qcelp13_param,
-                    sizeof(OMX_AUDIO_PARAM_QCELP13TYPE));
-                } else
-                {
-                    DEBUG_PRINT_ERROR("get_parameter:\
-					OMX_IndexParamAudioQcelp13 \
-					OMX_ErrorBadPortIndex %d\n", \
-                                      (int)qcelp13Param->nPortIndex);
-                    eRet = OMX_ErrorBadPortIndex;
-                }
+                QOMX_AUDIO_STREAM_INFO_DATA *streaminfoparam =
+                   (QOMX_AUDIO_STREAM_INFO_DATA *) paramData;
+                streaminfoparam->sessionId = (OMX_U8)m_session_id;
                 break;
             }
-    case QOMX_IndexParamAudioSessionId:
-    {
-       QOMX_AUDIO_STREAM_INFO_DATA *streaminfoparam =
-               (QOMX_AUDIO_STREAM_INFO_DATA *) paramData;
-       streaminfoparam->sessionId = (OMX_U8)m_session_id;
-       break;
-    }
 
         case OMX_IndexParamAudioPcm:
             {
                 OMX_AUDIO_PARAM_PCMMODETYPE *pcmparam =
                 (OMX_AUDIO_PARAM_PCMMODETYPE *) paramData;
 
-                if (OMX_CORE_INPUT_PORT_INDEX== pcmparam->nPortIndex)
+                if (OMX_CORE_INPUT_PORT_INDEX== pcmparam->nPortIndex ||
+                        OMX_CORE_OUTPUT_PORT_INDEX== pcmparam->nPortIndex)
                 {
                     memcpy(pcmparam,&m_pcm_param,\
                         sizeof(OMX_AUDIO_PARAM_PCMMODETYPE));
-                    DEBUG_PRINT("get_parameter: Sampling rate %u",\
+                    OMX_LOGV("get_parameter: Sampling rate %u",\
                                  pcmparam->nSamplingRate);
-                    DEBUG_PRINT("get_parameter: Number of channels %u",\
+                    OMX_LOGV("get_parameter: Number of channels %u",\
                                  pcmparam->nChannels);
                 } else
                 {
-                    DEBUG_PRINT_ERROR("get_parameter:OMX_IndexParamAudioPcm "\
+                    OMX_LOGE("get_parameter:OMX_IndexParamAudioPcm "\
                                       "OMX_ErrorBadPortIndex %d\n", \
                                       (int)pcmparam->nPortIndex);
                      eRet = OMX_ErrorBadPortIndex;
@@ -2589,16 +2603,16 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
         case OMX_IndexParamComponentSuspended:
         {
             OMX_PARAM_SUSPENSIONTYPE *suspend =
-				(OMX_PARAM_SUSPENSIONTYPE *) paramData;
-            DEBUG_PRINT("get_parameter: OMX_IndexParamComponentSuspended %p\n",
-			suspend);
+                (OMX_PARAM_SUSPENSIONTYPE *) paramData;
+            OMX_LOGV("get_parameter: OMX_IndexParamComponentSuspended %p\n",
+                    suspend);
             break;
         }
         case OMX_IndexParamVideoInit:
             {
                 OMX_PORT_PARAM_TYPE *portParamType =
                     (OMX_PORT_PARAM_TYPE *) paramData;
-                DEBUG_PRINT("get_parameter: OMX_IndexParamVideoInit\n");
+                OMX_LOGV("get_parameter: OMX_IndexParamVideoInit\n");
                 portParamType->nVersion.nVersion = OMX_SPEC_VERSION;
                 portParamType->nSize = (OMX_U32)sizeof(portParamType);
                 portParamType->nPorts           = 0;
@@ -2608,20 +2622,20 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
         case OMX_IndexParamPriorityMgmt:
             {
                 OMX_PRIORITYMGMTTYPE *priorityMgmtType =
-                (OMX_PRIORITYMGMTTYPE*)paramData;
-                DEBUG_PRINT("get_parameter: OMX_IndexParamPriorityMgmt\n");
+                        (OMX_PRIORITYMGMTTYPE*)paramData;
+                OMX_LOGV("get_parameter: OMX_IndexParamPriorityMgmt\n");
                 priorityMgmtType->nSize = (OMX_U32)sizeof(priorityMgmtType);
                 priorityMgmtType->nVersion.nVersion = OMX_SPEC_VERSION;
                 priorityMgmtType->nGroupID = m_priority_mgm.nGroupID;
                 priorityMgmtType->nGroupPriority =
-					m_priority_mgm.nGroupPriority;
+                    m_priority_mgm.nGroupPriority;
                 break;
             }
         case OMX_IndexParamImageInit:
             {
                 OMX_PORT_PARAM_TYPE *portParamType =
                 (OMX_PORT_PARAM_TYPE *) paramData;
-                DEBUG_PRINT("get_parameter: OMX_IndexParamImageInit\n");
+                OMX_LOGV("get_parameter: OMX_IndexParamImageInit\n");
                 portParamType->nVersion.nVersion = OMX_SPEC_VERSION;
                 portParamType->nSize = (OMX_U32)sizeof(portParamType);
                 portParamType->nPorts           = 0;
@@ -2631,28 +2645,28 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
 
         case OMX_IndexParamCompBufferSupplier:
             {
-                DEBUG_PRINT("get_parameter: \
-				OMX_IndexParamCompBufferSupplier\n");
+                OMX_LOGV("get_parameter: \
+                        OMX_IndexParamCompBufferSupplier\n");
                 OMX_PARAM_BUFFERSUPPLIERTYPE *bufferSupplierType
-                = (OMX_PARAM_BUFFERSUPPLIERTYPE*) paramData;
-                DEBUG_PRINT("get_parameter: \
-				OMX_IndexParamCompBufferSupplier\n");
+                        = (OMX_PARAM_BUFFERSUPPLIERTYPE*) paramData;
+                OMX_LOGV("get_parameter: \
+                        OMX_IndexParamCompBufferSupplier\n");
 
                 bufferSupplierType->nSize = (OMX_U32)sizeof(bufferSupplierType);
                 bufferSupplierType->nVersion.nVersion = OMX_SPEC_VERSION;
                 if (OMX_CORE_INPUT_PORT_INDEX   ==
-				bufferSupplierType->nPortIndex)
+                        bufferSupplierType->nPortIndex)
                 {
                     bufferSupplierType->nPortIndex =
-				OMX_BufferSupplyUnspecified;
+                            OMX_BufferSupplyUnspecified;
                 } else if (OMX_CORE_OUTPUT_PORT_INDEX ==
-				bufferSupplierType->nPortIndex)
+                        bufferSupplierType->nPortIndex)
                 {
                     bufferSupplierType->nPortIndex =
-				OMX_BufferSupplyUnspecified;
+                            OMX_BufferSupplyUnspecified;
                 } else
                 {
-                    DEBUG_PRINT_ERROR("get_parameter:"\
+                    OMX_LOGE("get_parameter:"\
                                       "OMX_IndexParamCompBufferSupplier eRet"\
                                       "%08x\n", eRet);
                     eRet = OMX_ErrorBadPortIndex;
@@ -2665,32 +2679,32 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
             {
                 OMX_PORT_PARAM_TYPE *portParamType =
                     (OMX_PORT_PARAM_TYPE *) paramData;
-                DEBUG_PRINT("get_parameter: OMX_IndexParamOtherInit\n");
+                OMX_LOGV("get_parameter: OMX_IndexParamOtherInit\n");
                 portParamType->nVersion.nVersion = OMX_SPEC_VERSION;
                 portParamType->nSize = (OMX_U32)sizeof(portParamType);
                 portParamType->nPorts           = 0;
                 portParamType->nStartPortNumber = 0;
                 break;
             }
-	case OMX_IndexParamStandardComponentRole:
+    case OMX_IndexParamStandardComponentRole:
             {
                 OMX_PARAM_COMPONENTROLETYPE *componentRole;
                 componentRole = (OMX_PARAM_COMPONENTROLETYPE*)paramData;
                 componentRole->nSize = component_Role.nSize;
                 componentRole->nVersion = component_Role.nVersion;
                 strlcpy((char *)componentRole->cRole,
-			(const char*)component_Role.cRole,
-			sizeof(componentRole->cRole));
-                DEBUG_PRINT_ERROR("nSize = %d , nVersion = %d, cRole = %s\n",
-				component_Role.nSize,
-				component_Role.nVersion,
-				component_Role.cRole);
+                        (const char*)component_Role.cRole,
+                        sizeof(componentRole->cRole));
+                OMX_LOGE("nSize = %d , nVersion = %d, cRole = %s\n",
+                component_Role.nSize,
+                component_Role.nVersion,
+                component_Role.cRole);
                 break;
 
             }
         default:
             {
-                DEBUG_PRINT_ERROR("unknown param %08x\n", paramIndex);
+                OMX_LOGE("unknown param %08x\n", paramIndex);
                 eRet = OMX_ErrorUnsupportedIndex;
             }
     }
@@ -2706,7 +2720,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::get_parameter(OMX_IN OMX_HANDLETYPE     hComp,
  @param paramData pointer to memory space which holds the paramter
  @return error status
  */
-OMX_ERRORTYPE  omx_qcelp13_aenc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
+OMX_ERRORTYPE  omx_g711_aenc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                                             OMX_IN OMX_INDEXTYPE paramIndex,
                                             OMX_IN OMX_PTR        paramData)
 {
@@ -2714,31 +2728,22 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
 
     if(hComp == NULL)
     {
-        DEBUG_PRINT_ERROR("Returning OMX_ErrorBadParameter\n");
+        OMX_LOGE("Returning OMX_ErrorBadParameter\n");
         return OMX_ErrorBadParameter;
     }
     if (m_state != OMX_StateLoaded)
     {
-        DEBUG_PRINT_ERROR("set_parameter is not in proper state\n");
+        OMX_LOGE("set_parameter is not in proper state\n");
         return OMX_ErrorIncorrectStateOperation;
     }
     if (paramData == NULL)
     {
-        DEBUG_PRINT("param data is NULL");
+        OMX_LOGV("param data is NULL");
         return OMX_ErrorBadParameter;
     }
 
     switch (paramIndex)
     {
-        case OMX_IndexParamAudioQcelp13:
-            {
-                DEBUG_PRINT("OMX_IndexParamAudioQcelp13");
-                OMX_AUDIO_PARAM_QCELP13TYPE *qcelp13param
-                = (OMX_AUDIO_PARAM_QCELP13TYPE *) paramData;
-                memcpy(&m_qcelp13_param,qcelp13param,
-                                      sizeof(OMX_AUDIO_PARAM_QCELP13TYPE));
-                break;
-            }
         case OMX_IndexParamPortDefinition:
             {
                 OMX_PARAM_PORTDEFINITIONTYPE *portDefn;
@@ -2748,28 +2753,28 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                      !BITMASK_PRESENT(&m_flags,OMX_COMPONENT_IDLE_PENDING))
                     || (m_state == OMX_StateWaitForResources &&
                         ((OMX_DirInput == portDefn->eDir &&
-			m_inp_bEnabled == true)||
+                         m_inp_bEnabled == true)||
                          (OMX_DirInput == portDefn->eDir &&
-			m_out_bEnabled == true)))
+                         m_out_bEnabled == true)))
                     ||(((OMX_DirInput == portDefn->eDir &&
-			m_inp_bEnabled == false)||
-                        (OMX_DirInput == portDefn->eDir &&
-			m_out_bEnabled == false)) &&
-                       (m_state != OMX_StateWaitForResources)))
+                         m_inp_bEnabled == false)||
+                         (OMX_DirInput == portDefn->eDir &&
+                         m_out_bEnabled == false)) &&
+                         (m_state != OMX_StateWaitForResources)))
                 {
-                    DEBUG_PRINT("Set Parameter called in valid state\n");
+                    OMX_LOGV("Set Parameter called in valid state\n");
                 } else
                 {
-                    DEBUG_PRINT_ERROR("Set Parameter called in \
-						Invalid State\n");
+                    OMX_LOGE("Set Parameter called in \
+                        Invalid State\n");
                     return OMX_ErrorIncorrectStateOperation;
                 }
-                DEBUG_PRINT("OMX_IndexParamPortDefinition portDefn->nPortIndex "
+                OMX_LOGV("OMX_IndexParamPortDefinition portDefn->nPortIndex "
                             "= %u\n",portDefn->nPortIndex);
                 if (OMX_CORE_INPUT_PORT_INDEX == portDefn->nPortIndex)
                 {
                     if ( portDefn->nBufferCountActual >
-					OMX_CORE_NUM_INPUT_BUFFERS )
+                            OMX_CORE_NUM_INPUT_BUFFERS )
                     {
                         m_inp_act_buf_count = portDefn->nBufferCountActual;
                     } else
@@ -2781,7 +2786,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                 } else if (OMX_CORE_OUTPUT_PORT_INDEX == portDefn->nPortIndex)
                 {
                     if ( portDefn->nBufferCountActual >
-					OMX_CORE_NUM_OUTPUT_BUFFERS )
+                            OMX_CORE_NUM_OUTPUT_BUFFERS )
                     {
                         m_out_act_buf_count = portDefn->nBufferCountActual;
                     } else
@@ -2791,7 +2796,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                     output_buffer_size = portDefn->nBufferSize;
                 } else
                 {
-                    DEBUG_PRINT(" set_parameter: Bad Port idx %d",\
+                    OMX_LOGV(" set_parameter: Bad Port idx %d",\
                                   (int)portDefn->nPortIndex);
                     eRet = OMX_ErrorBadPortIndex;
                 }
@@ -2799,21 +2804,21 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
             }
         case OMX_IndexParamPriorityMgmt:
             {
-                DEBUG_PRINT("set_parameter: OMX_IndexParamPriorityMgmt\n");
+                OMX_LOGV("set_parameter: OMX_IndexParamPriorityMgmt\n");
 
                 if (m_state != OMX_StateLoaded)
                 {
-                    DEBUG_PRINT_ERROR("Set Parameter called in \
-						Invalid State\n");
+                    OMX_LOGE("Set Parameter called in \
+                        Invalid State\n");
                     return OMX_ErrorIncorrectStateOperation;
                 }
                 OMX_PRIORITYMGMTTYPE *priorityMgmtype
-                = (OMX_PRIORITYMGMTTYPE*) paramData;
-                DEBUG_PRINT("set_parameter: OMX_IndexParamPriorityMgmt %u\n",
-                            priorityMgmtype->nGroupID);
+                        = (OMX_PRIORITYMGMTTYPE*) paramData;
+                OMX_LOGV("set_parameter: OMX_IndexParamPriorityMgmt %u\n",
+                        priorityMgmtype->nGroupID);
 
-                DEBUG_PRINT("set_parameter: priorityMgmtype %u\n",
-                            priorityMgmtype->nGroupPriority);
+                OMX_LOGV("set_parameter: priorityMgmtype %u\n",
+                        priorityMgmtype->nGroupPriority);
 
                 m_priority_mgm.nGroupID = priorityMgmtype->nGroupID;
                 m_priority_mgm.nGroupPriority = priorityMgmtype->nGroupPriority;
@@ -2824,21 +2829,21 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
             {
 
                 OMX_AUDIO_PARAM_PORTFORMATTYPE *portFormatType =
-                (OMX_AUDIO_PARAM_PORTFORMATTYPE *) paramData;
-                DEBUG_PRINT("set_parameter: OMX_IndexParamAudioPortFormat\n");
+                         (OMX_AUDIO_PARAM_PORTFORMATTYPE *) paramData;
+                OMX_LOGV("set_parameter: OMX_IndexParamAudioPortFormat\n");
 
                 if (OMX_CORE_INPUT_PORT_INDEX== portFormatType->nPortIndex)
                 {
                     portFormatType->eEncoding = OMX_AUDIO_CodingPCM;
                 } else if (OMX_CORE_OUTPUT_PORT_INDEX ==
-					 portFormatType->nPortIndex)
+                     portFormatType->nPortIndex)
                 {
-                    DEBUG_PRINT("set_parameter: OMX_IndexParamAudioFormat:"\
+                    OMX_LOGV("set_parameter: OMX_IndexParamAudioFormat:"\
                                 " %u\n", portFormatType->nIndex);
-                    portFormatType->eEncoding = OMX_AUDIO_CodingQCELP13;
+                    portFormatType->eEncoding = OMX_AUDIO_CodingG711;
                 } else
                 {
-                    DEBUG_PRINT_ERROR("set_parameter: Bad port index %d\n", \
+                    OMX_LOGE("set_parameter: Bad port index %d\n", \
                                       (int)portFormatType->nPortIndex);
                     eRet = OMX_ErrorBadPortIndex;
                 }
@@ -2848,50 +2853,52 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
 
         case OMX_IndexParamCompBufferSupplier:
             {
-                DEBUG_PRINT("set_parameter: \
-				OMX_IndexParamCompBufferSupplier\n");
+                OMX_LOGV("set_parameter: \
+                OMX_IndexParamCompBufferSupplier\n");
                 OMX_PARAM_BUFFERSUPPLIERTYPE *bufferSupplierType
-                = (OMX_PARAM_BUFFERSUPPLIERTYPE*) paramData;
-                DEBUG_PRINT("set_param: OMX_IndexParamCompBufferSupplier %d",\
+                        = (OMX_PARAM_BUFFERSUPPLIERTYPE*) paramData;
+                OMX_LOGV("set_param: OMX_IndexParamCompBufferSupplier %d",\
                             bufferSupplierType->eBufferSupplier);
 
                 if (bufferSupplierType->nPortIndex == OMX_CORE_INPUT_PORT_INDEX
                     || bufferSupplierType->nPortIndex ==
-					OMX_CORE_OUTPUT_PORT_INDEX)
+                    OMX_CORE_OUTPUT_PORT_INDEX)
                 {
-                    DEBUG_PRINT("set_parameter:\
-					OMX_IndexParamCompBufferSupplier\n");
+                    OMX_LOGV("set_parameter:\
+                            OMX_IndexParamCompBufferSupplier\n");
                     m_buffer_supplier.eBufferSupplier =
-				bufferSupplierType->eBufferSupplier;
+                            bufferSupplierType->eBufferSupplier;
                 } else
                 {
-                    DEBUG_PRINT_ERROR("set_param:\
-				IndexParamCompBufferSup %08x\n", eRet);
+                    OMX_LOGE("set_param:\
+                            IndexParamCompBufferSup %08x\n", eRet);
                     eRet = OMX_ErrorBadPortIndex;
                 }
 
-                break; }
-
+                break;
+            }
         case OMX_IndexParamAudioPcm:
             {
-                DEBUG_PRINT("set_parameter: OMX_IndexParamAudioPcm\n");
+                OMX_LOGV("set_parameter: OMX_IndexParamAudioPcm\n");
                 OMX_AUDIO_PARAM_PCMMODETYPE *pcmparam
-                = (OMX_AUDIO_PARAM_PCMMODETYPE *) paramData;
+                        = (OMX_AUDIO_PARAM_PCMMODETYPE *) paramData;
 
-                if (OMX_CORE_INPUT_PORT_INDEX== pcmparam->nPortIndex)
+                if (OMX_CORE_INPUT_PORT_INDEX== pcmparam->nPortIndex ||
+                        OMX_CORE_OUTPUT_PORT_INDEX== pcmparam->nPortIndex)
                 {
                     memcpy(&m_pcm_param,pcmparam,\
                         sizeof(OMX_AUDIO_PARAM_PCMMODETYPE));
-                    DEBUG_PRINT("set_pcm_parameter: %u %u",\
+                    OMX_LOGV("set_pcm_parameter: %u %u",\
                                  m_pcm_param.nChannels,
-				m_pcm_param.nSamplingRate);
+                                 m_pcm_param.nSamplingRate);
                 } else
                 {
-                    DEBUG_PRINT_ERROR("Set_parameter:OMX_IndexParamAudioPcm "
+                    OMX_LOGE("Set_parameter:OMX_IndexParamAudioPcm "
                                       "OMX_ErrorBadPortIndex %d\n",
                                       (int)pcmparam->nPortIndex);
                     eRet = OMX_ErrorBadPortIndex;
                 }
+                m_g711_param = m_pcm_param;
                 break;
             }
         case OMX_IndexParamSuspensionPolicy:
@@ -2907,13 +2914,13 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
                 component_Role.nVersion = componentRole->nVersion;
                 strlcpy((char *)component_Role.cRole,
                        (const char*)componentRole->cRole,
-			sizeof(component_Role.cRole));
+                        sizeof(component_Role.cRole));
                 break;
             }
 
         default:
             {
-                DEBUG_PRINT_ERROR("unknown param %d\n", paramIndex);
+                OMX_LOGE("unknown param %d\n", paramIndex);
                 eRet = OMX_ErrorUnsupportedIndex;
             }
     }
@@ -2922,7 +2929,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::set_parameter(OMX_IN OMX_HANDLETYPE     hComp,
 
 /* ======================================================================
 FUNCTION
-  omx_qcelp13_aenc::GetConfig
+  omx_g711_aenc::GetConfig
 
 DESCRIPTION
   OMX Get Config Method implementation.
@@ -2934,7 +2941,7 @@ RETURN VALUE
   OMX Error None if successful.
 
 ========================================================================== */
-OMX_ERRORTYPE  omx_qcelp13_aenc::get_config(OMX_IN OMX_HANDLETYPE      hComp,
+OMX_ERRORTYPE  omx_g711_aenc::get_config(OMX_IN OMX_HANDLETYPE      hComp,
                                          OMX_IN OMX_INDEXTYPE configIndex,
                                          OMX_INOUT OMX_PTR     configData)
 {
@@ -2942,12 +2949,12 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::get_config(OMX_IN OMX_HANDLETYPE      hComp,
 
     if(hComp == NULL)
     {
-        DEBUG_PRINT_ERROR("Returning OMX_ErrorBadParameter\n");
+        OMX_LOGE("Returning OMX_ErrorBadParameter\n");
         return OMX_ErrorBadParameter;
     }
     if (m_state == OMX_StateInvalid)
     {
-        DEBUG_PRINT_ERROR("Get Config in Invalid State\n");
+        OMX_LOGE("Get Config in Invalid State\n");
         return OMX_ErrorInvalidState;
     }
 
@@ -2956,7 +2963,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::get_config(OMX_IN OMX_HANDLETYPE      hComp,
         case OMX_IndexConfigAudioVolume:
             {
                 OMX_AUDIO_CONFIG_VOLUMETYPE *volume =
-                (OMX_AUDIO_CONFIG_VOLUMETYPE*) configData;
+                        (OMX_AUDIO_CONFIG_VOLUMETYPE*) configData;
 
                 if (OMX_CORE_INPUT_PORT_INDEX == volume->nPortIndex)
                 {
@@ -2976,7 +2983,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::get_config(OMX_IN OMX_HANDLETYPE      hComp,
         case OMX_IndexConfigAudioMute:
             {
                 OMX_AUDIO_CONFIG_MUTETYPE *mute =
-                (OMX_AUDIO_CONFIG_MUTETYPE*) configData;
+                        (OMX_AUDIO_CONFIG_MUTETYPE*) configData;
 
                 if (OMX_CORE_INPUT_PORT_INDEX == mute->nPortIndex)
                 {
@@ -3000,7 +3007,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::get_config(OMX_IN OMX_HANDLETYPE      hComp,
 
 /* ======================================================================
 FUNCTION
-  omx_qcelp13_aenc::SetConfig
+  omx_g711_aenc::SetConfig
 
 DESCRIPTION
   OMX Set Config method implementation
@@ -3011,7 +3018,7 @@ PARAMETERS
 RETURN VALUE
   OMX Error None if successful.
 ========================================================================== */
-OMX_ERRORTYPE  omx_qcelp13_aenc::set_config(OMX_IN OMX_HANDLETYPE      hComp,
+OMX_ERRORTYPE  omx_g711_aenc::set_config(OMX_IN OMX_HANDLETYPE      hComp,
                                          OMX_IN OMX_INDEXTYPE configIndex,
                                          OMX_IN OMX_PTR        configData)
 {
@@ -3019,17 +3026,17 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::set_config(OMX_IN OMX_HANDLETYPE      hComp,
 
     if(hComp == NULL)
     {
-        DEBUG_PRINT_ERROR("Returning OMX_ErrorBadParameter\n");
+        OMX_LOGE("Returning OMX_ErrorBadParameter\n");
         return OMX_ErrorBadParameter;
     }
     if (m_state == OMX_StateInvalid)
     {
-        DEBUG_PRINT_ERROR("Set Config in Invalid State\n");
+        OMX_LOGE("Set Config in Invalid State\n");
         return OMX_ErrorInvalidState;
     }
     if ( m_state == OMX_StateExecuting)
     {
-        DEBUG_PRINT_ERROR("set_config:Ignore in Exe state\n");
+        OMX_LOGE("set_config:Ignore in Exe state\n");
         return OMX_ErrorInvalidState;
     }
 
@@ -3038,7 +3045,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::set_config(OMX_IN OMX_HANDLETYPE      hComp,
         case OMX_IndexConfigAudioVolume:
             {
                 OMX_AUDIO_CONFIG_VOLUMETYPE *vol =
-			(OMX_AUDIO_CONFIG_VOLUMETYPE*)configData;
+                        (OMX_AUDIO_CONFIG_VOLUMETYPE*)configData;
                 if (vol->nPortIndex == OMX_CORE_INPUT_PORT_INDEX)
                 {
                     if ((vol->sVolume.nValue <= OMX_AENC_MAX) &&
@@ -3094,7 +3101,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::set_config(OMX_IN OMX_HANDLETYPE      hComp,
 
 /* ======================================================================
 FUNCTION
-  omx_qcelp13_aenc::GetExtensionIndex
+  omx_g711_aenc::GetExtensionIndex
 
 DESCRIPTION
   OMX GetExtensionIndex method implementaion.  <TBD>
@@ -3106,26 +3113,26 @@ RETURN VALUE
   OMX Error None if everything successful.
 
 ========================================================================== */
-OMX_ERRORTYPE  omx_qcelp13_aenc::get_extension_index(
-				OMX_IN OMX_HANDLETYPE      hComp,
-				OMX_IN OMX_STRING      paramName,
-				OMX_OUT OMX_INDEXTYPE* indexType)
+OMX_ERRORTYPE  omx_g711_aenc::get_extension_index(
+                OMX_IN OMX_HANDLETYPE      hComp,
+                OMX_IN OMX_STRING      paramName,
+                OMX_OUT OMX_INDEXTYPE* indexType)
 {
     if((hComp == NULL) || (paramName == NULL) || (indexType == NULL))
     {
-        DEBUG_PRINT_ERROR("Returning OMX_ErrorBadParameter\n");
+        OMX_LOGE("Returning OMX_ErrorBadParameter\n");
         return OMX_ErrorBadParameter;
     }
     if (m_state == OMX_StateInvalid)
     {
-        DEBUG_PRINT_ERROR("Get Extension Index in Invalid State\n");
+        OMX_LOGE("Get Extension Index in Invalid State\n");
         return OMX_ErrorInvalidState;
     }
   if(strncmp(paramName,"OMX.Qualcomm.index.audio.sessionId",
-		strlen("OMX.Qualcomm.index.audio.sessionId")) == 0)
+        strlen("OMX.Qualcomm.index.audio.sessionId")) == 0)
   {
       *indexType =(OMX_INDEXTYPE)QOMX_IndexParamAudioSessionId;
-      DEBUG_PRINT("Extension index type - %d\n", *indexType);
+      OMX_LOGV("Extension index type - %d\n", *indexType);
 
   }
   else
@@ -3138,7 +3145,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::get_extension_index(
 
 /* ======================================================================
 FUNCTION
-  omx_qcelp13_aenc::GetState
+  omx_g711_aenc::GetState
 
 DESCRIPTION
   Returns the state information back to the caller.<TBD>
@@ -3149,22 +3156,22 @@ PARAMETERS
 RETURN VALUE
   Error None if everything is successful.
 ========================================================================== */
-OMX_ERRORTYPE  omx_qcelp13_aenc::get_state(OMX_IN OMX_HANDLETYPE  hComp,
+OMX_ERRORTYPE  omx_g711_aenc::get_state(OMX_IN OMX_HANDLETYPE  hComp,
                                         OMX_OUT OMX_STATETYPE* state)
 {
     if(hComp == NULL)
     {
-        DEBUG_PRINT_ERROR("Returning OMX_ErrorBadParameter\n");
+        OMX_LOGE("Returning OMX_ErrorBadParameter\n");
         return OMX_ErrorBadParameter;
     }
     *state = m_state;
-    DEBUG_PRINT("Returning the state %d\n",*state);
+    OMX_LOGV("Returning the state %d\n",*state);
     return OMX_ErrorNone;
 }
 
 /* ======================================================================
 FUNCTION
-  omx_qcelp13_aenc::ComponentTunnelRequest
+  omx_g711_aenc::ComponentTunnelRequest
 
 DESCRIPTION
   OMX Component Tunnel Request method implementation. <TBD>
@@ -3176,7 +3183,7 @@ RETURN VALUE
   OMX Error None if everything successful.
 
 ========================================================================== */
-OMX_ERRORTYPE  omx_qcelp13_aenc::component_tunnel_request
+OMX_ERRORTYPE  omx_g711_aenc::component_tunnel_request
 (
     OMX_IN OMX_HANDLETYPE                hComp,
     OMX_IN OMX_U32                        port,
@@ -3184,13 +3191,13 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::component_tunnel_request
     OMX_IN OMX_U32                    peerPort,
     OMX_INOUT OMX_TUNNELSETUPTYPE* tunnelSetup)
 {
-    DEBUG_PRINT_ERROR("Error: component_tunnel_request Not Implemented\n");
+    OMX_LOGE("Error: component_tunnel_request Not Implemented\n");
 
     if((hComp == NULL) || (peerComponent == NULL) || (tunnelSetup == NULL))
     {
         port = port;
         peerPort = peerPort;
-        DEBUG_PRINT_ERROR("Returning OMX_ErrorBadParameter\n");
+        OMX_LOGE("Returning OMX_ErrorBadParameter\n");
         return OMX_ErrorBadParameter;
     }
     return OMX_ErrorNotImplemented;
@@ -3198,7 +3205,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::component_tunnel_request
 
 /* ======================================================================
 FUNCTION
-  omx_qcelp13_aenc::AllocateInputBuffer
+  omx_g711_aenc::AllocateInputBuffer
 
 DESCRIPTION
   Helper function for allocate buffer in the input pin
@@ -3210,7 +3217,7 @@ RETURN VALUE
   true/false
 
 ========================================================================== */
-OMX_ERRORTYPE  omx_qcelp13_aenc::allocate_input_buffer
+OMX_ERRORTYPE  omx_g711_aenc::allocate_input_buffer
 (
     OMX_IN OMX_HANDLETYPE                hComp,
     OMX_INOUT OMX_BUFFERHEADERTYPE** bufferHdr,
@@ -3225,12 +3232,12 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::allocate_input_buffer
   if(m_inp_current_buf_count < m_inp_act_buf_count)
   {
     buf_ptr = (char *) calloc((nBufSize + \
-		sizeof(OMX_BUFFERHEADERTYPE)+sizeof(META_IN)) , 1);
+        sizeof(OMX_BUFFERHEADERTYPE)+sizeof(META_IN)) , 1);
 
     if(hComp == NULL)
     {
         port = port;
-        DEBUG_PRINT_ERROR("Returning OMX_ErrorBadParameter\n");
+        OMX_LOGE("Returning OMX_ErrorBadParameter\n");
         free(buf_ptr);
         return OMX_ErrorBadParameter;
     }
@@ -3250,25 +3257,25 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::allocate_input_buffer
         m_input_buf_hdrs.insert(bufHdr, NULL);
 
         m_inp_current_buf_count++;
-        DEBUG_PRINT("AIB:bufHdr %p bufHdr->pBuffer %p m_inp_buf_cnt=%d \
-		bytes=%u", bufHdr, bufHdr->pBuffer,m_inp_current_buf_count,
-                    bytes);
+        OMX_LOGV("AIB:bufHdr %p bufHdr->pBuffer %p m_inp_buf_cnt=%d \
+                bytes=%u", bufHdr, bufHdr->pBuffer,m_inp_current_buf_count,
+                bytes);
 
     } else
     {
-        DEBUG_PRINT("Input buffer memory allocation failed 1 \n");
+        OMX_LOGV("Input buffer memory allocation failed 1 \n");
         eRet =  OMX_ErrorInsufficientResources;
     }
   }
   else
   {
-     DEBUG_PRINT("Input buffer memory allocation failed 2\n");
+    OMX_LOGV("Input buffer memory allocation failed 2\n");
     eRet =  OMX_ErrorInsufficientResources;
   }
     return eRet;
 }
 
-OMX_ERRORTYPE  omx_qcelp13_aenc::allocate_output_buffer
+OMX_ERRORTYPE  omx_g711_aenc::allocate_output_buffer
 (
     OMX_IN OMX_HANDLETYPE                hComp,
     OMX_INOUT OMX_BUFFERHEADERTYPE** bufferHdr,
@@ -3284,7 +3291,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::allocate_output_buffer
     if(hComp == NULL)
     {
         port = port;
-        DEBUG_PRINT_ERROR("Returning OMX_ErrorBadParameter\n");
+        OMX_LOGE("Returning OMX_ErrorBadParameter\n");
         return OMX_ErrorBadParameter;
     }
     if (m_out_current_buf_count < m_out_act_buf_count)
@@ -3298,7 +3305,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::allocate_output_buffer
             memset(bufHdr,0,sizeof(OMX_BUFFERHEADERTYPE));
 
             bufHdr->pBuffer           = (OMX_U8 *)((buf_ptr) +
-					sizeof(OMX_BUFFERHEADERTYPE));
+                    sizeof(OMX_BUFFERHEADERTYPE));
             bufHdr->nSize             = (OMX_U32)sizeof(OMX_BUFFERHEADERTYPE);
             bufHdr->nVersion.nVersion = OMX_SPEC_VERSION;
             bufHdr->nAllocLen         = nBufSize;
@@ -3306,17 +3313,17 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::allocate_output_buffer
             bufHdr->nOutputPortIndex   = OMX_CORE_OUTPUT_PORT_INDEX;
             m_output_buf_hdrs.insert(bufHdr, NULL);
             m_out_current_buf_count++;
-            DEBUG_PRINT("AOB::bufHdr %p bufHdr->pBuffer %p m_out_buf_cnt=%d "\
+            OMX_LOGV("AOB::bufHdr %p bufHdr->pBuffer %p m_out_buf_cnt=%d "\
                         "bytes=%u",bufHdr, bufHdr->pBuffer,\
                         m_out_current_buf_count, bytes);
         } else
         {
-            DEBUG_PRINT("Output buffer memory allocation failed 1 \n");
+            OMX_LOGV("Output buffer memory allocation failed 1 \n");
             eRet =  OMX_ErrorInsufficientResources;
         }
     } else
     {
-        DEBUG_PRINT("Output buffer memory allocation failed\n");
+        OMX_LOGV("Output buffer memory allocation failed\n");
         eRet =  OMX_ErrorInsufficientResources;
     }
     return eRet;
@@ -3326,7 +3333,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::allocate_output_buffer
 // AllocateBuffer  -- API Call
 /* ======================================================================
 FUNCTION
-  omx_qcelp13_aenc::AllocateBuffer
+  omx_g711_aenc::AllocateBuffer
 
 DESCRIPTION
   Returns zero if all the buffers released..
@@ -3338,7 +3345,7 @@ RETURN VALUE
   true/false
 
 ========================================================================== */
-OMX_ERRORTYPE  omx_qcelp13_aenc::allocate_buffer
+OMX_ERRORTYPE  omx_g711_aenc::allocate_buffer
 (
     OMX_IN OMX_HANDLETYPE                hComp,
     OMX_INOUT OMX_BUFFERHEADERTYPE** bufferHdr,
@@ -3351,7 +3358,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::allocate_buffer
 
     if (m_state == OMX_StateInvalid)
     {
-        DEBUG_PRINT_ERROR("Allocate Buf in Invalid State\n");
+        OMX_LOGE("Allocate Buf in Invalid State\n");
         return OMX_ErrorInvalidState;
     }
     // What if the client calls again.
@@ -3363,25 +3370,25 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::allocate_buffer
         eRet = allocate_output_buffer(hComp,bufferHdr,port,appData,bytes);
     } else
     {
-        DEBUG_PRINT_ERROR("Error: Invalid Port Index received %d\n",
+        OMX_LOGE("Error: Invalid Port Index received %d\n",
                           (int)port);
         eRet = OMX_ErrorBadPortIndex;
     }
 
     if (eRet == OMX_ErrorNone)
     {
-        DEBUG_PRINT("allocate_buffer:  before allocate_done \n");
+        OMX_LOGV("allocate_buffer:  before allocate_done \n");
         if (allocate_done())
         {
-            DEBUG_PRINT("allocate_buffer:  after allocate_done \n");
+            OMX_LOGV("allocate_buffer:  after allocate_done \n");
             if (BITMASK_PRESENT(&m_flags,OMX_COMPONENT_IDLE_PENDING))
             {
                 BITMASK_CLEAR(&m_flags, OMX_COMPONENT_IDLE_PENDING);
                 post_command(OMX_CommandStateSet,OMX_StateIdle,
                              OMX_COMPONENT_GENERATE_EVENT);
-                DEBUG_PRINT("allocate_buffer:  post idle transition event \n");
+                OMX_LOGV("allocate_buffer:  post idle transition event \n");
             }
-            DEBUG_PRINT("allocate_buffer:  complete \n");
+            OMX_LOGV("allocate_buffer:  complete \n");
         }
         if (port == OMX_CORE_INPUT_PORT_INDEX && m_inp_bPopulated)
         {
@@ -3399,7 +3406,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::allocate_buffer
                 BITMASK_CLEAR((&m_flags),OMX_COMPONENT_OUTPUT_ENABLE_PENDING);
                 m_out_bEnabled = OMX_TRUE;
 
-                DEBUG_PRINT("AllocBuf-->is_out_th_sleep=%d\n",is_out_th_sleep);
+                OMX_LOGV("AllocBuf-->is_out_th_sleep=%d\n",is_out_th_sleep);
                 pthread_mutex_lock(&m_out_th_lock_1);
                 if (is_out_th_sleep)
                 {
@@ -3421,7 +3428,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::allocate_buffer
             }
         }
     }
-    DEBUG_PRINT("Allocate Buffer exit with ret Code %d\n", eRet);
+    OMX_LOGV("Allocate Buffer exit with ret Code %d\n", eRet);
     return eRet;
 }
 
@@ -3449,7 +3456,7 @@ Dependency:
 SIDE EFFECTS:
   None
 =============================================================================*/
-OMX_ERRORTYPE  omx_qcelp13_aenc::use_buffer
+OMX_ERRORTYPE  omx_g711_aenc::use_buffer
 (
     OMX_IN OMX_HANDLETYPE            hComp,
     OMX_INOUT OMX_BUFFERHEADERTYPE** bufferHdr,
@@ -3469,13 +3476,13 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::use_buffer
         eRet = use_output_buffer(hComp,bufferHdr,port,appData,bytes,buffer);
     } else
     {
-        DEBUG_PRINT_ERROR("Error: Invalid Port Index received %d\n",(int)port);
+        OMX_LOGE("Error: Invalid Port Index received %d\n",(int)port);
         eRet = OMX_ErrorBadPortIndex;
     }
 
     if (eRet == OMX_ErrorNone)
     {
-        DEBUG_PRINT("Checking for Output Allocate buffer Done");
+        OMX_LOGV("Checking for Output Allocate buffer Done");
         if (allocate_done())
         {
             if (BITMASK_PRESENT(&m_flags,OMX_COMPONENT_IDLE_PENDING))
@@ -3521,7 +3528,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::use_buffer
         }
     }
   }
-    DEBUG_PRINT("Use Buffer for port[%u] eRet[%d]\n", port,eRet);
+    OMX_LOGV("Use Buffer for port[%u] eRet[%d]\n", port,eRet);
     return eRet;
 }
 /*=============================================================================
@@ -3548,7 +3555,7 @@ Dependency:
 SIDE EFFECTS:
   None
 =============================================================================*/
-OMX_ERRORTYPE  omx_qcelp13_aenc::use_input_buffer
+OMX_ERRORTYPE  omx_g711_aenc::use_input_buffer
 (
     OMX_IN OMX_HANDLETYPE            hComp,
     OMX_INOUT OMX_BUFFERHEADERTYPE** bufferHdr,
@@ -3565,7 +3572,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::use_input_buffer
     if(hComp == NULL)
     {
         port = port;
-        DEBUG_PRINT_ERROR("Returning OMX_ErrorBadParameter\n");
+        OMX_LOGE("Returning OMX_ErrorBadParameter\n");
         return OMX_ErrorBadParameter;
     }
     if(bytes < input_buffer_size)
@@ -3585,8 +3592,8 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::use_input_buffer
             memset(bufHdr,0,sizeof(OMX_BUFFERHEADERTYPE));
 
             bufHdr->pBuffer           = (OMX_U8 *)(buffer);
-            DEBUG_PRINT("use_input_buffer:bufHdr %p bufHdr->pBuffer %p \
-			bytes=%u", bufHdr, bufHdr->pBuffer,bytes);
+            OMX_LOGV("use_input_buffer:bufHdr %p bufHdr->pBuffer %p \
+            bytes=%u", bufHdr, bufHdr->pBuffer,bytes);
             bufHdr->nSize             = (OMX_U32)sizeof(OMX_BUFFERHEADERTYPE);
             bufHdr->nVersion.nVersion = OMX_SPEC_VERSION;
             bufHdr->nAllocLen         = nBufSize;
@@ -3598,12 +3605,12 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::use_input_buffer
             m_inp_current_buf_count++;
         } else
         {
-            DEBUG_PRINT("Input buffer memory allocation failed 1 \n");
+            OMX_LOGV("Input buffer memory allocation failed 1 \n");
             eRet =  OMX_ErrorInsufficientResources;
         }
     } else
     {
-        DEBUG_PRINT("Input buffer memory allocation failed\n");
+        OMX_LOGV("Input buffer memory allocation failed\n");
         eRet =  OMX_ErrorInsufficientResources;
     }
     return eRet;
@@ -3633,7 +3640,7 @@ Dependency:
 SIDE EFFECTS:
   None
 =============================================================================*/
-OMX_ERRORTYPE  omx_qcelp13_aenc::use_output_buffer
+OMX_ERRORTYPE  omx_g711_aenc::use_output_buffer
 (
     OMX_IN OMX_HANDLETYPE            hComp,
     OMX_INOUT OMX_BUFFERHEADERTYPE** bufferHdr,
@@ -3650,7 +3657,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::use_output_buffer
     if(hComp == NULL)
     {
         port = port;
-        DEBUG_PRINT_ERROR("Returning OMX_ErrorBadParameter\n");
+        OMX_LOGE("Returning OMX_ErrorBadParameter\n");
         return OMX_ErrorBadParameter;
     }
     if (bytes < output_buffer_size)
@@ -3660,7 +3667,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::use_output_buffer
         return OMX_ErrorInsufficientResources;
     }
 
-    DEBUG_PRINT("Inside omx_qcelp13_aenc::use_output_buffer");
+    OMX_LOGV("Inside omx_g711_aenc::use_output_buffer");
     if (m_out_current_buf_count < m_out_act_buf_count)
     {
 
@@ -3669,13 +3676,13 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::use_output_buffer
         if (buf_ptr != NULL)
         {
             bufHdr = (OMX_BUFFERHEADERTYPE *) buf_ptr;
-            DEBUG_PRINT("BufHdr=%p buffer=%p\n",bufHdr,buffer);
+            OMX_LOGV("BufHdr=%p buffer=%p\n",bufHdr,buffer);
             *bufferHdr = bufHdr;
             memset(bufHdr,0,sizeof(OMX_BUFFERHEADERTYPE));
 
             bufHdr->pBuffer           = (OMX_U8 *)(buffer);
-            DEBUG_PRINT("use_output_buffer:bufHdr %p bufHdr->pBuffer %p \
-			len=%u\n", bufHdr, bufHdr->pBuffer,bytes);
+            OMX_LOGV("use_output_buffer:bufHdr %p bufHdr->pBuffer %p \
+            len=%u\n", bufHdr, bufHdr->pBuffer,bytes);
             bufHdr->nSize             = (OMX_U32)sizeof(OMX_BUFFERHEADERTYPE);
             bufHdr->nVersion.nVersion = OMX_SPEC_VERSION;
             bufHdr->nAllocLen         = nBufSize;
@@ -3688,12 +3695,12 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::use_output_buffer
 
         } else
         {
-            DEBUG_PRINT("Output buffer memory allocation failed\n");
+            OMX_LOGV("Output buffer memory allocation failed\n");
             eRet =  OMX_ErrorInsufficientResources;
         }
     } else
     {
-        DEBUG_PRINT("Output buffer memory allocation failed 2\n");
+        OMX_LOGV("Output buffer memory allocation failed 2\n");
         eRet =  OMX_ErrorInsufficientResources;
     }
     return eRet;
@@ -3704,7 +3711,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::use_output_buffer
  @param buffer pointer to buffer header
  @return bool value indicating whether buffer is found
  */
-bool omx_qcelp13_aenc::search_input_bufhdr(OMX_BUFFERHEADERTYPE *buffer)
+bool omx_g711_aenc::search_input_bufhdr(OMX_BUFFERHEADERTYPE *buffer)
 {
 
     bool eRet = false;
@@ -3726,7 +3733,7 @@ bool omx_qcelp13_aenc::search_input_bufhdr(OMX_BUFFERHEADERTYPE *buffer)
  @param buffer pointer to buffer header
  @return bool value indicating whether buffer is found
  */
-bool omx_qcelp13_aenc::search_output_bufhdr(OMX_BUFFERHEADERTYPE *buffer)
+bool omx_g711_aenc::search_output_bufhdr(OMX_BUFFERHEADERTYPE *buffer)
 {
 
     bool eRet = false;
@@ -3754,32 +3761,32 @@ bool omx_qcelp13_aenc::search_output_bufhdr(OMX_BUFFERHEADERTYPE *buffer)
   @param buffer buffer header
   @return Error status
 */
-OMX_ERRORTYPE  omx_qcelp13_aenc::free_buffer(
-				OMX_IN OMX_HANDLETYPE         hComp,
-				OMX_IN OMX_U32                 port,
-				OMX_IN OMX_BUFFERHEADERTYPE* buffer)
+OMX_ERRORTYPE  omx_g711_aenc::free_buffer(
+                OMX_IN OMX_HANDLETYPE         hComp,
+                OMX_IN OMX_U32                 port,
+                OMX_IN OMX_BUFFERHEADERTYPE* buffer)
 {
     OMX_ERRORTYPE eRet = OMX_ErrorNone;
 
-    DEBUG_PRINT("Free_Buffer buf %p\n", buffer);
+    OMX_LOGV("Free_Buffer buf %p\n", buffer);
     if(hComp == NULL)
     {
-        DEBUG_PRINT_ERROR("Returning OMX_ErrorBadParameter\n");
+        OMX_LOGE("Returning OMX_ErrorBadParameter\n");
         return OMX_ErrorBadParameter;
     }
     if (m_state == OMX_StateIdle &&
         (BITMASK_PRESENT(&m_flags ,OMX_COMPONENT_LOADING_PENDING)))
     {
-        DEBUG_PRINT(" free buffer while Component in Loading pending\n");
+        OMX_LOGV(" free buffer while Component in Loading pending\n");
     } else if ((m_inp_bEnabled == OMX_FALSE &&
-		port == OMX_CORE_INPUT_PORT_INDEX)||
+        port == OMX_CORE_INPUT_PORT_INDEX)||
                (m_out_bEnabled == OMX_FALSE &&
-		port == OMX_CORE_OUTPUT_PORT_INDEX))
+        port == OMX_CORE_OUTPUT_PORT_INDEX))
     {
-        DEBUG_PRINT("Free Buffer while port %u disabled\n", port);
+        OMX_LOGV("Free Buffer while port %u disabled\n", port);
     } else if (m_state == OMX_StateExecuting || m_state == OMX_StatePause)
     {
-        DEBUG_PRINT("Invalid state to free buffer,ports need to be disabled:\
+        OMX_LOGV("Invalid state to free buffer,ports need to be disabled:\
                     OMX_ErrorPortUnpopulated\n");
         post_command(OMX_EventError,
                      OMX_ErrorPortUnpopulated,
@@ -3788,7 +3795,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::free_buffer(
         return eRet;
     } else
     {
-        DEBUG_PRINT("free_buffer: Invalid state to free buffer,ports need to be\
+        OMX_LOGV("free_buffer: Invalid state to free buffer,ports need to be\
                     disabled:OMX_ErrorPortUnpopulated\n");
         post_command(OMX_EventError,
                      OMX_ErrorPortUnpopulated,
@@ -3803,26 +3810,26 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::free_buffer(
             {
                 /* Buffer exist */
                 //access only in IL client context
-                DEBUG_PRINT("Free_Buf:in_buffer[%p]\n",buffer);
+                OMX_LOGV("Free_Buf:in_buffer[%p]\n",buffer);
                 m_input_buf_hdrs.erase(buffer);
                 free(buffer);
                 m_inp_current_buf_count--;
             } else
             {
-                DEBUG_PRINT_ERROR("Free_Buf:Error-->free_buffer, \
+                OMX_LOGE("Free_Buf:Error-->free_buffer, \
                                   Invalid Input buffer header\n");
                 eRet = OMX_ErrorBadParameter;
             }
         } else
         {
-            DEBUG_PRINT_ERROR("Error: free_buffer,Port Index calculation \
+            OMX_LOGE("Error: free_buffer,Port Index calculation \
                               came out Invalid\n");
             eRet = OMX_ErrorBadPortIndex;
         }
         if (BITMASK_PRESENT((&m_flags),OMX_COMPONENT_INPUT_DISABLE_PENDING)
             && release_done(0))
         {
-            DEBUG_PRINT("INPUT PORT MOVING TO DISABLED STATE \n");
+            OMX_LOGV("INPUT PORT MOVING TO DISABLED STATE \n");
             BITMASK_CLEAR((&m_flags),OMX_COMPONENT_INPUT_DISABLE_PENDING);
             post_command(OMX_CommandPortDisable,
                          OMX_CORE_INPUT_PORT_INDEX,
@@ -3837,13 +3844,13 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::free_buffer(
             {
                 /* Buffer exist */
                 //access only in IL client context
-                DEBUG_PRINT("Free_Buf:out_buffer[%p]\n",buffer);
+                OMX_LOGV("Free_Buf:out_buffer[%p]\n",buffer);
                 m_output_buf_hdrs.erase(buffer);
                 free(buffer);
                 m_out_current_buf_count--;
             } else
             {
-                DEBUG_PRINT("Free_Buf:Error-->free_buffer , \
+                OMX_LOGV("Free_Buf:Error-->free_buffer , \
                             Invalid Output buffer header\n");
                 eRet = OMX_ErrorBadParameter;
             }
@@ -3855,7 +3862,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::free_buffer(
         if (BITMASK_PRESENT((&m_flags),OMX_COMPONENT_OUTPUT_DISABLE_PENDING)
             && release_done(1))
         {
-            DEBUG_PRINT("OUTPUT PORT MOVING TO DISABLED STATE \n");
+            OMX_LOGV("OUTPUT PORT MOVING TO DISABLED STATE \n");
             BITMASK_CLEAR((&m_flags),OMX_COMPONENT_OUTPUT_DISABLE_PENDING);
             post_command(OMX_CommandPortDisable,
                          OMX_CORE_OUTPUT_PORT_INDEX,
@@ -3872,21 +3879,21 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::free_buffer(
         if (release_done(-1))
         {
             if(ioctl(m_drv_fd, AUDIO_STOP, 0) < 0)
-               DEBUG_PRINT_ERROR("AUDIO STOP in free buffer failed\n");
+               OMX_LOGE("AUDIO STOP in free buffer failed\n");
             else
-               DEBUG_PRINT("AUDIO STOP in free buffer passed\n");
+               OMX_LOGV("AUDIO STOP in free buffer passed\n");
 
 
-            DEBUG_PRINT("Free_Buf: Free buffer\n");
+            OMX_LOGV("Free_Buf: Free buffer\n");
 
 
             // Send the callback now
             BITMASK_CLEAR((&m_flags),OMX_COMPONENT_LOADING_PENDING);
-            DEBUG_PRINT("Before OMX_StateLoaded \
-				OMX_COMPONENT_GENERATE_EVENT\n");
+            OMX_LOGV("Before OMX_StateLoaded \
+                OMX_COMPONENT_GENERATE_EVENT\n");
             post_command(OMX_CommandStateSet,
                          OMX_StateLoaded,OMX_COMPONENT_GENERATE_EVENT);
-            DEBUG_PRINT("After OMX_StateLoaded OMX_COMPONENT_GENERATE_EVENT\n");
+            OMX_LOGV("After OMX_StateLoaded OMX_COMPONENT_GENERATE_EVENT\n");
 
         }
     }
@@ -3904,33 +3911,33 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::free_buffer(
  @param buffer pointer to buffer header
  @return error status
  */
-OMX_ERRORTYPE  omx_qcelp13_aenc::empty_this_buffer(
-				OMX_IN OMX_HANDLETYPE         hComp,
-				OMX_IN OMX_BUFFERHEADERTYPE* buffer)
+OMX_ERRORTYPE  omx_g711_aenc::empty_this_buffer(
+                OMX_IN OMX_HANDLETYPE         hComp,
+                OMX_IN OMX_BUFFERHEADERTYPE* buffer)
 {
     OMX_ERRORTYPE eRet = OMX_ErrorNone;
 
-    DEBUG_PRINT("ETB:Buf:%p Len %u TS %lld numInBuf=%d\n", \
+    OMX_LOGV("ETB:Buf:%p Len %u TS %lld numInBuf=%d\n", \
                 buffer, buffer->nFilledLen, buffer->nTimeStamp, (nNumInputBuf));
     if (m_state == OMX_StateInvalid)
     {
-        DEBUG_PRINT("Empty this buffer in Invalid State\n");
+        OMX_LOGV("Empty this buffer in Invalid State\n");
         return OMX_ErrorInvalidState;
     }
     if (!m_inp_bEnabled)
     {
-        DEBUG_PRINT("empty_this_buffer OMX_ErrorIncorrectStateOperation "\
+        OMX_LOGV("empty_this_buffer OMX_ErrorIncorrectStateOperation "\
                     "Port Status %d \n", m_inp_bEnabled);
         return OMX_ErrorIncorrectStateOperation;
     }
     if (buffer->nSize != sizeof(OMX_BUFFERHEADERTYPE))
     {
-        DEBUG_PRINT("omx_qcelp13_aenc::etb--> Buffer Size Invalid\n");
+        OMX_LOGV("omx_g711_aenc::etb--> Buffer Size Invalid\n");
         return OMX_ErrorBadParameter;
     }
     if (buffer->nVersion.nVersion != OMX_SPEC_VERSION)
     {
-        DEBUG_PRINT("omx_qcelp13_aenc::etb--> OMX Version Invalid\n");
+        OMX_LOGV("omx_g711_aenc::etb--> OMX Version Invalid\n");
         return OMX_ErrorVersionMismatch;
     }
 
@@ -3941,7 +3948,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::empty_this_buffer(
     if ((m_state != OMX_StateExecuting) &&
         (m_state != OMX_StatePause))
     {
-        DEBUG_PRINT_ERROR("Invalid state\n");
+        OMX_LOGE("Invalid state\n");
         eRet = OMX_ErrorInvalidState;
     }
     if (OMX_ErrorNone == eRet)
@@ -3952,13 +3959,13 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::empty_this_buffer(
                        (unsigned long) buffer,OMX_COMPONENT_GENERATE_ETB);
         } else
         {
-            DEBUG_PRINT_ERROR("Bad header %p \n", buffer);
+            OMX_LOGE("Bad header %p \n", buffer);
             eRet = OMX_ErrorBadParameter;
         }
     }
     pthread_mutex_lock(&in_buf_count_lock);
     nNumInputBuf++;
-    m_qcelp13_pb_stats.etb_cnt++;
+    m_g711_pb_stats.etb_cnt++;
     pthread_mutex_unlock(&in_buf_count_lock);
     return eRet;
 }
@@ -3969,7 +3976,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::empty_this_buffer(
   @param buffer pointer to buffer header
   @return error status
  */
-OMX_ERRORTYPE  omx_qcelp13_aenc::empty_this_buffer_proxy
+OMX_ERRORTYPE  omx_g711_aenc::empty_this_buffer_proxy
 (
     OMX_IN OMX_HANDLETYPE         hComp,
     OMX_BUFFERHEADERTYPE* buffer)
@@ -3987,7 +3994,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::empty_this_buffer_proxy
     memset(&meta_in,0,sizeof(meta_in));
     if ( search_input_bufhdr(buffer) == false )
     {
-        DEBUG_PRINT("ETBP: INVALID BUF HDR\n");
+        OMX_LOGV("ETBP: INVALID BUF HDR\n");
         buffer_done_cb((OMX_BUFFERHEADERTYPE *)buffer);
         return OMX_ErrorBadParameter;
     }
@@ -4004,11 +4011,11 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::empty_this_buffer_proxy
         meta_in.nFlags &= ~OMX_BUFFERFLAG_EOS;
         if(buffer->nFlags & OMX_BUFFERFLAG_EOS)
         {
-            DEBUG_PRINT("EOS OCCURED \n");
+            OMX_LOGV("EOS OCCURED \n");
             meta_in.nFlags  |= OMX_BUFFERFLAG_EOS;
         }
         memcpy(data,&meta_in, meta_in.offsetVal);
-        DEBUG_PRINT("meta_in.nFlags = 0x%8x\n",meta_in.nFlags);
+        OMX_LOGV("meta_in.nFlags = 0x%8x\n",meta_in.nFlags);
     }
 
     memcpy(&data[sizeof(META_IN)],buffer->pBuffer,buffer->nFilledLen);
@@ -4040,14 +4047,14 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::empty_this_buffer_proxy
     {
         /* Assume empty this buffer function has already checked
         validity of buffer */
-        DEBUG_PRINT("Empty buffer %p to kernel driver\n", buffer);
+        OMX_LOGV("Empty buffer %p to kernel driver\n", buffer);
         post_input((unsigned long) & hComp,(unsigned long) buffer,
                    OMX_COMPONENT_GENERATE_BUFFER_DONE);
     }
     return OMX_ErrorNone;
 }
 
-OMX_ERRORTYPE  omx_qcelp13_aenc::fill_this_buffer_proxy
+OMX_ERRORTYPE  omx_g711_aenc::fill_this_buffer_proxy
 (
     OMX_IN OMX_HANDLETYPE         hComp,
     OMX_BUFFERHEADERTYPE* buffer)
@@ -4062,7 +4069,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::fill_this_buffer_proxy
 
     if (true == search_output_bufhdr(buffer))
     {
-          DEBUG_PRINT("\nBefore Read..m_drv_fd = %d,\n",m_drv_fd);
+          OMX_LOGV("\nBefore Read..m_drv_fd = %d,\n",m_drv_fd);
           nReadbytes = read(m_drv_fd,buffer->pBuffer,output_buffer_size );
           DEBUG_DETAIL("FTBP->Al_len[%lu]buf[%p]size[%d]numOutBuf[%d]\n",\
                          buffer->nAllocLen,buffer->pBuffer,
@@ -4084,7 +4091,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::fill_this_buffer_proxy
             }
             return OMX_ErrorNone;
       } else
-              DEBUG_PRINT("Read bytes %d\n",nReadbytes);
+              OMX_LOGV("Read bytes %d\n",nReadbytes);
 
       // Buffer from Driver will have
       // 1 byte => Nr of frame field
@@ -4093,16 +4100,16 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::fill_this_buffer_proxy
 
       meta_out = (ENC_META_OUT *)(buffer->pBuffer + sizeof(unsigned char));
           buffer->nTimeStamp = (((OMX_TICKS)meta_out->msw_ts << 32)+
-				meta_out->lsw_ts);
+                meta_out->lsw_ts);
           buffer->nFlags |= meta_out->nflags;
           buffer->nOffset = (OMX_U32) (meta_out->offset_to_frame +
                               sizeof(unsigned char));
           buffer->nFilledLen = (OMX_U32)(nReadbytes - buffer->nOffset);
           nTimestamp = buffer->nTimeStamp;
-          DEBUG_PRINT("nflags %d frame_size %d offset_to_frame %d \
-			timestamp %lld\n", meta_out->nflags,
-			meta_out->frame_size, meta_out->offset_to_frame,
-			buffer->nTimeStamp);
+          OMX_LOGV("nflags %d frame_size %d offset_to_frame %d \
+            timestamp %lld\n", meta_out->nflags,
+            meta_out->frame_size, meta_out->offset_to_frame,
+            buffer->nTimeStamp);
 
           if ((buffer->nFlags & OMX_BUFFERFLAG_EOS) == OMX_BUFFERFLAG_EOS )
           {
@@ -4112,7 +4119,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::fill_this_buffer_proxy
               frame_done_cb((OMX_BUFFERHEADERTYPE *)buffer);
               if ((buffer->nFlags & OMX_BUFFERFLAG_EOS) == OMX_BUFFERFLAG_EOS )
               {
-                  DEBUG_PRINT("FTBP: Now, Send EOS flag to Client \n");
+                  OMX_LOGV("FTBP: Now, Send EOS flag to Client \n");
                   m_cb.EventHandler(&m_cmp,
                                   m_app_data,
                                   OMX_EventBufferFlag,
@@ -4121,7 +4128,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::fill_this_buffer_proxy
 
               return OMX_ErrorNone;
           }
-          DEBUG_PRINT("nState %d \n",nState );
+          OMX_LOGV("nState %d \n",nState );
 
           pthread_mutex_lock(&m_state_lock);
           get_state(&m_cmp, &state);
@@ -4129,7 +4136,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::fill_this_buffer_proxy
 
           if (state == OMX_StatePause)
           {
-              DEBUG_PRINT("FTBP:Post the FBD to event thread currstate=%d\n",\
+              OMX_LOGV("FTBP:Post the FBD to event thread currstate=%d\n",\
                             state);
               post_output((unsigned long) & hComp,(unsigned long) buffer,
                             OMX_COMPONENT_GENERATE_FRAME_DONE);
@@ -4142,7 +4149,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::fill_this_buffer_proxy
 
     }
     else
-        DEBUG_PRINT("\n FTBP-->Invalid buffer in FTB \n");
+        OMX_LOGV("\n FTBP-->Invalid buffer in FTB \n");
 
 
     return OMX_ErrorNone;
@@ -4150,7 +4157,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::fill_this_buffer_proxy
 
 /* ======================================================================
 FUNCTION
-  omx_qcelp13_aenc::FillThisBuffer
+  omx_g711_aenc::FillThisBuffer
 
 DESCRIPTION
   IL client uses this method to release the frame buffer
@@ -4166,7 +4173,7 @@ RETURN VALUE
   true/false
 
 ========================================================================== */
-OMX_ERRORTYPE  omx_qcelp13_aenc::fill_this_buffer
+OMX_ERRORTYPE  omx_g711_aenc::fill_this_buffer
 (
     OMX_IN OMX_HANDLETYPE         hComp,
     OMX_IN OMX_BUFFERHEADERTYPE* buffer)
@@ -4174,7 +4181,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::fill_this_buffer
     OMX_ERRORTYPE eRet = OMX_ErrorNone;
     if (buffer->nSize != sizeof(OMX_BUFFERHEADERTYPE))
     {
-        DEBUG_PRINT("omx_qcelp13_aenc::ftb--> Buffer Size Invalid\n");
+        OMX_LOGV("omx_g711_aenc::ftb--> Buffer Size Invalid\n");
         return OMX_ErrorBadParameter;
     }
     if (m_out_bEnabled == OMX_FALSE)
@@ -4184,7 +4191,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::fill_this_buffer
 
     if (buffer->nVersion.nVersion != OMX_SPEC_VERSION)
     {
-        DEBUG_PRINT("omx_qcelp13_aenc::ftb--> OMX Version Invalid\n");
+        OMX_LOGV("omx_g711_aenc::ftb--> OMX Version Invalid\n");
         return OMX_ErrorVersionMismatch;
     }
     if (buffer->nOutputPortIndex != OMX_CORE_OUTPUT_PORT_INDEX)
@@ -4193,7 +4200,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::fill_this_buffer
     }
     pthread_mutex_lock(&out_buf_count_lock);
     nNumOutputBuf++;
-    m_qcelp13_pb_stats.ftb_cnt++;
+    m_g711_pb_stats.ftb_cnt++;
     DEBUG_DETAIL("FTB:nNumOutputBuf is %d", nNumOutputBuf);
     pthread_mutex_unlock(&out_buf_count_lock);
     post_output((unsigned long)hComp,
@@ -4203,7 +4210,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::fill_this_buffer
 
 /* ======================================================================
 FUNCTION
-  omx_qcelp13_aenc::SetCallbacks
+  omx_g711_aenc::SetCallbacks
 
 DESCRIPTION
   Set the callbacks.
@@ -4215,14 +4222,14 @@ RETURN VALUE
   OMX Error None if everything successful.
 
 ========================================================================== */
-OMX_ERRORTYPE  omx_qcelp13_aenc::set_callbacks(
-				OMX_IN OMX_HANDLETYPE        hComp,
-				OMX_IN OMX_CALLBACKTYPE* callbacks,
-				OMX_IN OMX_PTR             appData)
+OMX_ERRORTYPE  omx_g711_aenc::set_callbacks(
+                OMX_IN OMX_HANDLETYPE        hComp,
+                OMX_IN OMX_CALLBACKTYPE* callbacks,
+                OMX_IN OMX_PTR             appData)
 {
     if(hComp == NULL)
     {
-        DEBUG_PRINT_ERROR("Returning OMX_ErrorBadParameter\n");
+        OMX_LOGE("Returning OMX_ErrorBadParameter\n");
         return OMX_ErrorBadParameter;
     }
     m_cb       = *callbacks;
@@ -4233,7 +4240,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::set_callbacks(
 
 /* ======================================================================
 FUNCTION
-  omx_qcelp13_aenc::ComponentDeInit
+  omx_g711_aenc::ComponentDeInit
 
 DESCRIPTION
   Destroys the component and release memory allocated to the heap.
@@ -4245,27 +4252,27 @@ RETURN VALUE
   OMX Error None if everything successful.
 
 ========================================================================== */
-OMX_ERRORTYPE  omx_qcelp13_aenc::component_deinit(OMX_IN OMX_HANDLETYPE hComp)
+OMX_ERRORTYPE  omx_g711_aenc::component_deinit(OMX_IN OMX_HANDLETYPE hComp)
 {
     if(hComp == NULL)
     {
-        DEBUG_PRINT_ERROR("Returning OMX_ErrorBadParameter\n");
+        OMX_LOGE("Returning OMX_ErrorBadParameter\n");
         return OMX_ErrorBadParameter;
     }
     if (OMX_StateLoaded != m_state && OMX_StateInvalid != m_state)
     {
-        DEBUG_PRINT_ERROR("Warning: Rxed DeInit when not in LOADED state %d\n",
+        OMX_LOGE("Warning: Rxed DeInit when not in LOADED state %d\n",
             m_state);
     }
   deinit_encoder();
 
-DEBUG_PRINT_ERROR("%s:COMPONENT DEINIT...\n", __FUNCTION__);
+OMX_LOGE("%s:COMPONENT DEINIT...\n", __FUNCTION__);
   return OMX_ErrorNone;
 }
 
 /* ======================================================================
 FUNCTION
-  omx_qcelp13_aenc::deinit_encoder
+  omx_g711_aenc::deinit_encoder
 
 DESCRIPTION
   Closes all the threads and release memory allocated to the heap.
@@ -4277,23 +4284,23 @@ RETURN VALUE
   None.
 
 ========================================================================== */
-void  omx_qcelp13_aenc::deinit_encoder()
+void  omx_g711_aenc::deinit_encoder()
 {
-    DEBUG_PRINT("Component-deinit being processed\n");
-    DEBUG_PRINT("********************************\n");
-    DEBUG_PRINT("STATS: in-buf-len[%u]out-buf-len[%u] tot-pb-time[%lld]",\
-                m_qcelp13_pb_stats.tot_in_buf_len,
-                m_qcelp13_pb_stats.tot_out_buf_len,
-                m_qcelp13_pb_stats.tot_pb_time);
-    DEBUG_PRINT("STATS: fbd-cnt[%u]ftb-cnt[%u]etb-cnt[%u]ebd-cnt[%u]",\
-                m_qcelp13_pb_stats.fbd_cnt,m_qcelp13_pb_stats.ftb_cnt,
-                m_qcelp13_pb_stats.etb_cnt,
-                m_qcelp13_pb_stats.ebd_cnt);
-   memset(&m_qcelp13_pb_stats,0,sizeof(QCELP13_PB_STATS));
+    OMX_LOGV("Component-deinit being processed\n");
+    OMX_LOGV("********************************\n");
+    OMX_LOGV("STATS: in-buf-len[%u]out-buf-len[%u] tot-pb-time[%lld]",\
+                m_g711_pb_stats.tot_in_buf_len,
+                m_g711_pb_stats.tot_out_buf_len,
+                m_g711_pb_stats.tot_pb_time);
+    OMX_LOGV("STATS: fbd-cnt[%u]ftb-cnt[%u]etb-cnt[%u]ebd-cnt[%u]",\
+                m_g711_pb_stats.fbd_cnt,m_g711_pb_stats.ftb_cnt,
+                m_g711_pb_stats.etb_cnt,
+                m_g711_pb_stats.ebd_cnt);
+   memset(&m_g711_pb_stats,0,sizeof(G711_PB_STATS));
 
     if((OMX_StateLoaded != m_state) && (OMX_StateInvalid != m_state))
     {
-        DEBUG_PRINT_ERROR("%s,Deinit called in state[%d]\n",__FUNCTION__,\
+        OMX_LOGE("%s,Deinit called in state[%d]\n",__FUNCTION__,\
                                                                 m_state);
         // Get back any buffers from driver
         if(pcm_input)
@@ -4304,11 +4311,11 @@ void  omx_qcelp13_aenc::deinit_encoder()
         pthread_mutex_lock(&m_state_lock);
         m_state = OMX_StateLoaded;
         pthread_mutex_unlock(&m_state_lock);
-        DEBUG_PRINT_ERROR("Freeing Buf:inp_current_buf_count[%d][%d]\n",\
+        OMX_LOGE("Freeing Buf:inp_current_buf_count[%d][%d]\n",\
         m_inp_current_buf_count,
         m_input_buf_hdrs.size());
         m_input_buf_hdrs.eraseall();
-        DEBUG_PRINT_ERROR("Freeing Buf:out_current_buf_count[%d][%d]\n",\
+        OMX_LOGE("Freeing Buf:out_current_buf_count[%d][%d]\n",\
         m_out_current_buf_count,
         m_output_buf_hdrs.size());
         m_output_buf_hdrs.eraseall();
@@ -4337,26 +4344,26 @@ void  omx_qcelp13_aenc::deinit_encoder()
     {
         if (m_ipc_to_in_th != NULL)
         {
-            omx_qcelp13_thread_stop(m_ipc_to_in_th);
+            omx_g711_thread_stop(m_ipc_to_in_th);
             m_ipc_to_in_th = NULL;
         }
     }
 
     if (m_ipc_to_cmd_th != NULL)
     {
-        omx_qcelp13_thread_stop(m_ipc_to_cmd_th);
+        omx_g711_thread_stop(m_ipc_to_cmd_th);
         m_ipc_to_cmd_th = NULL;
     }
     if (m_ipc_to_out_th != NULL)
     {
-         DEBUG_DETAIL("Inside omx_qcelp13_thread_stop\n");
-        omx_qcelp13_thread_stop(m_ipc_to_out_th);
+         DEBUG_DETAIL("Inside omx_g711_thread_stop\n");
+        omx_g711_thread_stop(m_ipc_to_out_th);
         m_ipc_to_out_th = NULL;
      }
 
 
     if(ioctl(m_drv_fd, AUDIO_STOP, 0) <0)
-          DEBUG_PRINT_ERROR("De-init: AUDIO_STOP FAILED\n");
+          OMX_LOGE("De-init: AUDIO_STOP FAILED\n");
 
     if(pcm_input && m_tmp_meta_buf )
     {
@@ -4383,25 +4390,25 @@ void  omx_qcelp13_aenc::deinit_encoder()
     if ( m_drv_fd >= 0 )
     {
         if(close(m_drv_fd) < 0)
-        DEBUG_PRINT("De-init: Driver Close Failed \n");
+        OMX_LOGV("De-init: Driver Close Failed \n");
         m_drv_fd = -1;
     }
     else
     {
-        DEBUG_PRINT_ERROR(" QCELP13 device already closed\n");
+        OMX_LOGE(" G711 device already closed\n");
     }
     m_comp_deinit=1;
     m_is_out_th_sleep = 1;
     m_is_in_th_sleep = 1;
-    DEBUG_PRINT("************************************\n");
-    DEBUG_PRINT(" DEINIT COMPLETED");
-    DEBUG_PRINT("************************************\n");
+    OMX_LOGV("************************************\n");
+    OMX_LOGV(" DEINIT COMPLETED");
+    OMX_LOGV("************************************\n");
 
 }
 
 /* ======================================================================
 FUNCTION
-  omx_qcelp13_aenc::UseEGLImage
+  omx_g711_aenc::UseEGLImage
 
 DESCRIPTION
   OMX Use EGL Image method implementation <TBD>.
@@ -4413,7 +4420,7 @@ RETURN VALUE
   Not Implemented error.
 
 ========================================================================== */
-OMX_ERRORTYPE  omx_qcelp13_aenc::use_EGL_image
+OMX_ERRORTYPE  omx_g711_aenc::use_EGL_image
 (
     OMX_IN OMX_HANDLETYPE                hComp,
     OMX_INOUT OMX_BUFFERHEADERTYPE** bufferHdr,
@@ -4421,13 +4428,13 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::use_EGL_image
     OMX_IN OMX_PTR                     appData,
     OMX_IN void*                      eglImage)
 {
-    DEBUG_PRINT_ERROR("Error : use_EGL_image:  Not Implemented \n");
+    OMX_LOGE("Error : use_EGL_image:  Not Implemented \n");
 
     if((hComp == NULL) || (appData == NULL) || (eglImage == NULL))
     {
         bufferHdr = bufferHdr;
         port = port;
-        DEBUG_PRINT_ERROR("Returning OMX_ErrorBadParameter\n");
+        OMX_LOGE("Returning OMX_ErrorBadParameter\n");
         return OMX_ErrorBadParameter;
     }
     return OMX_ErrorNotImplemented;
@@ -4435,7 +4442,7 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::use_EGL_image
 
 /* ======================================================================
 FUNCTION
-  omx_qcelp13_aenc::ComponentRoleEnum
+  omx_g711_aenc::ComponentRoleEnum
 
 DESCRIPTION
   OMX Component Role Enum method implementation.
@@ -4446,17 +4453,17 @@ PARAMETERS
 RETURN VALUE
   OMX Error None if everything is successful.
 ========================================================================== */
-OMX_ERRORTYPE  omx_qcelp13_aenc::component_role_enum(
-				OMX_IN OMX_HANDLETYPE hComp,
-				OMX_OUT OMX_U8*        role,
-				OMX_IN OMX_U32        index)
+OMX_ERRORTYPE  omx_g711_aenc::component_role_enum(
+                OMX_IN OMX_HANDLETYPE hComp,
+                OMX_OUT OMX_U8*        role,
+                OMX_IN OMX_U32        index)
 {
     OMX_ERRORTYPE eRet = OMX_ErrorNone;
-    const char *cmp_role = "audio_encoder.qcelp13";
+    const char *cmp_role = "audio_encoder.g711";
 
     if(hComp == NULL)
     {
-        DEBUG_PRINT_ERROR("Returning OMX_ErrorBadParameter\n");
+        OMX_LOGE("Returning OMX_ErrorBadParameter\n");
         return OMX_ErrorBadParameter;
     }
     if (index == 0 && role)
@@ -4471,11 +4478,9 @@ OMX_ERRORTYPE  omx_qcelp13_aenc::component_role_enum(
 }
 
 
-
-
 /* ======================================================================
 FUNCTION
-  omx_qcelp13_aenc::AllocateDone
+  omx_g711_aenc::AllocateDone
 
 DESCRIPTION
   Checks if entire buffer pool is allocated by IL Client or not.
@@ -4488,7 +4493,7 @@ RETURN VALUE
   true/false.
 
 ========================================================================== */
-bool omx_qcelp13_aenc::allocate_done(void)
+bool omx_g711_aenc::allocate_done(void)
 {
     OMX_BOOL bRet = OMX_FALSE;
     if (pcm_input==1)
@@ -4527,7 +4532,7 @@ bool omx_qcelp13_aenc::allocate_done(void)
 
 /* ======================================================================
 FUNCTION
-  omx_qcelp13_aenc::ReleaseDone
+  omx_g711_aenc::ReleaseDone
 
 DESCRIPTION
   Checks if IL client has released all the buffers.
@@ -4539,9 +4544,9 @@ RETURN VALUE
   true/false
 
 ========================================================================== */
-bool omx_qcelp13_aenc::release_done(OMX_U32 param1)
+bool omx_g711_aenc::release_done(OMX_U32 param1)
 {
-    DEBUG_PRINT("Inside omx_qcelp13_aenc::release_done");
+    OMX_LOGV("Inside omx_g711_aenc::release_done");
     OMX_BOOL bRet = OMX_FALSE;
 
     if (param1 == OMX_ALL)
