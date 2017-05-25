@@ -5157,11 +5157,12 @@ static void platform_check_hdmi_backend_cfg(struct audio_device* adev,
 
         if ((usecase->stream.out->format == AUDIO_FORMAT_E_AC3) ||
             (usecase->stream.out->format == AUDIO_FORMAT_E_AC3_JOC) ||
-            (usecase->stream.out->format == AUDIO_FORMAT_DOLBY_TRUEHD))
-            sample_rate = sample_rate * 4 ;
+            (usecase->stream.out->format == AUDIO_FORMAT_DOLBY_TRUEHD)) {
 
-        if (!edid_is_supported_sr(edid_info, sample_rate))
-                sample_rate = edid_get_highest_supported_sr(edid_info);
+            sample_rate = sample_rate * 4;
+            if (sample_rate > HDMI_PASSTHROUGH_MAX_SAMPLE_RATE)
+                sample_rate = HDMI_PASSTHROUGH_MAX_SAMPLE_RATE;
+        }
 
         bit_width = CODEC_BACKEND_DEFAULT_BIT_WIDTH;
         /* We force route so that the BE format can be set to Compr */
@@ -5997,9 +5998,13 @@ unsigned char platform_map_to_edid_format(int audio_format)
         ALOGV("%s:PCM", __func__);
         format = LPCM;
         break;
+    case AUDIO_FORMAT_IEC61937:
+        ALOGV("%s:IEC61937", __func__);
+        format = 0;
+        break;
     default:
         format =  -1;
-        ALOGE("%s:invalid format:%d", __func__,format);
+        ALOGE("%s:invalid format: 0x%x", __func__, audio_format);
         break;
     }
     return format;
@@ -6009,9 +6014,18 @@ uint32_t platform_get_compress_passthrough_buffer_size(
                                           audio_offload_info_t* info)
 {
     uint32_t fragment_size = MIN_COMPRESS_PASSTHROUGH_FRAGMENT_SIZE;
+    char value[PROPERTY_VALUE_MAX] = {0};
+
+    if (((info->format == AUDIO_FORMAT_DOLBY_TRUEHD) ||
+            (info->format == AUDIO_FORMAT_IEC61937)) &&
+            property_get("audio.truehd.buffer.size.kb", value, "") &&
+            atoi(value)) {
+        fragment_size = atoi(value) * 1024;
+        goto done;
+    }
     if (!info->has_video)
         fragment_size = MIN_COMPRESS_PASSTHROUGH_FRAGMENT_SIZE;
-
+done:
     return fragment_size;
 }
 
@@ -6059,6 +6073,9 @@ bool platform_is_edid_supported_format(void *platform, int format)
     int i, ret;
     unsigned char format_id = platform_map_to_edid_format(format);
 
+    if (format == AUDIO_FORMAT_IEC61937)
+        return true;
+
     if (format_id <= 0) {
         ALOGE("%s invalid edid format mappting for :%x" ,__func__, format);
         return false;
@@ -6100,6 +6117,20 @@ bool platform_is_edid_supported_sample_rate(void *platform, int sample_rate)
     return false;
 }
 
+int platform_edid_get_highest_supported_sr(void *platform)
+{
+    struct platform_data *my_data = (struct platform_data *)platform;
+    edid_audio_info *info = NULL;
+    int ret = 0;
+
+    ret = platform_get_edid_info(platform);
+    info = (edid_audio_info *)my_data->edid_info;
+    if (ret == 0 && info != NULL) {
+        return edid_get_highest_supported_sr(info);
+    }
+
+    return 0;
+}
 
 int platform_set_edid_channels_configuration(void *platform, int channels) {
 
