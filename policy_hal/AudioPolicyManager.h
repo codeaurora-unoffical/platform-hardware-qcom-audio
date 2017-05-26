@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
  * Not a contribution.
  *
  * Copyright (C) 2009 The Android Open Source Project
@@ -24,25 +24,25 @@
 
 
 namespace android {
-#ifndef FLAC_OFFLOAD_ENABLED
-#define AUDIO_FORMAT_FLAC 0x1D000000UL
+#ifndef AUDIO_EXTN_FORMATS_ENABLED
+#define AUDIO_FORMAT_WMA 0x12000000UL
+#define AUDIO_FORMAT_WMA_PRO 0x13000000UL
+#define AUDIO_FORMAT_FLAC 0x1B000000UL
+#define AUDIO_FORMAT_ALAC 0x1C000000UL
+#define AUDIO_FORMAT_APE 0x1D000000UL
 #endif
 
-#ifndef WMA_OFFLOAD_ENABLED
-#define AUDIO_FORMAT_WMA 0x13000000UL
-#define AUDIO_FORMAT_WMA_PRO 0x14000000UL
+#ifndef AAC_ADTS_OFFLOAD_ENABLED
+#define AUDIO_FORMAT_AAC_ADTS 0x1E000000UL
 #endif
 
-#ifndef ALAC_OFFLOAD_ENABLED
-#define AUDIO_FORMAT_ALAC 0x1F000000UL
-#endif
-
-#ifndef APE_OFFLOAD_ENABLED
-#define AUDIO_FORMAT_APE 0x20000000UL
-#endif
 #ifndef AUDIO_EXTN_AFE_PROXY_ENABLED
 #define AUDIO_DEVICE_OUT_PROXY 0x1000000
 #endif
+
+#define MAX_BITRATE_WMA          384000
+#define MAX_BITRATE_WMA_PRO      1536000
+#define MAX_BITRATE_WMA_LOSSLESS 1152000
 // ----------------------------------------------------------------------------
 
 class AudioPolicyManagerCustom: public AudioPolicyManager
@@ -80,21 +80,15 @@ public:
         virtual status_t stopInput(audio_io_handle_t input,
                                    audio_session_t session);
 
+        virtual void closeAllInputs();
+
 protected:
 
-#ifdef NON_WEARABLE_TARGET
-         status_t checkAndSetVolume(audio_stream_type_t stream,
-                                                    int index,
-                                                    const sp<AudioOutputDescriptor>& outputDesc,
-                                                    audio_devices_t device,
-                                                    int delayMs = 0, bool force = false);
-#else
          status_t checkAndSetVolume(audio_stream_type_t stream,
                                                    int index,
-                                                   const sp<SwAudioOutputDescriptor>& outputDesc,
+                                                   const sp<AudioOutputDescriptor>& outputDesc,
                                                    audio_devices_t device,
                                                    int delayMs = 0, bool force = false);
-#endif
 
         // selects the most appropriate device on output for current state
         // must be called every time a condition that affects the device choice for a given output is
@@ -102,6 +96,14 @@ protected:
         // see getDeviceForStrategy() for the use of fromCache parameter
         audio_devices_t getNewOutputDevice(const sp<AudioOutputDescriptor>& outputDesc,
                                            bool fromCache);
+
+        // avoid invalidation for active music stream on  previous outputs
+        // which is supported on the new device.
+        bool isInvalidationOfMusicStreamNeeded(routing_strategy strategy);
+
+        // Must be called before updateDevicesAndOutputs()
+        void checkOutputForStrategy(routing_strategy strategy);
+
         // returns true if given output is direct output
         bool isDirectOutput(audio_io_handle_t output);
 
@@ -110,19 +112,21 @@ protected:
         status_t startSource(sp<AudioOutputDescriptor> outputDesc,
                              audio_stream_type_t stream,
                              audio_devices_t device,
+                             const char *address,
                              uint32_t *delayMs);
-        status_t stopSource(sp<AudioOutputDescriptor> outputDesc,
+         status_t stopSource(sp<AudioOutputDescriptor> outputDesc,
                             audio_stream_type_t stream,
                             bool forceDeviceUpdate);
-        // event is one of STARTING_OUTPUT, STARTING_BEACON, STOPPING_OUTPUT, STOPPING_BEACON   313
-        // returns 0 if no mute/unmute event happened, the largest latency of the device where   314
-        //   the mute/unmute happened 315
+        // event is one of STARTING_OUTPUT, STARTING_BEACON, STOPPING_OUTPUT, STOPPING_BEACON
+        // returns 0 if no mute/unmute event happened, the largest latency of the device where
+        //   the mute/unmute happened
         uint32_t handleEventForBeacon(int){return 0;}
         uint32_t setBeaconMute(bool){return 0;}
 #ifdef VOICE_CONCURRENCY
         static audio_output_flags_t getFallBackPath();
         int mFallBackflag;
 #endif /*VOICE_CONCURRENCY*/
+        void moveGlobalEffect();
 
         // handle special cases for sonification strategy while in call: mute streams or replace by
         // a special tone in the device used for communication
@@ -132,14 +136,9 @@ protected:
         //parameter indicates if HDMI plug in/out detected
         bool mHdmiAudioEvent;
 private:
-        static float volIndexToAmpl(audio_devices_t device, const StreamDescriptor& streamDesc,
-                int indexInUi);
         // updates device caching and output for streams that can influence the
         //    routing of notifications
         void handleNotificationRoutingForStream(audio_stream_type_t stream);
-        static bool isVirtualInputDevice(audio_devices_t device);
-        static bool deviceDistinguishesOnAddress(audio_devices_t device);
-        uint32_t nextUniqueId();
         // internal method to return the output handle for the given device and format
         audio_io_handle_t getOutputForDevice(
                 audio_devices_t device,
@@ -150,15 +149,29 @@ private:
                 audio_channel_mask_t channelMask,
                 audio_output_flags_t flags,
                 const audio_offload_info_t *offloadInfo);
+        // internal method to fill offload info in case of Direct PCM
+        status_t getOutputForAttr(const audio_attributes_t *attr,
+                audio_io_handle_t *output,
+                audio_session_t session,
+                audio_stream_type_t *stream,
+                uid_t uid,
+                uint32_t samplingRate,
+                audio_format_t format,
+                audio_channel_mask_t channelMask,
+                audio_output_flags_t flags,
+                audio_port_handle_t selectedDeviceId,
+                const audio_offload_info_t *offloadInfo);
         // Used for voip + voice concurrency usecase
         int mPrevPhoneState;
+#ifdef VOICE_CONCURRENCY
         int mvoice_call_state;
+#endif
 #ifdef RECORD_PLAY_CONCURRENCY
         // Used for record + playback concurrency
         bool mIsInputRequestOnProgress;
 #endif
-
-
+        float mPrevFMVolumeDb;
+        bool mFMIsActive;
 };
 
 };
