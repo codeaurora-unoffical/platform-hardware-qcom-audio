@@ -288,7 +288,7 @@ static int voip_stop_call(struct audio_device *adev)
         ALOGV("%s: unexpected because out_stream_count=%d, in_stream_count=%d",
                __func__, voip_data.out_stream_count, voip_data.in_stream_count);
         uc_info = get_usecase_from_list(adev, USECASE_COMPRESS_VOIP_CALL);
-        if (uc_info)
+        if (uc_info && !voip_data.out_stream_count)
             uc_info->stream.out = adev->primary_output;
         ret = -EINVAL;
     }
@@ -631,9 +631,9 @@ int voice_extn_compress_voip_close_input_stream(struct audio_stream *stream)
     ALOGD("%s: enter", __func__);
 
     if(voip_data.in_stream_count > 0) {
-       adev->active_input = NULL;
        voip_data.in_stream_count--;
        status = voip_stop_call(adev);
+       adev->active_input = get_next_active_input(adev);
        in->pcm = NULL;
     }
 

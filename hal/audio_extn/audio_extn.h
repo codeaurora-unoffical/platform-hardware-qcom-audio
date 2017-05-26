@@ -40,6 +40,7 @@
 
 #include <cutils/str_parms.h>
 #include "adsp_hdlr.h"
+#include "ip_hdlr_intf.h"
 
 #ifndef AFE_PROXY_ENABLED
 #define AUDIO_DEVICE_OUT_PROXY 0x40000
@@ -862,4 +863,13 @@ int audio_extn_utils_compress_set_render_window(
 int audio_extn_utils_compress_set_start_delay(
             struct stream_out *out,
             struct audio_out_start_delay_param *start_delay_param);
+int audio_extn_utils_compress_enable_drift_correction(
+            struct stream_out *out,
+            struct audio_out_enable_drift_correction *drift_enable);
+int audio_extn_utils_compress_correct_drift(
+            struct stream_out *out,
+            struct audio_out_correct_drift *drift_correction_param);
+int audio_extn_utils_set_channel_map(
+            struct stream_out *out,
+            struct audio_out_channel_map_param *channel_map_param);
 #endif /* AUDIO_EXTN_H */
