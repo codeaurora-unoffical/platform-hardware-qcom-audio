@@ -364,7 +364,8 @@ static bool audio_extn_qaf_passthrough_enabled(struct stream_out *out)
                 case AUDIO_FORMAT_E_AC3:
                 case AUDIO_FORMAT_DTS:
                 case AUDIO_FORMAT_DTS_HD:
-                case AUDIO_FORMAT_DOLBY_TRUEHD: {
+                case AUDIO_FORMAT_DOLBY_TRUEHD:
+                case AUDIO_FORMAT_IEC61937: {
                     is_enabled = true;
                     break;
                 }
@@ -1785,7 +1786,7 @@ static int qaf_stream_open(struct stream_out *out,
                 ERROR_MSG("Stream Open FAILED !!!");
             }
         }
-    } else if ((flags & AUDIO_OUTPUT_FLAG_MAIN) || (!((flags & AUDIO_OUTPUT_FLAG_MAIN) && (flags & AUDIO_OUTPUT_FLAG_ASSOCIATED)))) {
+    } else if ((flags & AUDIO_OUTPUT_FLAG_MAIN) || ((!(flags & AUDIO_OUTPUT_FLAG_MAIN)) && (!(flags & AUDIO_OUTPUT_FLAG_ASSOCIATED)))) {
         /* Assume Main if no flag is set */
         if (is_dual_main_active(qaf_mod)) {
             ERROR_MSG("Dual Main already active. So, Cannot open main stream");
