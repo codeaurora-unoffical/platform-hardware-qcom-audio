@@ -1,5 +1,5 @@
 /* vad.c
-Copyright (c) 2016, The Linux Foundation. All rights reserved.
+Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -48,7 +48,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 #include "vad_param_key.h"
 
 #ifdef VAD_ENABLED
-#define VAD_PATH "/system/vendor/lib/libvad.so"
+#define VAD_PATH "/vendor/lib/libvad.so"
 
 #define AUDIO_PARAMETER_KEY_VAD_DUMP_ENABLED "VAD_dump_enabled"
 #define AUDIO_PARAMETER_KEY_VAD_PCM_DUMP_ENABLED "VAD_PCM_dump_enabled"

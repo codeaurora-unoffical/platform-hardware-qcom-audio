@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -44,16 +44,16 @@
 #include "sound/msmcal-hwdep.h"
 
 #define SOUND_TRIGGER_DEVICE_HANDSET_MONO_LOW_POWER_ACDB_ID (100)
-#define MIXER_XML_DEFAULT_PATH "/system/etc/mixer_paths.xml"
-#define MIXER_XML_PATH_AUXPCM "/system/etc/mixer_paths_auxpcm.xml"
-#define MIXER_XML_PATH_I2S "/system/etc/mixer_paths_i2s.xml"
-#define MIXER_XML_BASE_STRING "/system/etc/mixer_paths"
+#define MIXER_XML_DEFAULT_PATH "/vendor/etc/mixer_paths.xml"
+#define MIXER_XML_PATH_AUXPCM "/vendor/etc/mixer_paths_auxpcm.xml"
+#define MIXER_XML_PATH_I2S "/vendor/etc/mixer_paths_i2s.xml"
+#define MIXER_XML_BASE_STRING "/vendor/etc/mixer_paths"
 #define MIXER_FILE_DELIMITER "_"
 #define MIXER_FILE_EXT ".xml"
 
 
-#define PLATFORM_INFO_XML_PATH      "/system/etc/audio_platform_info.xml"
-#define PLATFORM_INFO_XML_PATH_I2S  "/system/etc/audio_platform_info_i2s.xml"
+#define PLATFORM_INFO_XML_PATH      "/vendor/etc/audio_platform_info.xml"
+#define PLATFORM_INFO_XML_PATH_I2S  "/vendor/etc/audio_platform_info_i2s.xml"
 #include <linux/msm_audio.h>
 
 #define LIB_ACDB_LOADER "libacdbloader.so"
