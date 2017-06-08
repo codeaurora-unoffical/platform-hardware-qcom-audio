@@ -1562,7 +1562,9 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
         } else if (voice_extn_compress_voip_is_active(adev)) {
             bool out_snd_device_backend_match = true;
             voip_usecase = get_usecase_from_list(adev, USECASE_COMPRESS_VOIP_CALL);
-            if (usecase->stream.out != NULL) {
+            if ((voip_usecase != NULL) &&
+                (usecase->type == PCM_PLAYBACK) &&
+                (usecase->stream.out != NULL)) {
                 out_snd_device_backend_match = platform_check_backends_match(
                                                    voip_usecase->out_snd_device,
                                                    platform_get_output_snd_device(
@@ -4737,7 +4739,10 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
             if ((usecase->type == PCM_PLAYBACK) &&
                 (usecase->devices & AUDIO_DEVICE_OUT_ALL_A2DP)){
                 ALOGD("reconfigure a2dp... forcing device switch");
+
+                pthread_mutex_unlock(&adev->lock);
                 lock_output_stream(usecase->stream.out);
+                pthread_mutex_lock(&adev->lock);
                 audio_extn_a2dp_set_handoff_mode(true);
                 //force device switch to re configure encoder
                 select_devices(adev, usecase->id);
