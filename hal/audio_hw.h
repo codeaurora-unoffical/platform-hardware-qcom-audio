@@ -294,6 +294,8 @@ struct stream_out {
     struct audio_out_channel_map_param channel_map_param; /* input channel map */
     audio_offload_info_t info;
     qahwi_stream_out_t qahwi_out;
+
+    bool is_iec61937_info_available;
 };
 
 struct stream_in {

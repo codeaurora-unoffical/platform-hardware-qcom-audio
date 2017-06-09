@@ -5437,17 +5437,18 @@ static void platform_check_hdmi_backend_cfg(struct audio_device* adev,
             channels = max_supported_channels;
 
     } else {
-        /*During pass through set default bit width */
-        if (usecase->stream.out->format == AUDIO_FORMAT_DOLBY_TRUEHD)
-            channels = 8;
-        else
+        channels = audio_extn_passthru_get_channel_count(usecase->stream.out);
+        if (channels < 0) {
+            ALOGE("%s: becf: afe: HDMI backend using defalut channel %u",
+                  __func__, DEFAULT_HDMI_OUT_CHANNELS);
             channels = DEFAULT_HDMI_OUT_CHANNELS;
+        }
 
         if ((usecase->stream.out->format == AUDIO_FORMAT_E_AC3) ||
             (usecase->stream.out->format == AUDIO_FORMAT_E_AC3_JOC) ||
             (usecase->stream.out->format == AUDIO_FORMAT_DOLBY_TRUEHD)) {
+            sample_rate = sample_rate * 4 ;
 
-            sample_rate = sample_rate * 4;
             if (sample_rate > HDMI_PASSTHROUGH_MAX_SAMPLE_RATE)
                 sample_rate = HDMI_PASSTHROUGH_MAX_SAMPLE_RATE;
         }
@@ -6362,25 +6363,6 @@ unsigned char platform_map_to_edid_format(int audio_format)
         break;
     }
     return format;
-}
-
-uint32_t platform_get_compress_passthrough_buffer_size(
-                                          audio_offload_info_t* info)
-{
-    uint32_t fragment_size = MIN_COMPRESS_PASSTHROUGH_FRAGMENT_SIZE;
-    char value[PROPERTY_VALUE_MAX] = {0};
-
-    if (((info->format == AUDIO_FORMAT_DOLBY_TRUEHD) ||
-            (info->format == AUDIO_FORMAT_IEC61937)) &&
-            property_get("audio.truehd.buffer.size.kb", value, "") &&
-            atoi(value)) {
-        fragment_size = atoi(value) * 1024;
-        goto done;
-    }
-    if (!info->has_video)
-        fragment_size = MIN_COMPRESS_PASSTHROUGH_FRAGMENT_SIZE;
-done:
-    return fragment_size;
 }
 
 void platform_reset_edid_info(void *platform) {
