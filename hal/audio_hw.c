@@ -91,6 +91,22 @@
 #define PCM_CONFIG_AUDIO_PLAYBACK_PRIMARY pcm_config_deep_buffer
 #endif
 
+#ifdef BUS_ADDRESS_ENABLED
+#define MAX_CAR_AUDIO_STREAMS    8
+/* This defines the physical streams supported in audio HAL,
+   limited by the available front-end PCM driver in H/W.
+   Max number of physical streams supported currently is 8 and is represented
+   by stream bit flag as indicated in vehicle HAL interface. */
+enum {
+    /** Media playback (deep buffer playback). */
+    CAR_AUDIO_STREAM_MEDIA               = 0x1,
+    /** System/notification sound (low latency playback). */
+    CAR_AUDIO_STREAM_SYS_NOTIFICATION    = 0x2,
+    /** Navigation guidance (driver side playback). */
+    CAR_AUDIO_STREAM_NAV_GUIDANCE        = 0x4,
+};
+#endif
+
 static unsigned int configured_low_latency_capture_period_size =
         LOW_LATENCY_CAPTURE_PERIOD_SIZE;
 
@@ -2997,18 +3013,66 @@ static streams_output_ctxt_t *out_get_stream(struct audio_device *dev,
     return NULL;
 }
 
+#ifdef BUS_ADDRESS_ENABLED
+static streams_output_ctxt_t *out_get_car_audio_stream(struct audio_device *dev,
+                                  int car_audio_stream)
+{
+    struct listnode *node;
+
+    list_for_each(node, &dev->active_outputs_list) {
+        streams_output_ctxt_t *out_ctxt = node_to_item(node,
+                                                     streams_output_ctxt_t,
+                                                     list);
+        if (out_ctxt->output->car_audio_stream == car_audio_stream) {
+            return out_ctxt;
+        }
+    }
+    return NULL;
+}
+
+static int32_t out_get_car_audio_stream_from_address(const char *address)
+{
+    int32_t bus_num = -1;
+    char *str = NULL;
+    char local_address[AUDIO_DEVICE_MAX_ADDRESS_LEN];
+
+    /* bus device with null address error out */
+    if (address == NULL) {
+        ALOGE("%s: null address for car stream", __func__);
+        return -1;
+    }
+
+    /* strtok will modify the original string. make a copy first */
+    strncpy(local_address, address, AUDIO_DEVICE_MAX_ADDRESS_LEN);
+
+    /* extract bus number from address */
+    str = strtok(local_address, "BUS_");
+    if (str != NULL)
+        bus_num = (int32_t)strtol(str, (char **)NULL, 10);
+
+    /* validate bus number */
+    if ((bus_num < 0) || (bus_num >= MAX_CAR_AUDIO_STREAMS)) {
+        ALOGE("%s: invalid bus number %d", __func__, bus_num);
+        return -1;
+    }
+
+    return (0x1 << bus_num);
+}
+#endif
+
 static int adev_open_output_stream(struct audio_hw_device *dev,
                                    audio_io_handle_t handle,
                                    audio_devices_t devices,
                                    audio_output_flags_t flags,
                                    struct audio_config *config,
                                    struct audio_stream_out **stream_out,
-                                   const char *address __unused)
+                                   const char *address)
 {
     struct audio_device *adev = (struct audio_device *)dev;
     struct stream_out *out;
     int i, ret = 0;
     audio_format_t format;
+    int car_audio_stream = 0;
 
     *stream_out = NULL;
 
@@ -3018,9 +3082,20 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
         return -EINVAL;
     }
 
+#ifdef BUS_ADDRESS_ENABLED
+    if (devices & AUDIO_DEVICE_OUT_BUS) {
+        /* extract car audio stream index */
+        car_audio_stream = out_get_car_audio_stream_from_address(address);
+        if (car_audio_stream < 0) {
+            ALOGE("%s: invalid car audio stream %x", __func__, car_audio_stream);
+            return -EINVAL;
+        }
+    }
+#endif
+
     pthread_mutex_lock(&adev->lock);
     if (out_get_stream(adev, handle) != NULL) {
-        ALOGW("%s, output stream already opened", __func__);
+        ALOGW("%s: output stream already opened", __func__);
         ret = -EEXIST;
     }
     pthread_mutex_unlock(&adev->lock);
@@ -3030,8 +3105,8 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
     out = (struct stream_out *)calloc(1, sizeof(struct stream_out));
 
     ALOGD("%s: enter: sample_rate(%d) channel_mask(%#x) devices(%#x) flags(%#x)\
-        stream_handle(%p)",__func__, config->sample_rate, config->channel_mask,
-        devices, flags, &out->stream);
+        stream_handle(%p) address (%s)",__func__, config->sample_rate, config->channel_mask,
+        devices, flags, &out->stream, address);
 
 
     if (!out) {
@@ -3270,13 +3345,6 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
         out->usecase = USECASE_AUDIO_PLAYBACK_ULL;
         out->config = pcm_config_low_latency;
         out->sample_rate = out->config.rate;
-#ifdef DRIVER_SIDE_PLAYBACK_ENABLED
-    } else if (out->flags & AUDIO_OUTPUT_FLAG_DRIVER_SIDE) {
-        format = AUDIO_FORMAT_PCM_16_BIT;
-        out->usecase = USECASE_AUDIO_PLAYBACK_DRIVER_SIDE;
-        out->config = pcm_config_driver_side;
-        out->sample_rate = out->config.rate;
-#endif
     } else if (out->flags & AUDIO_OUTPUT_FLAG_FAST) {
         format = AUDIO_FORMAT_PCM_16_BIT;
         out->usecase = USECASE_AUDIO_PLAYBACK_LOW_LATENCY;
@@ -3287,6 +3355,33 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
         out->usecase = USECASE_AUDIO_PLAYBACK_DEEP_BUFFER;
         out->config = pcm_config_deep_buffer;
         out->sample_rate = out->config.rate;
+#ifdef BUS_ADDRESS_ENABLED
+    } else if (out->devices & AUDIO_DEVICE_OUT_BUS) {
+        /* For streams with bus device, currently falls into legacy use case.
+           For extended support, car specific output flag and use case should
+           be introduced and stream configuration should be assigned to handle
+           mixer path and codec related control. */
+        switch(car_audio_stream) {
+        case CAR_AUDIO_STREAM_MEDIA:
+            /* media bus will fall into legacy usecases per output flag */
+            break;
+        case CAR_AUDIO_STREAM_SYS_NOTIFICATION:
+            /* nav guidance bus will fall into legacy low latency usecase per output flag*/
+            break;
+        case CAR_AUDIO_STREAM_NAV_GUIDANCE:
+            /* nav guidance bus will fall into legacy driver side usecase */
+#ifdef DRIVER_SIDE_PLAYBACK_ENABLED
+            format = AUDIO_FORMAT_PCM_16_BIT;
+            out->usecase = USECASE_AUDIO_PLAYBACK_DRIVER_SIDE;
+            out->config = pcm_config_driver_side;
+            out->sample_rate = out->config.rate;
+#endif
+            break;
+        default:
+            ALOGE("%s: car audio stream (%d) not supported", __func__, car_audio_stream);
+            goto error_open;
+        }
+#endif
     } else {
         /* primary path is the default path selected if no other outputs are available/suitable */
         format = AUDIO_FORMAT_PCM_16_BIT;
@@ -3295,7 +3390,19 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
         out->sample_rate = out->config.rate;
     }
 
-    ALOGV("%s devices %d,flags %x, format %x, out->sample_rate %d, out->bit_width %d",
+#ifdef BUS_ADDRESS_ENABLED
+    /* All streams with bus device, store car audio stream flag and bus address
+       for stream state notification and focus management. */
+    if (out->devices & AUDIO_DEVICE_OUT_BUS) {
+        /* save car audio stream and address for bus device */
+        out->car_audio_stream = car_audio_stream;
+        strncpy(out->address, address, AUDIO_DEVICE_MAX_ADDRESS_LEN);
+        ALOGV("%s address %s, car_audio_stream %x",
+            __func__, out->address, out->car_audio_stream);
+    }
+#endif
+
+    ALOGV("%s devices %d, flags %x, format %x, out->sample_rate %d, out->bit_width %d",
            __func__, devices, flags, format, out->sample_rate, out->bit_width);
     /* TODO remove this hardcoding and check why width is zero*/
     if (out->bit_width == 0)

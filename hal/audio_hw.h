@@ -235,6 +235,11 @@ struct stream_out {
     bool is_compr_metadata_avail;
     unsigned int bit_width;
 
+#ifdef BUS_ADDRESS_ENABLED
+    char address[AUDIO_DEVICE_MAX_ADDRESS_LEN];
+    int car_audio_stream;
+#endif
+
     struct audio_device *dev;
 };
 
