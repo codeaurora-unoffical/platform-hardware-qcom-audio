@@ -355,7 +355,12 @@ const char * const use_case_table[AUDIO_USECASE_MAX] = {
 
     [USECASE_AUDIO_EC_REF_LOOPBACK] = "ec-ref-audio-capture",
 
-    [USECASE_AUDIO_A2DP_ABR_FEEDBACK] = "a2dp-abr-feedback"
+    [USECASE_AUDIO_A2DP_ABR_FEEDBACK] = "a2dp-abr-feedback",
+
+    [USECASE_AUDIO_PLAYBACK_MEDIA] = "media-playback",
+    [USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION] = "sys-notification-playback",
+    [USECASE_AUDIO_PLAYBACK_NAV_GUIDANCE] = "nav-guidance-playback",
+    [USECASE_AUDIO_PLAYBACK_PHONE] = "phone-playback",
 };
 
 static const audio_usecase_t offload_usecases[] = {
@@ -3504,10 +3509,10 @@ static size_t get_input_buffer_size(uint32_t sample_rate,
     return size;
 }
 
-static size_t get_output_period_size(uint32_t sample_rate,
-                                    audio_format_t format,
-                                    int channel_count,
-                                    int duration /*in millisecs*/)
+size_t get_output_period_size(uint32_t sample_rate,
+                            audio_format_t format,
+                            int channel_count,
+                            int duration /*in millisecs*/)
 {
     size_t size = 0;
     uint32_t bytes_per_sample = audio_bytes_per_sample(format);
@@ -6033,7 +6038,7 @@ int adev_open_output_stream(struct audio_hw_device *dev,
                             audio_output_flags_t flags,
                             struct audio_config *config,
                             struct audio_stream_out **stream_out,
-                            const char *address __unused)
+                            const char *address)
 {
     struct audio_device *adev = (struct audio_device *)dev;
     struct stream_out *out;
@@ -6058,8 +6063,8 @@ int adev_open_output_stream(struct audio_hw_device *dev,
     out = (struct stream_out *)calloc(1, sizeof(struct stream_out));
 
     ALOGD("%s: enter: format(%#x) sample_rate(%d) channel_mask(%#x) devices(%#x) flags(%#x)\
-        stream_handle(%p)", __func__, config->format, config->sample_rate, config->channel_mask,
-        devices, flags, &out->stream);
+        stream_handle(%p) address(%s)", __func__, config->format, config->sample_rate, config->channel_mask,
+        devices, flags, &out->stream, address);
 
 
     if (!out) {
@@ -6131,6 +6136,23 @@ int adev_open_output_stream(struct audio_hw_device *dev,
                 goto error_open;
             }
         }
+    }
+
+    /* validate bus device address */
+    if (out->devices & AUDIO_DEVICE_OUT_BUS) {
+        /* extract car audio stream index */
+        out->car_audio_stream =
+            audio_extn_auto_hal_get_car_audio_stream_from_address(address);
+        if (out->car_audio_stream < 0) {
+            ALOGE("%s: invalid car audio stream %x",
+                __func__, out->car_audio_stream);
+            ret = -EINVAL;
+            goto error_open;
+        }
+        /* save car audio stream and address for bus device */
+        strlcpy(out->address, address, AUDIO_DEVICE_MAX_ADDRESS_LEN);
+        ALOGV("%s: address %s, car_audio_stream %x",
+            __func__, out->address, out->car_audio_stream);
     }
 
     /* Init use case and pcm_config */
@@ -6546,6 +6568,13 @@ int adev_open_output_stream(struct audio_hw_device *dev,
                                                  channels, DEEP_BUFFER_OUTPUT_PERIOD_DURATION);
             if (out->config.period_size <= 0) {
                 ALOGE("Invalid configuration period size is not valid");
+                ret = -EINVAL;
+                goto error_open;
+            }
+        } else if (out->devices & AUDIO_DEVICE_OUT_BUS) {
+            ret = audio_extn_auto_hal_open_output_stream(out);
+            if (ret) {
+                ALOGE("%s: Failed to open output stream for bus device", __func__);
                 ret = -EINVAL;
                 goto error_open;
             }
