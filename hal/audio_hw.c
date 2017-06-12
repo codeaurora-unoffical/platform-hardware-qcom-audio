@@ -73,6 +73,10 @@
 #include "sound/compress_params.h"
 #include "sound/asound.h"
 
+#ifdef VHAL_HELPER_ENABLED
+#include <vehicle-hal-audio-helper-for-c.h>
+#endif
+
 #define COMPRESS_OFFLOAD_NUM_FRAGMENTS 4
 /*DIRECT PCM has same buffer sizes as DEEP Buffer*/
 #define DIRECT_PCM_NUM_FRAGMENTS 2
@@ -1593,10 +1597,25 @@ static int stop_output_stream(struct stream_out *out)
         return -EINVAL;
     }
 
+#ifdef VHAL_HELPER_ENABLED
+    if (out->car_audio_stream) {
+        if (out->vhal_audio_helper == NULL) {
+            out->vhal_audio_helper =
+                vehicle_hal_audio_helper_create(FOCUS_WAIT_DEFAULT_TIMEOUT_NS);
+            if (out->vhal_audio_helper == NULL)
+                ALOGE("%s: vhal audio helper not allocated, continue", __func__);
+        }
+        // notify stream stop
+        if (out->vhal_audio_helper != NULL)
+            vehicle_hal_audio_helper_notify_stream_stopped(out->vhal_audio_helper,
+                                                           out->car_audio_stream);
+    }
+#else
     if (uc_info->out_snd_device != SND_DEVICE_NONE) {
         if (audio_extn_ext_hw_plugin_usecase_stop(adev->ext_hw_plugin, uc_info))
             ALOGE("%s: failed to stop ext hw plugin", __func__);
     }
+#endif
 
     if (is_offload_usecase(out->usecase) &&
         !(audio_extn_dolby_is_passthrough_stream(out->flags))) {
@@ -1709,10 +1728,40 @@ int start_output_stream(struct stream_out *out)
 
     select_devices(adev, out->usecase);
 
+#ifdef VHAL_HELPER_ENABLED
+    if (out->car_audio_stream) {
+        if (out->vhal_audio_helper == NULL) {
+            out->vhal_audio_helper =
+                vehicle_hal_audio_helper_create(FOCUS_WAIT_DEFAULT_TIMEOUT_NS);
+            if (out->vhal_audio_helper == NULL) {
+                ALOGE("%s: vhal audio helper not allocated, continue", __func__);
+            }
+        }
+        // notify stream start
+        if (out->vhal_audio_helper != NULL)
+            vehicle_hal_audio_helper_notify_stream_started(out->vhal_audio_helper,
+                                                           out->car_audio_stream);
+
+        /* TODO: Workaround to delay 100 ms before writing data to H/W to compensate
+         *       for the FOCUS request delay by framework. Specifically for system
+         *       notification or touch tone. Wait for FOCUS during write will cause
+         *       Audioflinger to drop the first touch tone.
+         */
+        int focus_state =
+            vehicle_hal_audio_helper_get_stream_focus_state(out->vhal_audio_helper,
+                                                            out->car_audio_stream);
+        if ((focus_state == VEHICLE_HAL_AUDIO_HELPER_FOCUS_STATE_NO_FOCUS) ||
+            (focus_state == VEHICLE_HAL_AUDIO_HELPER_FOCUS_STATE_TIMEOUT)) {
+            ALOGI("%s: FOCUS not ready, wait", __func__);
+            usleep(100000);
+        }
+    }
+#else
     if (uc_info->out_snd_device != SND_DEVICE_NONE) {
         if (audio_extn_ext_hw_plugin_usecase_start(adev->ext_hw_plugin, uc_info))
             ALOGE("%s: failed to start ext hw plugin", __func__);
     }
+#endif
 
     ALOGV("%s: Opening PCM device card_id(%d) device_id(%d) format(%#x)",
           __func__, adev->snd_card, out->pcm_device_id, out->config.format);
@@ -2325,6 +2374,45 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
         audio_utils_set_hdmi_channel_status(out, buffer, bytes);
         adev->is_channel_status_set = true;
     }
+
+#ifdef VHAL_HELPER_ENABLED
+    if (out->car_audio_stream) {
+        if (out->vhal_audio_helper == NULL) {
+            // Should not happen, continue regardless
+            ALOGE("%s: vhal audio helper not allocated, continue", __func__);
+        } else {
+            int focus_state =
+                vehicle_hal_audio_helper_get_stream_focus_state(out->vhal_audio_helper,
+                                                                out->car_audio_stream);
+            if (focus_state == VEHICLE_HAL_AUDIO_HELPER_FOCUS_STATE_NO_FOCUS) {
+                // Audioflinger keeps busy loop for 0 return. So wait for focus up to payload length.
+                nsecs_t wait_time_ns = (nsecs_t) bytes * 1000000000 /
+                                       audio_stream_out_frame_size(stream) /
+                                       out_get_sample_rate(&out->stream.common);
+                if (vehicle_hal_audio_helper_wait_for_stream_focus(out->vhal_audio_helper,
+                                                                   out->car_audio_stream,
+                                                                   wait_time_ns) == 0) {
+                    ALOGVV("%s: NO FOCUS, wait time %d", __func__, wait_time_ns);
+                    pthread_mutex_unlock(&out->lock);
+                    return 0;
+                }
+            } else if (focus_state == VEHICLE_HAL_AUDIO_HELPER_FOCUS_STATE_TIMEOUT) {
+                // Throw data as it timed out.
+                nsecs_t wait_time_ns = (nsecs_t) bytes * 1000000000 /
+                                       audio_stream_out_frame_size(stream) /
+                                       out_get_sample_rate(&out->stream.common);
+                if (vehicle_hal_audio_helper_wait_for_stream_focus(out->vhal_audio_helper,
+                                                                   out->car_audio_stream,
+                                                                   wait_time_ns) == 0) {
+                    ALOGVV("%s: TIMEOUT, wait time %d", __func__, wait_time_ns);
+                    pthread_mutex_unlock(&out->lock);
+                    return bytes; // Throw away
+                }
+            } else
+                ALOGVV("%s: FOCUS", __func__);
+        }
+    }
+#endif
 
     if (is_offload_usecase(out->usecase)) {
         ALOGVV("copl(%p): writing buffer (%zu bytes) to compress device", out, bytes);
@@ -3469,6 +3557,20 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
         audio_extn_dts_notify_playback_state(out->usecase, 0, out->sample_rate,
                                              popcount(out->channel_mask), out->playback_started);
 
+#ifdef VHAL_HELPER_ENABLED
+    if (out->car_audio_stream) {
+        if (out->vhal_audio_helper == NULL) {
+            out->vhal_audio_helper =
+                vehicle_hal_audio_helper_create(FOCUS_WAIT_DEFAULT_TIMEOUT_NS);
+            if (out->vhal_audio_helper == NULL) {
+                ALOGE("%s: fail to allocate vhal audio helper", __func__);
+                ret = -ENOMEM;
+                goto error_open;
+            }
+        }
+    }
+#endif
+
     streams_output_ctxt_t *out_ctxt = (streams_output_ctxt_t *)
         calloc(1, sizeof(streams_output_ctxt_t));
     if (out_ctxt == NULL) {
@@ -3521,6 +3623,15 @@ static void adev_close_output_stream(struct audio_hw_device *dev __unused,
 
     if (adev->voice_tx_output == out)
         adev->voice_tx_output = NULL;
+
+#ifdef VHAL_HELPER_ENABLED
+    if (out->car_audio_stream) {
+        if (out->vhal_audio_helper != NULL) {
+            vehicle_hal_audio_helper_destroy(out->vhal_audio_helper);
+            out->vhal_audio_helper = NULL;
+        }
+    }
+#endif
 
     pthread_cond_destroy(&out->cond);
     pthread_mutex_destroy(&out->lock);
