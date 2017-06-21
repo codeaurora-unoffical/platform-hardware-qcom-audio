@@ -298,6 +298,7 @@ static const struct string_to_enum out_formats_name_to_enum_table[] = {
     STRING_TO_ENUM(AUDIO_FORMAT_DOLBY_TRUEHD),
     STRING_TO_ENUM(AUDIO_FORMAT_DTS),
     STRING_TO_ENUM(AUDIO_FORMAT_DTS_HD),
+    STRING_TO_ENUM(AUDIO_FORMAT_IEC61937)
 };
 
 //list of all supported sample rates by HDMI specification.
@@ -524,7 +525,8 @@ static bool is_supported_format(audio_format_t format)
         format == AUDIO_FORMAT_VORBIS ||
         format == AUDIO_FORMAT_WMA ||
         format == AUDIO_FORMAT_WMA_PRO ||
-        format == AUDIO_FORMAT_APTX)
+        format == AUDIO_FORMAT_APTX ||
+        format == AUDIO_FORMAT_IEC61937)
            return true;
 
     return false;
@@ -1342,6 +1344,11 @@ static int read_hdmi_sink_caps(struct stream_out *out)
         out->supported_formats[i++] = AUDIO_FORMAT_DTS_HD;
     }
 
+    if (platform_is_edid_supported_format(out->dev->platform, AUDIO_FORMAT_IEC61937)) {
+        ALOGV(":%s HDMI supports IEC61937 format", __func__);
+        out->supported_formats[i++] = AUDIO_FORMAT_IEC61937;
+    }
+
 
     // check sample rate caps
     i = 0;
@@ -1555,7 +1562,9 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
         } else if (voice_extn_compress_voip_is_active(adev)) {
             bool out_snd_device_backend_match = true;
             voip_usecase = get_usecase_from_list(adev, USECASE_COMPRESS_VOIP_CALL);
-            if (usecase->stream.out != NULL) {
+            if ((voip_usecase != NULL) &&
+                (usecase->type == PCM_PLAYBACK) &&
+                (usecase->stream.out != NULL)) {
                 out_snd_device_backend_match = platform_check_backends_match(
                                                    voip_usecase->out_snd_device,
                                                    platform_get_output_snd_device(
@@ -4283,6 +4292,7 @@ int adev_open_output_stream(struct audio_hw_device *dev,
          */
         if (audio_extn_passthru_is_passthrough_stream(out) ||
                 (config->format == AUDIO_FORMAT_DSD) ||
+                (config->format == AUDIO_FORMAT_IEC61937) ||
                 config->offload_info.has_video ||
                 out->flags & AUDIO_OUTPUT_FLAG_DIRECT_PCM) {
             check_and_set_gapless_mode(adev, false);
@@ -4729,7 +4739,10 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
             if ((usecase->type == PCM_PLAYBACK) &&
                 (usecase->devices & AUDIO_DEVICE_OUT_ALL_A2DP)){
                 ALOGD("reconfigure a2dp... forcing device switch");
+
+                pthread_mutex_unlock(&adev->lock);
                 lock_output_stream(usecase->stream.out);
+                pthread_mutex_lock(&adev->lock);
                 audio_extn_a2dp_set_handoff_mode(true);
                 //force device switch to re configure encoder
                 select_devices(adev, usecase->id);

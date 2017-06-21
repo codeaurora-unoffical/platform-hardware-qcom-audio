@@ -118,9 +118,7 @@ struct rtic_event {
 
 bool audio_extn_ip_hdlr_intf_supported(audio_format_t format)
 {
-    if (((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_AC3) ||
-        ((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_E_AC3) ||
-        ((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_DOLBY_TRUEHD))
+    if ((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_DOLBY_TRUEHD)
         return true;
     else
         return false;
