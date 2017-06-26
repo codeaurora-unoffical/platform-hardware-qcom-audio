@@ -430,12 +430,9 @@ bool audio_hw_send_gain_dep_calibration(int level) {
         pthread_mutex_lock(&adev->lock);
         ret_val = platform_send_gain_dep_cal(adev->platform, level);
 
-        // if cal set fails, cache level info
-        // if cal set succeds, reset known last cal set
-        if (!ret_val)
-            last_known_cal_step = level;
-        else if (last_known_cal_step != -1)
-            last_known_cal_step = -1;
+        // cache level info for any of the use case which
+        // was not started.
+        last_known_cal_step = level;;
 
         pthread_mutex_unlock(&adev->lock);
     } else {
@@ -3166,6 +3163,7 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
         if (last_known_cal_step != -1) {
             ALOGD("%s: retry previous failed cal level set", __func__);
             audio_hw_send_gain_dep_calibration(last_known_cal_step);
+            last_known_cal_step = -1;
         }
     }
 
@@ -3287,7 +3285,26 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
                                  out->config.channels *
                                  format_to_bitwidth_table[out->hal_op_format]));
             } else {
-                ret = pcm_write(out->pcm, (void *)buffer, bytes);
+                /*
+                 * To avoid underrun in DSP when the application is not pumping
+                 * data at required rate, check for the no. of bytes and ignore
+                 * pcm_write if it is less than actual buffer size.
+                 * It is a work around to a change in compress VOIP driver.
+                 */
+                if ((out->flags & AUDIO_OUTPUT_FLAG_VOIP_RX) &&
+                    bytes < (out->config.period_size * out->config.channels *
+                    audio_bytes_per_sample(out->format))) {
+                    size_t voip_buf_size =
+                        out->config.period_size * out->config.channels *
+                        audio_bytes_per_sample(out->format);
+                    ALOGE("%s:VOIP underrun: bytes received %zu, required:%zu\n",
+                            __func__, bytes, voip_buf_size);
+                    usleep(((uint64_t)voip_buf_size - bytes) *
+                           1000000 / audio_stream_out_frame_size(stream) /
+                           out_get_sample_rate(&out->stream.common));
+                    ret = 0;
+                } else
+                    ret = pcm_write(out->pcm, (void *)buffer, bytes);
             }
 
             release_out_focus(out);
@@ -4003,7 +4020,7 @@ int adev_open_output_stream(struct audio_hw_device *dev,
     out->dev = adev;
     format = out->format = config->format;
     out->sample_rate = config->sample_rate;
-    out->channel_mask = AUDIO_CHANNEL_OUT_STEREO;
+    out->channel_mask = config->channel_mask;
     out->supported_channel_masks[0] = AUDIO_CHANNEL_OUT_STEREO;
     out->handle = handle;
     out->bit_width = CODEC_BACKEND_DEFAULT_BIT_WIDTH;
