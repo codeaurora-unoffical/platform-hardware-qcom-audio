@@ -149,7 +149,6 @@ void platform_snd_card_update(void *platform, int snd_scard_state);
 
 struct audio_offload_info_t;
 uint32_t platform_get_compress_offload_buffer_size(audio_offload_info_t* info);
-uint32_t platform_get_compress_passthrough_buffer_size(audio_offload_info_t* info);
 
 bool platform_check_and_set_codec_backend_cfg(struct audio_device* adev,
                    struct audio_usecase *usecase, snd_device_t snd_device);
@@ -204,6 +203,7 @@ bool platform_check_codec_asrc_support(void *platform);
 int platform_get_backend_index(snd_device_t snd_device);
 int platform_get_ext_disp_type(void *platform);
 void platform_invalidate_hdmi_config(void *platform);
+void platform_invalidate_backend_config(void * platform,snd_device_t snd_device);
 
 int platform_send_audio_cal(void* platform, int acdb_dev_id, int acdb_device_type,
     int app_type, int topology_id, int sample_rate, uint32_t module_id, uint32_t param_id,

@@ -478,7 +478,7 @@ enum {
 #define HDMI_PASSTHROUGH_MAX_SAMPLE_RATE 192000
 
 #ifndef HDMI_PASSTHROUGH_ENABLED
-#define audio_extn_passthru_update_stream_configuration(adev, out)            (0)
+#define audio_extn_passthru_update_stream_configuration(adev, out, buffer, bytes)  (0)
 #define audio_extn_passthru_is_convert_supported(adev, out)                   (0)
 #define audio_extn_passthru_is_passt_supported(adev, out)                     (0)
 #define audio_extn_passthru_is_passthrough_stream(out)                        (0)
@@ -500,8 +500,9 @@ bool audio_extn_passthru_is_convert_supported(struct audio_device *adev,
                                                  struct stream_out *out);
 bool audio_extn_passthru_is_passt_supported(struct audio_device *adev,
                                          struct stream_out *out);
-void audio_extn_passthru_update_stream_configuration(struct audio_device *adev,
-                                                 struct stream_out *out);
+void audio_extn_passthru_update_stream_configuration(
+        struct audio_device *adev, struct stream_out *out,
+        const void *buffer, size_t bytes);
 bool audio_extn_passthru_is_passthrough_stream(struct stream_out *out);
 int audio_extn_passthru_get_buffer_size(audio_offload_info_t* info);
 int audio_extn_passthru_set_volume(struct stream_out *out, int mute);
@@ -891,15 +892,15 @@ int audio_extn_hw_loopback_set_audio_port_config(struct audio_hw_device *dev,
                                     const struct audio_port_config *config);
 int audio_extn_hw_loopback_get_audio_port(struct audio_hw_device *dev,
                                     struct audio_port *port_in);
-int audio_extn_loopback_init(struct audio_device *adev);
-void audio_extn_loopback_deinit(struct audio_device *adev);
+int audio_extn_hw_loopback_init(struct audio_device *adev);
+void audio_extn_hw_loopback_deinit(struct audio_device *adev);
 #else
 #define audio_extn_hw_loopback_create_audio_patch(dev, num_sources, sources,\
                                     num_sinks, sinks, handle) (0)
 #define audio_extn_hw_loopback_release_audio_patch(dev, handle) (0)
 #define audio_extn_hw_loopback_set_audio_port_config(dev, config) (0)
 #define audio_extn_hw_loopback_get_audio_port(dev, port_in) (0)
-#define audio_extn_loopback_init(adev) (0)
-#define audio_extn_loopback_deinit(adev) (0)
+#define audio_extn_hw_loopback_init(adev) (0)
+#define audio_extn_hw_loopback_deinit(adev) (0)
 #endif
 #endif /* AUDIO_EXTN_H */
