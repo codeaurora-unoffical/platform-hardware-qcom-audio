@@ -5457,6 +5457,10 @@ static int adev_close(hw_device_t *device)
         qahwi_deinit(device);
         audio_extn_adsp_hdlr_deinit();
         audio_extn_hw_loopback_deinit(adev);
+        if (adev->device_cfg_params) {
+            free(adev->device_cfg_params);
+            adev->device_cfg_params = NULL;
+        }
         free(device);
         adev = NULL;
     }
@@ -5486,7 +5490,7 @@ static int period_size_is_plausible_for_low_latency(int period_size)
 static int adev_open(const hw_module_t *module, const char *name,
                      hw_device_t **device)
 {
-    int ret;
+    int ret, i = 0;
 
     ALOGD("%s: enter", __func__);
     if (strcmp(name, AUDIO_HARDWARE_INTERFACE) != 0) return -EINVAL;
@@ -5718,6 +5722,14 @@ static int adev_open(const hw_module_t *module, const char *name,
     qahwi_init(*device);
     audio_extn_perf_lock_init();
     audio_extn_adsp_hdlr_init(adev->mixer);
+
+    /* Allocate memory for Device config params */
+    adev->device_cfg_params = (struct audio_device_config_param*)
+                                  calloc(platform_get_max_codec_backend(),
+                                  sizeof(struct audio_device_config_param));
+    if (adev->device_cfg_params == NULL)
+        ALOGE("%s: Memory allocation failed for Device config params", __func__);
+
     ALOGV("%s: exit", __func__);
     return 0;
 }
