@@ -103,6 +103,10 @@
 #define AUDIO_OUTPUT_FLAG_TIMESTAMP 0x10000
 #endif
 
+#ifndef AUDIO_OUTPUT_FLAG_INTERACTIVE
+#define AUDIO_OUTPUT_FLAG_INTERACTIVE 0x40000
+#endif
+
 #ifndef COMPRESS_METADATA_NEEDED
 #define audio_extn_parse_compress_metadata(out, parms) (0)
 #else
