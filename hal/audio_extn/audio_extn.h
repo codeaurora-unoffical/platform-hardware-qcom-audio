@@ -103,6 +103,10 @@
 #define AUDIO_OUTPUT_FLAG_TIMESTAMP 0x10000
 #endif
 
+#ifndef AUDIO_OUTPUT_FLAG_INTERACTIVE
+#define AUDIO_OUTPUT_FLAG_INTERACTIVE 0x40000
+#endif
+
 #ifndef COMPRESS_METADATA_NEEDED
 #define audio_extn_parse_compress_metadata(out, parms) (0)
 #else
@@ -854,7 +858,8 @@ int audio_extn_out_set_param_data(struct stream_out *out,
 int audio_extn_out_get_param_data(struct stream_out *out,
                              audio_extn_param_id param_id,
                              audio_extn_param_payload *payload);
-
+int audio_extn_set_device_cfg_params(struct audio_device *adev,
+                                     struct audio_device_cfg_param *payload);
 int audio_extn_utils_get_avt_device_drift(
                 struct audio_usecase *usecase,
                 struct audio_avt_device_drift_param *drift_param);
