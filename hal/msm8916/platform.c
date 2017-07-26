@@ -389,6 +389,23 @@ int pcm_device_table[AUDIO_USECASE_MAX][2] = {
     [USECASE_AUDIO_PLAYBACK_EXT_DISP_SILENCE] = {MULTIMEDIA9_PCM_DEVICE, -1},
     [USECASE_AUDIO_TRANSCODE_LOOPBACK] = {TRANSCODE_LOOPBACK_RX_DEV_ID, TRANSCODE_LOOPBACK_TX_DEV_ID},
 
+    [USECASE_AUDIO_PLAYBACK_INTERACTIVE_STREAM1] =
+                     {PLAYBACK_INTERACTIVE_STRM_DEVICE1, PLAYBACK_INTERACTIVE_STRM_DEVICE1},
+    [USECASE_AUDIO_PLAYBACK_INTERACTIVE_STREAM2] =
+                     {PLAYBACK_INTERACTIVE_STRM_DEVICE2, PLAYBACK_INTERACTIVE_STRM_DEVICE2},
+    [USECASE_AUDIO_PLAYBACK_INTERACTIVE_STREAM3] =
+                     {PLAYBACK_INTERACTIVE_STRM_DEVICE3, PLAYBACK_INTERACTIVE_STRM_DEVICE3},
+    [USECASE_AUDIO_PLAYBACK_INTERACTIVE_STREAM4] =
+                     {PLAYBACK_INTERACTIVE_STRM_DEVICE4, PLAYBACK_INTERACTIVE_STRM_DEVICE4},
+    [USECASE_AUDIO_PLAYBACK_INTERACTIVE_STREAM5] =
+                     {PLAYBACK_INTERACTIVE_STRM_DEVICE5, PLAYBACK_INTERACTIVE_STRM_DEVICE5},
+    [USECASE_AUDIO_PLAYBACK_INTERACTIVE_STREAM6] =
+                     {PLAYBACK_INTERACTIVE_STRM_DEVICE6, PLAYBACK_INTERACTIVE_STRM_DEVICE6},
+    [USECASE_AUDIO_PLAYBACK_INTERACTIVE_STREAM7] =
+                     {PLAYBACK_INTERACTIVE_STRM_DEVICE7, PLAYBACK_INTERACTIVE_STRM_DEVICE7},
+    [USECASE_AUDIO_PLAYBACK_INTERACTIVE_STREAM8] =
+                     {PLAYBACK_INTERACTIVE_STRM_DEVICE8, PLAYBACK_INTERACTIVE_STRM_DEVICE8},
+
 };
 
 /* Array to store sound devices */
@@ -2405,6 +2422,8 @@ acdb_init_fail:
             strdup("SLIM_0_RX Format");
         my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].samplerate_mixer_ctl =
             strdup("SLIM_0_RX SampleRate");
+        my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].channels_mixer_ctl =
+            strdup("SLIM_0_RX Channels");
 
         my_data->current_backend_cfg[DSD_NATIVE_BACKEND].bitwidth_mixer_ctl =
             strdup("SLIM_2_RX Format");
@@ -5191,7 +5210,7 @@ static int platform_get_voice_call_backend(struct audio_device* adev)
 static int platform_set_codec_backend_cfg(struct audio_device* adev,
                          snd_device_t snd_device, struct audio_backend_cfg backend_cfg)
 {
-    int ret = 0;
+    int ret = -EINVAL;
     int backend_idx = DEFAULT_CODEC_BACKEND;
     struct platform_data *my_data = (struct platform_data *)adev->platform;
     unsigned int bit_width = backend_cfg.bit_width;
@@ -5199,8 +5218,25 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
     unsigned int channels = backend_cfg.channels;
     audio_format_t format = backend_cfg.format;
     bool passthrough_enabled = backend_cfg.passthrough_enabled;
+    struct audio_device_config_param *adev_device_cfg_ptr = adev->device_cfg_params;
 
     backend_idx = platform_get_backend_index(snd_device);
+
+    /* Override the config params if client has already set them */
+    adev_device_cfg_ptr += backend_idx;
+    if (adev_device_cfg_ptr->use_client_dev_cfg) {
+        ALOGV("%s::: Updating with the config set by client "
+              "bitwidth %d, samplerate %d,  channels %d  format %d",
+              __func__, adev_device_cfg_ptr->dev_cfg_params.bit_width,
+              adev_device_cfg_ptr->dev_cfg_params.sample_rate,
+              adev_device_cfg_ptr->dev_cfg_params.channels,
+              adev_device_cfg_ptr->dev_cfg_params.format);
+
+        bit_width = adev_device_cfg_ptr->dev_cfg_params.bit_width;
+        sample_rate = adev_device_cfg_ptr->dev_cfg_params.sample_rate;
+        channels = adev_device_cfg_ptr->dev_cfg_params.channels;
+        format = adev_device_cfg_ptr->dev_cfg_params.format;
+    }
 
     ALOGI("%s:becf: afe: bitwidth %d, samplerate %d channels %d format %d, backend_idx %d device (%s)",
           __func__, bit_width, sample_rate, channels, format, backend_idx,
@@ -5233,6 +5269,7 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
         ALOGD("%s:becf: afe: %s mixer set to %d bit for %x format", __func__,
               my_data->current_backend_cfg[backend_idx].bitwidth_mixer_ctl,
               bit_width, format);
+        ret = 0;
     }
 
     /*
@@ -5245,11 +5282,11 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
      */
     // TODO: This has to be more dynamic based on policy file
 
-    if (passthrough_enabled || ((my_data->current_backend_cfg[backend_idx].samplerate_mixer_ctl) &&
-        (sample_rate != my_data->current_backend_cfg[(int)backend_idx].sample_rate) &&
+    if ((my_data->current_backend_cfg[backend_idx].samplerate_mixer_ctl) &&
+        (((sample_rate != my_data->current_backend_cfg[(int)backend_idx].sample_rate) &&
             (my_data->hifi_audio ||
             backend_idx == USB_AUDIO_RX_BACKEND ||
-            backend_idx == USB_AUDIO_TX_BACKEND))) {
+            backend_idx == USB_AUDIO_TX_BACKEND)) || passthrough_enabled)) {
             /*
              * sample rate update is needed only for hifi audio enabled platforms
              */
@@ -5316,6 +5353,7 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
                    rate_str);
             mixer_ctl_set_enum_by_string(ctl, rate_str);
             my_data->current_backend_cfg[backend_idx].sample_rate = sample_rate;
+            ret = 0;
     }
     if ((my_data->current_backend_cfg[backend_idx].channels_mixer_ctl) &&
         (channels != my_data->current_backend_cfg[backend_idx].channels)) {
@@ -5358,6 +5396,7 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
 
         ALOGD("%s:becf: afe: %s set to %s", __func__,
                my_data->current_backend_cfg[backend_idx].channels_mixer_ctl, channel_cnt_str);
+        ret = 0;
     }
 
     bool set_ext_disp_format = false, set_mi2s_tx_data_format = false;
@@ -5410,6 +5449,7 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
             ALOGD("%s: Ext display PCM format", __func__);
             mixer_ctl_set_enum_by_string(ctl, "LPCM");
         }
+        ret = 0;
     }
     return ret;
 }
@@ -5523,6 +5563,7 @@ static bool platform_check_codec_backend_cfg(struct audio_device* adev,
     struct platform_data *my_data = (struct platform_data *)adev->platform;
     int na_mode = platform_get_native_support();
     bool channels_updated = false;
+    struct audio_device_config_param *adev_device_cfg_ptr = adev->device_cfg_params;
 
     /*BT devices backend is not configured from HAL hence skip*/
     if (snd_device == SND_DEVICE_OUT_BT_A2DP ||
@@ -5735,6 +5776,14 @@ static bool platform_check_codec_backend_cfg(struct audio_device* adev,
                backend_cfg->bit_width, backend_cfg->sample_rate, backend_cfg->channels);
     }
 
+    // Force routing if the client sends config params for this backend
+    adev_device_cfg_ptr += backend_idx;
+    if (adev_device_cfg_ptr->use_client_dev_cfg) {
+        ALOGV("%s: Codec backend needs to be updated as Client provided "
+              "config params", __func__);
+        backend_change = true;
+    }
+
     if (snd_device == SND_DEVICE_OUT_HEADPHONES || snd_device ==
         SND_DEVICE_OUT_HEADPHONES_44_1) {
         if (sample_rate > 48000 ||
@@ -5802,9 +5851,13 @@ bool platform_check_and_set_codec_backend_cfg(struct audio_device* adev,
             platform_get_snd_device_name(new_snd_devices[i]));
         if (platform_check_codec_backend_cfg(adev, usecase, new_snd_devices[i],
                                              &backend_cfg)) {
-                platform_set_codec_backend_cfg(adev, new_snd_devices[i],
+                ret = platform_set_codec_backend_cfg(adev, new_snd_devices[i],
                                                backend_cfg);
-                ret = true;
+                if (!ret) {
+                    ret = true;
+                } else {
+                    ret = false;
+                }
         }
     }
 
@@ -6070,6 +6123,147 @@ void platform_get_device_to_be_id_map(int **device_to_be_id, int *length)
 {
      *device_to_be_id = (int*) msm_device_to_be_id;
      *length = msm_be_id_array_len;
+}
+
+int platform_set_stream_pan_scale_params(void *platform,
+                                         int snd_id,
+                                         struct mix_matrix_params mm_params)
+{
+    struct platform_data *my_data = (struct platform_data *)platform;
+    struct audio_device *adev = my_data->adev;
+    struct mixer_ctl *ctl = NULL;
+    char mixer_ctl_name[MIXER_PATH_MAX_LENGTH] = {0};
+    int ret = 0;
+    int iter_i = 0;
+    int iter_j = 0;
+    int length = 0;
+    int pan_scale_data[MAX_LENGTH_MIXER_CONTROL_IN_INT] = {0};
+
+    if (sizeof(mm_params) > MAX_LENGTH_MIXER_CONTROL_IN_INT) {
+        ret = -EINVAL;
+        goto end;
+    }
+
+    snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
+                          "Audio Stream %d Pan Scale Control", snd_id);
+    ALOGD("%s mixer_ctl_name:%s", __func__, mixer_ctl_name);
+
+    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+    if (!ctl) {
+        ALOGE("%s: Could not get ctl for mixer cmd - %s",
+              __func__, mixer_ctl_name);
+        ret = -EINVAL;
+        goto end;
+    }
+    pan_scale_data[length++] = mm_params.num_output_channels;
+    pan_scale_data[length++] = mm_params.num_input_channels;
+
+    pan_scale_data[length++] = mm_params.has_output_channel_map;
+    if (mm_params.has_output_channel_map &&
+        mm_params.num_output_channels <= MAX_CHANNELS_SUPPORTED &&
+        mm_params.num_output_channels > 0)
+        for (iter_i = 0; iter_i < mm_params.num_output_channels; iter_i++)
+            pan_scale_data[length++] = mm_params.output_channel_map[iter_i];
+    else {
+        ret = -EINVAL;
+        goto end;
+    }
+
+    pan_scale_data[length++] = mm_params.has_input_channel_map;
+    if (mm_params.has_input_channel_map &&
+        mm_params.num_input_channels <= MAX_CHANNELS_SUPPORTED &&
+        mm_params.num_input_channels > 0)
+        for (iter_i = 0; iter_i < mm_params.num_input_channels; iter_i++)
+            pan_scale_data[length++] = mm_params.input_channel_map[iter_i];
+    else {
+        ret = -EINVAL;
+        goto end;
+    }
+
+    pan_scale_data[length++] = mm_params.has_mixer_coeffs;
+    if (mm_params.has_mixer_coeffs)
+        for (iter_i = 0; iter_i < mm_params.num_output_channels; iter_i++)
+            for (iter_j = 0; iter_j < mm_params.num_input_channels; iter_j++)
+                pan_scale_data[length++] =
+                                    mm_params.mixer_coeffs[iter_i][iter_j];
+
+    ret = mixer_ctl_set_array(ctl, pan_scale_data, length);
+end:
+    return ret;
+}
+
+int platform_set_stream_downmix_params(void *platform,
+                                       int snd_id,
+                                       snd_device_t snd_device,
+                                       struct mix_matrix_params mm_params)
+{
+    struct platform_data *my_data = (struct platform_data *)platform;
+    struct audio_device *adev = my_data->adev;
+    struct mixer_ctl *ctl;
+    char mixer_ctl_name[MIXER_PATH_MAX_LENGTH] = {0};
+    int downmix_param_data[MAX_LENGTH_MIXER_CONTROL_IN_INT] = {0};
+    int ret = 0;
+    int iter_i = 0;
+    int iter_j = 0;
+    int length = 0;
+    int be_idx = 0;
+
+    if ((sizeof(mm_params) +
+         sizeof(be_idx)) >
+        MAX_LENGTH_MIXER_CONTROL_IN_INT) {
+        ret = -EINVAL;
+        goto end;
+    }
+
+    snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
+                          "Audio Device %d Downmix Control", snd_id);
+    ALOGD("%s mixer_ctl_name:%s", __func__, mixer_ctl_name);
+
+    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+    if (!ctl) {
+        ALOGE("%s: Could not get ctl for mixer cmd - %s",
+              __func__, mixer_ctl_name);
+        ret = -EINVAL;
+        goto end;
+    }
+
+    be_idx = platform_get_snd_device_backend_index(snd_device);
+    downmix_param_data[length]   = be_idx;
+    downmix_param_data[length++] = mm_params.num_output_channels;
+    downmix_param_data[length++] = mm_params.num_input_channels;
+
+    downmix_param_data[length++] = mm_params.has_output_channel_map;
+    if (mm_params.has_output_channel_map &&
+        mm_params.num_output_channels <= MAX_CHANNELS_SUPPORTED &&
+        mm_params.num_output_channels > 0)
+        for (iter_i = 0; iter_i < mm_params.num_output_channels; iter_i++)
+            downmix_param_data[length++] = mm_params.output_channel_map[iter_i];
+    else {
+        ret = -EINVAL;
+        goto end;
+    }
+
+    downmix_param_data[length++] = mm_params.has_input_channel_map;
+    if (mm_params.has_input_channel_map &&
+        mm_params.num_input_channels <= MAX_CHANNELS_SUPPORTED &&
+        mm_params.num_input_channels > 0)
+        for (iter_i = 0; iter_i < mm_params.num_input_channels; iter_i++)
+            downmix_param_data[length++] = mm_params.input_channel_map[iter_i];
+    else {
+        ret = -EINVAL;
+        goto end;
+    }
+
+    downmix_param_data[length++] = mm_params.has_mixer_coeffs;
+    if (mm_params.has_mixer_coeffs)
+        for (iter_i = 0; iter_i < mm_params.num_output_channels; iter_i++)
+            for (iter_j = 0; iter_j < mm_params.num_input_channels; iter_j++)
+                downmix_param_data[length++] =
+                                       mm_params.mixer_coeffs[iter_i][iter_j];
+
+    ret = mixer_ctl_set_array(ctl, downmix_param_data, length);
+end:
+    return ret;
 }
 
 int platform_set_stream_channel_map(void *platform, audio_channel_mask_t channel_mask,
@@ -6469,13 +6663,16 @@ bool platform_is_edid_supported_sample_rate(void *platform, int sample_rate)
 int platform_set_edid_channels_configuration(void *platform, int channels) {
 
     struct platform_data *my_data = (struct platform_data *)platform;
+    struct audio_device *adev = my_data->adev;
     edid_audio_info *info = NULL;
     int channel_count = 2;
     int i, ret;
     char default_channelMap[MAX_CHANNELS_SUPPORTED] = {0};
+    struct audio_device_config_param *adev_device_cfg_ptr = adev->device_cfg_params;
 
     ret = platform_get_edid_info(platform);
     info = (edid_audio_info *)my_data->edid_info;
+    adev_device_cfg_ptr += HDMI_RX_BACKEND;
     if(ret == 0 && info != NULL) {
         if (channels > 2) {
 
@@ -6494,11 +6691,29 @@ int platform_set_edid_channels_configuration(void *platform, int channels) {
              * though the input channel count set on adm is less than or equal to
              * max supported channel count
              */
-            platform_set_channel_map(platform, channel_count, info->channel_map, -1);
-            platform_set_channel_allocation(platform, info->channel_allocation);
+            if (adev_device_cfg_ptr->use_client_dev_cfg) {
+                platform_set_channel_map(platform, adev_device_cfg_ptr->dev_cfg_params.channels,
+                                            adev_device_cfg_ptr->dev_cfg_params.channel_map, -1);
+            } else {
+                platform_set_channel_map(platform, channel_count, info->channel_map, -1);
+            }
+
+            if (adev_device_cfg_ptr->use_client_dev_cfg) {
+                ALOGV("%s:: Setting client selected CA %d", __func__,
+                            adev_device_cfg_ptr->dev_cfg_params.channel_allocation);
+                platform_set_channel_allocation(platform,
+                       adev_device_cfg_ptr->dev_cfg_params.channel_allocation);
+            } else {
+                platform_set_channel_allocation(platform, info->channel_allocation);
+           }
         } else {
-            default_channelMap[0] = PCM_CHANNEL_FL;
-            default_channelMap[1] = PCM_CHANNEL_FR;
+            if (adev_device_cfg_ptr->use_client_dev_cfg) {
+                default_channelMap[0] = adev_device_cfg_ptr->dev_cfg_params.channel_map[0];
+                default_channelMap[1] = adev_device_cfg_ptr->dev_cfg_params.channel_map[1];
+            } else {
+                default_channelMap[0] = PCM_CHANNEL_FL;
+                default_channelMap[1] = PCM_CHANNEL_FR;
+            }
             platform_set_channel_map(platform,2,default_channelMap,-1);
             platform_set_channel_allocation(platform,0);
         }
@@ -7079,4 +7294,9 @@ int platform_get_gain_level_mapping(struct amp_db_and_gain_table *mapping_tbl __
                                     int table_size __unused)
 {
     return 0;
+}
+
+int platform_get_max_codec_backend() {
+
+    return MAX_CODEC_BACKENDS;
 }
