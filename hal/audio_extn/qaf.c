@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -116,6 +116,12 @@
 #include "audio_extn.h"
 #include <qti_audio.h>
 #include "sound/compress_params.h"
+
+#ifdef DYNAMIC_LOG_ENABLED
+#include <log_xml_parser.h>
+#define LOG_MASK HAL_MOD_FILE_QAF
+#include <log_utils.h>
+#endif
 
 //TODO: Need to remove this.
 #define QAF_OUTPUT_SAMPLING_RATE 48000
@@ -276,7 +282,7 @@ static mm_module_type get_mm_module_for_format(audio_format_t format)
 
     if (format == AUDIO_FORMAT_PCM_16_BIT) {
         //If dts is not supported then alway support pcm with MS12
-        if (!property_get_bool("audio.qaf.dts_m8", false)) { //TODO: Need to add this property for DTS.
+        if (!property_get_bool("vendor.audio.qaf.dts_m8", false)) { //TODO: Need to add this property for DTS.
             return MS12;
         }
 
@@ -353,18 +359,19 @@ static bool audio_extn_qaf_passthrough_enabled(struct stream_out *out)
 
     if (!p_qaf) return false;
 
-    if ((!property_get_bool("audio.qaf.reencode", false))
-        && property_get_bool("audio.qaf.passthrough", false)) {
+    if ((!property_get_bool("vendor.audio.qaf.reencode", false))
+        && property_get_bool("vendor.audio.qaf.passthrough", false)) {
 
         if ((out->format == AUDIO_FORMAT_PCM_16_BIT) && (popcount(out->channel_mask) > 2)) {
             is_enabled = true;
-        } else if (property_get_bool("audio.offload.passthrough", false)) {
+        } else if (property_get_bool("vendor.audio.offload.passthrough", false)) {
             switch (out->format) {
                 case AUDIO_FORMAT_AC3:
                 case AUDIO_FORMAT_E_AC3:
                 case AUDIO_FORMAT_DTS:
                 case AUDIO_FORMAT_DTS_HD:
-                case AUDIO_FORMAT_DOLBY_TRUEHD: {
+                case AUDIO_FORMAT_DOLBY_TRUEHD:
+                case AUDIO_FORMAT_IEC61937: {
                     is_enabled = true;
                     break;
                 }
@@ -622,7 +629,6 @@ static int qaf_start_output_stream(struct stream_out *out)
 {
     int ret = 0;
     struct audio_device *adev = out->dev;
-    int snd_card_status = get_snd_card_state(adev);
 
     if ((out->usecase < 0) || (out->usecase >= AUDIO_USECASE_MAX)) {
         ret = -EINVAL;
@@ -634,7 +640,8 @@ static int qaf_start_output_stream(struct stream_out *out)
           __func__, &out->stream, out->usecase, use_case_table[out->usecase],
           out->devices);
 
-    if (SND_CARD_STATE_OFFLINE == snd_card_status) {
+    if (CARD_STATUS_OFFLINE == out->card_status ||
+        CARD_STATUS_OFFLINE == adev->card_status) {
         ALOGE("%s: sound card is not active/SSR returning error", __func__);
         ret = -EIO;
         usleep(50000);
@@ -1674,10 +1681,10 @@ static int audio_extn_qaf_session_open(mm_module_type mod_type)
         lic_config.l_size = size;
         memcpy(lic_config.p_license, license_data, size);
 
-        if (property_get("audio.qaf.manufacturer", value, "") && atoi(value)) {
+        if (property_get("vendor.audio.qaf.manufacturer", value, "") && atoi(value)) {
             lic_config.manufacturer_id = (unsigned long)atoi(value);
         } else {
-            ERROR_MSG("audio.qaf.manufacturer id is not set");
+            ERROR_MSG("vendor.audio.qaf.manufacturer id is not set");
             ret = -EINVAL;
             goto exit;
         }
@@ -1785,7 +1792,7 @@ static int qaf_stream_open(struct stream_out *out,
                 ERROR_MSG("Stream Open FAILED !!!");
             }
         }
-    } else if ((flags & AUDIO_OUTPUT_FLAG_MAIN) || (!((flags & AUDIO_OUTPUT_FLAG_MAIN) && (flags & AUDIO_OUTPUT_FLAG_ASSOCIATED)))) {
+    } else if ((flags & AUDIO_OUTPUT_FLAG_MAIN) || ((!(flags & AUDIO_OUTPUT_FLAG_MAIN)) && (!(flags & AUDIO_OUTPUT_FLAG_ASSOCIATED)))) {
         /* Assume Main if no flag is set */
         if (is_dual_main_active(qaf_mod)) {
             ERROR_MSG("Dual Main already active. So, Cannot open main stream");
@@ -2335,7 +2342,7 @@ bool audio_extn_qaf_is_enabled()
 {
     bool prop_enabled = false;
     char value[PROPERTY_VALUE_MAX] = {0};
-    property_get("audio.qaf.enabled", value, NULL);
+    property_get("vendor.audio.qaf.enabled", value, NULL);
     prop_enabled = atoi(value) || !strncmp("true", value, 4);
     return (prop_enabled);
 }
@@ -2363,15 +2370,15 @@ void set_hdmi_configuration_to_module()
     p_qaf->hdmi_sink_channels = 0;
 
     //QAF re-encoding and DSP offload passthrough is supported.
-    if (property_get_bool("audio.offload.passthrough", false)
-            && property_get_bool("audio.qaf.reencode", false)) {
+    if (property_get_bool("vendor.audio.offload.passthrough", false)
+            && property_get_bool("vendor.audio.qaf.reencode", false)) {
 
         //If MS12 session is active.
         if (p_qaf->qaf_mod[MS12].session_handle && p_qaf->qaf_mod[MS12].qaf_audio_session_set_param) {
 
             bool do_setparam = false;
             qaf_params = str_parms_create();
-            property_get("audio.qaf.hdmi.out", prop_value, NULL);
+            property_get("vendor.audio.qaf.hdmi.out", prop_value, NULL);
 
             if (platform_is_edid_supported_format(p_qaf->adev->platform, AUDIO_FORMAT_E_AC3)
                     && (strncmp(prop_value, "ddp", 3) == 0)) {
@@ -2644,7 +2651,7 @@ int audio_extn_qaf_init(struct audio_device *adev)
 
     p_qaf->adev = adev;
 
-    if (property_get_bool("audio.qaf.msmd", false)) {
+    if (property_get_bool("vendor.audio.qaf.msmd", false)) {
         p_qaf->qaf_msmd_enabled = 1;
     }
     pthread_mutex_init(&p_qaf->lock, (const pthread_mutexattr_t *) NULL);
@@ -2657,9 +2664,9 @@ int audio_extn_qaf_init(struct audio_device *adev)
         struct qaf_module *qaf_mod = &(p_qaf->qaf_mod[i]);
 
         if (i == MS12) {
-            property_get("audio.qaf.library", value, NULL);
+            property_get("vendor.audio.qaf.library", value, NULL);
         } else if (i == DTS_M8) {
-            property_get("audio.qaf.m8.library", value, NULL);
+            property_get("vendor.audio.qaf.m8.library", value, NULL);
         } else {
             continue;
         }

@@ -345,6 +345,9 @@ enum {
 #define AFE_PROXY_PLAYBACK_PCM_DEVICE 7
 #define AFE_PROXY_RECORD_PCM_DEVICE 8
 
+#define TRANSCODE_LOOPBACK_RX_DEV_ID 43
+#define TRANSCODE_LOOPBACK_TX_DEV_ID 44
+
 #define PLATFORM_MAX_MIC_COUNT "input_mic_max_count"
 #define PLATFORM_DEFAULT_MIC_COUNT 2
 
@@ -392,7 +395,10 @@ enum {
     LEGACY_PCM = 0,
     PASSTHROUGH,
     PASSTHROUGH_CONVERT,
-    PASSTHROUGH_DSD
+    PASSTHROUGH_DSD,
+    LISTEN,
+    PASSTHROUGH_GEN,
+    PASSTHROUGH_IEC61937
 };
 /*
  * ID for setting mute and lateny on the device side

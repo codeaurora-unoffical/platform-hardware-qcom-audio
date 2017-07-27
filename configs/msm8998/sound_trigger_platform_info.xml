@@ -45,6 +45,7 @@
         <param DEVICE_HANDSET_MIC_APE="100" />
         <param DEVICE_HANDSET_MIC_CPE="128" />
         <param DEVICE_HANDSET_MIC_ECPP_CPE="128" />
+        <param DEVICE_HANDSET_TMIC_CPE="130" />
         <param DEVICE_HANDSET_MIC_PP_APE="135" />
         <param DEVICE_HANDSET_QMIC_APE="137" />
         <param DEVICE_HEADSET_MIC_CPE="139" />
@@ -69,9 +70,12 @@
         <!-- adm_cfg_profile should match with the one defined under adm_config -->
         <!-- Set it to NONE if LSM directly connects to AFE -->
         <param adm_cfg_profile="NONE" />
-        <!-- fluence_type: "FLUENCE", FLUENCE_DMIC", FLUENCE_QMIC" -->
-        <!-- param value is valid when adm_cfg_profile="FLUENCE" -->
+        <!-- fluence_type: "FLUENCE", "FLUENCE_DMIC", "FLUENCE_TMIC", -->
+        <!-- "FLUENCE_QMIC". param value is valid when adm_cfg_profile="FLUENCE"-->
         <param fluence_type="FLUENCE_QMIC" />
+        <!-- wdsp_fluence_type: fluence disabled: "NONE" -->
+        <!-- fluence enabled: "FLUENCE_DMIC", "FLUENCE_TMIC", "FLUENCE_QMIC" -->
+        <param wdsp_fluence_type="NONE" />
         <gcs_usecase>
             <param uid="0x1" />
             <!-- module_id, instance_id, param_id -->
@@ -102,6 +106,7 @@
             <param confidence_levels_ids="0x00012C0D, 0x00012C07" />
             <param operation_mode_ids="0x00012C0D, 0x00012C02" />
             <param polling_enable_ids="0x00012C0D, 0x00012C1B" />
+            <param custom_config_ids="0x00012C0D, 0x00012C20" />
         </lsm_usecase>
 
         <lsm_usecase>
@@ -110,6 +115,7 @@
             <param unload_sound_model_ids="0x00012C0D, 0x00012C15" />
             <param confidence_levels_ids="0x00012C0D, 0x00012C07" />
             <param operation_mode_ids="0x00012C0D, 0x00012C02" />
+            <param custom_config_ids="0x00012C0D, 0x00012C20" />
         </lsm_usecase>
 
         <!-- format: "ADPCM_packet" or "PCM_packet" !-->
@@ -137,9 +143,12 @@
         <!-- adm_cfg_profile should match with the one defined under adm_config -->
         <!-- Set it to NONE if LSM directly connects to AFE -->
         <param adm_cfg_profile="NONE" />
-        <!-- fluence_type: "FLUENCE", FLUENCE_DMIC", FLUENCE_QMIC" -->
-        <!-- param value is valid when adm_cfg_profile="FLUENCE" -->
+        <!-- fluence_type: "FLUENCE", "FLUENCE_DMIC", "FLUENCE_TMIC", -->
+        <!-- "FLUENCE_QMIC". param value is valid when adm_cfg_profile="FLUENCE"-->
         <param fluence_type="FLUENCE_QMIC" />
+        <!-- wdsp_fluence_type: fluence disabled: "NONE" -->
+        <!-- fluence enabled: "FLUENCE_DMIC", "FLUENCE_TMIC", "FLUENCE_QMIC" -->
+        <param wdsp_fluence_type="NONE" />
         <gcs_usecase>
             <param uid="0x3" />
             <param load_sound_model_ids="0x18000001, 0x4, 0x00012C14" />
@@ -160,6 +169,7 @@
             <param confidence_levels_ids="0x18000001, 0x00012C07" />
             <param operation_mode_ids="0x18000001, 0x00012C02" />
             <param polling_enable_ids="0x18000001, 0x00012C1B" />
+            <param custom_config_ids="0x18000001, 0x00012C20" />
         </lsm_usecase>
 
         <lsm_usecase>
@@ -168,6 +178,7 @@
             <param unload_sound_model_ids="0x18000001, 0x00012C15" />
             <param confidence_levels_ids="0x18000001, 0x00012C07" />
             <param operation_mode_ids="0x18000001, 0x00012C02" />
+            <param custom_config_ids="0x18000001, 0x00012C20" />
         </lsm_usecase>
 
         <!-- format: "ADPCM_packet" or "PCM_packet" !-->

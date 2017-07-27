@@ -40,6 +40,11 @@
 #include <cutils/properties.h>
 
 #include "sound/compress_params.h"
+#ifdef DYNAMIC_LOG_ENABLED
+#include <log_xml_parser.h>
+#define LOG_MASK HAL_MOD_FILE_PASSTH
+#include <log_utils.h>
+#endif
 
 static const audio_format_t audio_passthru_formats[] = {
     AUDIO_FORMAT_AC3,
@@ -47,7 +52,8 @@ static const audio_format_t audio_passthru_formats[] = {
     AUDIO_FORMAT_E_AC3_JOC,
     AUDIO_FORMAT_DTS,
     AUDIO_FORMAT_DTS_HD,
-    AUDIO_FORMAT_DOLBY_TRUEHD
+    AUDIO_FORMAT_DOLBY_TRUEHD,
+    AUDIO_FORMAT_IEC61937
 };
 
 /*
@@ -264,9 +270,12 @@ void audio_extn_passthru_update_stream_configuration(
     if (audio_extn_passthru_is_passt_supported(adev, out)) {
         ALOGV("%s:PASSTHROUGH", __func__);
         out->compr_config.codec->compr_passthr = PASSTHROUGH;
-    } else if (audio_extn_passthru_is_convert_supported(adev, out)){
+    } else if (audio_extn_passthru_is_convert_supported(adev, out)) {
         ALOGV("%s:PASSTHROUGH CONVERT", __func__);
         out->compr_config.codec->compr_passthr = PASSTHROUGH_CONVERT;
+    } else if (out->format == AUDIO_FORMAT_IEC61937) {
+        ALOGV("%s:PASSTHROUGH IEC61937", __func__);
+        out->compr_config.codec->compr_passthr = PASSTHROUGH_IEC61937;
     } else {
         ALOGV("%s:NO PASSTHROUGH", __func__);
         out->compr_config.codec->compr_passthr = LEGACY_PCM;
@@ -276,7 +285,7 @@ void audio_extn_passthru_update_stream_configuration(
 bool audio_extn_passthru_is_passthrough_stream(struct stream_out *out)
 {
     //check passthrough system property
-    if (!property_get_bool("audio.offload.passthrough", false)) {
+    if (!property_get_bool("vendor.audio.offload.passthrough", false)) {
         return false;
     }
 

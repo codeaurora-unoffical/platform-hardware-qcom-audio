@@ -54,8 +54,8 @@
 #define OFFLOAD_EFFECTS_BUNDLE_LIBRARY_PATH "/usr/lib/libqcompostprocbundle.so"
 #define ADM_LIBRARY_PATH "/usr/lib/libadm.so"
 #else
-#define VISUALIZER_LIBRARY_PATH "/system/lib/soundfx/libqcomvisualizer.so"
-#define OFFLOAD_EFFECTS_BUNDLE_LIBRARY_PATH "/system/lib/soundfx/libqcompostprocbundle.so"
+#define VISUALIZER_LIBRARY_PATH "/vendor/lib/soundfx/libqcomvisualizer.so"
+#define OFFLOAD_EFFECTS_BUNDLE_LIBRARY_PATH "/vendor/lib/soundfx/libqcompostprocbundle.so"
 #define ADM_LIBRARY_PATH "/vendor/lib/libadm.so"
 #endif
 
@@ -83,6 +83,9 @@
 
 #define SND_CARD_STATE_OFFLINE 0
 #define SND_CARD_STATE_ONLINE 1
+
+#define STREAM_DIRECTION_IN 0
+#define STREAM_DIRECTION_OUT 1
 
 #define MAX_PERF_LOCK_OPTS 20
 
@@ -160,6 +163,7 @@ enum {
 
     USECASE_AUDIO_PLAYBACK_EXT_DISP_SILENCE,
 
+    USECASE_AUDIO_TRANSCODE_LOOPBACK,
     AUDIO_USECASE_MAX
 };
 
@@ -207,6 +211,25 @@ struct stream_app_type_cfg {
     int app_type;
 };
 
+struct stream_config {
+    unsigned int sample_rate;
+    audio_channel_mask_t channel_mask;
+    audio_format_t format;
+    audio_devices_t devices;
+    unsigned int bit_width;
+};
+struct stream_inout {
+    pthread_mutex_t lock; /* see note below on mutex acquisition order */
+    pthread_mutex_t pre_lock; /* acquire before lock to avoid DOS by playback thread */
+    pthread_cond_t  cond;
+    struct stream_config in_config;
+    struct stream_config out_config;
+    struct audio_device *dev;
+    void *adsp_hdlr_stream_handle;
+    void *ip_hdlr_handle;
+    stream_callback_t client_callback;
+    void *client_cookie;
+};
 struct stream_out {
     struct audio_stream_out stream;
     pthread_mutex_t lock; /* see note below on mutex acquisition order */
@@ -243,6 +266,7 @@ struct stream_out {
     bool offload_thread_blocked;
 
     void *adsp_hdlr_stream_handle;
+    void *ip_hdlr_handle;
 
     stream_callback_t client_callback;
     void *client_cookie;
@@ -259,6 +283,7 @@ struct stream_out {
     bool realtime;
     int af_period_multiplier;
     struct audio_device *dev;
+    card_status_t card_status;
 
     void* qaf_stream_handle;
     pthread_cond_t qaf_offload_cond;
@@ -266,10 +291,12 @@ struct stream_out {
     struct listnode qaf_offload_cmd_list;
     uint32_t platform_latency;
     render_mode_t render_mode;
-    struct audio_out_render_window_param render_window; /*render winodw*/
-    struct audio_out_start_delay_param delay_param; /*start delay*/
+    bool drift_correction_enabled;
 
+    struct audio_out_channel_map_param channel_map_param; /* input channel map */
     audio_offload_info_t info;
+    int started;
+    qahwi_stream_out_t qahwi_out;
 };
 
 struct stream_in {
@@ -301,6 +328,7 @@ struct stream_in {
     qahwi_stream_in_t qahwi_in;
 
     struct audio_device *dev;
+    card_status_t card_status;
 };
 
 typedef enum {
@@ -308,12 +336,14 @@ typedef enum {
     PCM_CAPTURE,
     VOICE_CALL,
     VOIP_CALL,
-    PCM_HFP_CALL
+    PCM_HFP_CALL,
+    TRANSCODE_LOOPBACK
 } usecase_type_t;
 
 union stream_ptr {
     struct stream_in *in;
     struct stream_out *out;
+    struct stream_inout *inout;
 };
 
 struct audio_usecase {
@@ -326,11 +356,6 @@ struct audio_usecase {
     struct stream_app_type_cfg out_app_type_cfg;
     struct stream_app_type_cfg in_app_type_cfg;
     union stream_ptr stream;
-};
-
-struct sound_card_status {
-    pthread_mutex_t lock;
-    int state;
 };
 
 struct stream_format {
@@ -400,6 +425,7 @@ struct audio_device {
     bool allow_afe_proxy_usage;
 
     int snd_card;
+    card_status_t card_status;
     unsigned int cur_codec_backend_samplerate;
     unsigned int cur_codec_backend_bit_width;
     bool is_channel_status_set;
@@ -412,7 +438,6 @@ struct audio_device {
     int (*offload_effects_start_output)(audio_io_handle_t, int, struct mixer *);
     int (*offload_effects_stop_output)(audio_io_handle_t, int);
 
-    struct sound_card_status snd_card_status;
     int (*offload_effects_set_hpx_state)(bool);
 
     void *adm_data;
@@ -441,6 +466,7 @@ struct audio_device {
     bool asrc_mode_enabled;
     qahwi_device_t qahwi_dev;
     bool vr_audio_mode_enabled;
+    bool bt_sco_on;
 };
 
 int select_devices(struct audio_device *adev,
@@ -468,7 +494,6 @@ bool audio_is_dsd_native_stream_active(struct audio_device *adev);
 
 int pcm_ioctl(struct pcm *pcm, int request, ...);
 
-int get_snd_card_state(struct audio_device *adev);
 audio_usecase_t get_usecase_id_from_usecase_type(const struct audio_device *adev,
                                                  usecase_type_t type);
 

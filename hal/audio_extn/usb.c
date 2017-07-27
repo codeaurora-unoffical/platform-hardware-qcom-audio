@@ -36,6 +36,12 @@
 #include <ctype.h>
 #include <math.h>
 
+#ifdef DYNAMIC_LOG_ENABLED
+#include <log_xml_parser.h>
+#define LOG_MASK HAL_MOD_FILE_USB
+#include <log_utils.h>
+#endif
+
 #ifdef USB_HEADSET_ENABLED
 #define USB_BUFF_SIZE           2048
 #define CHANNEL_NUMBER_STR      "Channels: "
@@ -924,7 +930,7 @@ void audio_extn_usb_add_device(audio_devices_t device, int card)
     char check_debug_enable[PROPERTY_VALUE_MAX];
     struct listnode *node_i;
 
-    property_get("audio.usb.enable.debug", check_debug_enable, NULL);
+    property_get("vendor.audio.usb.enable.debug", check_debug_enable, NULL);
     if (atoi(check_debug_enable)) {
         usb_audio_debug_enable = true;
     }

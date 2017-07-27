@@ -41,6 +41,12 @@
 #include <hardware/hardware.h>
 #include <cutils/properties.h>
 
+#ifdef DYNAMIC_LOG_ENABLED
+#include <log_xml_parser.h>
+#define LOG_MASK HAL_MOD_FILE_A2DP
+#include <log_utils.h>
+#endif
+
 #ifdef SPLIT_A2DP_ENABLED
 #define AUDIO_PARAMETER_A2DP_STARTED "A2dpStarted"
 #define BT_IPC_LIB_NAME  "libbthost_if.so"
@@ -68,7 +74,6 @@
 #define MIXER_ENC_FMT_APTX         "APTX"
 #define MIXER_ENC_FMT_APTXHD       "APTXHD"
 #define MIXER_ENC_FMT_NONE         "NONE"
-
 
 typedef int (*audio_stream_open_t)(void);
 typedef int (*audio_stream_close_t)(void);
@@ -172,6 +177,46 @@ struct custom_enc_cfg_aptx_t
     uint32_t      custom_size;
 };
 
+/* TODO: Define the following structures only for O using PLATFORM_VERSION */
+/* Information about BT SBC encoder configuration
+ * This data is used between audio HAL module and
+ * BT IPC library to configure DSP encoder
+ */
+typedef struct {
+    uint32_t subband;    /* 4, 8 */
+    uint32_t blk_len;    /* 4, 8, 12, 16 */
+    uint16_t sampling_rate; /*44.1khz,48khz*/
+    uint8_t  channels;      /*0(Mono),1(Dual_mono),2(Stereo),3(JS)*/
+    uint8_t  alloc;         /*0(Loudness),1(SNR)*/
+    uint8_t  min_bitpool;   /* 2 */
+    uint8_t  max_bitpool;   /*53(44.1khz),51 (48khz) */
+    uint32_t bitrate;      /* 320kbps to 512kbps */
+} audio_sbc_encoder_config;
+
+
+/* Information about BT APTX encoder configuration
+ * This data is used between audio HAL module and
+ * BT IPC library to configure DSP encoder
+ */
+typedef struct {
+    uint16_t sampling_rate;
+    uint8_t  channels;
+    uint32_t bitrate;
+} audio_aptx_encoder_config;
+
+
+/* Information about BT AAC encoder configuration
+ * This data is used between audio HAL module and
+ * BT IPC library to configure DSP encoder
+ */
+typedef struct {
+    uint32_t enc_mode; /* LC, SBR, PS */
+    uint16_t format_flag; /* RAW, ADTS */
+    uint16_t channels; /* 1-Mono, 2-Stereo */
+    uint32_t sampling_rate;
+    uint32_t bitrate;
+} audio_aac_encoder_config;
+
 /*********** END of DSP configurable structures ********************/
 
 /* API to identify DSP encoder captabilities */
@@ -206,10 +251,10 @@ static void update_offload_codec_capabilities()
 {
     char value[PROPERTY_VALUE_MAX] = {'\0'};
 
-    property_get("persist.bt.a2dp_offload_cap", value, "false");
+    property_get("persist.vendor.bt.a2dp_offload_cap", value, "false");
     ALOGD("get_offload_codec_capabilities = %s",value);
     a2dp.is_a2dp_offload_supported =
-            property_get_bool("persist.bt.a2dp_offload_cap", false);
+            property_get_bool("persist.vendor.bt.a2dp_offload_cap", false);
     if (strcmp(value, "false") != 0)
         a2dp_offload_codec_cap_parser(value);
     ALOGD("%s: codec cap = %s",__func__,value);
@@ -749,6 +794,8 @@ void audio_extn_a2dp_set_parameters(struct str_parms *parms)
                    a2dp.audio_suspend_stream();
             } else if (a2dp.a2dp_suspended == true) {
                 ALOGD("Resetting a2dp suspend state");
+                struct audio_usecase *uc_info;
+                struct listnode *node;
                 if(a2dp.clear_a2dpsuspend_flag)
                     a2dp.clear_a2dpsuspend_flag();
                 a2dp.a2dp_suspended = false;
@@ -772,6 +819,13 @@ void audio_extn_a2dp_set_parameters(struct str_parms *parms)
                             a2dp.a2dp_started = false;
                         }
                     }
+                }
+                // restore A2DP device for active usecases
+                list_for_each(node, &a2dp.adev->usecase_list) {
+                    uc_info = node_to_item(node, struct audio_usecase, list);
+                    if ((uc_info->stream.out->devices & AUDIO_DEVICE_OUT_ALL_A2DP) &&
+                            (uc_info->out_snd_device != SND_DEVICE_OUT_BT_A2DP))
+                        select_devices(a2dp.adev, uc_info->id);
                 }
             }
         }
@@ -838,7 +892,7 @@ uint32_t audio_extn_a2dp_get_encoder_latency()
     char value[PROPERTY_VALUE_MAX];
 
     memset(value, '\0', sizeof(char)*PROPERTY_VALUE_MAX);
-    avsync_runtime_prop = property_get("audio.a2dp.codec.latency", value, NULL);
+    avsync_runtime_prop = property_get("vendor.audio.a2dp.codec.latency", value, NULL);
     if (avsync_runtime_prop > 0) {
         if (sscanf(value, "%d/%d/%d/%d",
                   &sbc_offset, &aptx_offset, &aptxhd_offset, &aac_offset) != 4) {

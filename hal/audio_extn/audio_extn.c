@@ -55,6 +55,12 @@
 
 #include "sound/compress_params.h"
 
+#ifdef DYNAMIC_LOG_ENABLED
+#include <log_xml_parser.h>
+#define LOG_MASK HAL_MOD_FILE_AUDIO_EXTN
+#include <log_utils.h>
+#endif
+
 #define MAX_SLEEP_RETRY 100
 #define WIFI_INIT_WAIT_SLEEP 50
 
@@ -244,13 +250,6 @@ static void audio_extn_ext_disp_set_parameters(const struct audio_device *adev,
     }
 }
 
-#ifndef FM_POWER_OPT
-#define audio_extn_fm_set_parameters(adev, parms) (0)
-#else
-void audio_extn_fm_set_parameters(struct audio_device *adev,
-                                   struct str_parms *parms);
-#endif
-
 #ifndef SOURCE_TRACKING_ENABLED
 #define audio_extn_source_track_set_parameters(adev, parms) (0)
 #define audio_extn_source_track_get_parameters(adev, query, reply) (0)
@@ -317,7 +316,7 @@ void audio_extn_hpx_set_parameters(struct audio_device *adev,
     struct mixer_ctl *ctl = NULL;
     ALOGV("%s", __func__);
 
-    property_get("use.dts_eagle", prop, "0");
+    property_get("vendor.audio.use.dts_eagle", prop, "0");
     if (strncmp("true", prop, sizeof("true")))
         return;
 
@@ -364,7 +363,7 @@ static int audio_extn_hpx_get_parameters(struct str_parms *query,
 void audio_extn_check_and_set_dts_hpx_state(const struct audio_device *adev)
 {
     char prop[PROPERTY_VALUE_MAX];
-    property_get("use.dts_eagle", prop, "0");
+    property_get("vendor.audio.use.dts_eagle", prop, "0");
     if (strncmp("true", prop, sizeof("true")))
         return;
     if (adev->offload_effects_set_hpx_state)
@@ -384,7 +383,7 @@ bool audio_extn_is_hifi_audio_supported(void)
     /*
      * for internal codec, check for hifiaudio property to enable hifi audio
      */
-    if (property_get_bool("persist.audio.hifi.int_codec", false))
+    if (property_get_bool("persist.vendor.audio.hifi.int_codec", false))
     {
         ALOGD("%s: hifi audio supported on internal codec", __func__);
         aextnmod.hifi_audio_enabled = 1;
@@ -405,7 +404,7 @@ bool audio_extn_can_use_vbat(void)
 {
     char prop_vbat_enabled[PROPERTY_VALUE_MAX] = "false";
 
-    property_get("persist.audio.vbat.enabled", prop_vbat_enabled, "0");
+    property_get("persist.vendor.audio.vbat.enabled", prop_vbat_enabled, "0");
     if (!strncmp("true", prop_vbat_enabled, 4)) {
         aextnmod.vbat_enabled = 1;
     }
@@ -424,7 +423,7 @@ bool audio_extn_is_ras_enabled(void)
 
 bool audio_extn_can_use_ras(void)
 {
-    if (property_get_bool("persist.audio.ras.enabled", false))
+    if (property_get_bool("persist.vendor.audio.ras.enabled", false))
         aextnmod.ras_enabled = 1;
 
     ALOGD("%s: ras.enabled property is set to %d", __func__, aextnmod.ras_enabled);
@@ -445,7 +444,7 @@ bool audio_extn_should_use_handset_anc(int in_channels)
 {
     char prop_aanc[PROPERTY_VALUE_MAX] = "false";
 
-    property_get("persist.aanc.enable", prop_aanc, "0");
+    property_get("persist.vendor.audio.aanc.enable", prop_aanc, "0");
     if (!strncmp("true", prop_aanc, 4)) {
         ALOGD("%s: AANC enabled in the property", __func__);
         aextnmod.aanc_enabled = 1;
@@ -459,7 +458,7 @@ bool audio_extn_should_use_fb_anc(void)
 {
   char prop_anc[PROPERTY_VALUE_MAX] = "feedforward";
 
-  property_get("persist.headset.anc.type", prop_anc, "0");
+  property_get("persist.vendor.audio.headset.anc.type", prop_anc, "0");
   if (!strncmp("feedback", prop_anc, sizeof("feedback"))) {
     ALOGD("%s: FB ANC headset type enabled\n", __func__);
     return true;
@@ -1361,12 +1360,24 @@ int audio_extn_out_set_param_data(struct stream_out *out,
             ret = audio_extn_utils_compress_set_start_delay(out,
                     (struct audio_out_start_delay_param *)(payload));
             break;
+        case AUDIO_EXTN_PARAM_OUT_ENABLE_DRIFT_CORRECTION:
+            ret = audio_extn_utils_compress_enable_drift_correction(out,
+                    (struct audio_out_enable_drift_correction *)(payload));
+            break;
+        case AUDIO_EXTN_PARAM_OUT_CORRECT_DRIFT:
+            ret = audio_extn_utils_compress_correct_drift(out,
+                    (struct audio_out_correct_drift *)(payload));
+            break;
         case AUDIO_EXTN_PARAM_ADSP_STREAM_CMD:
             ret = audio_extn_adsp_hdlr_stream_set_param(out->adsp_hdlr_stream_handle,
                     ADSP_HDLR_STREAM_CMD_REGISTER_EVENT,
                     (void *)&payload->adsp_event_params);
             break;
-         default:
+        case AUDIO_EXTN_PARAM_OUT_CHANNEL_MAP:
+            ret = audio_extn_utils_set_channel_map(out,
+                    (struct audio_out_channel_map_param *)(payload));
+            break;
+        default:
             ALOGE("%s:: unsupported param_id %d", __func__, param_id);
             break;
     }

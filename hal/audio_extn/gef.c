@@ -47,6 +47,12 @@
 #include "audio_extn.h"
 #include "audio_hw.h"
 
+#ifdef DYNAMIC_LOG_ENABLED
+#include <log_xml_parser.h>
+#define LOG_MASK HAL_MOD_FILE_GEF
+#include <log_utils.h>
+#endif
+
 #ifdef AUDIO_GENERIC_EFFECT_FRAMEWORK_ENABLED
 
 #if LINUX_ENABLED
@@ -56,6 +62,7 @@
 #endif
 
 typedef void* (*gef_init_t)(void*);
+typedef void (*gef_deinit_t)(void*);
 typedef void (*gef_device_config_cb_t)(void*, audio_devices_t,
     audio_channel_mask_t, int, int);
 
@@ -63,6 +70,7 @@ typedef struct {
     void* handle;
     void* gef_ptr;
     gef_init_t init;
+    gef_deinit_t deinit;
     gef_device_config_cb_t device_config_cb;
 } gef_data;
 
@@ -128,6 +136,18 @@ void audio_extn_gef_init(struct audio_device *adev)
             if(error != NULL) {
                 ALOGE("%s: dlsym of %s failed with error %s",
                      __func__, "gef_init", error);
+                goto ERROR_RETURN;
+            }
+
+            //call dlerror to clear the error
+            dlerror();
+            gef_hal_handle.deinit =
+                (gef_deinit_t)dlsym(gef_hal_handle.handle, "gef_deinit");
+            error = dlerror();
+
+            if(error != NULL) {
+                ALOGE("%s: dlsym of %s failed with error %s",
+                     __func__, "gef_deinit", error);
                 goto ERROR_RETURN;
             }
 
@@ -283,6 +303,8 @@ void audio_extn_gef_deinit()
     ALOGV("%s: Enter", __func__);
 
     if (gef_hal_handle.handle) {
+        if (gef_hal_handle.handle && gef_hal_handle.deinit)
+            gef_hal_handle.deinit(gef_hal_handle.gef_ptr);
         dlclose(gef_hal_handle.handle);
     }
 
