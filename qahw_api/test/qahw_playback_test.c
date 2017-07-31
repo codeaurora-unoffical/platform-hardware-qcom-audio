@@ -65,7 +65,12 @@
 
 #define DEFAULT_PRESET_STRENGTH -1
 
+#define DTSHD_CHUNK_HEADER_KEYWORD "DTSHDHDR"
+#define DTSHD_CHUNK_STREAM_KEYWORD "STRMDATA"
+#define DTSHD_META_KEYWORD_SIZE 8 /*in bytes */
+
 static int get_wav_header_length (FILE* file_stream);
+static ssize_t get_bytes_to_read(FILE* file, int filetype);
 static void init_streams(void);
 int pthread_cancel(pthread_t thread);
 
@@ -658,6 +663,21 @@ void *start_stream_playback (void* stream_data)
     pthread_t drift_query_thread;
     struct drift_data drift_params;
 
+    int offset = 0;
+    bool is_offload = params->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD;
+    size_t bytes_wanted = 0;
+    size_t write_length = 0;
+    size_t bytes_remaining = 0;
+    size_t bytes_written = 0;
+
+    size_t bytes_read = 0;
+    char  *data_ptr = NULL;
+    bool exit = false;
+    bool read_complete_file = true;
+    ssize_t bytes_to_read = 0;
+    int32_t latency;
+
+
     memset(&drift_params, 0, sizeof(struct drift_data));
 
     fprintf(log_file, "stream %d: play_later %d \n", params->stream_index, params->play_later);
@@ -722,21 +742,12 @@ void *start_stream_playback (void* stream_data)
             }
             fprintf(log_file, "stream %d: kvpairs are set\n", params->stream_index);
             break;
-        default:
+    case FILE_DTS:
+            read_complete_file = false;
+            break;
+    default:
             break;
     }
-
-    int offset = 0;
-    bool is_offload = params->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD;
-    size_t bytes_wanted = 0;
-    size_t write_length = 0;
-    size_t bytes_remaining = 0;
-    size_t bytes_written = 0;
-    size_t bytes_read = 0;
-    char  *data_ptr = NULL;
-    bool exit = false;
-    int32_t latency;
-
 
     if (is_offload) {
         fprintf(log_file, "stream %d: set callback for offload stream for playback usecase\n", params->stream_index);
@@ -847,28 +858,37 @@ void *start_stream_playback (void* stream_data)
     if (event_trigger == true)
         tigger_event(params->out_handle);
 
+    bytes_to_read = get_bytes_to_read(params->file_stream, params->filetype);
+    if (bytes_to_read <= 0)
+        read_complete_file = true;
+
     while (!exit && !stop_playback) {
         if (!bytes_remaining) {
             fprintf(log_file, "\nstream %d: reading bytes %zd\n", params->stream_index, bytes_wanted);
             bytes_read = read_bytes(params, data_ptr, bytes_wanted);
             fprintf(log_file, "stream %d: read bytes %zd\n", params->stream_index, bytes_read);
-            if (bytes_read <= 0) {
-                if (is_eof(params)) {
-                    fprintf(log_file, "stream %d: end of file\n", params->stream_index);
-                    if (is_offload) {
-                        pthread_mutex_lock(&params->drain_lock);
-                        qahw_out_drain(params->out_handle, QAHW_DRAIN_ALL);
-                        pthread_cond_wait(&params->drain_cond, &params->drain_lock);
-                        fprintf(log_file, "stream %d: out of compress drain\n", params->stream_index);
-                        pthread_mutex_unlock(&params->drain_lock);
-                    }
-            /* Caution: Below ADL log shouldnt be altered without notifying automation APT since
-             * it used for automation testing
-             */
-                    fprintf(log_file, "ADL: stream %d: playback completed successfully\n", params->stream_index);
+            if ((!read_complete_file && (bytes_to_read <= 0)) || (bytes_read <= 0)) {
+                fprintf(log_file, "stream %d: end of file\n", params->stream_index);
+                if (is_offload) {
+                    pthread_mutex_lock(&params->drain_lock);
+                    qahw_out_drain(params->out_handle, QAHW_DRAIN_ALL);
+                    pthread_cond_wait(&params->drain_cond, &params->drain_lock);
+                    fprintf(log_file, "stream %d: out of compress drain\n", params->stream_index);
+                    pthread_mutex_unlock(&params->drain_lock);
                 }
+                /*
+                 * Caution: Below ADL log shouldnt be altered without notifying
+                 * automation APT since it used for automation testing
+                 */
+                fprintf(log_file, "ADL: stream %d: playback completed successfully\n", params->stream_index);
                 exit = true;
                 continue;
+            } else {
+                if (!read_complete_file) {
+                    bytes_to_read -= bytes_read;
+                    if ((bytes_to_read > 0) && (bytes_to_read < bytes_wanted))
+                        bytes_wanted = bytes_to_read;
+                }
             }
             bytes_remaining = write_length = bytes_read;
         }
@@ -876,6 +896,9 @@ void *start_stream_playback (void* stream_data)
         offset = write_length - bytes_remaining;
         fprintf(log_file, "stream %d: writing to hal %zd bytes, offset %d, write length %zd\n",
                 params->stream_index, bytes_remaining, offset, write_length);
+
+
+        bytes_written = bytes_remaining;
         bytes_written = write_to_hal(params->out_handle, data_ptr+offset, bytes_remaining, params);
         if (bytes_written < 0) {
             fprintf(stderr, "write failed %d", bytes_written);
@@ -888,6 +911,7 @@ void *start_stream_playback (void* stream_data)
         fprintf(log_file, "stream %d: bytes_written %zd, bytes_remaining %zd latency %d\n",
                 params->stream_index, bytes_written, bytes_remaining, latency);
     }
+
 
     if (params->ethread_data != nullptr) {
         fprintf(log_file, "stream %d: un-loading effects\n", params->stream_index);
@@ -937,11 +961,6 @@ void *start_stream_playback (void* stream_data)
         usleep(500000);
         drift_params.thread_exit = true;
         pthread_join(drift_query_thread, NULL);
-    }
-    if ((params->flags & AUDIO_OUTPUT_FLAG_MAIN) && is_assoc_active()) {
-        fprintf(log_file, "Closing Associated as Main Stream reached EOF %d \n",
-                params->stream_index, rc);
-        stop_playback = true;
     }
     rc = qahw_out_standby(params->out_handle);
     if (rc) {
@@ -1594,6 +1613,10 @@ void usage() {
     printf(" -I  --input-ch-map                        - input channel map");
     printf(" -M  --mixer-coeffs                        - mixer coefficient matrix");
     printf(" -i  --intr-strm                           - interactive stream indicator");
+    printf(" -C  --Device Config                       - Device Configuration params\n");
+    printf("                                             Params should be in the order defined in struct qahw_device_cfg_param. Order is: \n");
+    printf("                                             <sample_rate>, <channels>, <bit_width>, <format>, <device>, <channel_map[channels]>, <channel_allocation> \n");
+    printf("                                             Example(6 channel HDMI config): hal_play_test -f /data/ChID16bit_5.1ch_48k.wav -v 0.9 -d 1024 -c 6 -C 48000 6 16 1 1024 1 2 6 3 4 5 19\n");
     printf(" \n Examples \n");
     printf(" hal_play_test -f /data/Anukoledenadu.wav  -> plays Wav stream with default params\n\n");
     printf(" hal_play_test -f /data/MateRani.mp3 -t 2 -d 2 -v 0.01 -r 44100 -c 2 \n");
@@ -1678,6 +1701,104 @@ static int get_wav_header_length (FILE* file_stream)
          wav_header_len = FORMAT_DESCRIPTOR_SIZE + SUBCHUNK1_SIZE(subchunk_size) + SUBCHUNK2_SIZE;
     }
     return wav_header_len;
+}
+
+/* convert big-endian to little-endian */
+uint64_t convert_BE_to_LE( uint64_t in)
+{
+    uint64_t out;
+    char *p_in = (char *) &in;
+    char *p_out = (char *) &out;
+    p_out[0] = p_in[7];
+    p_out[1] = p_in[6];
+    p_out[2] = p_in[5];
+    p_out[3] = p_in[4];
+    p_out[4] = p_in[3];
+    p_out[5] = p_in[2];
+    p_out[6] = p_in[1];
+    p_out[7] = p_in[0];
+    return out;
+}
+
+static ssize_t  get_bytes_to_read(FILE* file, int file_type)
+{
+     char keyword[DTSHD_META_KEYWORD_SIZE + 1];
+     bool is_dtshd_stream =false;
+     uint64_t read_chunk_size = 0;
+     uint64_t chunk_size = 0;
+     ssize_t file_read_size = -1;
+     ssize_t header_read_size = -1;
+     long int pos;
+     int ret = 0;
+
+     if (file_type == FILE_DTS) {
+
+         //first locate the ASCII header "DTSHDHDR"identifier
+         while (!feof(file) && (header_read_size < 1024) &
+                (fread(&keyword, sizeof(char), DTSHD_META_KEYWORD_SIZE, file)
+                                 == DTSHD_META_KEYWORD_SIZE)) {
+             //update the number of bytes was read for identifying the header
+             header_read_size = ftell(file);
+
+             if (strncmp(keyword, DTSHD_CHUNK_HEADER_KEYWORD,
+                         DTSHD_META_KEYWORD_SIZE) == 0) {
+                 // read the 8-byte size field
+                 if (fread(&read_chunk_size, sizeof(char),
+                     DTSHD_META_KEYWORD_SIZE, file) == DTSHD_META_KEYWORD_SIZE) {
+                     is_dtshd_stream = true;
+                     chunk_size = convert_BE_to_LE(read_chunk_size);
+                     pos = ftell(file);
+                     fseek(file, chunk_size, SEEK_CUR);
+                     fprintf(stderr,"DTS header chunk offset:%lu and chunk_size:%llu \n",
+                             pos, chunk_size);
+                     break;
+                 }
+                 else {
+                     printf(" file read error \n");
+                     break;
+                 } //end reading chunk size
+             }
+         }
+
+         if (!is_dtshd_stream)  {
+             fprintf(stderr, "raw dts hd stream");
+             fseek(file, 0, SEEK_SET);
+             return file_read_size;
+         }
+         /* parsing each chunk data */
+         while (!feof(file) &&
+               fread(&keyword, sizeof(uint8_t), DTSHD_META_KEYWORD_SIZE, file)
+                                     == DTSHD_META_KEYWORD_SIZE) {
+            /* check for the stream audio data */
+            ret  = strncmp(keyword,
+                        DTSHD_CHUNK_STREAM_KEYWORD,
+                        DTSHD_META_KEYWORD_SIZE);
+            if (!ret) {
+                ret = fread(&read_chunk_size, 1, DTSHD_META_KEYWORD_SIZE, file);
+                chunk_size = convert_BE_to_LE(read_chunk_size);
+                if (ret != DTSHD_META_KEYWORD_SIZE) {
+                    fprintf(stderr,"%s %d file read error ret %\n",
+                            __func__, __LINE__, ret);
+                    file_read_size = -EINVAL;
+                    break;
+                }
+                file_read_size =  chunk_size;
+                fprintf(stderr, "DTS read_chunk_size %llu and file_read_size: %zd\n",
+                        chunk_size,
+                        file_read_size);
+                break;
+            } else {
+                fprintf(log_file, "Identified chunk of %c %c %c %c %c %c %c %c \n",
+                        keyword[0], keyword[1], keyword[2], keyword[3],
+                        keyword[4], keyword[5], keyword[6], keyword[7] );
+                ret = fread(&read_chunk_size, 1, DTSHD_META_KEYWORD_SIZE, file);
+                pos = ftell(file);
+                chunk_size = convert_BE_to_LE(read_chunk_size);
+                fseek(file, chunk_size, SEEK_CUR);
+            }
+        }
+     }
+     return file_read_size;
 }
 
 static qahw_module_handle_t * load_hal(audio_devices_t dev) {
@@ -1890,6 +2011,8 @@ int main(int argc, char* argv[]) {
     int i = 0;
     int iter_i = 0;
     int iter_j = 0;
+    int chmap_iter = 0;
+
     kpi_mode = false;
     char mixer_ctrl_name[64] = {0};
     int mixer_ctrl_type = 0;
@@ -1899,6 +2022,10 @@ int main(int argc, char* argv[]) {
     log_file = stdout;
     proxy_params.acp.file_name = "/data/pcm_dump.wav";
     stream_config *stream = NULL;
+
+    struct qahw_device_cfg_param device_cfg_params;
+    bool send_device_config = false;
+
     init_streams();
 
     int num_of_streams = 1;
@@ -1930,6 +2057,7 @@ int main(int argc, char* argv[]) {
         {"mode",          required_argument,    0, 'm'},
         {"effect-preset",   required_argument,    0, 'p'},
         {"effect-strength", required_argument,    0, 'S'},
+        {"device-config", required_argument,    0, 'C'},
         {"help",          no_argument,          0, 'h'},
         {"output-ch-map", required_argument,    0, 'O'},
         {"input-ch-map",  required_argument,    0, 'I'},
@@ -1958,7 +2086,7 @@ int main(int argc, char* argv[]) {
 
     while ((opt = getopt_long(argc,
                               argv,
-                              "-f:r:c:b:d:s:v:l:t:a:w:k:PD:KF:Ee:A:u:m:S:p:qQhI:O:M:o:i:",
+                              "-f:r:c:b:d:s:v:l:t:a:w:k:PD:KF:Ee:A:u:m:S:C:p:qQhI:O:M:o:i:",
                               long_options,
                               &option_index)) != -1) {
 
@@ -2093,6 +2221,66 @@ int main(int argc, char* argv[]) {
             break;
         case 'o':
             mm_params.num_output_channels = atoi(optarg);
+        case 'C':
+            fprintf(log_file, " In Device config \n");
+            fprintf(stderr, " In Device config \n");
+            send_device_config = true;
+
+            //Read Sample Rate
+            if (optind < argc && *argv[optind] != '-') {
+                 device_cfg_params.sample_rate = atoi(optarg);
+                 fprintf(log_file, " Device config ::::  sample_rate - %d \n", device_cfg_params.sample_rate);
+                 fprintf(stderr, " Device config :::: sample_rate - %d \n", device_cfg_params.sample_rate);
+            }
+
+            //Read Channels
+            if (optind < argc && *argv[optind] != '-') {
+                 device_cfg_params.channels = atoi(argv[optind]);
+                 optind++;
+                 fprintf(log_file, " Device config :::: channels - %d \n", device_cfg_params.channels);
+                 fprintf(stderr, " Device config :::: channels - %d \n", device_cfg_params.channels);
+            }
+
+            //Read Bit width
+            if (optind < argc && *argv[optind] != '-') {
+                 device_cfg_params.bit_width = atoi(argv[optind]);
+                 optind++;
+                 fprintf(log_file, " Device config :::: bit_width - %d \n", device_cfg_params.bit_width);
+                 fprintf(stderr, " Device config :::: bit_width - %d \n", device_cfg_params.bit_width);
+            }
+
+            //Read Format
+            if (optind < argc && *argv[optind] != '-') {
+                 device_cfg_params.format = atoi(argv[optind]);
+                 optind++;
+                 fprintf(log_file, " Device config :::: format - %d \n", device_cfg_params.format);
+                 fprintf(stderr, " Device config :::: format - %d \n", device_cfg_params.format);
+            }
+
+            //Read Device
+            if (optind < argc && *argv[optind] != '-') {
+                 device_cfg_params.device = atoi(argv[optind]);
+                 optind++;
+                 fprintf(log_file, " Device config :::: device - %d \n", device_cfg_params.device);
+                 fprintf(stderr, " Device config :::: device - %d \n", device_cfg_params.device);
+            }
+
+            //Read Channel Map
+            while ((optind < argc && *argv[optind] != '-') && (chmap_iter < device_cfg_params.channels)) {
+                 device_cfg_params.channel_map[chmap_iter] = atoi(argv[optind]);
+                 optind++;
+                 fprintf(log_file, " Device config :::: channel_map[%d] - %d \n", chmap_iter, device_cfg_params.channel_map[chmap_iter]);
+                 fprintf(stderr, " Device config :::: channel_map[%d] - %d \n", chmap_iter, device_cfg_params.channel_map[chmap_iter]);
+                 chmap_iter++;
+            }
+
+            //Read Channel Allocation
+            if (optind < argc && *argv[optind] != '-') {
+                 device_cfg_params.channel_allocation = atoi(argv[optind]);
+                 optind++;
+                 fprintf(log_file, " Device config :::: channel_allocation - %d \n", device_cfg_params.channel_allocation);
+                 fprintf(stderr, " Device config :::: channel_allocation - %d \n", device_cfg_params.channel_allocation);
+            }
             break;
         case 'h':
             usage();
@@ -2249,11 +2437,20 @@ int main(int argc, char* argv[]) {
             fprintf(log_file, "Saving pcm data to file: %s\n", proxy_params.acp.file_name);
 
         /* Set device connection state for HDMI */
-        if ((stream->output_device == AUDIO_DEVICE_OUT_AUX_DIGITAL) ||
-            (stream->output_device == AUDIO_DEVICE_OUT_BLUETOOTH_A2DP)) {
+        if ((stream->output_device & AUDIO_DEVICE_OUT_AUX_DIGITAL) ||
+            (stream->output_device & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP)) {
             char param[100] = {0};
-            snprintf(param, sizeof(param), "%s=%d", "connect", stream->output_device);
+            uint32_t device = 0;
+
+            if (stream->output_device & AUDIO_DEVICE_OUT_AUX_DIGITAL)
+                device = AUDIO_DEVICE_OUT_AUX_DIGITAL;
+            else if (stream->output_device & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP)
+                device = AUDIO_DEVICE_OUT_BLUETOOTH_A2DP;
+
+            snprintf(param, sizeof(param), "%s=%d", "connect", device);
             qahw_set_parameters(stream->qahw_out_hal_handle, param);
+            fprintf(log_file, "Sending Connect Event: %s\n", param);
+            fprintf(stderr, "Sending Connect Event: %s\n", param);
         }
 
         fprintf(log_file, "stream %d: File Type:%d\n", stream->stream_index, stream->filetype);
@@ -2288,6 +2485,16 @@ int main(int argc, char* argv[]) {
                 goto exit;
             }
         }
+
+        if (send_device_config) {
+            payload = (qahw_param_payload)device_cfg_params;
+            rc = qahw_set_param_data(stream->qahw_out_hal_handle, QAHW_PARAM_DEVICE_CONFIG, &payload);
+            if (rc != 0) {
+                fprintf(log_file, "Set Device Config Failed\n");
+                fprintf(stderr, "Set Device Config Failed\n");
+            }
+        }
+
         if (is_dual_main && i >= 2 ) {
             stream_param[i].play_later = true;
             fprintf(log_file, "stream %d: play_later = %d\n", i, stream_param[i].play_later);
