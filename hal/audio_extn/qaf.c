@@ -2858,7 +2858,8 @@ int audio_extn_qaf_init(struct audio_device *adev)
 #ifdef AUDIO_EXTN_IP_HDLR_ENABLED
 {
         int ret = 0;
-        ret = audio_extn_ip_hdlr_intf_init(&qaf_mod->ip_hdlr_hdl, lib_name, &qaf_mod->qaf_lib);
+        ret = audio_extn_ip_hdlr_intf_init(&qaf_mod->ip_hdlr_hdl, lib_name, &qaf_mod->qaf_lib,
+                                           adev, USECASE_AUDIO_PLAYBACK_OFFLOAD);
         if (ret < 0) {
             ERROR_MSG("audio_extn_ip_hdlr_intf_init failed, ret = %d", ret);
             continue;
