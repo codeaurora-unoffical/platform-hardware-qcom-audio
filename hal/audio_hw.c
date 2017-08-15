@@ -4286,11 +4286,11 @@ int adev_open_output_stream(struct audio_hw_device *dev,
     }
 
     /* Init use case and pcm_config */
-    if (((out->flags & AUDIO_OUTPUT_FLAG_DIRECT) &&
+    if ((out->flags & AUDIO_OUTPUT_FLAG_DIRECT) &&
         !(out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD ||
         (out->flags & AUDIO_OUTPUT_FLAG_DIRECT_PCM)) &&
         (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL ||
-        out->devices & AUDIO_DEVICE_OUT_PROXY)) || (out->flags & AUDIO_OUTPUT_FLAG_INTERACTIVE)) {
+        out->devices & AUDIO_DEVICE_OUT_PROXY)) {
 
         pthread_mutex_lock(&adev->lock);
         if (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL) {
@@ -4318,17 +4318,11 @@ int adev_open_output_stream(struct audio_hw_device *dev,
         out->channel_mask = config->channel_mask;
         out->sample_rate = config->sample_rate;
         out->format = config->format;
-
-        if (out->flags & AUDIO_OUTPUT_FLAG_INTERACTIVE) {
-            out->usecase = get_interactive_usecase(adev);
-            out->config = pcm_config_low_latency;
-        } else {
-            out->usecase = USECASE_AUDIO_PLAYBACK_MULTI_CH;
-            out->config = pcm_config_hdmi_multi;
-            out->config.rate = config->sample_rate;
-            out->config.channels = audio_channel_count_from_out_mask(out->channel_mask);
-            out->config.period_size = HDMI_MULTI_PERIOD_BYTES / (out->config.channels * 2);
-        }
+        out->usecase = USECASE_AUDIO_PLAYBACK_MULTI_CH;
+        out->config = pcm_config_hdmi_multi;
+        out->config.rate = config->sample_rate;
+        out->config.channels = audio_channel_count_from_out_mask(out->channel_mask);
+        out->config.period_size = HDMI_MULTI_PERIOD_BYTES / (out->config.channels * 2);
     } else if ((out->dev->mode == AUDIO_MODE_IN_COMMUNICATION || voice_extn_compress_voip_is_active(out->dev)) &&
                (out->flags == (AUDIO_OUTPUT_FLAG_DIRECT | AUDIO_OUTPUT_FLAG_VOIP_RX)) &&
                (voice_extn_compress_voip_is_config_supported(config))) {
@@ -4626,7 +4620,10 @@ int adev_open_output_stream(struct audio_hw_device *dev,
 
         channels = audio_channel_count_from_out_mask(out->channel_mask);
 
-        if (out->flags & AUDIO_OUTPUT_FLAG_RAW) {
+        if (out->flags & AUDIO_OUTPUT_FLAG_INTERACTIVE) {
+            out->usecase = get_interactive_usecase(adev);
+            out->config = pcm_config_low_latency;
+        } else if (out->flags & AUDIO_OUTPUT_FLAG_RAW) {
             out->usecase = USECASE_AUDIO_PLAYBACK_ULL;
             out->realtime = may_use_noirq_mode(adev, USECASE_AUDIO_PLAYBACK_ULL,
                                                out->flags);

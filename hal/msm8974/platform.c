@@ -5816,12 +5816,7 @@ int platform_set_stream_pan_scale_params(void *platform,
     int iter_i = 0;
     int iter_j = 0;
     int length = 0;
-    int pan_scale_data[MAX_LENGTH_MIXER_CONTROL_IN_INT] = {0};
-
-    if (sizeof(mm_params) > MAX_LENGTH_MIXER_CONTROL_IN_INT) {
-        ret = -EINVAL;
-        goto end;
-    }
+    int *pan_scale_data = NULL;
 
     snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
                           "Audio Stream %d Pan Scale Control", snd_id);
@@ -5832,6 +5827,11 @@ int platform_set_stream_pan_scale_params(void *platform,
         ALOGE("%s: Could not get ctl for mixer cmd - %s",
               __func__, mixer_ctl_name);
         ret = -EINVAL;
+        goto end;
+    }
+    pan_scale_data = (int* ) calloc(1, sizeof(mm_params));
+    if (!pan_scale_data) {
+        ret = -ENOMEM;
         goto end;
     }
     pan_scale_data[length++] = mm_params.num_output_channels;
@@ -5867,6 +5867,8 @@ int platform_set_stream_pan_scale_params(void *platform,
 
     ret = mixer_ctl_set_array(ctl, pan_scale_data, length);
 end:
+    if (pan_scale_data)
+        free(pan_scale_data);
     return ret;
 }
 
@@ -5879,19 +5881,12 @@ int platform_set_stream_downmix_params(void *platform,
     struct audio_device *adev = my_data->adev;
     struct mixer_ctl *ctl;
     char mixer_ctl_name[MIXER_PATH_MAX_LENGTH] = {0};
-    int downmix_param_data[MAX_LENGTH_MIXER_CONTROL_IN_INT] = {0};
+    int *downmix_param_data = NULL;
     int ret = 0;
     int iter_i = 0;
     int iter_j = 0;
     int length = 0;
     int be_idx = 0;
-
-    if ((sizeof(mm_params) +
-         sizeof(be_idx)) >
-        MAX_LENGTH_MIXER_CONTROL_IN_INT) {
-        ret = -EINVAL;
-        goto end;
-    }
 
     snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
                           "Audio Device %d Downmix Control", snd_id);
@@ -5904,8 +5899,13 @@ int platform_set_stream_downmix_params(void *platform,
         ret = -EINVAL;
     }
 
+    downmix_param_data = (int* ) calloc(1, sizeof(mm_params) + sizeof(be_idx));
+    if (!downmix_param_data) {
+        ret = -ENOMEM;
+        goto end;
+    }
     be_idx = platform_get_snd_device_backend_index(snd_device);
-    downmix_param_data[length]   = be_idx;
+    downmix_param_data[length++] = be_idx;
     downmix_param_data[length++] = mm_params.num_output_channels;
     downmix_param_data[length++] = mm_params.num_input_channels;
 
@@ -5940,6 +5940,8 @@ int platform_set_stream_downmix_params(void *platform,
 
     ret = mixer_ctl_set_array(ctl, downmix_param_data, length);
 end:
+    if (downmix_param_data)
+        free(downmix_param_data);
     return ret;
 }
 
