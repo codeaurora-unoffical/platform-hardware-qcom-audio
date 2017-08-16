@@ -451,6 +451,15 @@ bool audio_extn_passthru_is_passthrough_stream(struct stream_out *out)
     return false;
 }
 
+bool audio_extn_passthru_is_direct_passthrough(struct stream_out *out)
+{
+    if (((out != NULL) && audio_extn_passthru_is_passthrough_stream(out)) &&
+          !audio_extn_passthru_is_convert_supported(out->dev, out))
+        return true;
+    else
+        return false;
+}
+
 int audio_extn_passthru_get_buffer_size(audio_offload_info_t* info)
 {
     uint32_t fragment_size = MIN_COMPRESS_PASSTHROUGH_FRAGMENT_SIZE;
