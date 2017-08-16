@@ -224,7 +224,7 @@ enum {
 #define MULTIMEDIA3_PCM_DEVICE 4
 #define FM_PLAYBACK_PCM_DEVICE 5
 #define FM_CAPTURE_PCM_DEVICE  6
-#define HFP_PCM_RX 52
+#define HFP_PCM_RX 24
 
 #define INCALL_MUSIC_UPLINK_PCM_DEVICE 1
 
@@ -346,8 +346,8 @@ enum {
 #define HFP_SCO_RX 28
 #define HFP_ASM_RX_TX 29
 #else
-#define HFP_SCO_RX 23
-#define HFP_ASM_RX_TX 24
+#define HFP_PCM_UPLINK 24
+#define HFP_PCM_DOWNLINK 13
 #endif
 
 #ifdef PLATFORM_APQ8084

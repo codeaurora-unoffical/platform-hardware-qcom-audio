@@ -1,5 +1,5 @@
 /* hfp.c
-Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -60,23 +60,23 @@ static int32_t start_hfp(struct audio_device *adev,
 static int32_t stop_hfp(struct audio_device *adev);
 
 struct hfp_module {
-    struct pcm *hfp_sco_rx;
-    struct pcm *hfp_sco_tx;
-    struct pcm *hfp_pcm_rx;
-    struct pcm *hfp_pcm_tx;
+    struct pcm *hfp_ul_rx;
+    struct pcm *hfp_ul_tx;
+    struct pcm *hfp_dl_rx;
+    struct pcm *hfp_dl_tx;
     bool is_hfp_running;
     float hfp_volume;
     audio_usecase_t ucid;
 };
 
 static struct hfp_module hfpmod = {
-    .hfp_sco_rx = NULL,
-    .hfp_sco_tx = NULL,
-    .hfp_pcm_rx = NULL,
-    .hfp_pcm_tx = NULL,
+    .hfp_ul_rx = NULL,
+    .hfp_ul_tx = NULL,
+    .hfp_dl_rx = NULL,
+    .hfp_dl_tx = NULL,
     .hfp_volume = 0,
     .is_hfp_running = 0,
-    .ucid = USECASE_AUDIO_HFP_SCO,
+    .ucid = USECASE_AUDIO_HFP_SCO_UPLINK,
 };
 static struct pcm_config pcm_config_hfp = {
     .channels = 1,
@@ -93,7 +93,8 @@ static int32_t hfp_set_volume(struct audio_device *adev, float value)
 {
     int32_t vol, ret = 0;
     struct mixer_ctl *ctl;
-    const char *mixer_ctl_name = HFP_RX_VOLUME;
+    char mixer_ctl_name[128];
+    int pcm_device_id;
 
     ALOGV("%s: entry", __func__);
     ALOGD("%s: (%f)\n", __func__, value);
@@ -114,6 +115,23 @@ static int32_t hfp_set_volume(struct audio_device *adev, float value)
     }
 
     ALOGD("%s: Setting HFP volume to %d \n", __func__, vol);
+
+    switch (hfpmod.ucid) {
+    case USECASE_AUDIO_HFP_SCO_UPLINK:
+        pcm_device_id = platform_get_pcm_device_id(USECASE_AUDIO_HFP_SCO_DOWNLINK,
+                                                   PCM_PLAYBACK);
+        break;
+    case USECASE_AUDIO_HFP_SCO_WB_UPLINK:
+        pcm_device_id = platform_get_pcm_device_id(USECASE_AUDIO_HFP_SCO_WB_DOWNLINK,
+                                                   PCM_PLAYBACK);
+        break;
+    default:
+        ALOGE("%s: Invalid use-case %d", __func__, hfpmod.ucid);
+        return -EINVAL;
+    }
+
+    snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
+             "Playback %d Volume", pcm_device_id);
     ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
     if (!ctl) {
         ALOGE("%s: Could not get ctl for mixer cmd - %s",
@@ -133,104 +151,129 @@ static int32_t start_hfp(struct audio_device *adev,
                          struct str_parms *parms __unused)
 {
     int32_t i, ret = 0;
-    struct audio_usecase *uc_info;
-    int32_t pcm_dev_rx_id, pcm_dev_tx_id, pcm_dev_asm_rx_id, pcm_dev_asm_tx_id;
+    struct audio_usecase *uc_uplink_info;
+    struct audio_usecase uc_downlink_info;
+    int32_t pcm_ul_rx_id, pcm_ul_tx_id, pcm_dl_rx_id, pcm_dl_tx_id;
 
     ALOGD("%s: enter", __func__);
 
-    uc_info = (struct audio_usecase *)calloc(1, sizeof(struct audio_usecase));
+    uc_uplink_info = (struct audio_usecase *)calloc(1, sizeof(struct audio_usecase));
 
-    if (!uc_info)
+    if (!uc_uplink_info)
         return -ENOMEM;
 
-    uc_info->id = hfpmod.ucid;
-    uc_info->type = PCM_HFP_CALL;
-    uc_info->stream.out = adev->primary_output;
-    uc_info->devices = adev->primary_output->devices;
-    uc_info->in_snd_device = SND_DEVICE_NONE;
-    uc_info->out_snd_device = SND_DEVICE_NONE;
+    uc_uplink_info->id = hfpmod.ucid;
+    uc_uplink_info->type = PCM_HFP_CALL;
+    uc_uplink_info->stream.out = adev->primary_output;
+    uc_uplink_info->devices = adev->primary_output->devices;
+    uc_uplink_info->in_snd_device = SND_DEVICE_NONE;
+    uc_uplink_info->out_snd_device = SND_DEVICE_NONE;
 
-    list_add_tail(&adev->usecase_list, &uc_info->list);
+    list_add_tail(&adev->usecase_list, &uc_uplink_info->list);
 
     select_devices(adev, hfpmod.ucid);
+    memcpy(&uc_downlink_info, uc_uplink_info, sizeof(struct audio_usecase));
 
-    pcm_dev_rx_id = platform_get_pcm_device_id(uc_info->id, PCM_PLAYBACK);
-    pcm_dev_tx_id = platform_get_pcm_device_id(uc_info->id, PCM_CAPTURE);
-    pcm_dev_asm_rx_id = HFP_ASM_RX_TX;
-    pcm_dev_asm_tx_id = HFP_ASM_RX_TX;
-    if (pcm_dev_rx_id < 0 || pcm_dev_tx_id < 0 ||
-        pcm_dev_asm_rx_id < 0 || pcm_dev_asm_tx_id < 0 ) {
-        ALOGE("%s: Invalid PCM devices (rx: %d tx: %d asm: rx tx %d) for the usecase(%d)",
-              __func__, pcm_dev_rx_id, pcm_dev_tx_id, pcm_dev_asm_rx_id, uc_info->id);
+    switch (uc_uplink_info->id) {
+    case USECASE_AUDIO_HFP_SCO_UPLINK:
+        uc_downlink_info.id = USECASE_AUDIO_HFP_SCO_DOWNLINK;
+        break;
+    case USECASE_AUDIO_HFP_SCO_WB_UPLINK:
+        uc_downlink_info.id = USECASE_AUDIO_HFP_SCO_WB_DOWNLINK;
+        break;
+    default:
+        ALOGE("%s: Invalid use-case %d", __func__, uc_uplink_info->id);
+        ret = -EINVAL;
+        goto exit;
+    }
+
+    pcm_ul_rx_id = platform_get_pcm_device_id(uc_uplink_info->id, PCM_PLAYBACK);
+    pcm_ul_tx_id = platform_get_pcm_device_id(uc_uplink_info->id, PCM_CAPTURE);
+    pcm_dl_rx_id = platform_get_pcm_device_id(uc_downlink_info.id, PCM_PLAYBACK);
+    pcm_dl_tx_id = platform_get_pcm_device_id(uc_downlink_info.id, PCM_CAPTURE);
+    if (pcm_ul_rx_id < 0 || pcm_ul_tx_id < 0 ||
+        pcm_dl_rx_id < 0 || pcm_dl_tx_id < 0 ) {
+        ALOGE("%s: Invalid PCM devices (UL: rx: %d tx: %d DL: rx: %d tx %d) for the usecase(%d)",
+              __func__, pcm_ul_rx_id, pcm_ul_tx_id, pcm_dl_rx_id, pcm_dl_tx_id, hfpmod.ucid);
         ret = -EIO;
         goto exit;
     }
 
-    ALOGV("%s: HFP PCM devices (hfp rx tx: %d pcm rx tx: %d) for the usecase(%d)",
-              __func__, pcm_dev_rx_id, pcm_dev_tx_id, uc_info->id);
+    ALOGV("%s: HFP UL PCM devices (UL pcm rx: %d UL pcm tx: %d) for the usecase(%d)",
+              __func__, pcm_ul_rx_id, pcm_ul_tx_id, hfpmod.ucid);
 
-    ALOGV("%s: Opening PCM playback device card_id(%d) device_id(%d)",
-          __func__, adev->snd_card, pcm_dev_rx_id);
-    hfpmod.hfp_sco_rx = pcm_open(adev->snd_card,
-                                  pcm_dev_asm_rx_id,
+    if ((uc_uplink_info->out_snd_device != SND_DEVICE_NONE) ||
+        (uc_uplink_info->in_snd_device != SND_DEVICE_NONE)) {
+        if (audio_extn_ext_hw_plugin_usecase_start(adev->ext_hw_plugin, uc_uplink_info))
+            ALOGE("%s: failed to start ext hw plugin", __func__);
+    }
+    ALOGD("%s: Opening PCM playback device card_id(%d) device_id(%d)",
+          __func__, adev->snd_card, pcm_ul_rx_id);
+    hfpmod.hfp_ul_rx = pcm_open(adev->snd_card,
+                                  pcm_ul_rx_id,
                                   PCM_OUT, &pcm_config_hfp);
-    if (hfpmod.hfp_sco_rx && !pcm_is_ready(hfpmod.hfp_sco_rx)) {
-        ALOGE("%s: %s", __func__, pcm_get_error(hfpmod.hfp_sco_rx));
+    if (hfpmod.hfp_ul_rx && !pcm_is_ready(hfpmod.hfp_ul_rx)) {
+        ALOGE("%s: %s", __func__, pcm_get_error(hfpmod.hfp_ul_rx));
         ret = -EIO;
         goto exit;
     }
     ALOGD("%s: Opening PCM capture device card_id(%d) device_id(%d)",
-          __func__, adev->snd_card, pcm_dev_tx_id);
-    hfpmod.hfp_pcm_rx = pcm_open(adev->snd_card,
-                                   pcm_dev_rx_id,
-                                   PCM_OUT, &pcm_config_hfp);
-    if (hfpmod.hfp_pcm_rx && !pcm_is_ready(hfpmod.hfp_pcm_rx)) {
-        ALOGE("%s: %s", __func__, pcm_get_error(hfpmod.hfp_pcm_rx));
-        ret = -EIO;
-        goto exit;
-    }
-    hfpmod.hfp_sco_tx = pcm_open(adev->snd_card,
-                                  pcm_dev_asm_tx_id,
+          __func__, adev->snd_card, pcm_ul_tx_id);
+    hfpmod.hfp_ul_tx = pcm_open(adev->snd_card,
+                                  pcm_ul_tx_id,
                                   PCM_IN, &pcm_config_hfp);
-    if (hfpmod.hfp_sco_tx && !pcm_is_ready(hfpmod.hfp_sco_tx)) {
-        ALOGE("%s: %s", __func__, pcm_get_error(hfpmod.hfp_sco_tx));
+    if (hfpmod.hfp_ul_tx && !pcm_is_ready(hfpmod.hfp_ul_tx)) {
+        ALOGE("%s: %s", __func__, pcm_get_error(hfpmod.hfp_ul_tx));
         ret = -EIO;
         goto exit;
     }
-    ALOGV("%s: Opening PCM capture device card_id(%d) device_id(%d)",
-          __func__, adev->snd_card, pcm_dev_tx_id);
-    hfpmod.hfp_pcm_tx = pcm_open(adev->snd_card,
-                                   pcm_dev_tx_id,
+    if (pcm_start(hfpmod.hfp_ul_rx) < 0) {
+        ALOGE("%s: pcm start for hfp ul rx failed", __func__);
+        ret = -EINVAL;
+        goto exit;
+    }
+    if (pcm_start(hfpmod.hfp_ul_tx) < 0) {
+        ALOGE("%s: pcm start for hfp ul tx failed", __func__);
+        ret = -EINVAL;
+        goto exit;
+    }
+
+    ALOGV("%s: HFP DL PCM devices (DL pcm rx: %d DL pcm tx: %d) for the usecase(%d)",
+          __func__, pcm_dl_rx_id, pcm_dl_tx_id, uc_downlink_info.id);
+
+    //Calibrate the downlink
+    audio_extn_utils_update_stream_app_type_cfg_for_usecase(adev, &uc_downlink_info);
+    audio_extn_utils_send_audio_calibration(adev, &uc_downlink_info);
+    audio_extn_utils_send_app_type_cfg(adev, &uc_downlink_info);
+
+    ALOGD("%s: Opening PCM playback device card_id(%d) device_id(%d)",
+          __func__, adev->snd_card, pcm_dl_rx_id);
+    hfpmod.hfp_dl_rx = pcm_open(adev->snd_card,
+                                   pcm_dl_rx_id,
+                                   PCM_OUT, &pcm_config_hfp);
+    if (hfpmod.hfp_dl_rx && !pcm_is_ready(hfpmod.hfp_dl_rx)) {
+        ALOGE("%s: %s", __func__, pcm_get_error(hfpmod.hfp_dl_rx));
+        ret = -EIO;
+        goto exit;
+    }
+    ALOGD("%s: Opening PCM capture device card_id(%d) device_id(%d)",
+          __func__, adev->snd_card, pcm_dl_tx_id);
+    hfpmod.hfp_dl_tx = pcm_open(adev->snd_card,
+                                   pcm_dl_tx_id,
                                    PCM_IN, &pcm_config_hfp);
-    if (hfpmod.hfp_pcm_tx && !pcm_is_ready(hfpmod.hfp_pcm_tx)) {
-        ALOGE("%s: %s", __func__, pcm_get_error(hfpmod.hfp_pcm_tx));
+    if (hfpmod.hfp_dl_tx && !pcm_is_ready(hfpmod.hfp_dl_tx)) {
+        ALOGE("%s: %s", __func__, pcm_get_error(hfpmod.hfp_dl_tx));
         ret = -EIO;
         goto exit;
     }
 
-    if ((uc_info->out_snd_device != SND_DEVICE_NONE) ||
-        (uc_info->in_snd_device != SND_DEVICE_NONE)) {
-        if (audio_extn_ext_hw_plugin_usecase_start(adev->ext_hw_plugin, uc_info))
-            ALOGE("%s: failed to start ext hw plugin", __func__);
-    }
-
-    if (pcm_start(hfpmod.hfp_sco_rx) < 0) {
-        ALOGE("%s: pcm start for hfp sco rx failed", __func__);
+    if (pcm_start(hfpmod.hfp_dl_rx) < 0) {
+        ALOGE("%s: pcm start for hfp dl rx failed", __func__);
         ret = -EINVAL;
         goto exit;
     }
-    if (pcm_start(hfpmod.hfp_sco_tx) < 0) {
-        ALOGE("%s: pcm start for hfp sco tx failed", __func__);
-        ret = -EINVAL;
-        goto exit;
-    }
-    if (pcm_start(hfpmod.hfp_pcm_rx) < 0) {
-        ALOGE("%s: pcm start for hfp pcm rx failed", __func__);
-        ret = -EINVAL;
-        goto exit;
-    }
-    if (pcm_start(hfpmod.hfp_pcm_tx) < 0) {
-        ALOGE("%s: pcm start for hfp pcm tx failed", __func__);
+    if (pcm_start(hfpmod.hfp_dl_tx) < 0) {
+        ALOGE("%s: pcm start for hfp dl tx failed", __func__);
         ret = -EINVAL;
         goto exit;
     }
@@ -256,21 +299,21 @@ static int32_t stop_hfp(struct audio_device *adev)
     hfpmod.is_hfp_running = false;
 
     /* 1. Close the PCM devices */
-    if (hfpmod.hfp_sco_rx) {
-        pcm_close(hfpmod.hfp_sco_rx);
-        hfpmod.hfp_sco_rx = NULL;
+    if (hfpmod.hfp_ul_rx) {
+        pcm_close(hfpmod.hfp_ul_rx);
+        hfpmod.hfp_ul_rx = NULL;
     }
-    if (hfpmod.hfp_sco_tx) {
-        pcm_close(hfpmod.hfp_sco_tx);
-        hfpmod.hfp_sco_tx = NULL;
+    if (hfpmod.hfp_ul_tx) {
+        pcm_close(hfpmod.hfp_ul_tx);
+        hfpmod.hfp_ul_tx = NULL;
     }
-    if (hfpmod.hfp_pcm_rx) {
-        pcm_close(hfpmod.hfp_pcm_rx);
-        hfpmod.hfp_pcm_rx = NULL;
+    if (hfpmod.hfp_dl_rx) {
+        pcm_close(hfpmod.hfp_dl_rx);
+        hfpmod.hfp_dl_rx = NULL;
     }
-    if (hfpmod.hfp_pcm_tx) {
-        pcm_close(hfpmod.hfp_pcm_tx);
-        hfpmod.hfp_pcm_tx = NULL;
+    if (hfpmod.hfp_dl_tx) {
+        pcm_close(hfpmod.hfp_dl_tx);
+        hfpmod.hfp_dl_tx = NULL;
     }
 
     uc_info = get_usecase_from_list(adev, hfpmod.ucid);
@@ -341,10 +384,10 @@ void audio_extn_hfp_set_parameters(struct audio_device *adev, struct str_parms *
     if (ret >= 0) {
            rate = atoi(value);
            if (rate == 8000){
-               hfpmod.ucid = USECASE_AUDIO_HFP_SCO;
+               hfpmod.ucid = USECASE_AUDIO_HFP_SCO_UPLINK;
                pcm_config_hfp.rate = rate;
            } else if (rate == 16000){
-               hfpmod.ucid = USECASE_AUDIO_HFP_SCO_WB;
+               hfpmod.ucid = USECASE_AUDIO_HFP_SCO_WB_UPLINK;
                pcm_config_hfp.rate = rate;
            } else
                ALOGE("Unsupported rate..");

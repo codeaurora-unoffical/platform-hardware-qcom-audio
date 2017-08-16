@@ -176,8 +176,8 @@ static int32_t ext_hw_plugin_check_plugin_usecase(audio_usecase_t hal_usecase,
     case USECASE_AUDIO_RECORD_LOW_LATENCY:
         *plugin_usecase = AUDIO_HAL_PLUGIN_USECASE_DEFAULT_CAPTURE;
         break;
-    case USECASE_AUDIO_HFP_SCO:
-    case USECASE_AUDIO_HFP_SCO_WB:
+    case USECASE_AUDIO_HFP_SCO_UPLINK:
+    case USECASE_AUDIO_HFP_SCO_WB_UPLINK:
         *plugin_usecase = AUDIO_HAL_PLUGIN_USECASE_HFP_VOICE_CALL;
         break;
     case USECASE_VOICE_CALL:

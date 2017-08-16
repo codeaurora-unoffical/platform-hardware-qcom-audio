@@ -671,30 +671,40 @@ void audio_extn_utils_update_stream_app_type_cfg_for_usecase(
         ALOGV("%s Selected apptype: %d", __func__, usecase->stream.in->app_type_cfg.app_type);
         break;
     case PCM_HFP_CALL:
-        /* HFP usecase: ASM loopback from TDM_TX to PCM_RX
-           RX sample rate is different between HFP_SCO NB and WB */
+        /* HFP usecase: ASM loopbacks uplink from TDM_TX to PCM_RX
+           and downlink from PCM_TX to TDM_RX.
+           HFP PCM sample rate NB: 8000 and WB: 16000 */
         switch (usecase->id) {
-        case USECASE_AUDIO_HFP_SCO:
+        case USECASE_AUDIO_HFP_SCO_UPLINK:
             usecase->out_app_type_cfg.sample_rate = 8000;
+            sample_rate = 16000;
+            ALOGV("%s: Allowing HFP uplink on input device at sampling rate: %d",
+                  __func__, sample_rate);
             break;
-        case USECASE_AUDIO_HFP_SCO_WB:
+        case USECASE_AUDIO_HFP_SCO_WB_UPLINK:
             usecase->out_app_type_cfg.sample_rate = 16000;
+            sample_rate = 16000;
+            ALOGV("%s: Allowing HFP WB uplink on input device at sampling rate: %d",
+                  __func__, sample_rate);
+            break;
+        case USECASE_AUDIO_HFP_SCO_DOWNLINK:
+            usecase->out_app_type_cfg.sample_rate = CODEC_BACKEND_DEFAULT_SAMPLE_RATE;
+            sample_rate = 8000;
+            break;
+        case USECASE_AUDIO_HFP_SCO_WB_DOWNLINK:
+            usecase->out_app_type_cfg.sample_rate = CODEC_BACKEND_DEFAULT_SAMPLE_RATE;
+            sample_rate = 16000;
             break;
         default:
             ALOGE("%s: usecase id (%d) not supported, use default",
                 __func__, usecase->id);
             usecase->out_app_type_cfg.sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
+            sample_rate = CODEC_BACKEND_DEFAULT_SAMPLE_RATE;
         }
         /* update out_app_type_cfg */
         usecase->out_app_type_cfg.bit_width = 16;
         usecase->out_app_type_cfg.app_type = platform_get_default_app_type_v2(adev->platform, PCM_PLAYBACK);
         /* update in_app_type_cfg */
-        if (platform_get_eccarstate(adev->platform)) {
-            sample_rate = 16000;
-            ALOGV("%s: Allowing EC Car State on input device at sampling rate: %d",
-                __func__, sample_rate);
-        } else
-            sample_rate = CODEC_BACKEND_DEFAULT_SAMPLE_RATE;
         audio_extn_utils_update_stream_input_app_type_cfg(adev->platform,
                                                 &adev->streams_input_cfg_list,
                                                 AUDIO_DEVICE_IN_DEFAULT,
@@ -780,8 +790,10 @@ int audio_extn_utils_send_app_type_cfg(struct audio_device *adev,
         (usecase->id != USECASE_AUDIO_PLAYBACK_DRIVER_SIDE) &&
         (!is_offload_usecase(usecase->id)) &&
         (usecase->type != PCM_CAPTURE) &&
-        (usecase->id != USECASE_AUDIO_HFP_SCO) &&
-        (usecase->id != USECASE_AUDIO_HFP_SCO_WB) &&
+        (usecase->id != USECASE_AUDIO_HFP_SCO_UPLINK) &&
+        (usecase->id != USECASE_AUDIO_HFP_SCO_WB_UPLINK) &&
+        (usecase->id != USECASE_AUDIO_HFP_SCO_DOWNLINK) &&
+        (usecase->id != USECASE_AUDIO_HFP_SCO_WB_DOWNLINK) &&
         (usecase->id != USECASE_ICC_CALL) &&
         (usecase->id != USECASE_ANC_LOOPBACK)) {
         ALOGV("%s: a rx/tx/loopback path where app type cfg is not required %d", __func__, usecase->id);
@@ -806,11 +818,7 @@ int audio_extn_utils_send_app_type_cfg(struct audio_device *adev,
         acdb_dev_id = platform_get_usecase_acdb_id(adev->platform, usecase, ACDB_DEV_TYPE_IN);
     } else if (usecase->type == PCM_HFP_CALL) {
         snd_device = usecase->out_snd_device;
-        if (usecase->id == USECASE_AUDIO_HFP_SCO)
-            uc_id_link = USECASE_AUDIO_HFP_SCO_LINK;
-        else if (usecase->id == USECASE_AUDIO_HFP_SCO_WB)
-            uc_id_link = USECASE_AUDIO_HFP_SCO_LINK_WB;
-        pcm_device_id = platform_get_pcm_device_id(uc_id_link, PCM_PLAYBACK);
+        pcm_device_id = platform_get_pcm_device_id(usecase->id, PCM_PLAYBACK);
         snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
             "Audio Stream %d App Type Cfg", pcm_device_id);
         acdb_dev_id = platform_get_usecase_acdb_id(adev->platform, usecase, ACDB_DEV_TYPE_OUT);

@@ -198,8 +198,8 @@ const char * const use_case_table[AUDIO_USECASE_MAX] = {
     [USECASE_AUDIO_RECORD_LOW_LATENCY] = "low-latency-record",
     [USECASE_AUDIO_RECORD_FM_VIRTUAL] = "fm-virtual-record",
     [USECASE_AUDIO_PLAYBACK_FM] = "play-fm",
-    [USECASE_AUDIO_HFP_SCO] = "hfp-sco",
-    [USECASE_AUDIO_HFP_SCO_WB] = "hfp-sco-wb",
+    [USECASE_AUDIO_HFP_SCO_UPLINK] = "hfp-sco",
+    [USECASE_AUDIO_HFP_SCO_WB_UPLINK] = "hfp-sco-wb",
     [USECASE_VOICE_CALL] = "voice-call",
 
     [USECASE_VOICE2_CALL] = "voice2-call",
@@ -1175,6 +1175,11 @@ int start_input_stream(struct stream_in *in)
     audio_extn_perf_lock_acquire();
     select_devices(adev, in->usecase);
 
+    if (uc_info->in_snd_device != SND_DEVICE_NONE) {
+        if (audio_extn_ext_hw_plugin_usecase_start(adev->ext_hw_plugin, uc_info))
+            ALOGE("%s: failed to start ext hw plugin", __func__);
+    }
+
     ALOGV("%s: Opening PCM device card_id(%d) device_id(%d), channels %d",
           __func__, adev->snd_card, in->pcm_device_id, in->config.channels);
 
@@ -1219,11 +1224,6 @@ int start_input_stream(struct stream_in *in)
     }
 
     audio_extn_perf_lock_release();
-
-    if (uc_info->in_snd_device != SND_DEVICE_NONE) {
-        if (audio_extn_ext_hw_plugin_usecase_start(adev->ext_hw_plugin, uc_info))
-            ALOGE("%s: failed to start ext hw plugin", __func__);
-    }
 
     ALOGD("%s: exit", __func__);
 
@@ -1693,6 +1693,11 @@ int start_output_stream(struct stream_out *out)
 
     select_devices(adev, out->usecase);
 
+    if (uc_info->out_snd_device != SND_DEVICE_NONE) {
+        if (audio_extn_ext_hw_plugin_usecase_start(adev->ext_hw_plugin, uc_info))
+            ALOGE("%s: failed to start ext hw plugin", __func__);
+    }
+
     ALOGV("%s: Opening PCM device card_id(%d) device_id(%d) format(%#x)",
           __func__, adev->snd_card, out->pcm_device_id, out->config.format);
     if (!is_offload_usecase(out->usecase)) {
@@ -1782,10 +1787,6 @@ int start_output_stream(struct stream_out *out)
         }
     }
 
-    if (uc_info->out_snd_device != SND_DEVICE_NONE) {
-        if (audio_extn_ext_hw_plugin_usecase_start(adev->ext_hw_plugin, uc_info))
-            ALOGE("%s: failed to start ext hw plugin", __func__);
-    }
 
     ALOGD("%s: exit", __func__);
 

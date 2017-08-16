@@ -68,11 +68,17 @@
         <usecase name="USECASE_COMPRESS_VOIP_CALL" type="out" acdb_id="94"/>
 
         <!-- PCM_HFP_CALL (ec_car_state=0) -->
-        <usecase name="USECASE_AUDIO_HFP_SCO" type="in" acdb_id="11"/>
-        <usecase name="USECASE_AUDIO_HFP_SCO" type="out" acdb_id="21"/>
+        <usecase name="USECASE_AUDIO_HFP_SCO_UPLINK" type="in" acdb_id="95"/>
+        <usecase name="USECASE_AUDIO_HFP_SCO_UPLINK" type="out" acdb_id="21"/>
 
-        <usecase name="USECASE_AUDIO_HFP_SCO_WB" type="in" acdb_id="11"/>
-        <usecase name="USECASE_AUDIO_HFP_SCO_WB" type="out" acdb_id="39"/>
+        <usecase name="USECASE_AUDIO_HFP_SCO_DOWNLINK" type="in" acdb_id="20"/>
+        <usecase name="USECASE_AUDIO_HFP_SCO_DOWNLINK" type="out" acdb_id="94"/>
+
+        <usecase name="USECASE_AUDIO_HFP_SCO_WB_UPLINK" type="in" acdb_id="95"/>
+        <usecase name="USECASE_AUDIO_HFP_SCO_WB_UPLINK" type="out" acdb_id="39"/>
+
+        <usecase name="USECASE_AUDIO_HFP_SCO_WB_DOWNLINK" type="in" acdb_id="38"/>
+        <usecase name="USECASE_AUDIO_HFP_SCO_WB_DOWNLINK" type="out" acdb_id="94"/>
 
         <!-- PCM_PLAYBACK (no HDMI) -->
         <usecase name="USECASE_AUDIO_PLAYBACK_DEEP_BUFFER" type="out" acdb_id="41"/>
