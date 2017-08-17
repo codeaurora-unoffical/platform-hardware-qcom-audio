@@ -4479,7 +4479,8 @@ int adev_open_output_stream(struct audio_hw_device *dev,
         }
 #endif
     } else if ((out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) ||
-               (out->flags == AUDIO_OUTPUT_FLAG_DIRECT)) {
+               (out->flags == AUDIO_OUTPUT_FLAG_DIRECT) ||
+               (out->flags & AUDIO_OUTPUT_FLAG_DIRECT_PCM)) {
         pthread_mutex_lock(&adev->lock);
         bool offline = (adev->card_status == CARD_STATUS_OFFLINE);
         pthread_mutex_unlock(&adev->lock);
@@ -4533,8 +4534,8 @@ int adev_open_output_stream(struct audio_hw_device *dev,
         out->stream.pause = out_pause;
         out->stream.resume = out_resume;
         out->stream.flush = out_flush;
+        out->stream.set_callback = out_set_callback;
         if (out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) {
-            out->stream.set_callback = out_set_callback;
             out->stream.drain = out_drain;
             out->usecase = get_offload_usecase(adev, true /* is_compress */);
             ALOGV("Compress Offload usecase .. usecase selected %d", out->usecase);

@@ -97,6 +97,14 @@
 //TODO: Need to handle for DTS
 #define QAF_DEEP_BUFFER_OUTPUT_PERIOD_SIZE 1536
 
+
+#ifndef AUDIO_OUTPUT_FLAG_MAIN
+#define AUDIO_OUTPUT_FLAG_MAIN 0x10000
+#endif
+#ifndef AUDIO_OUTPUT_FLAG_ASSOCIATED
+#define AUDIO_OUTPUT_FLAG_ASSOCIATED 0x20000
+#endif
+
 #include <stdlib.h>
 #include <pthread.h>
 #include <errno.h>
@@ -129,6 +137,8 @@
 #ifdef QAF_DUMP_ENABLED
 FILE *fp_output_writer_hdmi = NULL;
 #endif
+
+void set_hdmi_configuration_to_module();
 
 struct qaf_adsp_hdlr_config_state {
     struct audio_adsp_event event_params;
@@ -369,7 +379,7 @@ static uint32_t get_pcm_output_buffer_size_samples(struct qaf_module *qaf_mod)
 
 static int get_media_fmt_array_index_for_output_id(
         struct qaf_module* qaf_mod,
-        int output_id)
+        uint32_t output_id)
 {
     int i;
     for (i = 0; i < MAX_QAF_MODULE_OUT; i++) {
@@ -479,7 +489,7 @@ static int create_qaf_passthrough_stream()
 {
     DEBUG_MSG();
 
-    int ret = 0, k;
+    int ret = 0;
     struct stream_out *out = p_qaf->passthrough_in;
 
     if (!out) return -EINVAL;
@@ -575,7 +585,7 @@ static int qaf_send_offload_cmd_l(struct stream_out* out, int command)
 static int audio_extn_qaf_stream_stop(struct stream_out *out)
 {
     int ret = 0;
-    DEBUG_MSG("Output Stream 0x%x", out);
+    DEBUG_MSG("Output Stream 0x%p", out);
 
     if (!check_stream_state(out, RUN)) return ret;
 
@@ -812,7 +822,7 @@ static uint32_t qaf_get_pcm_offload_buffer_size(audio_offload_info_t* info,
     return fragment_size;
 }
 
-static uint32_t qaf_get_pcm_offload_input_buffer_size(info)
+static uint32_t qaf_get_pcm_offload_input_buffer_size(audio_offload_info_t* info)
 {
     return qaf_get_pcm_offload_buffer_size(info, MS12_PCM_IN_FRAGMENT_SIZE);
 }
@@ -1104,21 +1114,22 @@ static int qaf_out_flush(struct audio_stream_out* stream)
     DEBUG_MSG("Output Stream %p", out);
     lock_output_stream(out);
 
-    //If QAF passthrough is active then block the flush on module input streams.
-    if (p_qaf->passthrough_out) {
-        pthread_mutex_lock(&p_qaf->lock);
-        //If flush is received for the QAF passthrough stream then call the primary HAL api.
-        if (p_qaf->passthrough_in == out) {
-            status = p_qaf->passthrough_out->stream.flush(
-                    (struct audio_stream_out *)p_qaf->passthrough_out);
-            out->offload_state = OFFLOAD_STATE_IDLE;
+    if (!out->standby) {
+        //If QAF passthrough is active then block the flush on module input streams.
+        if (p_qaf->passthrough_out) {
+            pthread_mutex_lock(&p_qaf->lock);
+            //If flush is received for the QAF passthrough stream then call the primary HAL api.
+            if (p_qaf->passthrough_in == out) {
+                status = p_qaf->passthrough_out->stream.flush(
+                        (struct audio_stream_out *)p_qaf->passthrough_out);
+                out->offload_state = OFFLOAD_STATE_IDLE;
+            }
+            pthread_mutex_unlock(&p_qaf->lock);
+        } else {
+            //Flush the module input stream.
+            status = audio_extn_qaf_stream_flush(out);
         }
-        pthread_mutex_unlock(&p_qaf->lock);
-    } else {
-        //Flush the module input stream.
-        status = audio_extn_qaf_stream_flush(out);
     }
-
     unlock_output_stream(out);
     DEBUG_MSG("Exit");
     return status;
@@ -1199,7 +1210,7 @@ static void set_out_stream_channel_map(struct stream_out *out, audio_qaf_media_f
     if (media_fmt == NULL || out == NULL) {
         return;
     }
-    struct audio_out_channel_map_param chmap = {0};
+    struct audio_out_channel_map_param chmap = {0,{0}};
     int i = 0;
     chmap.channels = media_fmt->channels;
     for (i = 0; i < chmap.channels && i < AUDIO_CHANNEL_COUNT_MAX && i < AUDIO_QAF_MAX_CHANNELS;
@@ -1210,7 +1221,7 @@ static void set_out_stream_channel_map(struct stream_out *out, audio_qaf_media_f
 }
 
 /* Call back function for mm module. */
-static void notify_event_callback(audio_session_handle_t session_handle /*__unused*/,
+static void notify_event_callback(audio_session_handle_t session_handle __unused,
                                   void *prv_data,
                                   void *buf,
                                   audio_event_id_t event_id,
@@ -1227,7 +1238,7 @@ static void notify_event_callback(audio_session_handle_t session_handle /*__unus
      1.Open compress device for HDMI(PCM or AC3) based on current hdmi o/p format and write
      data to the HDMI device.
      */
-    int ret, i;
+    int ret;
     audio_output_flags_t flags;
     struct qaf_module* qaf_mod = (struct qaf_module*)prv_data;
     struct audio_stream_out *bt_stream = NULL;
@@ -1256,7 +1267,7 @@ static void notify_event_callback(audio_session_handle_t session_handle /*__unus
         audio_qaf_out_buffer_t *buf_payload = (audio_qaf_out_buffer_t*)buf;
         int index = -1;
 
-        if (size < sizeof(audio_qaf_out_buffer_t)) {
+        if ((uint32_t)size < sizeof(audio_qaf_out_buffer_t)) {
             ERROR_MSG("AUDIO_DATA_EVENT_V2 payload size is not sufficient.");
             return;
         }
@@ -1301,7 +1312,7 @@ static void notify_event_callback(audio_session_handle_t session_handle /*__unus
         audio_qaf_media_format_t *p_cached_fmt = NULL;
         int index = -1;
 
-        if (size < sizeof(audio_qaf_media_format_t)) {
+        if ( (uint32_t)size < sizeof(audio_qaf_media_format_t)) {
             ERROR_MSG("Size is not proper for the event AUDIO_OUTPUT_MEDIA_FORMAT_EVENT.");
             return ;
         }
@@ -1410,7 +1421,6 @@ static void notify_event_callback(audio_session_handle_t session_handle /*__unus
             /* CASE 2: Multi-Channel PCM output to HDMI.
              * If any other HDMI output is already enabled then this has to be dropped.
              */
-            bool create_mch_out_stream = false;
 
             if (p_qaf->passthrough_enabled) {
                 //Closing all the multi-Channel PCM HDMI output stream from QAF.
@@ -1793,7 +1803,7 @@ static int audio_extn_qaf_session_open(mm_module_type mod_type)
 {
     ALOGV("%s %d", __func__, __LINE__);
     unsigned char* license_data = NULL;
-    device_license_config_t lic_config = {0};
+    device_license_config_t lic_config = {NULL, 0, 0};
     int ret = -ENOSYS, size = 0;
     char value[PROPERTY_VALUE_MAX] = {0};
     struct qaf_module *qaf_mod = NULL;
@@ -2183,9 +2193,8 @@ static int qaf_destroy_offload_callback_thread(struct stream_out *out)
 /* Sets the stream set parameters (device routing information). */
 static int qaf_out_set_parameters(struct audio_stream *stream, const char *kvpairs)
 {
-    struct str_parms *parms, *new_parms;
+    struct str_parms *parms;
     char value[32];
-    char *new_kv_pairs;
     int val = 0;
     struct stream_out *out = (struct stream_out *)stream;
     int ret = 0;
@@ -2346,8 +2355,7 @@ int audio_extn_qaf_out_get_param_data(struct stream_out *out,
                              audio_extn_param_payload *payload)
 {
     int ret = -EINVAL, i;
-    struct stream_out *new_out;
-    struct audio_usecase *uc_info;
+    struct stream_out *new_out = NULL;
     struct qaf_module *qaf_mod = get_qaf_module_for_input_stream(out);
 
     if (!out || !qaf_mod || !payload) {
