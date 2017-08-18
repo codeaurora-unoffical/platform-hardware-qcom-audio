@@ -511,6 +511,7 @@ enum {
 #define audio_extn_passthru_set_parameters(a, p) (-ENOSYS)
 #define audio_extn_passthru_init(a) do {} while(0)
 #define audio_extn_passthru_should_standby(o) (1)
+#define audio_extn_passthru_update_dts_stream_configuration(out, buffer, bytes) (-ENOSYS)
 #else
 bool audio_extn_passthru_is_convert_supported(struct audio_device *adev,
                                                  struct stream_out *out);
@@ -534,6 +535,8 @@ bool audio_extn_passthru_is_enabled();
 bool audio_extn_passthru_is_active();
 void audio_extn_passthru_init(struct audio_device *adev);
 bool audio_extn_passthru_should_standby(struct stream_out *out);
+int audio_extn_passthru_update_dts_stream_configuration(struct stream_out *out,
+        const void *buffer, size_t bytes);
 #endif
 
 #ifndef HFP_ENABLED
