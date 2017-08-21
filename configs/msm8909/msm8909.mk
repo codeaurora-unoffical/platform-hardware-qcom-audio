@@ -3,22 +3,19 @@
 
 BOARD_USES_ALSA_AUDIO := true
 
-#TODO move this cchange to device/qcom/msm8909
-
 ifneq ($(TARGET_USES_AOSP_FOR_AUDIO), true)
 USE_CUSTOM_AUDIO_POLICY := 1
 AUDIO_FEATURE_ENABLED_COMPRESS_VOIP := true
 AUDIO_FEATURE_ENABLED_EXTN_FORMATS := true
-AUDIO_FEATURE_ENABLED_EXTN_FLAC_DECODER := true
+#TODO enable flac once resolving conflict with google decoder
+#AUDIO_FEATURE_ENABLED_EXTN_FLAC_DECODER := true
 AUDIO_FEATURE_ENABLED_EXTN_RESAMPLER := true
 AUDIO_FEATURE_ENABLED_FM_POWER_OPT := true
 AUDIO_FEATURE_ENABLED_PROXY_DEVICE := true
-#TODO Enable SSR
-#AUDIO_FEATURE_ENABLED_SSR := true
+AUDIO_FEATURE_ENABLED_SSR := true
 AUDIO_FEATURE_ENABLED_VOICE_CONCURRENCY := true
 AUDIO_FEATURE_ENABLED_RECORD_PLAY_CONCURRENCY := true
-#TODO Enable PM
-#AUDIO_FEATURE_ENABLED_PM_SUPPORT := true
+AUDIO_FEATURE_ENABLED_PM_SUPPORT := true
 AUDIO_FEATURE_ENABLED_DS2_DOLBY_DAP := false
 MM_AUDIO_ENABLED_SAFX := true
 DOLBY_ENABLE := false
@@ -134,6 +131,10 @@ vendor.audio.sys.init=false
 #Enable DS2 feature for Dolby
 PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.dolby.ds2.enabled=true
+
+#split  a2dp
+PRODUCT_PROPERTY_OVERRIDES += \
+persist.vendor.bt.enable.splita2dp=false
 
 PRODUCT_PACKAGES += \
     android.hardware.audio@2.0-service \
