@@ -759,8 +759,7 @@ static ssize_t qaf_out_write(struct audio_stream_out *stream, const void *buffer
     DEBUG_MSG_VV("ret [%d]", (int)ret);
 
     if (ret >= 0) {
-        bytes = ret;
-        out->written += bytes / ((popcount(out->channel_mask) * sizeof(short)));
+        out->written += ret / ((popcount(out->channel_mask) * sizeof(short)));
     }
 
 
@@ -780,6 +779,11 @@ exit:
                    / audio_stream_out_frame_size(stream)
                    / out->stream.common.get_sample_rate(&out->stream.common));
         }
+    } else if (ret < bytes) {
+        //partial buffer copied to the module.
+        DEBUG_MSG_VV("Not enough space available in mm module, post msg to cb thread");
+        (void)qaf_send_offload_cmd_l(out, OFFLOAD_CMD_WAIT_FOR_BUFFER);
+        bytes = ret;
     }
     return bytes;
 }
@@ -1920,13 +1924,16 @@ static int qaf_stream_open(struct stream_out *out,
     struct qaf_module* qaf_mod = NULL;
     DEBUG_MSG("Flags 0x%x, Device 0x%x", flags, devices);
 
-    if (mmtype >= MAX_MM_MODULE_TYPE
-        || p_qaf->qaf_mod[mmtype].qaf_audio_session_open == NULL
-        || p_qaf->qaf_mod[mmtype].qaf_audio_stream_open == NULL) {
+    if (mmtype >= MAX_MM_MODULE_TYPE) {
         ERROR_MSG("Unsupported Stream");
         return -ENOTSUP;
     }
 
+    if (p_qaf->qaf_mod[mmtype].qaf_audio_session_open == NULL ||
+        p_qaf->qaf_mod[mmtype].qaf_audio_stream_open == NULL) {
+        ERROR_MSG("Session or Stream is NULL");
+        return status;
+    }
     //Open the module session, if not opened already.
     status = audio_extn_qaf_session_open(mmtype, out);
     qaf_mod = &(p_qaf->qaf_mod[mmtype]);
@@ -2141,7 +2148,7 @@ static void *qaf_offload_thread_loop(void *context)
                         parms = str_parms_create_str(kvpairs);
                         ret = str_parms_get_int(parms, "buf_available", &value);
                         if (ret >= 0) {
-                            if (value >= (int)out->compr_config.fragment_size) {
+                            if (value > 0) {
                                 DEBUG_MSG_VV("buffer available");
                                 str_parms_destroy(parms);
                                 parms = NULL;
@@ -2854,7 +2861,8 @@ int audio_extn_qaf_init(struct audio_device *adev)
 #ifdef AUDIO_EXTN_IP_HDLR_ENABLED
 {
         int ret = 0;
-        ret = audio_extn_ip_hdlr_intf_init(&qaf_mod->ip_hdlr_hdl, lib_name, &qaf_mod->qaf_lib);
+        ret = audio_extn_ip_hdlr_intf_init(&qaf_mod->ip_hdlr_hdl, lib_name, &qaf_mod->qaf_lib,
+                                           adev, USECASE_AUDIO_PLAYBACK_OFFLOAD);
         if (ret < 0) {
             ERROR_MSG("audio_extn_ip_hdlr_intf_init failed, ret = %d", ret);
             continue;

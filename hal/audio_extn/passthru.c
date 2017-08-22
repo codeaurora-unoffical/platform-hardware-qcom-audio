@@ -129,9 +129,9 @@ static void passthru_update_stream_configuration_from_dts_parser( struct stream_
     }
 
     if (!is_valid_transmission_rate) {
-        ALOGE("%s:: Invalid dts transmission rate %d\n using default sample rate 192000",
+        ALOGE("%s:: Invalid dts transmission rate %d\n using default sample rate 48000",
                dtshd_tr_info.sample_rate);
-        out->sample_rate = 192000;
+        out->sample_rate = 48000;
         out->compr_config.codec->sample_rate = out->sample_rate;
     }
 
@@ -443,6 +443,15 @@ bool audio_extn_passthru_is_passthrough_stream(struct stream_out *out)
     }
     ALOGV("%s : return false",__func__);
     return false;
+}
+
+bool audio_extn_passthru_is_direct_passthrough(struct stream_out *out)
+{
+    if (((out != NULL) && audio_extn_passthru_is_passthrough_stream(out)) &&
+          !audio_extn_passthru_is_convert_supported(out->dev, out))
+        return true;
+    else
+        return false;
 }
 
 int audio_extn_passthru_get_buffer_size(audio_offload_info_t* info)
