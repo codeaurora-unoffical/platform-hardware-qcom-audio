@@ -461,12 +461,10 @@ void audio_extn_dolby_set_endpoint(struct audio_device *adev);
 
 
 #if defined(DS1_DOLBY_DDP_ENABLED) || defined(DS2_DOLBY_DAP_ENABLED)
-bool audio_extn_is_dolby_format(audio_format_t format);
 int audio_extn_dolby_get_snd_codec_id(struct audio_device *adev,
                                       struct stream_out *out,
                                       audio_format_t format);
 #else
-#define audio_extn_is_dolby_format(format)              (0)
 #define audio_extn_dolby_get_snd_codec_id(adev, out, format)       (0)
 #endif
 
@@ -512,6 +510,7 @@ enum {
 #define audio_extn_passthru_init(a) do {} while(0)
 #define audio_extn_passthru_should_standby(o) (1)
 #define audio_extn_passthru_update_dts_stream_configuration(out, buffer, bytes) (-ENOSYS)
+#define audio_extn_passthru_is_supported_backend_edid_cfg(adev, out) (0)
 #else
 bool audio_extn_passthru_is_convert_supported(struct audio_device *adev,
                                                  struct stream_out *out);
@@ -537,6 +536,8 @@ void audio_extn_passthru_init(struct audio_device *adev);
 bool audio_extn_passthru_should_standby(struct stream_out *out);
 int audio_extn_passthru_update_dts_stream_configuration(struct stream_out *out,
         const void *buffer, size_t bytes);
+bool audio_extn_passthru_is_supported_backend_edid_cfg(struct audio_device *adev,
+                                                   struct stream_out *out);
 #endif
 
 #ifndef HFP_ENABLED
@@ -611,6 +612,8 @@ void audio_extn_utils_send_audio_calibration(struct audio_device *adev,
 void audio_extn_utils_update_stream_app_type_cfg_for_usecase(
                                   struct audio_device *adev,
                                   struct audio_usecase *usecase);
+bool audio_extn_utils_is_dolby_format(audio_format_t format);
+
 #ifdef DS2_DOLBY_DAP_ENABLED
 #define LIB_DS2_DAP_HAL "vendor/lib/libhwdaphal.so"
 #define SET_HW_INFO_FUNC "dap_hal_set_hw_info"
