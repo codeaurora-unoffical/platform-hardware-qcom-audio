@@ -1515,6 +1515,10 @@ static bool force_device_switch(struct audio_usecase *usecase)
          ret = true;
      }
 
+     if (usecase->stream.out->stream_config_changed) {
+         ALOGD("Force stream_config_changed to update iec61937 transmission config");
+         return true;
+     }
     return ret;
 }
 
@@ -3333,6 +3337,7 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
     struct audio_device *adev = out->dev;
     int snd_scard_state = get_snd_card_state(adev);
     ssize_t ret = 0;
+    int channels = 0;
 
     lock_output_stream(out);
 
@@ -3367,14 +3372,47 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
     }
 
     if (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL) {
+        channels = platform_edid_get_max_channels(out->dev->platform);
         if (audio_extn_passthru_is_enabled() &&
             !out->is_iec61937_info_available &&
             audio_extn_passthru_is_passthrough_stream(out)) {
             audio_extn_passthru_update_stream_configuration(adev, out,
                     buffer, bytes);
             out->is_iec61937_info_available = true;
+
+            if((out->format == AUDIO_FORMAT_DTS) ||
+               (out->format == AUDIO_FORMAT_DTS_HD)) {
+                ret = audio_extn_passthru_update_dts_stream_configuration(out,
+                                                                buffer, bytes);
+                if (ret) {
+                    if (ret != -ENOSYS) {
+                        out->is_iec61937_info_available = false;
+                        ALOGD("iec61937 transmission info not yet updated retry");
+                    }
+                } else {
+                    /* if stream has started and after that there is
+                     * stream config change (iec transmission config)
+                     * then trigger select_device to update backend configuration.
+                     */
+                    out->stream_config_changed = true;
+                    pthread_mutex_lock(&adev->lock);
+                    select_devices(adev, out->usecase);
+                    pthread_mutex_unlock(&adev->lock);
+                    out->stream_config_changed = false;
+                    out->is_iec61937_info_available = true;
+                }
+            }
+
+            if ((channels < audio_channel_count_from_out_mask(out->channel_mask)) &&
+                (out->compr_config.codec->compr_passthr == PASSTHROUGH) &&
+                (out->is_iec61937_info_available == true)) {
+                    ALOGE("%s: ERROR: Unsupported channel config in passthrough mode", __func__);
+                    ret = -EINVAL;
+                    goto exit;
+            }
         }
     }
+
     if (out->standby) {
         out->standby = false;
         pthread_mutex_lock(&adev->lock);
