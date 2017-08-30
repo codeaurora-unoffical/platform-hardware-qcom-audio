@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2015 The Android Open Source Project *
@@ -609,7 +609,7 @@ int write_to_hal(qahw_stream_handle_t* out_handle, char *data, size_t bytes, voi
     return ret;
 }
 
-static bool is_assoc_active()
+static bool __unused is_assoc_active()
 {
     int i = 0;
     bool is_assoc_active = false;
@@ -623,7 +623,7 @@ static bool is_assoc_active()
     return is_assoc_active;
 }
 
-static int get_assoc_index()
+static int __unused get_assoc_index()
 {
     int i = 0;
 
@@ -925,14 +925,6 @@ void *start_stream_playback (void* stream_data)
         usleep(500000);
         drift_params.thread_exit = true;
         pthread_join(drift_query_thread, NULL);
-    }
-    if ((params->flags & AUDIO_OUTPUT_FLAG_MAIN) && is_assoc_active()) {
-        fprintf(log_file, "Closing Associated as Main Stream reached EOF %d \n", params->stream_index, rc);
-        rc = qahw_close_output_stream(stream_param[get_assoc_index()].out_handle);
-        if (rc) {
-            fprintf(log_file, "stream %d: could not close output stream, error - %d \n", params->stream_index, rc);
-            fprintf(stderr, "stream %d: could not close output stream, error - %d \n", params->stream_index, rc);
-        }
     }
     rc = qahw_out_standby(params->out_handle);
     if (rc) {
