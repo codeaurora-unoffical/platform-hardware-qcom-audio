@@ -73,6 +73,10 @@ if (test x$TARGET_SUPPORT = xapq8098); then
          AC_SUBST([TARGET_PLATFORM], ["msm8974"])
          TARGET_CFLAGS="-DPLATFORM_MSM8998"
 fi
+if (test x$TARGET_SUPPORT = x8x96autogvmquintcu); then
+         AC_SUBST([TARGET_PLATFORM], ["msm8974"])
+         TARGET_CFLAGS="-DPLATFORM_MSM8996"
+fi
 AC_SUBST([TARGET_CFLAGS])
 
 AM_CONDITIONAL([QAHW_SUPPORT], [test x$BOARD_SUPPORTS_QAHW = xtrue])
