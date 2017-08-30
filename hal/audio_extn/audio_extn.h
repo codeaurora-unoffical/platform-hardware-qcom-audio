@@ -498,6 +498,7 @@ enum {
 #define audio_extn_passthru_is_convert_supported(adev, out)                   (0)
 #define audio_extn_passthru_is_passt_supported(adev, out)                     (0)
 #define audio_extn_passthru_is_passthrough_stream(out)                        (0)
+#define audio_extn_passthru_is_direct_passthrough(out)                        (0)
 #define audio_extn_passthru_get_buffer_size(info)                             (0)
 #define audio_extn_passthru_set_volume(out, mute)                             (0)
 #define audio_extn_passthru_set_latency(out, latency)                         (0)
@@ -521,6 +522,7 @@ void audio_extn_passthru_update_stream_configuration(
         struct audio_device *adev, struct stream_out *out,
         const void *buffer, size_t bytes);
 bool audio_extn_passthru_is_passthrough_stream(struct stream_out *out);
+bool audio_extn_passthru_is_direct_passthrough(struct stream_out *out);
 int audio_extn_passthru_get_buffer_size(audio_offload_info_t* info);
 int audio_extn_passthru_set_volume(struct stream_out *out, int mute);
 int audio_extn_passthru_set_latency(struct stream_out *out, int latency);
