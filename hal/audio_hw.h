@@ -232,6 +232,8 @@ struct stream_inout {
     pthread_cond_t  cond;
     struct stream_config in_config;
     struct stream_config out_config;
+    struct stream_app_type_cfg out_app_type_cfg;
+    char profile[MAX_STREAM_PROFILE_STR_LEN];
     struct audio_device *dev;
     void *adsp_hdlr_stream_handle;
     void *ip_hdlr_handle;
@@ -306,6 +308,7 @@ struct stream_out {
     qahwi_stream_out_t qahwi_out;
 
     bool is_iec61937_info_available;
+    bool stream_config_changed;
     mix_matrix_params_t pan_scale_params;
     mix_matrix_params_t downmix_params;
 };

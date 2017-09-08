@@ -2812,6 +2812,8 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
         snd_device = voice_get_incall_rec_snd_device(usecase->in_snd_device);
     else if ((usecase->type == PCM_HFP_CALL) || (usecase->type == PCM_CAPTURE))
         snd_device = usecase->in_snd_device;
+    else if (usecase->type == TRANSCODE_LOOPBACK)
+        snd_device = usecase->out_snd_device;
 
     acdb_dev_id = acdb_device_table[platform_get_spkr_prot_snd_device(snd_device)];
     if (acdb_dev_id < 0) {
@@ -5163,6 +5165,32 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
 }
 
 /*
+ * Get the backend configuration for current snd device
+ */
+int platform_get_codec_backend_cfg(struct audio_device* adev,
+                         snd_device_t snd_device,
+                         struct audio_backend_cfg *backend_cfg)
+{
+    int backend_idx = platform_get_backend_index(snd_device);
+    struct platform_data *my_data = (struct platform_data *)adev->platform;
+
+    backend_cfg->bit_width = my_data->current_backend_cfg[backend_idx].bit_width;
+    backend_cfg->sample_rate =
+                       my_data->current_backend_cfg[backend_idx].sample_rate;
+    backend_cfg->channels =
+                       my_data->current_backend_cfg[backend_idx].channels;
+    backend_cfg->format =
+                       my_data->current_backend_cfg[backend_idx].format;
+
+    ALOGV("%s:becf: afe: bitwidth %d, samplerate %d channels %d format %d"
+          ", backend_idx %d device (%s)", __func__,  backend_cfg->bit_width,
+          backend_cfg->sample_rate, backend_cfg->channels, backend_cfg->format,
+          backend_idx, platform_get_snd_device_name(snd_device));
+
+   return 0;
+}
+
+/*
  *Validate the selected bit_width, sample_rate and channels using the edid
  *of the connected sink device.
  */
@@ -5225,10 +5253,10 @@ static void platform_check_hdmi_backend_cfg(struct audio_device* adev,
                   __func__, DEFAULT_HDMI_OUT_CHANNELS);
             channels = DEFAULT_HDMI_OUT_CHANNELS;
         }
-        if ((usecase->stream.out->format == AUDIO_FORMAT_E_AC3) ||
+        if (((usecase->stream.out->format == AUDIO_FORMAT_E_AC3) ||
             (usecase->stream.out->format == AUDIO_FORMAT_E_AC3_JOC) ||
-            (usecase->stream.out->format == AUDIO_FORMAT_DOLBY_TRUEHD)) {
-
+            (usecase->stream.out->format == AUDIO_FORMAT_DOLBY_TRUEHD))
+            && (usecase->stream.out->compr_config.codec->compr_passthr == PASSTHROUGH)) {
             sample_rate = sample_rate * 4;
             if (sample_rate > HDMI_PASSTHROUGH_MAX_SAMPLE_RATE)
                 sample_rate = HDMI_PASSTHROUGH_MAX_SAMPLE_RATE;
@@ -5816,12 +5844,7 @@ int platform_set_stream_pan_scale_params(void *platform,
     int iter_i = 0;
     int iter_j = 0;
     int length = 0;
-    int pan_scale_data[MAX_LENGTH_MIXER_CONTROL_IN_INT] = {0};
-
-    if (sizeof(mm_params) > MAX_LENGTH_MIXER_CONTROL_IN_INT) {
-        ret = -EINVAL;
-        goto end;
-    }
+    int *pan_scale_data = NULL;
 
     snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
                           "Audio Stream %d Pan Scale Control", snd_id);
@@ -5832,6 +5855,11 @@ int platform_set_stream_pan_scale_params(void *platform,
         ALOGE("%s: Could not get ctl for mixer cmd - %s",
               __func__, mixer_ctl_name);
         ret = -EINVAL;
+        goto end;
+    }
+    pan_scale_data = (int* ) calloc(1, sizeof(mm_params));
+    if (!pan_scale_data) {
+        ret = -ENOMEM;
         goto end;
     }
     pan_scale_data[length++] = mm_params.num_output_channels;
@@ -5867,6 +5895,8 @@ int platform_set_stream_pan_scale_params(void *platform,
 
     ret = mixer_ctl_set_array(ctl, pan_scale_data, length);
 end:
+    if (pan_scale_data)
+        free(pan_scale_data);
     return ret;
 }
 
@@ -5879,19 +5909,12 @@ int platform_set_stream_downmix_params(void *platform,
     struct audio_device *adev = my_data->adev;
     struct mixer_ctl *ctl;
     char mixer_ctl_name[MIXER_PATH_MAX_LENGTH] = {0};
-    int downmix_param_data[MAX_LENGTH_MIXER_CONTROL_IN_INT] = {0};
+    int *downmix_param_data = NULL;
     int ret = 0;
     int iter_i = 0;
     int iter_j = 0;
     int length = 0;
     int be_idx = 0;
-
-    if ((sizeof(mm_params) +
-         sizeof(be_idx)) >
-        MAX_LENGTH_MIXER_CONTROL_IN_INT) {
-        ret = -EINVAL;
-        goto end;
-    }
 
     snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
                           "Audio Device %d Downmix Control", snd_id);
@@ -5904,8 +5927,13 @@ int platform_set_stream_downmix_params(void *platform,
         ret = -EINVAL;
     }
 
+    downmix_param_data = (int* ) calloc(1, sizeof(mm_params) + sizeof(be_idx));
+    if (!downmix_param_data) {
+        ret = -ENOMEM;
+        goto end;
+    }
     be_idx = platform_get_snd_device_backend_index(snd_device);
-    downmix_param_data[length]   = be_idx;
+    downmix_param_data[length++] = be_idx;
     downmix_param_data[length++] = mm_params.num_output_channels;
     downmix_param_data[length++] = mm_params.num_input_channels;
 
@@ -5940,6 +5968,8 @@ int platform_set_stream_downmix_params(void *platform,
 
     ret = mixer_ctl_set_array(ctl, downmix_param_data, length);
 end:
+    if (downmix_param_data)
+        free(downmix_param_data);
     return ret;
 }
 

@@ -1515,6 +1515,10 @@ static bool force_device_switch(struct audio_usecase *usecase)
          ret = true;
      }
 
+     if (usecase->stream.out->stream_config_changed) {
+         ALOGD("Force stream_config_changed to update iec61937 transmission config");
+         return true;
+     }
     return ret;
 }
 
@@ -2382,7 +2386,7 @@ static int stop_output_stream(struct stream_out *out)
     if (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL)
         audio_extn_keep_alive_start();
 
-    if (audio_extn_ip_hdlr_intf_supported(out->format) && out->ip_hdlr_handle) {
+    if (out->ip_hdlr_handle) {
         ret = audio_extn_ip_hdlr_intf_close(out->ip_hdlr_handle, true, out);
         if (ret < 0)
             ALOGE("%s: audio_extn_ip_hdlr_intf_close failed %d",__func__, ret);
@@ -2585,7 +2589,7 @@ int start_output_stream(struct stream_out *out)
                                              out->playback_started);
 
 #ifdef DS1_DOLBY_DDP_ENABLED
-        if (audio_extn_is_dolby_format(out->format))
+        if (audio_extn_utils_is_dolby_format(out->format))
             audio_extn_dolby_send_ddp_endp_params(adev);
 #endif
         if (!(audio_extn_passthru_is_passthrough_stream(out)) &&
@@ -2610,7 +2614,7 @@ int start_output_stream(struct stream_out *out)
     audio_extn_perf_lock_release(&adev->perf_lock_handle);
     ALOGD("%s: exit", __func__);
 
-    if (audio_extn_ip_hdlr_intf_supported(out->format) && out->ip_hdlr_handle) {
+    if (out->ip_hdlr_handle) {
         ret = audio_extn_ip_hdlr_intf_open(out->ip_hdlr_handle, true, out, out->usecase);
         if (ret < 0)
             ALOGE("%s: audio_extn_ip_hdlr_intf_open failed %d",__func__, ret);
@@ -2777,7 +2781,7 @@ static size_t out_get_buffer_size(const struct audio_stream *stream)
     struct stream_out *out = (struct stream_out *)stream;
 
     if (is_interactive_usecase(out->usecase)) {
-        return out->config.period_size;
+        return out->config.period_size * out->config.period_count;
     } else if (is_offload_usecase(out->usecase)) {
         if (out->flags & AUDIO_OUTPUT_FLAG_TIMESTAMP)
             return out->compr_config.fragment_size - sizeof(struct snd_codec_metadata);
@@ -3366,15 +3370,44 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
         goto exit;
     }
 
-    if (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL) {
-        /*ADD audio_extn_passthru_is_passthrough_stream(out) check*/
-        if ((audio_extn_passthru_is_enabled()) &&
-                (!out->is_iec61937_info_available)) {
-            audio_extn_passthru_update_stream_configuration(adev, out,
-                    buffer, bytes);
+    if ((out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL) &&
+         !out->is_iec61937_info_available) {
+
+        if (!audio_extn_passthru_is_passthrough_stream(out)) {
             out->is_iec61937_info_available = true;
-        }
+        } else if (audio_extn_passthru_is_enabled()) {
+            audio_extn_passthru_update_stream_configuration(adev, out, buffer, bytes);
+            out->is_iec61937_info_available = true;
+
+            if((out->format == AUDIO_FORMAT_DTS) ||
+               (out->format == AUDIO_FORMAT_DTS_HD)) {
+                ret = audio_extn_passthru_update_dts_stream_configuration(out,
+                                                                buffer, bytes);
+                if (ret) {
+                    if (ret != -ENOSYS) {
+                        out->is_iec61937_info_available = false;
+                        ALOGD("iec61937 transmission info not yet updated retry");
+                    }
+                } else if (!out->standby) {
+                    /* if stream has started and after that there is
+                     * stream config change (iec transmission config)
+                     * then trigger select_device to update backend configuration.
+                     */
+                    out->stream_config_changed = true;
+                    pthread_mutex_lock(&adev->lock);
+                    select_devices(adev, out->usecase);
+                    if (!audio_extn_passthru_is_supported_backend_edid_cfg(adev, out)) {
+                        ret = -EINVAL;
+                        goto exit;
+                    }
+                    pthread_mutex_unlock(&adev->lock);
+                    out->stream_config_changed = false;
+                    out->is_iec61937_info_available = true;
+                }
+            }
+       }
     }
+
     if (out->standby) {
         out->standby = false;
         pthread_mutex_lock(&adev->lock);
@@ -3393,6 +3426,13 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
             ALOGD("%s: retry previous failed cal level set", __func__);
             audio_hw_send_gain_dep_calibration(last_known_cal_step);
             last_known_cal_step = -1;
+        }
+
+        if ((out->is_iec61937_info_available == true) &&
+            (audio_extn_passthru_is_passthrough_stream(out))&&
+            (!audio_extn_passthru_is_supported_backend_edid_cfg(adev, out))) {
+            ret = -EINVAL;
+            goto exit;
         }
     }
 
@@ -3570,6 +3610,11 @@ exit:
         if (!(out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD))
             usleep((uint64_t)bytes * 1000000 / audio_stream_out_frame_size(stream) /
                             out_get_sample_rate(&out->stream.common));
+
+        if (audio_extn_passthru_is_passthrough_stream(out)) {
+                ALOGE("%s: write error, ret = %d", __func__, ret);
+                return ret;
+        }
     }
     return bytes;
 }
@@ -4218,6 +4263,7 @@ int adev_open_output_stream(struct audio_hw_device *dev,
     int ret = 0;
     audio_format_t format;
     struct adsp_hdlr_stream_cfg hdlr_stream_cfg;
+    bool is_direct_passthough = false;
 
     *stream_out = NULL;
 
@@ -4258,6 +4304,10 @@ int adev_open_output_stream(struct audio_hw_device *dev,
     out->convert_buffer = NULL;
     out->started = 0;
 
+    if ((flags & AUDIO_OUTPUT_FLAG_BD) &&
+        (property_get_bool("audio.matrix.limiter.enable", false)))
+        platform_set_device_params(out, DEVICE_PARAM_LIMITER_ID, 1);
+
     if (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL &&
         (flags & AUDIO_OUTPUT_FLAG_DIRECT)) {
         pthread_mutex_lock(&adev->lock);
@@ -4276,11 +4326,11 @@ int adev_open_output_stream(struct audio_hw_device *dev,
     }
 
     /* Init use case and pcm_config */
-    if (((out->flags & AUDIO_OUTPUT_FLAG_DIRECT) &&
+    if ((out->flags & AUDIO_OUTPUT_FLAG_DIRECT) &&
         !(out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD ||
         (out->flags & AUDIO_OUTPUT_FLAG_DIRECT_PCM)) &&
         (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL ||
-        out->devices & AUDIO_DEVICE_OUT_PROXY)) || (out->flags & AUDIO_OUTPUT_FLAG_INTERACTIVE)) {
+        out->devices & AUDIO_DEVICE_OUT_PROXY)) {
 
         pthread_mutex_lock(&adev->lock);
         if (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL) {
@@ -4308,17 +4358,11 @@ int adev_open_output_stream(struct audio_hw_device *dev,
         out->channel_mask = config->channel_mask;
         out->sample_rate = config->sample_rate;
         out->format = config->format;
-
-        if (out->flags & AUDIO_OUTPUT_FLAG_INTERACTIVE) {
-            out->usecase = get_interactive_usecase(adev);
-            out->config = pcm_config_low_latency;
-        } else {
-            out->usecase = USECASE_AUDIO_PLAYBACK_MULTI_CH;
-            out->config = pcm_config_hdmi_multi;
-            out->config.rate = config->sample_rate;
-            out->config.channels = audio_channel_count_from_out_mask(out->channel_mask);
-            out->config.period_size = HDMI_MULTI_PERIOD_BYTES / (out->config.channels * 2);
-        }
+        out->usecase = USECASE_AUDIO_PLAYBACK_MULTI_CH;
+        out->config = pcm_config_hdmi_multi;
+        out->config.rate = config->sample_rate;
+        out->config.channels = audio_channel_count_from_out_mask(out->channel_mask);
+        out->config.period_size = HDMI_MULTI_PERIOD_BYTES / (out->config.channels * 2);
     } else if ((out->dev->mode == AUDIO_MODE_IN_COMMUNICATION || voice_extn_compress_voip_is_active(out->dev)) &&
                (out->flags == (AUDIO_OUTPUT_FLAG_DIRECT | AUDIO_OUTPUT_FLAG_VOIP_RX)) &&
                (voice_extn_compress_voip_is_config_supported(config))) {
@@ -4419,7 +4463,7 @@ int adev_open_output_stream(struct audio_hw_device *dev,
         out->bit_width = CODEC_BACKEND_DEFAULT_BIT_WIDTH;
 
         out->compr_config.codec->id = get_snd_codec_id(config->offload_info.format);
-        if (audio_extn_is_dolby_format(config->offload_info.format)) {
+        if (audio_extn_utils_is_dolby_format(config->offload_info.format)) {
             audio_extn_dolby_send_ddp_endp_params(adev);
             audio_extn_dolby_set_dmid(adev);
         }
@@ -4616,7 +4660,10 @@ int adev_open_output_stream(struct audio_hw_device *dev,
 
         channels = audio_channel_count_from_out_mask(out->channel_mask);
 
-        if (out->flags & AUDIO_OUTPUT_FLAG_RAW) {
+        if (out->flags & AUDIO_OUTPUT_FLAG_INTERACTIVE) {
+            out->usecase = get_interactive_usecase(adev);
+            out->config = pcm_config_low_latency;
+        } else if (out->flags & AUDIO_OUTPUT_FLAG_RAW) {
             out->usecase = USECASE_AUDIO_PLAYBACK_ULL;
             out->realtime = may_use_noirq_mode(adev, USECASE_AUDIO_PLAYBACK_ULL,
                                                out->flags);
@@ -4732,9 +4779,10 @@ int adev_open_output_stream(struct audio_hw_device *dev,
         audio_extn_dts_notify_playback_state(out->usecase, 0, out->sample_rate,
                                              popcount(out->channel_mask), out->playback_started);
     /* setup a channel for client <--> adsp communication for stream events */
+    is_direct_passthough = audio_extn_passthru_is_direct_passthrough(out);
     if ((out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) ||
             (out->flags & AUDIO_OUTPUT_FLAG_DIRECT_PCM) ||
-            (audio_extn_ip_hdlr_intf_supported(config->format))) {
+            (audio_extn_ip_hdlr_intf_supported(config->format, is_direct_passthough, false))) {
         hdlr_stream_cfg.pcm_device_id = platform_get_pcm_device_id(
                 out->usecase, PCM_PLAYBACK);
         hdlr_stream_cfg.flags = out->flags;
@@ -4746,8 +4794,8 @@ int adev_open_output_stream(struct audio_hw_device *dev,
             out->adsp_hdlr_stream_handle = NULL;
         }
     }
-    if (audio_extn_ip_hdlr_intf_supported(config->format)) {
-        ret = audio_extn_ip_hdlr_intf_init(&out->ip_hdlr_handle, NULL, NULL);
+    if (audio_extn_ip_hdlr_intf_supported(config->format, is_direct_passthough, false)) {
+        ret = audio_extn_ip_hdlr_intf_init(&out->ip_hdlr_handle, NULL, NULL, adev, out->usecase);
         if (ret < 0) {
             ALOGE("%s: audio_extn_ip_hdlr_intf_init failed %d",__func__, ret);
             out->ip_hdlr_handle = NULL;
@@ -4782,7 +4830,7 @@ void adev_close_output_stream(struct audio_hw_device *dev __unused,
         out->adsp_hdlr_stream_handle = NULL;
     }
 
-    if (audio_extn_ip_hdlr_intf_supported(out->format) && out->ip_hdlr_handle) {
+    if (out->ip_hdlr_handle) {
         audio_extn_ip_hdlr_intf_deinit(out->ip_hdlr_handle);
         out->ip_hdlr_handle = NULL;
     }

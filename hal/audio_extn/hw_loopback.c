@@ -41,7 +41,10 @@
 #define PATCH_HANDLE_INVALID 0xFFFF
 #define MAX_SOURCE_PORTS_PER_PATCH 1
 #define MAX_SINK_PORTS_PER_PATCH 1
+#define HW_LOOPBACK_RX_VOLUME     "Trans Loopback RX Volume"
+#define HW_LOOPBACK_RX_UNITY_GAIN 0x2000
 
+#include <math.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include <errno.h>
@@ -59,7 +62,8 @@
 #include <system/thread_defs.h>
 #include <cutils/sched_policy.h>
 #include "audio_extn.h"
-#include "sound/compress_params.h"
+#include <sound/compress_params.h>
+#include <sound/compress_offload.h>
 #include <system/audio.h>
 
 /*
@@ -131,6 +135,34 @@ uint32_t format_to_bitwidth(audio_format_t format)
     }
 }
 
+/* Set loopback volume : for mute implementation */
+static int hw_loopback_set_volume(struct audio_device *adev, int value)
+{
+    int32_t ret = 0;
+    struct mixer_ctl *ctl;
+    char mixer_ctl_name[MAX_LENGTH_MIXER_CONTROL_IN_INT];
+    snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
+            "Transcode Loopback Rx Volume");
+
+    ALOGD("%s: (%d)\n", __func__, value);
+
+    ALOGD("%s: Setting HW loopback volume to %d \n", __func__, value);
+    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+    if (!ctl) {
+        ALOGE("%s: Could not get ctl for mixer cmd - %s",
+              __func__, mixer_ctl_name);
+        return -EINVAL;
+    }
+
+    if(mixer_ctl_set_value(ctl, 0, value) < 0) {
+        ALOGE("%s: Couldn't set HW Loopback Volume: [%d]", __func__, value);
+        return -EINVAL;
+    }
+
+    ALOGV("%s: exit", __func__);
+    return ret;
+}
+
 /* Initialize patch database */
 int init_patch_database(patch_db_t* patch_db)
 {
@@ -143,11 +175,22 @@ int init_patch_database(patch_db_t* patch_db)
     return patch_init_rc;
 }
 
+bool is_supported_sink_device(audio_devices_t sink_device_mask)
+{
+    if((sink_device_mask & AUDIO_DEVICE_OUT_SPEAKER) ||
+       (sink_device_mask & AUDIO_DEVICE_OUT_WIRED_HEADSET) ||
+       (sink_device_mask & AUDIO_DEVICE_OUT_WIRED_HEADPHONE) ||
+       (sink_device_mask & AUDIO_DEVICE_OUT_LINE)) {
+           return true;
+       }
+    return false;
+}
+
 /* Get patch type based on source and sink ports configuration */
 /* Only ports of type 'DEVICE' are supported */
 patch_handle_type_t get_loopback_patch_type(loopback_patch_t*  loopback_patch)
 {
-    bool is_source_hdmi=false, is_sink_spkr=false;
+    bool is_source_hdmi=false, is_sink_supported=false;
     if (loopback_patch->patch_handle_id != PATCH_HANDLE_INVALID) {
         ALOGE("%s, Patch handle already exists", __func__);
         return loopback_patch->patch_handle_id;
@@ -178,30 +221,31 @@ patch_handle_type_t get_loopback_patch_type(loopback_patch_t*  loopback_patch)
     }
     if (loopback_patch->loopback_sink.role == AUDIO_PORT_ROLE_SINK) {
         switch (loopback_patch->loopback_sink.type) {
-            case AUDIO_PORT_TYPE_DEVICE :
-                if ((loopback_patch->loopback_sink.config_mask &
-                    AUDIO_PORT_CONFIG_FORMAT) &&
-                    (loopback_patch->loopback_sink.ext.device.type &
-                     AUDIO_DEVICE_OUT_SPEAKER)) {
-                       switch (loopback_patch->loopback_sink.format) {
-                           case AUDIO_FORMAT_PCM:
-                           case AUDIO_FORMAT_PCM_16_BIT:
-                           case AUDIO_FORMAT_PCM_32_BIT:
-                           case AUDIO_FORMAT_PCM_8_24_BIT:
-                           case AUDIO_FORMAT_PCM_24_BIT_PACKED:
-                              is_sink_spkr = true;
-			      break;
-                           default:
-                              break;
+        case AUDIO_PORT_TYPE_DEVICE :
+            if ((loopback_patch->loopback_sink.config_mask &
+                AUDIO_PORT_CONFIG_FORMAT) &&
+                (is_supported_sink_device(loopback_patch->loopback_sink.ext.device.type))) {
+                    switch (loopback_patch->loopback_sink.format) {
+                    case AUDIO_FORMAT_PCM:
+                    case AUDIO_FORMAT_PCM_16_BIT:
+                    case AUDIO_FORMAT_PCM_32_BIT:
+                    case AUDIO_FORMAT_PCM_8_24_BIT:
+                    case AUDIO_FORMAT_PCM_24_BIT_PACKED:
+                        is_sink_supported = true;
+                        break;
+                    default:
+                        break;
                     }
-                }
-                break;
-            default :
-                break;
-                //Unsupported as of now, need to extend for other sink types
+            } else {
+                ALOGE("%s, Unsupported sink port device %d", __func__,loopback_patch->loopback_sink.ext.device.type);
+            }
+            break;
+        default :
+            break;
+            //Unsupported as of now, need to extend for other sink types
         }
     }
-    if (is_source_hdmi && is_sink_spkr) {
+    if (is_source_hdmi && is_sink_supported) {
         return AUDIO_PATCH_HDMI_IN_SPKR_OUT;
     }
     ALOGE("%s, Unsupported source or sink port config", __func__);
@@ -259,7 +303,7 @@ int32_t release_loopback_session(loopback_patch_t *active_loopback_patch)
 
     adev->active_input = get_next_active_input(adev);
 
-    if (audio_extn_ip_hdlr_intf_supported(source_patch_config->format) && inout->ip_hdlr_handle) {
+    if (inout->ip_hdlr_handle) {
         ret = audio_extn_ip_hdlr_intf_close(inout->ip_hdlr_handle, true, inout);
         if (ret < 0)
             ALOGE("%s: audio_extn_ip_hdlr_intf_close failed %d",__func__, ret);
@@ -273,8 +317,7 @@ int32_t release_loopback_session(loopback_patch_t *active_loopback_patch)
         inout->adsp_hdlr_stream_handle = NULL;
     }
 
-    if (audio_extn_ip_hdlr_intf_supported(source_patch_config->format) &&
-        inout->ip_hdlr_handle) {
+    if (inout->ip_hdlr_handle) {
         audio_extn_ip_hdlr_intf_deinit(inout->ip_hdlr_handle);
         inout->ip_hdlr_handle = NULL;
     }
@@ -295,6 +338,27 @@ int loopback_stream_cb(stream_callback_event_t event, void *param, void *cookie)
     return 0;
 }
 
+#if defined SNDRV_COMPRESS_LATENCY_MODE
+static void transcode_loopback_util_set_latency_mode(
+                             loopback_patch_t *active_loopback_patch,
+                             uint32_t latency_mode)
+{
+    struct snd_compr_metadata metadata;
+
+    metadata.key = SNDRV_COMPRESS_LATENCY_MODE;
+    metadata.value[0] = latency_mode;
+    ALOGV("%s: Setting latency mode %d",__func__, latency_mode);
+    compress_set_metadata(active_loopback_patch->source_stream,&metadata);
+}
+#else
+static void transcode_loopback_util_set_latency_mode(
+                            loopback_patch_t *active_loopback_patch __unused,
+                            uint32_t latency_mode __unused)
+{
+    ALOGD("%s:: Latency mode configuration not supported", __func__);
+}
+#endif
+
 /* Create a loopback session based on active loopback patch selected */
 int create_loopback_session(loopback_patch_t *active_loopback_patch)
 {
@@ -312,6 +376,7 @@ int create_loopback_session(loopback_patch_t *active_loopback_patch)
     struct stream_inout *inout =  &active_loopback_patch->patch_stream;
     struct adsp_hdlr_stream_cfg hdlr_stream_cfg;
     struct stream_in loopback_source_stream;
+    char prop_value[PROPERTY_VALUE_MAX] = {0};
 
     ALOGD("%s: Create loopback session begin", __func__);
 
@@ -370,8 +435,9 @@ int create_loopback_session(loopback_patch_t *active_loopback_patch)
         inout->adsp_hdlr_stream_handle = NULL;
         goto exit;
     }
-    if (audio_extn_ip_hdlr_intf_supported(source_patch_config->format)) {
-        ret = audio_extn_ip_hdlr_intf_init(&inout->ip_hdlr_handle, NULL, NULL);
+    if (audio_extn_ip_hdlr_intf_supported(source_patch_config->format,false, true)) {
+        ret = audio_extn_ip_hdlr_intf_init(&inout->ip_hdlr_handle, NULL, NULL, adev,
+                                           USECASE_AUDIO_TRANSCODE_LOOPBACK);
         if (ret < 0) {
             ALOGE("%s: audio_extn_ip_hdlr_intf_init failed %d", __func__, ret);
             inout->ip_hdlr_handle = NULL;
@@ -403,6 +469,7 @@ int create_loopback_session(loopback_patch_t *active_loopback_patch)
         active_loopback_patch->source_stream)) {
         ALOGE("%s: %s", __func__, compress_get_error(active_loopback_patch->
         source_stream));
+        active_loopback_patch->source_stream = NULL;
         ret = -EIO;
         goto exit;
     } else if (active_loopback_patch->source_stream == NULL) {
@@ -422,6 +489,14 @@ int create_loopback_session(loopback_patch_t *active_loopback_patch)
     sink_config.fragments = 1;
     sink_config.codec = &codec;
 
+    /* Do not alter the location of sending latency mode property */
+    /* Mode set on any stream but before both streams are open */
+    if(property_get("audio.transcode.latency.mode", prop_value, "")) {
+        uint32_t latency_mode = atoi(prop_value);
+        transcode_loopback_util_set_latency_mode(active_loopback_patch,
+                                                 latency_mode);
+    }
+
     /* Open compress stream in playback path */
     active_loopback_patch->sink_stream = compress_open(adev->snd_card,
                          pcm_dev_asm_rx_id, COMPRESS_IN, &sink_config);
@@ -429,6 +504,7 @@ int create_loopback_session(loopback_patch_t *active_loopback_patch)
         active_loopback_patch->sink_stream)) {
         ALOGE("%s: %s", __func__, compress_get_error(active_loopback_patch->
                 sink_stream));
+        active_loopback_patch->sink_stream = NULL;
         ret = -EIO;
         goto exit;
     } else if (active_loopback_patch->sink_stream == NULL) {
@@ -454,7 +530,7 @@ int create_loopback_session(loopback_patch_t *active_loopback_patch)
         ret = -EINVAL;
         goto exit;
     }
-    if (audio_extn_ip_hdlr_intf_supported(source_patch_config->format) && inout->ip_hdlr_handle) {
+    if (inout->ip_hdlr_handle) {
         ret = audio_extn_ip_hdlr_intf_open(inout->ip_hdlr_handle, true, inout,
                                            USECASE_AUDIO_TRANSCODE_LOOPBACK);
         if (ret < 0) {
@@ -525,6 +601,8 @@ int audio_extn_hw_loopback_create_audio_patch(struct audio_hw_device *dev,
                                 audio_loopback_mod->patch_db.num_patches]);
     active_loopback_patch->patch_handle_id = PATCH_HANDLE_INVALID;
     active_loopback_patch->patch_state = PATCH_INACTIVE;
+    active_loopback_patch->patch_stream.ip_hdlr_handle = NULL;
+    active_loopback_patch->patch_stream.adsp_hdlr_stream_handle = NULL;
     memcpy(&active_loopback_patch->loopback_source, &sources[0], sizeof(struct
     audio_port_config));
     memcpy(&active_loopback_patch->loopback_sink, &sinks[0], sizeof(struct
@@ -647,8 +725,7 @@ int audio_extn_hw_loopback_get_audio_port(struct audio_hw_device *dev,
                                     struct audio_port *port_in)
 {
     int status = 0, n=0, patch_num=-1;
-    loopback_patch_t *active_loopback_patch = NULL;
-    port_info_t *port_info = NULL;
+    port_info_t port_info;
     struct audio_port_config *port_out=NULL;
     ALOGV("%s %d", __func__, __LINE__);
 
@@ -660,10 +737,10 @@ int audio_extn_hw_loopback_get_audio_port(struct audio_hw_device *dev,
 
     pthread_mutex_lock(&audio_loopback_mod->lock);
 
-    port_info->id = port_in->id;
-    port_info->role = port_in->role;              /* sink or source */
-    port_info->type = port_in->type;              /* device, mix ... */
-    port_out = get_port_from_patch_db(port_info, &audio_loopback_mod->patch_db,
+    port_info.id = port_in->id;
+    port_info.role = port_in->role;              /* sink or source */
+    port_info.type = port_in->type;              /* device, mix ... */
+    port_out = get_port_from_patch_db(&port_info, &audio_loopback_mod->patch_db,
                                       &patch_num);
     if (port_out == NULL) {
         ALOGE("%s, Unable to find a valid matching port in patch \
@@ -694,40 +771,64 @@ int audio_extn_hw_loopback_set_audio_port_config(struct audio_hw_device *dev,
                                         const struct audio_port_config *config)
 {
     int status = 0, n=0, patch_num=-1;
-    loopback_patch_t *active_loopback_patch = NULL;
-    port_info_t *port_info = NULL;
+    port_info_t port_info;
     struct audio_port_config *port_out=NULL;
+    struct audio_device *adev = audio_loopback_mod->adev;
+    int loopback_gain = HW_LOOPBACK_RX_UNITY_GAIN;
+
     ALOGV("%s %d", __func__, __LINE__);
 
     if ((audio_loopback_mod == NULL) || (dev == NULL)) {
         ALOGE("%s, Invalid device", __func__);
-        status = -1;
+        status = -EINVAL;
         return status;
     }
 
     pthread_mutex_lock(&audio_loopback_mod->lock);
 
-    port_info->id = config->id;
-    port_info->role = config->role;              /* sink or source */
-    port_info->type = config->type;              /* device, mix  */
-    port_out = get_port_from_patch_db(port_info, &audio_loopback_mod->patch_db
+    port_info.id = config->id;
+    port_info.role = config->role;              /* sink or source */
+    port_info.type = config->type;              /* device, mix  */
+    port_out = get_port_from_patch_db(&port_info, &audio_loopback_mod->patch_db
                                     , &patch_num);
 
     if (port_out == NULL) {
         ALOGE("%s, Unable to find a valid matching port in patch \
         database,exiting", __func__);
-        status = -1;
-        return status;
+        status = -EINVAL;
+        goto exit_set_port_config;
     }
 
-    port_out->config_mask = config->config_mask;
-    port_out->channel_mask = config->channel_mask;
-    port_out->format = config->format;
-    port_out->gain = config->gain;
-    port_out->sample_rate = config->sample_rate;
+    port_out->config_mask |= config->config_mask;
+    if(config->config_mask & AUDIO_PORT_CONFIG_CHANNEL_MASK)
+        port_out->channel_mask = config->channel_mask;
+    if(config->config_mask & AUDIO_PORT_CONFIG_FORMAT)
+        port_out->format = config->format;
+    if(config->config_mask & AUDIO_PORT_CONFIG_GAIN)
+        port_out->gain = config->gain;
+    if(config->config_mask & AUDIO_PORT_CONFIG_SAMPLE_RATE)
+        port_out->sample_rate = config->sample_rate;
+
+    /* Convert gain in millibels to ratio and convert to Q13 */
+    loopback_gain = pow(10, (float)((float)port_out->gain.values[0]/2000)) *
+                       (1 << 13);
+    ALOGV("%s, Port config gain_in_mbells: %d, gain_in_q13 : %d", __func__,
+          port_out->gain.values[0], loopback_gain);
+    if((port_out->config_mask & AUDIO_PORT_CONFIG_GAIN) &&
+        port_out->gain.mode == AUDIO_GAIN_MODE_JOINT ) {
+        status = hw_loopback_set_volume(adev, loopback_gain);
+        if (status) {
+            ALOGE("%s, Error setting loopback gain config: status %d",
+                  __func__, status);
+        }
+    } else {
+        ALOGE("%s, Unsupported port config ,exiting", __func__);
+        status = -EINVAL;
+    }
 
     /* Currently, port config is not used for anything,
     need to restart session    */
+exit_set_port_config:
     pthread_mutex_unlock(&audio_loopback_mod->lock);
     return status;
 }

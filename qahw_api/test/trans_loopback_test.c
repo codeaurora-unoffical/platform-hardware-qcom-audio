@@ -31,6 +31,7 @@
 /*#define LOG_NDEBUG 0*/
 #include <fcntl.h>
 #include <linux/netlink.h>
+#include <getopt.h>
 #include <pthread.h>
 #include <poll.h>
 #include <stdlib.h>
@@ -44,6 +45,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <utils/Log.h>
+#include <math.h>
 
 #include <cutils/list.h>
 #include "qahw_api.h"
@@ -86,14 +88,21 @@ qahw_module_handle_t *primary_hal_handle = NULL;
 
 FILE * log_file = NULL;
 volatile bool stop_loopback = false;
+static float loopback_gain = 1.0;
 const char *log_filename = NULL;
 
 #define TRANSCODE_LOOPBACK_SOURCE_PORT_ID 0x4C00
 #define TRANSCODE_LOOPBACK_SINK_PORT_ID 0x4D00
 
+#define DEVICE_SOURCE 0
+#define DEVICE_SINK 1
+
 #define MAX_MODULE_NAME_LENGTH  100
 
 #define DEV_NODE_CHECK(node_name,node_id) strncmp(node_name,node_id,strlen(node_name))
+
+/* Function declarations */
+void usage();
 
 typedef enum source_port_type {
     SOURCE_PORT_NONE,
@@ -129,6 +138,34 @@ transcode_loopback_config_t g_trnscode_loopback_config;
 void break_signal_handler(int signal __attribute__((unused)))
 {
    stop_loopback = true;
+}
+
+int poll_data_event_init()
+{
+    struct sockaddr_nl sock_addr;
+    int sz = (64*1024);
+    int soc;
+
+    memset(&sock_addr, 0, sizeof(sock_addr));
+    sock_addr.nl_family = AF_NETLINK;
+    sock_addr.nl_pid = getpid();
+    sock_addr.nl_groups = 0xffffffff;
+
+    soc = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_KOBJECT_UEVENT);
+    if (soc < 0) {
+        return 0;
+    }
+
+    setsockopt(soc, SOL_SOCKET, SO_RCVBUFFORCE, &sz, sizeof(sz));
+
+    if (bind(soc, (struct sockaddr*) &sock_addr, sizeof(sock_addr)) < 0) {
+        close(soc);
+        return 0;
+    }
+
+    sock_event_fd = soc;
+
+    return (soc > 0);
 }
 
 void init_transcode_loopback_config(transcode_loopback_config_t **p_transcode_loopback_config)
@@ -229,7 +266,7 @@ int read_and_set_source_config(source_port_type_t source_port_type,
                                struct audio_port_config *dest_port_config)
 {
     int rc=0;
-    tlb_hdmi_config_t hdmi_config;
+    tlb_hdmi_config_t hdmi_config = {0};
     transcode_loopback_config_t *transcode_loopback_config = &g_trnscode_loopback_config;
     transcode_loopback_config->source_port_config.source_port_state = SOURCE_PORT_INACTIVE;
     switch(source_port_type)
@@ -361,6 +398,23 @@ int create_run_transcode_loopback(
                         &transcode_loopback_config->sink_config,
                         &transcode_loopback_config->patch_handle);
     fprintf(log_file,"\nCreate patch returned %d\n",rc);
+    if(!rc) {
+        struct audio_port_config sink_gain_config;
+        /* Convert loopback gain to millibels */
+        int loopback_gain_in_millibels = 2000 * log10(loopback_gain);
+        sink_gain_config.gain.index = 0;
+        sink_gain_config.gain.mode = AUDIO_GAIN_MODE_JOINT;
+        sink_gain_config.gain.channel_mask = 1;
+        sink_gain_config.gain.values[0] = loopback_gain_in_millibels;
+        sink_gain_config.id = transcode_loopback_config->sink_config.id;
+        sink_gain_config.role = transcode_loopback_config->sink_config.role;
+        sink_gain_config.type = transcode_loopback_config->sink_config.type;
+        sink_gain_config.config_mask = AUDIO_PORT_CONFIG_GAIN;
+
+        (void)qahw_set_audio_port_config(transcode_loopback_config->hal_handle,
+                    &sink_gain_config);
+    }
+
     return rc;
 }
 
@@ -390,34 +444,6 @@ static int unload_hals(void) {
     return 1;
 }
 
-
-int poll_data_event_init()
-{
-    struct sockaddr_nl sock_addr;
-    int sz = (64*1024);
-    int soc;
-
-    memset(&sock_addr, 0, sizeof(sock_addr));
-    sock_addr.nl_family = AF_NETLINK;
-    sock_addr.nl_pid = getpid();
-    sock_addr.nl_groups = 0xffffffff;
-
-    soc = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_KOBJECT_UEVENT);
-    if (soc < 0) {
-        return 0;
-    }
-
-    setsockopt(soc, SOL_SOCKET, SO_RCVBUFFORCE, &sz, sizeof(sz));
-
-    if (bind(soc, (struct sockaddr*) &sock_addr, sizeof(sock_addr)) < 0) {
-        close(soc);
-        return 0;
-    }
-
-    sock_event_fd = soc;
-
-    return (soc > 0);
-}
 
 void source_data_event_handler(transcode_loopback_config_t *transcode_loopback_config)
 {
@@ -488,8 +514,9 @@ void process_loopback_data(void *ptr)
                     }
                     j++;
                 }
-                fprintf(log_file,"devpath = %s, switch_name = %s \n",
-                                         dev_path, switch_name);
+
+                if ((dev_path != NULL) && (switch_name != NULL))
+                    fprintf(log_file,"devpath = %s, switch_name = %s \n",dev_path, switch_name);
 
                 if((DEV_NODE_CHECK(tlb_hdmi_in_audio_dev_path, dev_path) == 0)  || (DEV_NODE_CHECK(tlb_hdmi_in_audio_sample_rate_dev_path, dev_path) == 0)
                 || (DEV_NODE_CHECK(tlb_hdmi_in_audio_state_dev_path, dev_path) == 0)
@@ -506,29 +533,75 @@ void process_loopback_data(void *ptr)
     pthread_exit(0);
 }
 
+void set_device(uint32_t device_type, uint32_t device_id)
+{
+    transcode_loopback_config_t *transcode_loopback_config = &g_trnscode_loopback_config;
+    switch( device_type )
+    {
+        case DEVICE_SINK:
+            transcode_loopback_config->sink_config.ext.device.type = device_id;
+        break;
+        case DEVICE_SOURCE:
+            transcode_loopback_config->source_config.ext.device.type = device_id;
+        break;
+    }
+}
+
 int main(int argc, char *argv[]) {
 
     int status = 0;
-    uint32_t play_duration_in_seconds = 30,play_duration_elapsed_msec = 0,play_duration_in_msec = 0;
+    uint32_t play_duration_in_seconds = 600,play_duration_elapsed_msec = 0,play_duration_in_msec = 0, sink_device = 2, volume_in_millibels = 0;
     source_port_type_t source_port_type = SOURCE_PORT_NONE;
     log_file = stdout;
-
-    fprintf(log_file,"\nUsage : trans_loopback_test <optional : duration_in_seconds>\n");
-    fprintf(log_file,"\nTranscode loopback test begin\n");
-    play_duration_in_seconds = 600;
-    if (argc == 2) {
-        play_duration_in_seconds = atoi(argv[1]);
-        if (play_duration_in_seconds < 0 | play_duration_in_seconds > 3600) {
-            fprintf(log_file,
-                    "\nPlayback duration %s invalid or unsupported(range : 1 to 3600, defaulting to 600 seconds )\n",
-                    argv[1]);
-            play_duration_in_seconds = 600;
-        }
-    }
-    play_duration_in_msec = play_duration_in_seconds * 1000;
-
     transcode_loopback_config_t    *transcode_loopback_config = NULL;
     transcode_loopback_config_t *temp = NULL;
+
+    struct option long_options[] = {
+        /* These options set a flag. */
+        {"sink-device", required_argument,    0, 'd'},
+        {"play-duration",  required_argument,    0, 'p'},
+        {"play-volume",  required_argument,    0, 'v'},
+        {"help",          no_argument,          0, 'h'},
+        {0, 0, 0, 0}
+    };
+
+    int opt = 0;
+    int option_index = 0;
+
+    while ((opt = getopt_long(argc,
+                              argv,
+                              "-d:p:v:h",
+                              long_options,
+                              &option_index)) != -1) {
+
+        fprintf(log_file, "for argument %c, value is %s\n", opt, optarg);
+
+        switch (opt) {
+        case 'd':
+            sink_device = atoi(optarg);
+            break;
+        case 'p':
+            play_duration_in_seconds = atoi(optarg);
+            break;
+        case 'v':
+            loopback_gain = atof(optarg);
+            break;
+        case 'h':
+        default :
+            usage();
+            return 0;
+            break;
+        }
+    }
+
+    fprintf(log_file,"\nTranscode loopback test begin\n");
+    if (play_duration_in_seconds < 0 | play_duration_in_seconds > 360000) {
+            fprintf(log_file,
+                    "\nPlayback duration %d invalid or unsupported(range : 1 to 360000, defaulting to 600 seconds )\n",
+                    play_duration_in_seconds);
+            play_duration_in_seconds = 600;
+    }
+    play_duration_in_msec = play_duration_in_seconds * 1000;
 
     /* Register the SIGINT to close the App properly */
     if (signal(SIGINT, break_signal_handler) == SIG_ERR) {
@@ -539,6 +612,9 @@ int main(int argc, char *argv[]) {
     /* Initialize global transcode loopback struct */
     init_transcode_loopback_config(&temp);
     transcode_loopback_config = &g_trnscode_loopback_config;
+
+    /* Set devices */
+    set_device(DEVICE_SINK,sink_device);
 
     /* Load HAL */
     fprintf(log_file,"\nLoading HAL for loopback usecase begin\n");
@@ -585,11 +661,12 @@ exit_transcode_loopback_test:
 
     fprintf(log_file,"\nTranscode loopback test end\n");
     return 0;
-usage:
-    fprintf(log_file,"\nInvald arguments\n");
-    fprintf(log_file,"\nUsage : trans_loopback_test <duration_in_seconds>\n");
-    fprintf(log_file,"\nExample to play for 1 minute : trans_loopback_test 60\n");
-    return 0;
 }
 
-
+void usage()
+{
+    fprintf(log_file,"\nUsage : trans_loopback_test -p <duration_in_seconds> -d <sink_device_id> -v <loopback_volume(range 0 to 4.0)>\n");
+    fprintf(log_file,"\nExample to play for 1 minute on speaker device with volume unity: trans_loopback_test -p 60 -d 2 -v 1.0\n");
+    fprintf(log_file,"\nExample to play for 5 minutes on headphone device: trans_loopback_test -p 300 -d 8\n");
+    fprintf(log_file,"\nHelp : trans_loopback_test -h\n");
+ }
