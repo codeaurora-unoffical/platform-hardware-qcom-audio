@@ -84,7 +84,7 @@ static const audio_format_t audio_passthru_formats[] = {
 static volatile int32_t compress_passthru_active;
 
 #ifdef DTSHD_PARSER_ENABLED
-static void passthru_update_stream_configuration_from_dts_parser( struct stream_out *out,
+int audio_extn_passthru_update_dts_stream_configuration(struct stream_out *out,
         const void *buffer, size_t bytes)
 {
     struct audio_parser_codec_info codec_info;
@@ -93,6 +93,27 @@ static void passthru_update_stream_configuration_from_dts_parser( struct stream_
     int ret;
     bool is_valid_transmission_rate = false;
     bool is_valid_transmission_channels = false;
+
+    if (!out) {
+        ALOGE("Invalid session");
+        return -EINVAL;
+    }
+
+    if ((out->format != AUDIO_FORMAT_DTS) &&
+        (out->format != AUDIO_FORMAT_DTS_HD)) {
+        ALOGE("Non DTS format %d", out->format);
+        return -EINVAL;
+    }
+
+    if (!buffer || bytes <= 0) {
+        ALOGD("Invalid buffer %p size %d skipping dts stream conf update",
+                buffer, bytes);
+        out->sample_rate = 48000;
+        out->compr_config.codec->sample_rate = out->sample_rate;
+        out->compr_config.codec->ch_in = 2;
+        out->channel_mask = audio_channel_out_mask_from_count(2);
+        return -EINVAL;
+    }
 
     /* codec format is AUDIO_PARSER_CODEC_DTSHD for both DTS and DTSHD as
      *  DTSHD parser can support both DTS and DTSHD
@@ -141,14 +162,15 @@ static void passthru_update_stream_configuration_from_dts_parser( struct stream_
         out->compr_config.codec->ch_in = 2;
         out->channel_mask = audio_channel_out_mask_from_count(2);
     }
+    return 0;
 }
 #else
-static void passthru_update_stream_configuration_from_dts_parser(
+int audio_extn_passthru_update_dts_stream_configuration(
                         struct stream_out *out __unused,
                         const void *buffer __unused,
                         size_t bytes __unused)
 {
-    return;
+    return -ENOSYS;
 }
 #endif
 
@@ -320,11 +342,13 @@ bool audio_extn_passthru_is_convert_supported(struct audio_device *adev,
     switch (out->format) {
     case AUDIO_FORMAT_E_AC3:
     case AUDIO_FORMAT_E_AC3_JOC:
-    case AUDIO_FORMAT_DTS_HD:
         if (!platform_is_edid_supported_format(adev->platform,
-            out->format)) {
-            ALOGD("%s:PASSTHROUGH_CONVERT supported", __func__);
-            convert = true;
+                                               out->format)) {
+            if (platform_is_edid_supported_format(adev->platform,
+                                                  AUDIO_FORMAT_AC3)) {
+                ALOGD("%s:PASSTHROUGH_CONVERT supported", __func__);
+                convert = true;
+            }
         }
         break;
     default:
@@ -400,15 +424,6 @@ void audio_extn_passthru_update_stream_configuration(
         ALOGV("%s:NO PASSTHROUGH", __func__);
         out->compr_config.codec->compr_passthr = LEGACY_PCM;
     }
-
-    /*
-     * for DTS passthrough, need to get sample rate from bitstream,
-     * based on this sample rate hdmi backend will be configured
-     */
-    if ((out->format == AUDIO_FORMAT_DTS) ||
-        (out->format == AUDIO_FORMAT_DTS_HD))
-        passthru_update_stream_configuration_from_dts_parser(out, buffer, bytes);
-
 }
 
 bool audio_extn_passthru_is_passthrough_stream(struct stream_out *out)
@@ -430,7 +445,7 @@ bool audio_extn_passthru_is_passthrough_stream(struct stream_out *out)
                         out->format)) {
                     ALOGV("%s : return true",__func__);
                     return true;
-                } else if (audio_extn_is_dolby_format(out->format) &&
+                } else if (audio_extn_utils_is_dolby_format(out->format) &&
                             platform_is_edid_supported_format(out->dev->platform,
                                 AUDIO_FORMAT_AC3)){
                     //return true for EAC3/EAC3_JOC formats
@@ -484,4 +499,45 @@ int audio_extn_passthru_set_volume(struct stream_out *out,  int mute)
 int audio_extn_passthru_set_latency(struct stream_out *out, int latency)
 {
     return platform_set_device_params(out, DEVICE_PARAM_LATENCY_ID, latency);
+}
+
+bool audio_extn_passthru_is_supported_backend_edid_cfg(struct audio_device *adev,
+                                                   struct stream_out *out)
+{
+    struct audio_backend_cfg backend_cfg;
+    snd_device_t out_snd_device = SND_DEVICE_NONE;
+    int max_edid_channels = platform_edid_get_max_channels(out->dev->platform);
+
+    out_snd_device = platform_get_output_snd_device(adev->platform, out);
+
+    if (platform_get_codec_backend_cfg(adev, out_snd_device, &backend_cfg)) {
+        ALOGE("%s: ERROR: Unable to get current backend config!!!", __func__);
+        return false;
+    }
+
+    ALOGV("%s:becf: afe: bitwidth %d, samplerate %d channels %d format %d"
+          ", device (%s)", __func__,  backend_cfg.bit_width,
+          backend_cfg.sample_rate, backend_cfg.channels, backend_cfg.format,
+          platform_get_snd_device_name(out_snd_device));
+
+    /* Check if the channels are supported */
+    if (max_edid_channels < backend_cfg.channels) {
+
+        ALOGE("%s: ERROR: Unsupported channels in passthru mode!!!"
+              " max_edid_channels - %d backend_channels - %d",
+              __func__, max_edid_channels, backend_cfg.channels);
+        return false;
+    }
+
+    /* Check if the sample rate supported */
+    if (!platform_is_edid_supported_sample_rate(adev->platform,
+                                       backend_cfg.sample_rate)) {
+
+        ALOGE("%s: ERROR: Unsupported sample rate in passthru mode!!!"
+              " backend_samplerate - %d",
+              __func__, backend_cfg.sample_rate);
+        return false;
+    }
+
+    return true;
 }

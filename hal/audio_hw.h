@@ -308,6 +308,7 @@ struct stream_out {
     qahwi_stream_out_t qahwi_out;
 
     bool is_iec61937_info_available;
+    bool stream_config_changed;
     mix_matrix_params_t pan_scale_params;
     mix_matrix_params_t downmix_params;
 };

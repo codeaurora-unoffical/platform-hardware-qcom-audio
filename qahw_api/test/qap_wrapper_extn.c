@@ -50,12 +50,19 @@
 #define SESSION_BLURAY   1
 #define SESSION_BROADCAST 2
 #define MAX_OUTPUT_CHANNELS 8
-#define FRAME_SIZE 30000
-#define MAX_BUFFER_SIZE 30000
+#define FRAME_SIZE 32768 /* 32k size */
+#define MAX_BUFFER_SIZE 32768 /* 32k size */
 #define CONTIGUOUS_TIMESTAMP 0x7fffffff
 #define TIMESTAMP_ARRAY_SIZE 2048
 #define DOLBY 1
 #define DTS   2
+#define FRAME_SIZE_FOR_2CH_PCM 6144 /* For 48k samplerate, 2 ch, 2 bytes */
+
+#define MAX_QAP_MODULE_OUT 3
+
+qap_output_config_t qap_out_configs[MAX_QAP_MODULE_OUT];
+bool is_media_fmt_changed[MAX_QAP_MODULE_OUT];
+int new_output_conf_index = 0;
 
 qap_lib_handle_t ms12_lib_handle = NULL;
 qap_lib_handle_t m8_lib_handle = NULL;
@@ -107,9 +114,20 @@ double data_input_st_arr[TIMESTAMP_ARRAY_SIZE];
 double data_callback_st_arr[TIMESTAMP_ARRAY_SIZE];
 bool has_system_input = false;
 char session_kv_pairs[256];
-bool stream_close = false;
+bool primary_stream_close = false;
+int8_t stream_cnt = 0;
 uint32_t dsp_latency = 0;
 
+static int get_qap_out_config_index_for_id(int32_t out_id)
+{
+    int index = -1, i;
+
+    for (i = 0; i < MAX_QAP_MODULE_OUT; i++)
+        if (qap_out_configs[i].id == out_id)
+            index = i;
+
+    return index;
+}
 
 static void update_combo_dev_kvpairs()
 {
@@ -246,7 +264,7 @@ static void qap_wrapper_read_frame_size_from_file(qap_audio_buffer_t *buffer, FI
 static void read_bytes_timestamps_from_file(qap_audio_buffer_t *buffer, FILE *fp_timestamp, FILE *fp_input_file)
 {
     if (NULL != fp_timestamp) {
-        char tempstr[100];
+        char tempstr[100] = {0};
         int seek_offset = 0;
         fgets(tempstr, sizeof(tempstr), fp_timestamp);
         printf("%s and tempstr is %s \n", __FUNCTION__,  tempstr);
@@ -266,6 +284,9 @@ static void read_bytes_timestamps_from_file(qap_audio_buffer_t *buffer, FILE *fp
                         fseek(fp_input_file, seek_offset, SEEK_CUR);
                 }
             }
+        } else {
+            buffer->common_params.timestamp = CONTIGUOUS_TIMESTAMP;
+            buffer->common_params.size = 0;
         }
     }
 }
@@ -296,12 +317,11 @@ char* check_for_playlist(char *kvp_string) {
     char *play_list = NULL;
     int len = 0;
 
-    tmp_str = strstr(kvp_string, "g=");
+    tmp_str = strstr(kvp_string, "g=/");
     if (tmp_str != NULL) {
         file_str = strstr(kvp_string, ".txt");
         len = file_str - tmp_str;
-        play_list = (char*) malloc(sizeof(char) * (len+4));
-        memset(play_list, '\0', len+4);
+        play_list = (char*) calloc(1, sizeof(char) * (len+4));
         strncpy(play_list, tmp_str+2, len+2);
     }
     return play_list;
@@ -372,13 +392,13 @@ int start_playback_through_qap_playlist(char *cmd_kvp_str[], int num_of_streams,
             }
         }
         i++;
-        while (!stream_close) {
+        while (!primary_stream_close) {
             usleep(50000);
             fprintf(stderr, "QAP Stream not closed\n");
         }
         fprintf(stderr, "QAP Stream closed\n");
     } while (i <num_of_streams);
-    if (broad_cast && qap_wrapper_session_active) {
+    if (qap_wrapper_session_active) {
         qap_wrapper_session_close();
         qap_wrapper_session_active = false;
     }
@@ -407,8 +427,7 @@ char *qap_wrapper_get_single_kvp(const char *key, const char *kv_pairs, int *sta
         if (temp_kvp != NULL) {
             temp_key = strtok_r(temp_kvp, "=", &context2);
             if (!strncmp(key, temp_key, strlen(key))) {
-                kvp = malloc((strlen(token) + 1) * sizeof(char));
-                memset(kvp, 0, strlen(token) + 1);
+                kvp = calloc(1, (strlen(token) + 1) * sizeof(char));
                 strncat(kvp, token, strlen(token));
                 return kvp;
             }
@@ -421,8 +440,7 @@ char *qap_wrapper_get_single_kvp(const char *key, const char *kv_pairs, int *sta
                 if (temp_kvp != NULL) {
                     temp_key = strtok_r(temp_kvp, "=", &context2);
                     if (!strncmp(key, temp_key, strlen(key))) {
-                        kvp = malloc((strlen(token) + 1) * sizeof(char));
-                        memset(kvp, 0, strlen(token) + 1);
+                        kvp = calloc(1, (strlen(token) + 1) * sizeof(char));
                         strncat(kvp, token, strlen(token));
                         return kvp;
                     }
@@ -468,7 +486,7 @@ int *qap_wrapper_get_int_value_array(const char *kvp, int *count, int *status __
             for (i=0; s[i]; s[i]==',' ? i++ : *s++);
 
             temp = i;
-            val = malloc((i + 1)*sizeof(int));
+            val = calloc(1, (i + 1)*sizeof(int));
             i = 0;
             val[i++] = strtol(tempstr2, &endstr, 0);
 
@@ -503,7 +521,7 @@ char * qap_wrapper_get_cmd_string_from_arg_array(int argc, char * argv[], int *s
     }
 
     if (mem > 0)
-        kvps = malloc(mem * sizeof(char));
+        kvps = calloc(1, mem * sizeof(char));
     else {
         *status = -EINVAL;
         fprintf(stdout, "%s %d returning EINVAL\n", __func__, __LINE__);
@@ -670,7 +688,7 @@ static void close_output_streams()
             fprintf(stderr, "%s::%d: could not close output stream, error - %d\n", __func__, __LINE__, ret);
         qap_out_hdmi_handle = NULL;
     }
-    stream_close = true;
+    primary_stream_close = true;
 }
 
 void qap_wrapper_session_callback(qap_session_handle_t session_handle __unused, void* priv_data __unused, qap_callback_event_t event_id, int size __unused, void *data)
@@ -687,13 +705,15 @@ void qap_wrapper_session_callback(qap_session_handle_t session_handle __unused, 
     switch (event_id) {
         case QAP_CALLBACK_EVENT_EOS:
             ALOGV("%s %d Received Main Input EOS", __func__, __LINE__);
+            if (stream_cnt > 0)
+                stream_cnt--;
             pthread_mutex_lock(&main_eos_lock);
             pthread_cond_signal(&main_eos_cond);
             pthread_mutex_unlock(&main_eos_lock);
 
             ALOGE("%s %d Received Main Input EOS ", __func__, __LINE__);
-            if (!stream_close)
-            close_output_streams();
+            if (!stream_cnt)
+                close_output_streams();
             if (play_list_cnt && input_streams_count) {
                 play_list_cnt--;
                 input_streams_count = 0;
@@ -701,19 +721,53 @@ void qap_wrapper_session_callback(qap_session_handle_t session_handle __unused, 
             break;
         case QAP_CALLBACK_EVENT_EOS_ASSOC:
         case QAP_CALLBACK_EVENT_MAIN_2_EOS:
+            if (stream_cnt > 0)
+                stream_cnt--;
             if (!has_system_input){
                 ALOGV("%s %d Received Secondary Input EOS", __func__, __LINE__);
                 pthread_mutex_lock(&sec_eos_lock);
                 pthread_cond_signal(&sec_eos_cond);
                 pthread_mutex_unlock(&sec_eos_lock);
             }
+            if (!stream_cnt)
+                close_output_streams();
             break;
         case QAP_CALLBACK_EVENT_ERROR:
             break;
         case QAP_CALLBACK_EVENT_SUCCESS:
             break;
         case QAP_CALLBACK_EVENT_METADATA:
+            break;
         case QAP_CALLBACK_EVENT_OUTPUT_CFG_CHANGE:
+            if (data != NULL) {
+                qap_audio_buffer_t *buffer = (qap_audio_buffer_t *) data;
+                qap_output_config_t *new_conf = &buffer->buffer_parms.output_buf_params.output_config;
+                qap_output_config_t *cached_conf = NULL;
+                int index = -1;
+
+                ALOGV("%s %d Received Output cfg change", __func__, __LINE__);
+                if (buffer) {
+                    index = get_qap_out_config_index_for_id(
+                              buffer->buffer_parms.output_buf_params.output_id);
+                    if (index >= 0) {
+                        cached_conf = &qap_out_configs[index];
+                    } else if (index < 0 && new_output_conf_index < MAX_QAP_MODULE_OUT) {
+                        index = new_output_conf_index;
+                        cached_conf = &qap_out_configs[index];
+                        new_output_conf_index++;
+                    }
+                }
+
+                if (cached_conf == NULL) {
+                    ALOGE("Maximum output from QAP is reached");
+                    return;
+                }
+                if (memcmp(cached_conf, new_conf, sizeof(qap_output_config_t)) != 0) {
+                    memcpy(cached_conf, new_conf, sizeof(qap_output_config_t));
+                    cached_conf->id = buffer->buffer_parms.output_buf_params.output_id;
+                    is_media_fmt_changed[index] = true;
+                }
+            }
             break;
         case QAP_CALLBACK_EVENT_DATA:
             if (data != NULL) {
@@ -752,6 +806,17 @@ void qap_wrapper_session_callback(qap_session_handle_t session_handle __unused, 
                 }
 
                 if (buffer && buffer->common_params.data) {
+                    int index = -1;
+                    bool is_reopen_stream = false;
+                    index = get_qap_out_config_index_for_id(buffer->buffer_parms.output_buf_params.output_id);
+                    if (index > -1 && is_media_fmt_changed[index]) {
+                        session_output_config.output_config->sample_rate = qap_out_configs[index].sample_rate;
+                        session_output_config.output_config->bit_width = qap_out_configs[index].bit_width;
+                        session_output_config.output_config->channels = qap_out_configs[index].channels;
+                        is_reopen_stream = true;
+                        is_media_fmt_changed[index] = false;
+                    }
+
                     if (buffer->buffer_parms.output_buf_params.output_id &
                             AUDIO_DEVICE_OUT_HDMI) {
                         if (!hdmi_connected) {
@@ -781,9 +846,16 @@ void qap_wrapper_session_callback(qap_session_handle_t session_handle __unused, 
                             fflush(fp_output_writer_hdmi);
                         }
 
+                        if (is_reopen_stream && qap_out_hdmi_handle) {
+                            qahw_close_output_stream(qap_out_hdmi_handle);
+                            qap_out_hdmi_handle = NULL;
+                            is_reopen_stream = false;
+                        }
+
                         if (hdmi_connected && qap_out_hdmi_handle == NULL) {
                             struct audio_config config;
                             audio_devices_t devices;
+
                             config.offload_info.version = AUDIO_INFO_INITIALIZER.version;
                             config.offload_info.size = AUDIO_INFO_INITIALIZER.size;
                             config.sample_rate = config.offload_info.sample_rate =
@@ -860,6 +932,12 @@ void qap_wrapper_session_callback(qap_session_handle_t session_handle __unused, 
                                           buffer->common_params.size, fp_output_writer_hp);
                             fflush(fp_output_writer_hp);
                         }
+                        if (is_reopen_stream && qap_out_hp_handle) {
+                            qahw_close_output_stream(qap_out_hp_handle);
+                            qap_out_hp_handle = NULL;
+                            is_reopen_stream = false;
+                        }
+
                         if (qap_out_hp_handle == NULL) {
                             struct audio_config config;
                             audio_devices_t devices;
@@ -928,6 +1006,11 @@ void qap_wrapper_session_callback(qap_session_handle_t session_handle __unused, 
                             ret = fwrite((unsigned char *)buffer->common_params.data, sizeof(unsigned char),
                                           buffer->common_params.size, fp_output_writer_spk);
                             fflush(fp_output_writer_spk);
+                        }
+                        if (is_reopen_stream && qap_out_spk_handle) {
+                            qahw_close_output_stream(qap_out_spk_handle);
+                            qap_out_spk_handle = NULL;
+                            is_reopen_stream = false;
                         }
                         if (qap_out_spk_handle == NULL) {
                             struct audio_config config;
@@ -1085,7 +1168,7 @@ int qap_wrapper_session_open(char *kv_pairs, void* stream_data, int num_of_strea
         }
     }
 
-    if (stream->filetype == FILE_DTS) {
+    if (stream->filetype == FILE_DTS && (NULL == m8_lib_handle)) {
         m8_lib_handle = (qap_session_handle_t) qap_load_library(QAC_LIB_M8);
         if (m8_lib_handle == NULL) {
             fprintf(stdout, "Failed to load M8 library\n");
@@ -1099,7 +1182,7 @@ int qap_wrapper_session_open(char *kv_pairs, void* stream_data, int num_of_strea
                 (stream->filetype == FILE_WAV) ||
                 (stream->filetype == FILE_AAC) ||
                 (stream->filetype == FILE_AAC_ADTS) ||
-                (stream->filetype == FILE_AAC_LATM)) {
+                (stream->filetype == FILE_AAC_LATM) && (NULL == ms12_lib_handle)) {
         ms12_lib_handle = (qap_session_handle_t) qap_load_library(QAC_LIB_MS12);
         if (ms12_lib_handle == NULL) {
             fprintf(stderr, "Failed to load MS12 library\n");
@@ -1230,6 +1313,16 @@ int qap_wrapper_session_close ()
     session_output_configured = false;
     qap_session_close(qap_session_handle);
     qap_session_handle = NULL;
+    if (stream_cnt == 0) {
+        if (NULL != m8_lib_handle) {
+            qap_unload_library(m8_lib_handle);
+            m8_lib_handle = NULL;
+        }
+        if (NULL != ms12_lib_handle) {
+            qap_unload_library(ms12_lib_handle);
+            ms12_lib_handle = NULL;
+        }
+    }
 }
 
 void *qap_wrapper_start_stream (void* stream_data)
@@ -1293,6 +1386,10 @@ void *qap_wrapper_start_stream (void* stream_data)
                 int wav_header_len = get_wav_header_length(stream_info->file_stream);
                 fseek(fp_input, wav_header_len, SEEK_SET);
             }
+            if (stream_info->channels > 6)
+                stream_info->bytes_to_read = (FRAME_SIZE_FOR_2CH_PCM * 4);
+            else
+                stream_info->bytes_to_read = (FRAME_SIZE_FOR_2CH_PCM * 3);
         }
         buffer->buffer_parms.input_buf_params.flags = QAP_BUFFER_NO_TSTAMP;
         buffer->common_params.timestamp = QAP_BUFFER_NO_TSTAMP;
@@ -1332,6 +1429,7 @@ void *qap_wrapper_start_stream (void* stream_data)
         reply_data = (char*) calloc(1, 100);
         is_buffer_available = 0;
         temp_ptr = buffer->common_params.data;
+        int time_index = data_write_count;
         if (kpi_mode) {
             if (data_write_count > 5 && data_write_count < TIMESTAMP_ARRAY_SIZE) {
                 gettimeofday(&tcont_ts1, NULL);
@@ -1352,28 +1450,33 @@ void *qap_wrapper_start_stream (void* stream_data)
             ALOGV("%s %d feeding Input of size %d  and bytes_cosumed is %d",
                       __FUNCTION__, __LINE__,bytes_read, bytes_consumed);
             if (stream_info->filetype == FILE_DTS) {
-                  if (bytes_consumed < 0) {
-                      while (!is_buffer_available) {
-                          usleep(1000);
-                          ret = qap_module_cmd(qap_module_handle, QAP_MODULE_CMD_GET_PARAM,
-                                 sizeof(QAP_MODULE_CMD_GET_PARAM), "buf_available", NULL, reply_data
-                          );
-                          if (reply_data)
-                              temp_str = get_string_value(reply_data, &status);
-                           if (temp_str) {
-                               is_buffer_available = atoi(temp_str);
-                               free(temp_str);
-                           }
-                           ALOGV("%s : %d, dts clip reply_data is %d buffer availabale is %d",
-                                 __FUNCTION__, __LINE__, reply_data, is_buffer_available);
-                       }
-                  }
-             }
+                if (bytes_consumed < 0) {
+                    while (!is_buffer_available) {
+                        usleep(1000);
+                        ret = qap_module_cmd(qap_module_handle, QAP_MODULE_CMD_GET_PARAM,
+                                             sizeof(QAP_MODULE_CMD_GET_PARAM), "buf_available", NULL, reply_data
+                        );
+                        if (reply_data)
+                            temp_str = get_string_value(reply_data, &status);
+                        if (temp_str) {
+                            is_buffer_available = atoi(temp_str);
+                            free(temp_str);
+                        }
+                        ALOGV("%s : %d, dts clip reply_data is %d buffer availabale is %d",
+                              __FUNCTION__, __LINE__, reply_data, is_buffer_available);
+                    }
+
+                    if(kpi_mode && time_index > 5) {
+                        gettimeofday(&tcont_ts1, NULL);
+                        data_input_st_arr[time_index] = (tcont_ts1.tv_sec) * 1000 + (tcont_ts1.tv_usec) / 1000;
+                    }
+                }
+            }
         } while (buffer->common_params.size > 0);
         if (reply_data)
             free(reply_data);
         buffer->common_params.data = temp_ptr;
-        if (!(stream_info->system_input || stream_info->sec_input)) {
+        if (!(stream_info->system_input || stream_info->sec_input) && !(kpi_mode)) {
             usleep(5000); //To swtich between main and secondary threads incase of dual input
         }
     } while (1);
@@ -1401,16 +1504,14 @@ exit:
         free( buffer);
         buffer = NULL;
     }
+    qap_module_deinit(qap_module_handle);
     if ((true == play_list) && (0 == play_list_cnt) && qap_out_hal_handle) {
-         ALOGV("%s %d QAP_CALLBACK_EVENT_EOS for play list received and unload_hals", __func__, __LINE__);
-         unload_hals();
+         ALOGV("%s %d QAP_CALLBACK_EVENT_EOS for play list received", __func__, __LINE__);
          qap_out_hal_handle = NULL;
     } else if (!play_list && qap_out_hal_handle) {
-         ALOGV("%s %d QAP_CALLBACK_EVENT_EOS and unload_hals", __func__, __LINE__);
-         unload_hals();
+         ALOGV("%s %d QAP_CALLBACK_EVENT_EOS received", __func__, __LINE__);
          qap_out_hal_handle = NULL;
     }
-    qap_module_deinit(qap_module_handle);
     if (kpi_mode) {
         qap_wrapper_measure_kpi_values(cold_start, cold_stop);
     }
@@ -1437,7 +1538,7 @@ qap_module_handle_t qap_wrapper_stream_open(void* stream_data)
     input_config->bit_width = stream_info->config.offload_info.bit_width;
 
     if (stream_info->filetype == FILE_DTS)
-        stream_info->bytes_to_read = 10*1024;
+        stream_info->bytes_to_read = FRAME_SIZE;
     else
         stream_info->bytes_to_read = 1024;
     input_streams_count++;
@@ -1485,7 +1586,8 @@ qap_module_handle_t qap_wrapper_stream_open(void* stream_data)
         return NULL;
     }
 
-    stream_close = false;
+    primary_stream_close = false;
+    stream_cnt++;
     return qap_module_handle;
 
 }
@@ -1493,33 +1595,27 @@ void get_play_list(FILE *fp, stream_config (*stream_param)[], int *num_of_stream
 {
     char *token = NULL;
     char *strings[100] = {NULL};
-    char cmd_str[500] = {0};
+    char cmd_str[1024] = {0};
     char *tmp_str = NULL;
     int i = 0;
 
     do {
-        int j = 0, cnt = 1, status = 0;
+        int j = 0, cnt = 0, status = 0;
 
         if (fgets(cmd_str, sizeof(cmd_str), fp) != NULL)
             tmp_str = strdup(cmd_str);
         else
             break;
-        fprintf(stdout, "%s %d\n", __FUNCTION__, __LINE__);
+        fprintf(stdout, "%s %d tmp_str is %s", __FUNCTION__, __LINE__, tmp_str);
         token = strtok(tmp_str, " ");
         if (NULL != token) {
-            strings[cnt] = (char*)calloc(1, (strlen(token) +1));
-            memset(strings[cnt], '\0', strlen(token) +1);
-            strncpy(strings[cnt], token, strlen(token));
-            cnt++;
+            strings[cnt++] = strdup("playlist");
+            strings[cnt++] = strdup(token);
             while (NULL != (token = strtok(NULL, " "))) {
-                strings[cnt] = (char*)calloc(1, (strlen(token) +1));
-                memset(strings[cnt], '\0', strlen(token) +1);
-                strncpy(strings[cnt], token, strlen(token));
+                strings[cnt] = strdup(token);
+                ALOGV("%s %d strings[%d] is %s", __FUNCTION__, __LINE__, cnt, strings[cnt]);
                 cnt++;
             }
-            strings[0] = calloc(1, 4);
-            memset(strings[0], '\0', 4);
-            strncpy(strings[0], "play_list", 3);
             for (j = 0;j< cnt;j++) {
                 if (!strncmp(strings[j], "-f", 2)) {
                    (*stream_param)[i].filename = strdup(strings[j+1]);
@@ -1539,15 +1635,21 @@ void get_play_list(FILE *fp, stream_config (*stream_param)[], int *num_of_stream
                     (*stream_param)[i].aac_fmt_type = atoi(strings[j+1]);
                 }
             }
+            free(tmp_str);
+            tmp_str = NULL;
         }
         if(NULL != (*stream_param)[i].filename) {
             *num_of_streams = i+1;
             play_list = true;
-            kvp_str[i] = (char *)qap_wrapper_get_cmd_string_from_arg_array(cnt, (char**)strings, &status);
+            kvp_str[i] = (char *)qap_wrapper_get_cmd_string_from_arg_array(cnt, strings, &status);
+            ALOGV("%s %d kvp_str[%d] is %s", __FUNCTION__, __LINE__, i, kvp_str[i]);
         }
-        free(tmp_str);
-        for (j=0; j < cnt; j++)
-           free(strings[j]);
+        for (j=0; j < cnt; j++) {
+           if (NULL != strings[j]){
+               free(strings[j]);
+               strings[j] = NULL;
+           }
+        }
         i++;
     }while(NULL != cmd_str);
 
