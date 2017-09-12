@@ -3273,7 +3273,7 @@ static int out_set_volume(struct audio_stream_out *stream, float left,
                           float right)
 {
     struct stream_out *out = (struct stream_out *)stream;
-    int volume[2];
+    long volume[2];
 
     if (out->usecase == USECASE_AUDIO_PLAYBACK_MULTI_CH) {
         /* only take left channel into account: the API is for stereo anyway */
@@ -3316,8 +3316,8 @@ static int out_set_volume(struct audio_stream_out *stream, float left,
                       __func__, mixer_ctl_name);
                 return -EINVAL;
             }
-            volume[0] = (int)(left * COMPRESS_PLAYBACK_VOLUME_MAX);
-            volume[1] = (int)(right * COMPRESS_PLAYBACK_VOLUME_MAX);
+            volume[0] = (long)(left * COMPRESS_PLAYBACK_VOLUME_MAX);
+            volume[1] = (long)(right * COMPRESS_PLAYBACK_VOLUME_MAX);
             mixer_ctl_set_array(ctl, volume, sizeof(volume)/sizeof(volume[0]));
             return 0;
         }
