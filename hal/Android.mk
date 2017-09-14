@@ -258,10 +258,15 @@ LOCAL_SHARED_LIBRARIES := \
 	liblog \
 	libcutils \
 	libtinyalsa \
-	libtinycompress_vendor \
 	libaudioroute \
 	libdl \
 	libexpat
+
+ifeq ($(DEFAULT_PLATFORM_VERSION),OPM1)
+	LOCAL_SHARED_LIBRARIES += libtinycompress
+else
+	LOCAL_SHARED_LIBRARIES += libtinycompress_vendor
+endif
 
 LOCAL_C_INCLUDES += \
 	external/tinyalsa/include \
