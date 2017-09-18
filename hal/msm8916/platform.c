@@ -2066,6 +2066,9 @@ void *platform_init(struct audio_device *adev)
     int idx;
     int wsaCount =0;
     bool is_wsa_combo_supported = false;
+    struct mixer_ctl *mix_ctl = NULL;
+    int mixer_bitwidth_config;
+    int CODEC_BACKEND_CURRENT_BITWIDTH[3] = {CODEC_BACKEND_DEFAULT_BIT_WIDTH, CODEC_BACKEND_BIT_WIDTH_32, CODEC_BACKEND_BIT_WIDTH_24};
 
     my_data = calloc(1, sizeof(struct platform_data));
 
@@ -2407,7 +2410,6 @@ acdb_init_fail:
         my_data->current_backend_cfg[idx].sample_rate = CODEC_BACKEND_DEFAULT_SAMPLE_RATE;
         if (idx == HEADPHONE_44_1_BACKEND)
             my_data->current_backend_cfg[idx].sample_rate = OUTPUT_SAMPLING_RATE_44100;
-        my_data->current_backend_cfg[idx].bit_width = CODEC_BACKEND_DEFAULT_BIT_WIDTH;
         my_data->current_backend_cfg[idx].channels = CODEC_BACKEND_DEFAULT_CHANNELS;
         if (idx > MAX_RX_CODEC_BACKENDS)
             my_data->current_backend_cfg[idx].channels = CODEC_BACKEND_DEFAULT_TX_CHANNELS;
@@ -2514,6 +2516,30 @@ acdb_init_fail:
         strdup("QUAT_MI2S_TX SampleRate");
     my_data->current_backend_cfg[HDMI_TX_BACKEND].channels_mixer_ctl =
         strdup("QUAT_MI2S_TX Channels");
+
+    for(idx = 0; idx < MAX_CODEC_BACKENDS; idx++)
+    {
+        if(my_data->current_backend_cfg[idx].bitwidth_mixer_ctl)
+        {
+            mix_ctl = mixer_get_ctl_by_name(adev->mixer, my_data->current_backend_cfg[idx].bitwidth_mixer_ctl);
+            if(!mix_ctl)
+            {
+                ALOGE("%s, mixer not found", __func__);
+            }
+            else
+            {
+                mixer_bitwidth_config = mixer_ctl_get_value(mix_ctl, 0);
+                if(mixer_bitwidth_config >= 0)
+                    my_data->current_backend_cfg[idx].bit_width = CODEC_BACKEND_CURRENT_BITWIDTH[mixer_bitwidth_config];
+                else
+                    my_data->current_backend_cfg[idx].bit_width = CODEC_BACKEND_DEFAULT_BIT_WIDTH;
+            }
+        }
+        else
+        {
+            my_data->current_backend_cfg[idx].bit_width = CODEC_BACKEND_DEFAULT_BIT_WIDTH;
+        }
+    }
 
     ret = audio_extn_utils_get_codec_version(snd_card_name,
                                              my_data->adev->snd_card,
