@@ -11,7 +11,7 @@ AUDIO_FEATURE_ENABLED_EXTN_FLAC_DECODER := true
 AUDIO_FEATURE_ENABLED_EXTN_RESAMPLER := true
 AUDIO_FEATURE_ENABLED_FM_POWER_OPT := true
 AUDIO_FEATURE_ENABLED_PROXY_DEVICE := true
-AUDIO_FEATURE_ENABLED_SSR := true
+AUDIO_FEATURE_ENABLED_SSR := false
 AUDIO_FEATURE_ENABLED_VOICE_CONCURRENCY := true
 AUDIO_FEATURE_ENABLED_RECORD_PLAY_CONCURRENCY := true
 AUDIO_FEATURE_ENABLED_PM_SUPPORT := true
@@ -129,7 +129,11 @@ vendor.audio.sys.init=false
 
 #Enable DS2 feature for Dolby
 PRODUCT_PROPERTY_OVERRIDES += \
-vendor.audio.dolby.ds2.enabled=true
+vendor.audio.dolby.ds2.enabled=false
+
+#split  a2dp
+PRODUCT_PROPERTY_OVERRIDES += \
+persist.vendor.bt.enable.splita2dp=false
 
 #split  a2dp
 PRODUCT_PROPERTY_OVERRIDES += \
