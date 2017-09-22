@@ -90,9 +90,9 @@
         <usecase name="USECASE_AUDIO_PLAYBACK_DRIVER_SIDE" type="out" acdb_id="14"/>
 
         <!-- PCM_CAPTURE (ec_car_state=0) -->
-        <usecase name="USECASE_AUDIO_RECORD" type="in" acdb_id="11"/>
-        <usecase name="USECASE_AUDIO_RECORD_COMPRESS" type="in" acdb_id="11"/>
-        <usecase name="USECASE_AUDIO_RECORD_LOW_LATENCY" type="in" acdb_id="11"/>
+        <!--usecase name="USECASE_AUDIO_RECORD" type="in" acdb_id="11"/ -->
+        <!--usecase name="USECASE_AUDIO_RECORD_COMPRESS" type="in" acdb_id="11"/ -->
+        <!--usecase name="USECASE_AUDIO_RECORD_LOW_LATENCY" type="in" acdb_id="11"/ -->
 
         <!-- ICC_CALL -->
         <usecase name="USECASE_ICC_CALL" type="in" acdb_id="46"/>
