@@ -116,7 +116,7 @@ static void send_cmd_l(request_t r)
 
     if (cmd == NULL) {
         ALOGE("%s: cmd is NULL", __func__);
-        return -ENOMEM;
+        return;
     }
 
     cmd->req = r;
