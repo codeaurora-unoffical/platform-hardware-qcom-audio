@@ -2589,7 +2589,7 @@ int start_output_stream(struct stream_out *out)
                                              out->playback_started);
 
 #ifdef DS1_DOLBY_DDP_ENABLED
-        if (audio_extn_is_dolby_format(out->format))
+        if (audio_extn_utils_is_dolby_format(out->format))
             audio_extn_dolby_send_ddp_endp_params(adev);
 #endif
         if (!(audio_extn_passthru_is_passthrough_stream(out)) &&
@@ -3337,7 +3337,6 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
     struct audio_device *adev = out->dev;
     int snd_scard_state = get_snd_card_state(adev);
     ssize_t ret = 0;
-    int channels = 0;
 
     lock_output_stream(out);
 
@@ -3371,13 +3370,13 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
         goto exit;
     }
 
-    if (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL) {
-        channels = platform_edid_get_max_channels(out->dev->platform);
-        if (audio_extn_passthru_is_enabled() &&
-            !out->is_iec61937_info_available &&
-            audio_extn_passthru_is_passthrough_stream(out)) {
-            audio_extn_passthru_update_stream_configuration(adev, out,
-                    buffer, bytes);
+    if ((out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL) &&
+         !out->is_iec61937_info_available) {
+
+        if (!audio_extn_passthru_is_passthrough_stream(out)) {
+            out->is_iec61937_info_available = true;
+        } else if (audio_extn_passthru_is_enabled()) {
+            audio_extn_passthru_update_stream_configuration(adev, out, buffer, bytes);
             out->is_iec61937_info_available = true;
 
             if((out->format == AUDIO_FORMAT_DTS) ||
@@ -3389,7 +3388,7 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
                         out->is_iec61937_info_available = false;
                         ALOGD("iec61937 transmission info not yet updated retry");
                     }
-                } else {
+                } else if (!out->standby) {
                     /* if stream has started and after that there is
                      * stream config change (iec transmission config)
                      * then trigger select_device to update backend configuration.
@@ -3397,20 +3396,16 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
                     out->stream_config_changed = true;
                     pthread_mutex_lock(&adev->lock);
                     select_devices(adev, out->usecase);
+                    if (!audio_extn_passthru_is_supported_backend_edid_cfg(adev, out)) {
+                        ret = -EINVAL;
+                        goto exit;
+                    }
                     pthread_mutex_unlock(&adev->lock);
                     out->stream_config_changed = false;
                     out->is_iec61937_info_available = true;
                 }
             }
-
-            if ((channels < audio_channel_count_from_out_mask(out->channel_mask)) &&
-                (out->compr_config.codec->compr_passthr == PASSTHROUGH) &&
-                (out->is_iec61937_info_available == true)) {
-                    ALOGE("%s: ERROR: Unsupported channel config in passthrough mode", __func__);
-                    ret = -EINVAL;
-                    goto exit;
-            }
-        }
+       }
     }
 
     if (out->standby) {
@@ -3431,6 +3426,13 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
             ALOGD("%s: retry previous failed cal level set", __func__);
             audio_hw_send_gain_dep_calibration(last_known_cal_step);
             last_known_cal_step = -1;
+        }
+
+        if ((out->is_iec61937_info_available == true) &&
+            (audio_extn_passthru_is_passthrough_stream(out))&&
+            (!audio_extn_passthru_is_supported_backend_edid_cfg(adev, out))) {
+            ret = -EINVAL;
+            goto exit;
         }
     }
 
@@ -4461,7 +4463,7 @@ int adev_open_output_stream(struct audio_hw_device *dev,
         out->bit_width = CODEC_BACKEND_DEFAULT_BIT_WIDTH;
 
         out->compr_config.codec->id = get_snd_codec_id(config->offload_info.format);
-        if (audio_extn_is_dolby_format(config->offload_info.format)) {
+        if (audio_extn_utils_is_dolby_format(config->offload_info.format)) {
             audio_extn_dolby_send_ddp_endp_params(adev);
             audio_extn_dolby_set_dmid(adev);
         }
