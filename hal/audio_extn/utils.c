@@ -830,7 +830,7 @@ static int send_app_type_cfg_for_device(struct audio_device *adev,
     char value[PROPERTY_VALUE_MAX] = {0};
     struct streams_io_cfg *s_info = NULL;
     struct listnode *node = NULL;
-    int direct_app_type = 0;
+    int bd_app_type = 0;
 
     ALOGV("%s: usecase->out_snd_device %s, usecase->in_snd_device %s, split_snd_device %s",
           __func__, platform_get_snd_device_name(usecase->out_snd_device),
@@ -934,11 +934,13 @@ static int send_app_type_cfg_for_device(struct audio_device *adev,
          */
         list_for_each(node, &adev->streams_output_cfg_list) {
             s_info = node_to_item(node, struct streams_io_cfg, list);
-            if (s_info->flags.out_flags == AUDIO_OUTPUT_FLAG_DIRECT)
-                direct_app_type = s_info->app_type_cfg.app_type;
+            if (s_info->flags.out_flags == (AUDIO_OUTPUT_FLAG_BD |
+                                            AUDIO_OUTPUT_FLAG_DIRECT_PCM |
+                                            AUDIO_OUTPUT_FLAG_DIRECT))
+                bd_app_type = s_info->app_type_cfg.app_type;
         }
         if (usecase->stream.out->flags == AUDIO_OUTPUT_FLAG_INTERACTIVE)
-            app_type = direct_app_type;
+            app_type = bd_app_type;
         else
             app_type = usecase->stream.out->app_type_cfg.app_type;
         app_type_cfg[len++] = app_type;
@@ -2137,8 +2139,8 @@ int audio_extn_utils_set_pan_scale_params(
 {
     int ret = -EINVAL, i = 0, j = 0;
 
-    if (mm_params == NULL && out != NULL) {
-        ALOGE("%s:: Invalid mix matrix params", __func__);
+    if (mm_params == NULL || out == NULL) {
+        ALOGE("%s:: Invalid mix matrix or out param", __func__);
         goto exit;
     }
 
@@ -2185,8 +2187,8 @@ int audio_extn_utils_set_downmix_params(
     int ret = -EINVAL, i = 0, j = 0;
     struct audio_usecase *usecase = NULL;
 
-    if (mm_params == NULL && out != NULL) {
-        ALOGE("%s:: Invalid mix matrix params", __func__);
+    if (mm_params == NULL || out == NULL) {
+        ALOGE("%s:: Invalid mix matrix or out param", __func__);
         goto exit;
     }
 
@@ -2197,6 +2199,10 @@ int audio_extn_utils_set_downmix_params(
         goto exit;
 
     usecase = get_usecase_from_list(out->dev, out->usecase);
+    if (!usecase) {
+        ALOGE("%s: Get usecase list failed!", __func__);
+        goto exit;
+    }
     out->downmix_params.num_output_channels = mm_params->num_output_channels;
     out->downmix_params.num_input_channels = mm_params->num_input_channels;
 
