@@ -939,7 +939,7 @@ static int send_app_type_cfg_for_device(struct audio_device *adev,
                                             AUDIO_OUTPUT_FLAG_DIRECT))
                 bd_app_type = s_info->app_type_cfg.app_type;
         }
-        if (usecase->stream.out->flags == AUDIO_OUTPUT_FLAG_INTERACTIVE)
+        if (usecase->stream.out->flags == (audio_output_flags_t) AUDIO_OUTPUT_FLAG_INTERACTIVE)
             app_type = bd_app_type;
         else
             app_type = usecase->stream.out->app_type_cfg.app_type;
