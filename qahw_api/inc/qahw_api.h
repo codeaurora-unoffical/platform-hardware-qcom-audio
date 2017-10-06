@@ -28,6 +28,26 @@
 #include <system/audio.h>
 #include "qahw_defs.h"
 
+#ifdef ALOGV
+#undef ALOGV
+#define ALOGV(a...) do { } while(0)
+#endif
+
+#ifdef ALOGI
+#undef ALOGI
+#define ALOGI(a...) do { } while(0)
+#endif
+
+#ifdef ALOGW
+#undef ALOGW
+#define ALOGW(a...) do { } while(0)
+#endif
+
+#ifdef ALOGD
+#undef ALOGD
+#define ALOGD(a...) do { } while(0)
+#endif
+
 __BEGIN_DECLS
 /*
  * Helper macros for module implementors.

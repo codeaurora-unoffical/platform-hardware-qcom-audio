@@ -42,6 +42,26 @@
 #include "adsp_hdlr.h"
 #include "ip_hdlr_intf.h"
 
+#ifdef ALOGV
+#undef ALOGV
+#define ALOGV(a...) do { } while(0)
+#endif
+
+#ifdef ALOGI
+#undef ALOGI
+#define ALOGI(a...) do { } while(0)
+#endif
+
+#ifdef ALOGW
+#undef ALOGW
+#define ALOGW(a...) do { } while(0)
+#endif
+
+#ifdef ALOGD
+#undef ALOGD
+#define ALOGD(a...) do { } while(0)
+#endif
+
 #ifndef AFE_PROXY_ENABLED
 #define AUDIO_DEVICE_OUT_PROXY 0x40000
 #endif

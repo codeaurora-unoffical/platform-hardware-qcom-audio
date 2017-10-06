@@ -49,6 +49,26 @@
 #include "voice.h"
 #include "audio_hw_extn_api.h"
 
+#ifdef ALOGV
+#undef ALOGV
+#define ALOGV(a...) do { } while(0)
+#endif
+
+#ifdef ALOGI
+#undef ALOGI
+#define ALOGI(a...) do { } while(0)
+#endif
+
+#ifdef ALOGW
+#undef ALOGW
+#define ALOGW(a...) do { } while(0)
+#endif
+
+#ifdef ALOGD
+#undef ALOGD
+#define ALOGD(a...) do { } while(0)
+#endif
+
 #if LINUX_ENABLED
 #define VISUALIZER_LIBRARY_PATH "/usr/lib/libqcomvisualizer.so"
 #define OFFLOAD_EFFECTS_BUNDLE_LIBRARY_PATH "/usr/lib/libqcompostprocbundle.so"
