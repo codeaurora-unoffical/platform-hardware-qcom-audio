@@ -613,6 +613,9 @@ void audio_extn_utils_update_stream_app_type_cfg_for_usecase(
                                   struct audio_device *adev,
                                   struct audio_usecase *usecase);
 bool audio_extn_utils_is_dolby_format(audio_format_t format);
+int audio_extn_utils_get_bit_width_from_string(char *);
+int audio_extn_utils_get_sample_rate_from_string(char *);
+int audio_extn_utils_get_channels_from_string(char *);
 
 #ifdef DS2_DOLBY_DAP_ENABLED
 #define LIB_DS2_DAP_HAL "vendor/lib/libhwdaphal.so"
