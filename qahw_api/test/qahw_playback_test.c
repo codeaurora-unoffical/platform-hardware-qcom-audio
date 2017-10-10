@@ -168,7 +168,6 @@ typedef struct {
     pthread_mutex_t drain_lock;
 }stream_config;
 
-
 qahw_module_handle_t *primary_hal_handle = NULL;
 qahw_module_handle_t *usb_hal_handle = NULL;
 qahw_module_handle_t *bt_hal_handle = NULL;
@@ -184,6 +183,7 @@ bool thread_active[MAX_PLAYBACK_STREAMS] = { false };
 
 stream_config stream_param[MAX_PLAYBACK_STREAMS];
 bool kpi_mode;
+void *context = NULL;
 
 /*
  * Set to a high number so it doesn't interfere with existing stream handles
@@ -455,7 +455,7 @@ void *drift_read(void* data)
     struct qahw_avt_device_drift_param drift_param;
     int rc = -EINVAL;
 
-    printf("drift quried at 100ms interval \n");
+    printf("drift queried at 100ms interval\n");
     while (!(params->thread_exit)) {
         memset(&drift_param, 0, sizeof(struct qahw_avt_device_drift_param));
         rc = qahw_out_get_param_data(out_handle, QAHW_PARAM_AVT_DEVICE_DRIFT,
@@ -472,6 +472,7 @@ void *drift_read(void* data)
         usleep(100000);
     }
 }
+
 static int is_eof(stream_config *stream) {
     if (stream->filename) {
         if (feof(stream->file_stream)) {
@@ -1537,6 +1538,12 @@ static int unload_hals() {
 }
 
 
+static void qti_audio_server_death_notify_cb(void *ctxt) {
+    fprintf(log_file, "qas died\n");
+    fprintf(stderr, "qas died\n");
+    stop_playback = true;
+}
+
 int main(int argc, char* argv[]) {
     char *ba = NULL;
     qahw_param_payload payload;
@@ -1707,6 +1714,8 @@ int main(int argc, char* argv[]) {
 
         }
     }
+    fprintf(log_file, "registering qas callback");
+    qahw_register_qas_death_notify_cb((audio_error_callback)qti_audio_server_death_notify_cb, context);
 
     wakelock_acquired = request_wake_lock(wakelock_acquired, true);
     num_of_streams = i+1;
@@ -1779,7 +1788,7 @@ int main(int argc, char* argv[]) {
                                     stream->input_device,
                                     &(stream->config),
                                     &(stream->in_handle),
-                                    AUDIO_OUTPUT_FLAG_NONE,
+                                    AUDIO_INPUT_FLAG_NONE,
                                     stream->device_url,
                                     AUDIO_SOURCE_UNPROCESSED);
             if (rc) {
