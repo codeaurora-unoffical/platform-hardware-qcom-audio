@@ -1,8 +1,4 @@
-AM_CFLAGS = -I $(top_srcdir)/qahw_api/inc
-
 h_sources = inc/qahw_api.h \
-            inc/qahw_defs.h \
-            inc/qahw_effect_api.h \
             inc/qahw_effect_audiosphere.h \
             inc/qahw_effect_bassboost.h \
             inc/qahw_effect_environmentalreverb.h \
@@ -11,14 +7,17 @@ h_sources = inc/qahw_api.h \
             inc/qahw_effect_virtualizer.h \
             inc/qahw_effect_visualizer.h
 
+AM_CPPFLAGS := -I $(top_srcdir)/qahw_api/inc/
+AM_CPPFLAGS += -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/mm-audio/audio-hal-server
+AM_CPPFLAGS += -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/mm-audio/qahw/inc
+
 library_include_HEADERS = $(h_sources)
 library_includedir = $(includedir)/mm-audio/qahw_api/inc
 
-lib_LTLIBRARIES = libqahw.la
-libqahw_la_SOURCES = src/qahw.c \
-                     src/qahw_effect.c
-libqahw_la_CFLAGS = $(AM_CFLAGS) -include stddef.h
-libqahw_la_CFLAGS += -D__unused=__attribute__\(\(__unused__\)\)
-libqahw_la_CFLAGS += -Wno-sign-compare -Werror
-libqahw_la_LIBADD = -llog -lcutils -lhardware
-libqahw_la_LDFLAGS = -module -shared -avoid-version
+lib_LTLIBRARIES     = libqahw.la
+libqahw_la_SOURCES   = src/qahw_api.cpp
+libqahw_la_LIBADD    = -lqahwwrapper
+libqahw_la_CPPFLAGS := $(AM_CPPFLAGS)
+libqahw_la_CPPFLAGS += -std=c++11 -DHAVE_PTHREADS -DHAVE_ANDROID_OS
+libqahw_la_CPPFLAGS += -DDEBUG_REFS_CALLSTACK_ENABLED=0
+libqahw_la_LDFLAGS   = -ltinyalsa -lhardware -lexpat -lcutils -llog -ldl -lbinder -shared -avoid-version -llog -lcutils -lpthread -lutils -lqtiaudioserver
