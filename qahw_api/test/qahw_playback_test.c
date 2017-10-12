@@ -1907,6 +1907,7 @@ int extract_mixer_coeffs(qahw_mix_matrix_params_t * mm_params, const char * arg_
         token_string = NULL;
     } else
         return -EINVAL;
+    return 0;
 }
 
 #ifdef QAP
