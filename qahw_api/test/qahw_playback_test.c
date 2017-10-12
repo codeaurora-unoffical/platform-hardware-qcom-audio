@@ -170,7 +170,7 @@ audio_io_handle_t stream_handle = 0x999;
 #endif
 
 #ifndef AUDIO_OUTPUT_FLAG_INTERACTIVE
-#define AUDIO_OUTPUT_FLAG_INTERACTIVE 0x80000000
+#define AUDIO_OUTPUT_FLAG_INTERACTIVE 0x4000000
 #endif
 
 static bool request_wake_lock(bool wakelock_acquired, bool enable)
@@ -1830,7 +1830,7 @@ audio_channel_mask_t get_channel_mask_for_name(char *name) {
     return channel_type;
 }
 
-int extract_channel_mapping(uint32_t *channel_map, const char * arg_string){
+int extract_channel_mapping(uint16_t *channel_map, const char * arg_string){
 
     char *token_string = NULL;
     char *init_ptr = NULL;
