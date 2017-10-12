@@ -24,6 +24,11 @@
 #define CODEC_BACKEND_DEFAULT_BIT_WIDTH 16
 #define CODEC_BACKEND_DEFAULT_SAMPLE_RATE 48000
 
+#define BE_DAI_NAME_MAX_LENGTH 24
+struct be_dai_name_struct {
+    unsigned int be_id;
+    char be_name[BE_DAI_NAME_MAX_LENGTH];
+};
 void *platform_init(struct audio_device *adev);
 void platform_deinit(void *platform);
 const char *platform_get_snd_device_name(snd_device_t snd_device);
@@ -96,6 +101,7 @@ bool platform_sound_trigger_device_needs_event(snd_device_t snd_device);
 bool platform_sound_trigger_usecase_needs_event(audio_usecase_t uc_id);
 
 int platform_set_snd_device_backend(snd_device_t snd_device, const char * backend);
+int platform_get_usecase_backend_index(int usecase_id);
 
 /* From platform_info.c */
 int platform_info_init(const char *filename, void *);

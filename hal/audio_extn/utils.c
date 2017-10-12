@@ -770,13 +770,17 @@ int audio_extn_utils_send_app_type_cfg(struct audio_device *adev,
                                        struct audio_usecase *usecase)
 {
     char mixer_ctl_name[MAX_LENGTH_MIXER_CONTROL_IN_INT];
-    int app_type_cfg[MAX_LENGTH_MIXER_CONTROL_IN_INT], len = 0, rc;
+    size_t app_type_cfg[MAX_LENGTH_MIXER_CONTROL_IN_INT] = {0};
+    int len = 0, rc = -EINVAL;
     struct mixer_ctl *ctl;
-    int pcm_device_id, acdb_dev_id = 0, snd_device = usecase->out_snd_device;
+    int pcm_device_id = 0, acdb_dev_id = 0;
+    int snd_device = usecase->out_snd_device, snd_device_be_idx = -1;
     int32_t sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
     audio_usecase_t uc_id_link = USECASE_INVALID;
 
-    ALOGV("%s", __func__);
+    ALOGV("%s: usecase->out_snd_device %s, usecase->in_snd_device %s",
+          __func__, platform_get_snd_device_name(usecase->out_snd_device),
+          platform_get_snd_device_name(usecase->in_snd_device));
 
     if (usecase->type != PCM_PLAYBACK && usecase->type != PCM_CAPTURE &&
         usecase->type != PCM_HFP_CALL && usecase->type != ICC_CALL && usecase->type != ANC_LOOPBACK) {
@@ -845,6 +849,13 @@ int audio_extn_utils_send_app_type_cfg(struct audio_device *adev,
     snd_device = (snd_device == SND_DEVICE_OUT_SPEAKER) ?
                  audio_extn_get_spkr_prot_snd_device(snd_device) : snd_device;
 
+    snd_device_be_idx = platform_get_usecase_backend_index(usecase->id);
+    if (snd_device_be_idx < 0) {
+        ALOGE("%s: Couldn't get the backend index for snd device %s ret=%d",
+              __func__, platform_get_snd_device_name(snd_device),
+              snd_device_be_idx);
+    }
+
     if ((usecase->type == PCM_PLAYBACK) && (usecase->stream.out == NULL)) {
         app_type_cfg[len++] = platform_get_default_app_type_v2(adev->platform, usecase->type);
         app_type_cfg[len++] = acdb_dev_id;
@@ -852,6 +863,8 @@ int audio_extn_utils_send_app_type_cfg(struct audio_device *adev,
         ALOGI("%s PLAYBACK app_type %d, acdb_dev_id %d, sample_rate %d",
               __func__, platform_get_default_app_type_v2(adev->platform, usecase->type),
               acdb_dev_id, sample_rate);
+        if (snd_device_be_idx > 0)
+            app_type_cfg[len++] = snd_device_be_idx;
     } else if (usecase->type == PCM_PLAYBACK) {
         if ((24 == usecase->stream.out->bit_width) &&
             (usecase->stream.out->devices & AUDIO_DEVICE_OUT_SPEAKER)) {
@@ -875,8 +888,10 @@ int audio_extn_utils_send_app_type_cfg(struct audio_device *adev,
             app_type_cfg[len++] = sample_rate * 4;
         else
             app_type_cfg[len++] = sample_rate;
-        ALOGI("%s PLAYBACK app_type %d, acdb_dev_id %d, sample_rate %d",
-              __func__, usecase->stream.out->app_type_cfg.app_type, acdb_dev_id, sample_rate);
+        if (snd_device_be_idx > 0)
+            app_type_cfg[len++] = snd_device_be_idx;
+         ALOGI("%s PLAYBACK app_type %d, acdb_dev_id %d, sample_rate %d, snd_device_be_idx %d",
+              __func__, usecase->stream.out->app_type_cfg.app_type, acdb_dev_id, sample_rate, snd_device_be_idx);
     } else if ((usecase->type == PCM_CAPTURE) && (usecase->stream.in == NULL)) {
         if (platform_get_eccarstate(adev->platform)) {
             sample_rate = 16000;
@@ -886,13 +901,19 @@ int audio_extn_utils_send_app_type_cfg(struct audio_device *adev,
         app_type_cfg[len++] = platform_get_default_app_type_v2(adev->platform, usecase->type);
         app_type_cfg[len++] = acdb_dev_id;
         app_type_cfg[len++] = sample_rate;
-        ALOGI("%s CAPTURE app_type %d, acdb_dev_id %d, sample_rate %d",
+        if (snd_device_be_idx > 0)
+            app_type_cfg[len++] = snd_device_be_idx;
+
+        ALOGI("%s CAPTURE app_type %d, acdb_dev_id %d, sample_rate %d snd_device_be_idx %d",
            __func__, platform_get_default_app_type_v2(adev->platform, usecase->type),
-           acdb_dev_id, sample_rate);
+           acdb_dev_id, sample_rate, snd_device_be_idx);
     } else if (usecase->type == PCM_CAPTURE) {
         app_type_cfg[len++] = usecase->stream.in->app_type_cfg.app_type;
         app_type_cfg[len++] = acdb_dev_id;
         app_type_cfg[len++] = usecase->stream.in->app_type_cfg.sample_rate;
+        if (snd_device_be_idx > 0)
+             app_type_cfg[len++] = snd_device_be_idx;
+
         ALOGI("%s CAPTURE app_type %d, acdb_dev_id %d, sample_rate %d",
            __func__, usecase->stream.in->app_type_cfg.app_type, acdb_dev_id,
            usecase->stream.in->app_type_cfg.sample_rate);
@@ -901,9 +922,11 @@ int audio_extn_utils_send_app_type_cfg(struct audio_device *adev,
         app_type_cfg[len++] = usecase->out_app_type_cfg.app_type;
         app_type_cfg[len++] = acdb_dev_id;
         app_type_cfg[len++] = usecase->out_app_type_cfg.sample_rate;
-        ALOGI("%s HFP/ICC/ANC PLAYBACK: app_type %d, acdb_dev_id %d, sample_rate %d",
+        if (snd_device_be_idx > 0)
+            app_type_cfg[len++] = snd_device_be_idx;
+        ALOGI("%s HFP/ICC/ANC PLAYBACK: app_type %d, acdb_dev_id %d, sample_rate %d, snd_device_be_idx %d",
               __func__, usecase->out_app_type_cfg.app_type, acdb_dev_id,
-              usecase->out_app_type_cfg.sample_rate);
+              usecase->out_app_type_cfg.sample_rate, snd_device_be_idx);
         mixer_ctl_set_array(ctl, app_type_cfg, len);
 
         /* config capture path */
@@ -926,6 +949,8 @@ int audio_extn_utils_send_app_type_cfg(struct audio_device *adev,
         app_type_cfg[len++] = usecase->in_app_type_cfg.app_type;
         app_type_cfg[len++] = acdb_dev_id;
         app_type_cfg[len++] = usecase->in_app_type_cfg.sample_rate;
+        if (snd_device_be_idx > 0)
+            app_type_cfg[len++] = snd_device_be_idx;
         ALOGI("%s HFP/ICC/ANC CAPTURE: app_type %d, acdb_dev_id %d, sample_rate %d",
               __func__, usecase->in_app_type_cfg.app_type,
               platform_get_usecase_acdb_id(adev->platform, usecase, ACDB_DEV_TYPE_IN),
