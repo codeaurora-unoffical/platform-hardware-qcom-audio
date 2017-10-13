@@ -393,7 +393,7 @@ int pcm_device_table[AUDIO_USECASE_MAX][2] = {
                      {PLAYBACK_INTERACTIVE_STRM_DEVICE7, PLAYBACK_INTERACTIVE_STRM_DEVICE7},
     [USECASE_AUDIO_PLAYBACK_INTERACTIVE_STREAM8] =
                      {PLAYBACK_INTERACTIVE_STRM_DEVICE8, PLAYBACK_INTERACTIVE_STRM_DEVICE8},
-
+    [USECASE_AUDIO_EC_REF_LOOPBACK] = {-1, -1}, /* pcm id updated from platform info file */
 };
 
 /* Array to store sound devices */
@@ -537,6 +537,10 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_UNPROCESSED_THREE_MIC] = "three-mic",
     [SND_DEVICE_IN_UNPROCESSED_QUAD_MIC] = "quad-mic",
     [SND_DEVICE_IN_UNPROCESSED_HEADSET_MIC] = "headset-mic",
+    [SND_DEVICE_IN_HANDSET_6MIC] = "handset-6mic",
+    [SND_DEVICE_IN_HANDSET_8MIC] = "handset-8mic",
+    [SND_DEVICE_IN_EC_REF_LOOPBACK_MONO] = "ec-ref-loopback-mono",
+    [SND_DEVICE_IN_EC_REF_LOOPBACK_STEREO] = "ec-ref-loopback-stereo",
 };
 
 // Platform specific backend bit width table
@@ -679,6 +683,10 @@ static int acdb_device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_UNPROCESSED_THREE_MIC] = 145,
     [SND_DEVICE_IN_UNPROCESSED_QUAD_MIC] = 146,
     [SND_DEVICE_IN_UNPROCESSED_HEADSET_MIC] = 147,
+    [SND_DEVICE_IN_HANDSET_6MIC] = 4,
+    [SND_DEVICE_IN_HANDSET_8MIC] = 4,
+    [SND_DEVICE_IN_EC_REF_LOOPBACK_MONO] = 4,
+    [SND_DEVICE_IN_EC_REF_LOOPBACK_STEREO] = 4
 };
 
 struct name_to_index {
@@ -823,6 +831,10 @@ static struct name_to_index snd_device_name_index[SND_DEVICE_MAX] = {
     {TO_NAME_INDEX(SND_DEVICE_IN_UNPROCESSED_THREE_MIC)},
     {TO_NAME_INDEX(SND_DEVICE_IN_UNPROCESSED_QUAD_MIC)},
     {TO_NAME_INDEX(SND_DEVICE_IN_UNPROCESSED_HEADSET_MIC)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_6MIC)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_8MIC)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_EC_REF_LOOPBACK_MONO)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_EC_REF_LOOPBACK_STEREO)},
 };
 
 static char * backend_tag_table[SND_DEVICE_MAX] = {0};
@@ -869,6 +881,7 @@ static struct name_to_index usecase_name_index[AUDIO_USECASE_MAX] = {
     {TO_NAME_INDEX(USECASE_AUDIO_SPKR_CALIB_RX)},
     {TO_NAME_INDEX(USECASE_AUDIO_PLAYBACK_AFE_PROXY)},
     {TO_NAME_INDEX(USECASE_AUDIO_RECORD_AFE_PROXY)},
+    {TO_NAME_INDEX(USECASE_AUDIO_EC_REF_LOOPBACK)},
 };
 
 #define NO_COLS 2
@@ -1986,6 +1999,8 @@ static void get_source_mic_type(struct platform_data * my_data)
 {
     // support max to mono, example if max count is 3, usecase supports Three, dual and mono mic
     switch (my_data->max_mic_count) {
+        case 6:
+            my_data->source_mic_type |= SOURCE_HEX_MIC;
         case 4:
             my_data->source_mic_type |= SOURCE_QUAD_MIC;
         case 3:
@@ -2184,7 +2199,9 @@ void *platform_init(struct audio_device *adev)
     be_dai_name_table = NULL;
 
     property_get("ro.vendor.audio.sdk.fluencetype", my_data->fluence_cap, "");
-    if (!strncmp("fluencepro", my_data->fluence_cap, sizeof("fluencepro"))) {
+    if (!strncmp("fluenceffv", my_data->fluence_cap, sizeof("fluenceffv"))) {
+        my_data->fluence_type = FLUENCE_HEX_MIC | FLUENCE_QUAD_MIC | FLUENCE_DUAL_MIC;
+    } else if (!strncmp("fluencepro", my_data->fluence_cap, sizeof("fluencepro"))) {
         my_data->fluence_type = FLUENCE_QUAD_MIC | FLUENCE_DUAL_MIC;
     } else if (!strncmp("fluence", my_data->fluence_cap, sizeof("fluence"))) {
         my_data->fluence_type = FLUENCE_DUAL_MIC;
@@ -2432,6 +2449,7 @@ acdb_init_fail:
 
     /* Read one time ssr property */
     audio_extn_ssr_update_enabled();
+    audio_extn_ffv_update_enabled();
     audio_extn_spkr_prot_init(adev);
 
     /* init dap hal */
@@ -2679,6 +2697,10 @@ int platform_get_snd_device_name_extn(void *platform, snd_device_t snd_device,
     if (snd_device >= SND_DEVICE_MIN && snd_device < SND_DEVICE_MAX) {
         strlcpy(device_name, device_table[snd_device], DEVICE_NAME_MAX_SIZE);
         hw_info_append_hw_type(my_data->hw_info, snd_device, device_name);
+
+        if ((snd_device == SND_DEVICE_IN_EC_REF_LOOPBACK_MONO) ||
+            (snd_device == SND_DEVICE_IN_EC_REF_LOOPBACK_STEREO))
+            audio_extn_ffv_append_ec_ref_dev_name(device_name);
     } else {
         strlcpy(device_name, "", DEVICE_NAME_MAX_SIZE);
         return -EINVAL;
@@ -2835,7 +2857,9 @@ int platform_get_fluence_type(void *platform, char *value, uint32_t len)
     int ret = 0;
     struct platform_data *my_data = (struct platform_data *)platform;
 
-    if (my_data->fluence_type == FLUENCE_QUAD_MIC) {
+    if (my_data->fluence_type == FLUENCE_HEX_MIC) {
+        strlcpy(value, "hexmic", len);
+    } else if (my_data->fluence_type == FLUENCE_QUAD_MIC) {
         strlcpy(value, "quadmic", len);
     } else if (my_data->fluence_type == FLUENCE_DUAL_MIC) {
         strlcpy(value, "dualmic", len);
@@ -3206,6 +3230,9 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
         snd_device = voice_get_incall_rec_snd_device(usecase->in_snd_device);
     else if ((usecase->type == PCM_HFP_CALL) || (usecase->type == PCM_CAPTURE))
         snd_device = usecase->in_snd_device;
+    else if (usecase->type == TRANSCODE_LOOPBACK)
+        snd_device = usecase->out_snd_device;
+
     acdb_dev_id = acdb_device_table[platform_get_spkr_prot_snd_device(snd_device)];
 
     if (platform_split_snd_device(platform, snd_device, &num_devices,
@@ -4285,9 +4312,13 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
         }
     } else if (source == AUDIO_SOURCE_MIC) {
         if (in_device & AUDIO_DEVICE_IN_BUILTIN_MIC &&
-                channel_count == 1 ) {
+                channel_count == 1) {
             if(my_data->fluence_in_audio_rec) {
-                if ((my_data->fluence_type & FLUENCE_QUAD_MIC) &&
+                if ((my_data->fluence_type & FLUENCE_HEX_MIC) &&
+                    (my_data->source_mic_type & SOURCE_HEX_MIC) &&
+                    (audio_extn_ffv_get_stream() == adev->active_input)) {
+                    snd_device = audio_extn_ffv_get_capture_snd_device();
+                } else if ((my_data->fluence_type & FLUENCE_QUAD_MIC) &&
                     (my_data->source_mic_type & SOURCE_QUAD_MIC)) {
                     snd_device = SND_DEVICE_IN_HANDSET_QMIC;
                     platform_set_echo_reference(adev, true, out_device);
@@ -4778,6 +4809,7 @@ int platform_set_parameters(void *platform, struct str_parms *parms)
     audio_extn_usb_set_sidetone_gain(parms, value, len);
     audio_extn_hfp_set_parameters(my_data->adev, parms);
     true_32_bit_set_params(parms, value, len);
+    audio_extn_ffv_set_parameters(my_data->adev, parms);
     ALOGV("%s: exit with code(%d)", __func__, ret);
     return ret;
 }
@@ -5380,49 +5412,68 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
             char *rate_str = NULL;
             struct  mixer_ctl *ctl = NULL;
 
-            switch (sample_rate) {
-            case 32000:
-                if (passthrough_enabled) {
-                    rate_str = "KHZ_32";
+            if (backend_idx == USB_AUDIO_RX_BACKEND ||
+                    backend_idx == USB_AUDIO_TX_BACKEND) {
+                switch (sample_rate) {
+                case 32000:
+                        rate_str = "KHZ_32";
+                        break;
+                case 8000:
+                        rate_str = "KHZ_8";
+                        break;
+                case 11025:
+                        rate_str = "HZ_11P025";
+                        break;
+                case 16000:
+                        rate_str = "KHZ_16";
+                        break;
+                case 22050:
+                        rate_str = "KHZ_22P05";
+                        break;
+                }
+            }
+
+            if (rate_str == NULL) {
+                switch (sample_rate) {
+                case 32000:
+                    if (passthrough_enabled) {
+                        rate_str = "KHZ_32";
+                        break;
+                    }
+                case 48000:
+                    rate_str = "KHZ_48";
+                    break;
+                case 44100:
+                    rate_str = "KHZ_44P1";
+                    break;
+                case 64000:
+                case 96000:
+                    rate_str = "KHZ_96";
+                    break;
+                case 88200:
+                    rate_str = "KHZ_88P2";
+                    break;
+                case 176400:
+                    rate_str = "KHZ_176P4";
+                    break;
+                case 192000:
+                    rate_str = "KHZ_192";
+                    break;
+                case 352800:
+                    rate_str = "KHZ_352P8";
+                    break;
+                case 384000:
+                    rate_str = "KHZ_384";
+                    break;
+                case 144000:
+                    if (passthrough_enabled) {
+                        rate_str = "KHZ_144";
+                        break;
+                    }
+                default:
+                    rate_str = "KHZ_48";
                     break;
                 }
-            case 8000:
-            case 11025:
-            case 16000:
-            case 22050:
-            case 48000:
-                rate_str = "KHZ_48";
-                break;
-            case 44100:
-                rate_str = "KHZ_44P1";
-                break;
-            case 64000:
-            case 96000:
-                rate_str = "KHZ_96";
-                break;
-            case 88200:
-                rate_str = "KHZ_88P2";
-            break;
-            case 176400:
-                rate_str = "KHZ_176P4";
-                break;
-            case 192000:
-                rate_str = "KHZ_192";
-                break;
-            case 352800:
-                rate_str = "KHZ_352P8";
-                break;
-            case 384000:
-                rate_str = "KHZ_384";
-                break;
-            case 144000:
-                if (passthrough_enabled) {
-                    rate_str = "KHZ_144";
-                    break;
-                }
-            default:
-                rate_str = "KHZ_48";
-                break;
             }
 
             ctl = mixer_get_ctl_by_name(adev->mixer,
@@ -5542,6 +5593,33 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
 }
 
 /*
+ * Get the backend configuration for current snd device
+ */
+int platform_get_codec_backend_cfg(struct audio_device* adev,
+                         snd_device_t snd_device,
+                         struct audio_backend_cfg *backend_cfg)
+{
+    int backend_idx = platform_get_backend_index(snd_device);
+    struct platform_data *my_data = (struct platform_data *)adev->platform;
+
+    backend_cfg->bit_width = my_data->current_backend_cfg[backend_idx].bit_width;
+    backend_cfg->sample_rate =
+                       my_data->current_backend_cfg[backend_idx].sample_rate;
+    backend_cfg->channels =
+                       my_data->current_backend_cfg[backend_idx].channels;
+    backend_cfg->format =
+                       my_data->current_backend_cfg[backend_idx].format;
+
+    ALOGV("%s:becf: afe: bitwidth %d, samplerate %d channels %d format %d"
+          ", backend_idx %d device (%s)", __func__,  backend_cfg->bit_width,
+          backend_cfg->sample_rate, backend_cfg->channels, backend_cfg->format,
+          backend_idx, platform_get_snd_device_name(snd_device));
+
+   return 0;
+}
+
+
+/*
  *Validate the selected bit_width, sample_rate and channels using the edid
  *of the connected sink device.
  */
@@ -5604,12 +5682,11 @@ static void platform_check_hdmi_backend_cfg(struct audio_device* adev,
                   __func__, DEFAULT_HDMI_OUT_CHANNELS);
             channels = DEFAULT_HDMI_OUT_CHANNELS;
         }
-
-        if ((usecase->stream.out->format == AUDIO_FORMAT_E_AC3) ||
+        if (((usecase->stream.out->format == AUDIO_FORMAT_E_AC3) ||
             (usecase->stream.out->format == AUDIO_FORMAT_E_AC3_JOC) ||
-            (usecase->stream.out->format == AUDIO_FORMAT_DOLBY_TRUEHD)) {
-            sample_rate = sample_rate * 4 ;
-
+            (usecase->stream.out->format == AUDIO_FORMAT_DOLBY_TRUEHD))
+            && (usecase->stream.out->compr_config.codec->compr_passthr == PASSTHROUGH)) {
+            sample_rate = sample_rate * 4;
             if (sample_rate > HDMI_PASSTHROUGH_MAX_SAMPLE_RATE)
                 sample_rate = HDMI_PASSTHROUGH_MAX_SAMPLE_RATE;
         }
@@ -7182,6 +7259,20 @@ int platform_get_vi_feedback_snd_device(snd_device_t snd_device)
         default:
              return SND_DEVICE_IN_CAPTURE_VI_FEEDBACK;
     }
+}
+
+int platform_get_ec_ref_loopback_snd_device(int channel_count)
+{
+    snd_device_t snd_device;
+
+    if (channel_count == 1)
+        snd_device = SND_DEVICE_IN_EC_REF_LOOPBACK_MONO;
+    else if (channel_count == 2)
+        snd_device = SND_DEVICE_IN_EC_REF_LOOPBACK_STEREO;
+    else
+        snd_device = SND_DEVICE_NONE;
+
+    return snd_device;
 }
 
 int platform_set_sidetone(struct audio_device *adev,

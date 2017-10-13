@@ -465,27 +465,27 @@
     <ctl name="ASRC1 Output Mode" value="INT" />
 
     <!-- IIR/voice anc -->
-    <ctl name="IIR0 Band1" id ="0" value="0" />
+    <ctl name="IIR0 Band1" id ="0" value="268435456" />
     <ctl name="IIR0 Band1" id ="1" value="0" />
     <ctl name="IIR0 Band1" id ="2" value="0" />
     <ctl name="IIR0 Band1" id ="3" value="0" />
     <ctl name="IIR0 Band1" id ="4" value="0" />
-    <ctl name="IIR0 Band2" id ="0" value="0" />
+    <ctl name="IIR0 Band2" id ="0" value="268435456" />
     <ctl name="IIR0 Band2" id ="1" value="0" />
     <ctl name="IIR0 Band2" id ="2" value="0" />
     <ctl name="IIR0 Band2" id ="3" value="0" />
     <ctl name="IIR0 Band2" id ="4" value="0" />
-    <ctl name="IIR0 Band3" id ="0" value="0" />
+    <ctl name="IIR0 Band3" id ="0" value="268435456" />
     <ctl name="IIR0 Band3" id ="1" value="0" />
     <ctl name="IIR0 Band3" id ="2" value="0" />
     <ctl name="IIR0 Band3" id ="3" value="0" />
     <ctl name="IIR0 Band3" id ="4" value="0" />
-    <ctl name="IIR0 Band4" id ="0" value="0" />
+    <ctl name="IIR0 Band4" id ="0" value="268435456" />
     <ctl name="IIR0 Band4" id ="1" value="0" />
     <ctl name="IIR0 Band4" id ="2" value="0" />
     <ctl name="IIR0 Band4" id ="3" value="0" />
     <ctl name="IIR0 Band4" id ="4" value="0" />
-    <ctl name="IIR0 Band5" id ="0" value="0" />
+    <ctl name="IIR0 Band5" id ="0" value="268435456" />
     <ctl name="IIR0 Band5" id ="1" value="0" />
     <ctl name="IIR0 Band5" id ="2" value="0" />
     <ctl name="IIR0 Band5" id ="3" value="0" />
@@ -1548,6 +1548,11 @@
         <ctl name="Voip_Tx Mixer SLIM_0_TX_Voip" value="1" />
     </path>
 
+    <path name="compress-voip-call bt-a2dp">
+        <ctl name="SLIM_7_RX_Voice Mixer Voip" value="1" />
+        <ctl name="Voip_Tx Mixer SLIM_0_TX_Voip" value="1" />
+    </path>
+
     <path name="compress-voip-call headphones">
         <ctl name="SLIM_6_RX_Voice Mixer Voip" value="1" />
         <ctl name="Voip_Tx Mixer SLIM_0_TX_Voip" value="1" />
@@ -1659,7 +1664,7 @@
     </path>
 
     <path name="audio-playback-voip bt-sco">
-        <ctl name="SLIMBUS_7_RX Mixer MultiMedia10" value="1" />
+        <ctl name="SLIMBUS_7_RX Audio Mixer MultiMedia10" value="1" />
     </path>
 
     <path name="audio-playback-voip bt-sco-wb">
@@ -1668,15 +1673,15 @@
     </path>
 
     <path name="audio-playback-voip afe-proxy">
-        <ctl name="AFE_PCM_RX Mixer MultiMedia10" value="1" />
+        <ctl name="AFE_PCM_RX Audio Mixer MultiMedia10" value="1" />
     </path>
 
     <path name="audio-playback-voip usb-headphones">
-        <ctl name="USB_AUDIO_RX Mixer MultiMedia10" value="1" />
+        <ctl name="USB_AUDIO_RX Audio Mixer MultiMedia10" value="1" />
     </path>
 
     <path name="audio-playback-voip usb-headset">
-        <ctl name="USB_AUDIO_RX Mixer MultiMedia10" value="1" />
+        <ctl name="USB_AUDIO_RX Audio Mixer MultiMedia10" value="1" />
     </path>
 
     <path name="audio-playback-voip display-port">
@@ -1843,31 +1848,6 @@
     </path>
 
    <path name="sidetone-iir">
-        <ctl name="IIR0 Band1" id ="0" value="268435456" />
-        <ctl name="IIR0 Band1" id ="1" value="0" />
-        <ctl name="IIR0 Band1" id ="2" value="0" />
-        <ctl name="IIR0 Band1" id ="3" value="0" />
-        <ctl name="IIR0 Band1" id ="4" value="0" />
-        <ctl name="IIR0 Band2" id ="0" value="268435456" />
-        <ctl name="IIR0 Band2" id ="1" value="0" />
-        <ctl name="IIR0 Band2" id ="2" value="0" />
-        <ctl name="IIR0 Band2" id ="3" value="0" />
-        <ctl name="IIR0 Band2" id ="4" value="0" />
-        <ctl name="IIR0 Band3" id ="0" value="268435456" />
-        <ctl name="IIR0 Band3" id ="1" value="0" />
-        <ctl name="IIR0 Band3" id ="2" value="0" />
-        <ctl name="IIR0 Band3" id ="3" value="0" />
-        <ctl name="IIR0 Band3" id ="4" value="0" />
-        <ctl name="IIR0 Band4" id ="0" value="268435456" />
-        <ctl name="IIR0 Band4" id ="1" value="0" />
-        <ctl name="IIR0 Band4" id ="2" value="0" />
-        <ctl name="IIR0 Band4" id ="3" value="0" />
-        <ctl name="IIR0 Band4" id ="4" value="0" />
-        <ctl name="IIR0 Band5" id ="0" value="268435456" />
-        <ctl name="IIR0 Band5" id ="1" value="0" />
-        <ctl name="IIR0 Band5" id ="2" value="0" />
-        <ctl name="IIR0 Band5" id ="3" value="0" />
-        <ctl name="IIR0 Band5" id ="4" value="0" />
         <ctl name="IIR0 Enable Band1" value="1" />
         <ctl name="IIR0 Enable Band2" value="1" />
         <ctl name="IIR0 Enable Band3" value="1" />

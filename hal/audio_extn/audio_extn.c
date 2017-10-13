@@ -838,6 +838,7 @@ void audio_extn_set_parameters(struct audio_device *adev,
    if (adev->offload_effects_set_parameters != NULL)
        adev->offload_effects_set_parameters(parms);
    audio_extn_set_aptx_dec_bt_addr(adev, parms);
+   audio_extn_ffv_set_parameters(adev, parms);
 }
 
 void audio_extn_get_parameters(const struct audio_device *adev,
@@ -1254,6 +1255,8 @@ int audio_extn_check_and_set_multichannel_usecase(struct audio_device *adev,
     ssr_supported = audio_extn_ssr_check_usecase(in);
     if (ssr_supported) {
         return audio_extn_ssr_set_usecase(in, config, update_params);
+    } else if (audio_extn_ffv_check_usecase(in)) {
+        return audio_extn_ffv_set_usecase(in);
     } else {
         return audio_extn_set_multichannel_mask(adev, in, config,
                                                 update_params);
@@ -1436,11 +1439,11 @@ int audio_extn_set_device_cfg_params(struct audio_device *adev,
     int ret = -EINVAL;
     struct stream_out out;
     uint32_t snd_device = 0, backend_idx = 0;
-    struct audio_device_config_param *adev_device_cfg_ptr = adev->device_cfg_params;
+    struct audio_device_config_param *adev_device_cfg_ptr;
 
     ALOGV("%s", __func__);
 
-    if (!device_cfg_params || !adev) {
+    if (!device_cfg_params || !adev || !adev->device_cfg_params) {
         ALOGE("%s:: Invalid Param", __func__);
         return ret;
     }
@@ -1451,6 +1454,7 @@ int audio_extn_set_device_cfg_params(struct audio_device *adev,
         return ret;
     }
 
+    adev_device_cfg_ptr = adev->device_cfg_params;
     /* Create an out stream to get snd device from audio device */
     out.devices = device_cfg_params->device;
     out.sample_rate = device_cfg_params->sample_rate;

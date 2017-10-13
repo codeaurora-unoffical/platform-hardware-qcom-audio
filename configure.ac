@@ -114,13 +114,16 @@ AM_CONDITIONAL([QAF_SUPPORT], [test x$AUDIO_FEATURE_ENABLED_QAF = xtrue])
 AM_CONDITIONAL([AUDIO_HW_LOOPBACK], [test x$AUDIO_FEATURE_ENABLED_AUDIO_HW_LOOPBACK = xtrue])
 AM_CONDITIONAL([AUDIO_PARSER], [test x$AUDIO_FEATURE_ENABLED_PARSER = xtrue])
 AM_CONDITIONAL([DTSHD_PARSER], [test x$AUDIO_FEATURE_ENABLED_DTSHD_PARSER = xtrue])
+AM_CONDITIONAL([QAP], [test x$AUDIO_FEATURE_ENABLED_QAP = xtrue])
+AM_CONDITIONAL([AUDIO_HW_FFV], [test x$AUDIO_FEATURE_ENABLED_FFV = xtrue])
 
 AC_CONFIG_FILES([ \
         Makefile \
         hal/Makefile \
         post_proc/Makefile \
         qahw_api/Makefile \
-        qahw_api/test/Makefile
+        qahw_api/test/Makefile \
+        hdmi_in_test/Makefile
         ])
 
 AC_OUTPUT

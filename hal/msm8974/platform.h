@@ -25,6 +25,7 @@ enum {
     FLUENCE_NONE,
     FLUENCE_DUAL_MIC = 0x1,
     FLUENCE_QUAD_MIC = 0x2,
+    FLUENCE_HEX_MIC = 0x4,
 };
 
 enum {
@@ -37,6 +38,7 @@ enum {
     SOURCE_DUAL_MIC  = 0x2,            /* Target contains 2 mics */
     SOURCE_THREE_MIC = 0x4,            /* Target contains 3 mics */
     SOURCE_QUAD_MIC  = 0x8,            /* Target contains 4 mics */
+    SOURCE_HEX_MIC   = 0x16,           /* Target contains 6 mics */
 };
 
 enum {
@@ -222,6 +224,10 @@ enum {
     SND_DEVICE_IN_UNPROCESSED_THREE_MIC,
     SND_DEVICE_IN_UNPROCESSED_QUAD_MIC,
     SND_DEVICE_IN_UNPROCESSED_HEADSET_MIC,
+    SND_DEVICE_IN_HANDSET_6MIC,
+    SND_DEVICE_IN_HANDSET_8MIC,
+    SND_DEVICE_IN_EC_REF_LOOPBACK_MONO,
+    SND_DEVICE_IN_EC_REF_LOOPBACK_STEREO,
     SND_DEVICE_IN_END,
 
     SND_DEVICE_MAX = SND_DEVICE_IN_END,
@@ -298,7 +304,7 @@ enum {
 
 
 /* Used in calculating fragment size for pcm offload */
-#define PCM_OFFLOAD_BUFFER_DURATION 40 /* 40 millisecs */
+#define PCM_OFFLOAD_BUFFER_DURATION 80 /* 80 millisecs */
 
 /* MAX PCM fragment size cannot be increased  further due
  * to flinger's cblk size of 1mb,and it has to be a multiple of
@@ -353,11 +359,11 @@ enum {
 #define PLAYBACK_OFFLOAD_DEVICE 9
 
 // Direct_PCM
-#if defined (PLATFORM_MSM8994) || defined (PLATFORM_MSM8996) || defined (PLATFORM_APQ8084) || defined (PLATFORM_MSM8998) || defined (PLATFORM_SDM845)
+#if defined (PLATFORM_MSM8994) || defined (PLATFORM_MSM8996) || defined (PLATFORM_APQ8084) || defined (PLATFORM_MSM8998) || defined (PLATFORM_SDM845) || defined (PLATFORM_SDM670)
 #define PLAYBACK_OFFLOAD_DEVICE2 17
 #endif
 
-#if defined (PLATFORM_APQ8084) || defined (PLATFORM_MSM8996) || defined (PLATFORM_MSM8998) || defined (PLATFORM_SDM845)
+#if defined (PLATFORM_APQ8084) || defined (PLATFORM_MSM8996) || defined (PLATFORM_MSM8998) || defined (PLATFORM_SDM845) || defined (PLATFORM_SDM670)
 #define PLAYBACK_OFFLOAD_DEVICE3 18
 #define PLAYBACK_OFFLOAD_DEVICE4 34
 #define PLAYBACK_OFFLOAD_DEVICE5 35
@@ -546,6 +552,7 @@ enum {
  */
 #define DEVICE_PARAM_MUTE_ID    0
 #define DEVICE_PARAM_LATENCY_ID 1
+#define DEVICE_PARAM_LIMITER_ID 2
 
 #define ENUM_TO_STRING(X) #X
 
@@ -553,14 +560,6 @@ struct audio_device_to_audio_interface {
     audio_devices_t device;
     char device_name[100];
     char interface_name[100];
-};
-
-struct audio_backend_cfg {
-    unsigned int   sample_rate;
-    unsigned int   channels;
-    unsigned int   bit_width;
-    bool           passthrough_enabled;
-    audio_format_t format;
 };
 
 #endif // QCOM_AUDIO_PLATFORM_H

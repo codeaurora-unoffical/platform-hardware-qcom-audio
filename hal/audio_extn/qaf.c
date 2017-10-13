@@ -31,12 +31,11 @@
 /*#define LOG_NDEBUG 0*/
 /*#define VERY_VERY_VERBOSE_LOGGING*/
 #ifdef VERY_VERY_VERBOSE_LOGGING
-#define ALOGVV ALOGV
+#define DEBUG_MSG_VV DEBUG_MSG
 #else
-#define ALOGVV(a...) do { } while(0)
+#define DEBUG_MSG_VV(a...) do { } while(0)
 #endif
 
-#define DEBUG_MSG_VV(arg,...) ALOGVV("%s: %d:  " arg, __func__, __LINE__, ##__VA_ARGS__)
 #define DEBUG_MSG(arg,...) ALOGV("%s: %d:  " arg, __func__, __LINE__, ##__VA_ARGS__)
 #define ERROR_MSG(arg,...) ALOGE("%s: %d:  " arg, __func__, __LINE__, ##__VA_ARGS__)
 
@@ -170,6 +169,7 @@ typedef enum {
 
 struct qaf_module {
     audio_session_handle_t session_handle;
+    void *ip_hdlr_hdl;
     void *qaf_lib;
     int (*qaf_audio_session_open)(audio_session_handle_t* session_handle,
                                   audio_session_type_t s_type,
@@ -246,6 +246,7 @@ struct qaf {
 static int qaf_out_pause(struct audio_stream_out* stream);
 static int qaf_out_flush(struct audio_stream_out* stream);
 static int qaf_out_drain(struct audio_stream_out* stream, audio_drain_type_t type);
+static int qaf_session_close();
 
 //Global handle of QAF. Access to this should be protected by mutex lock.
 static struct qaf *p_qaf = NULL;
@@ -351,6 +352,22 @@ static bool is_main_active(struct qaf_module* qaf_mod)
 static bool is_dual_main_active(struct qaf_module* qaf_mod)
 {
    return (qaf_mod->stream_in[QAF_IN_MAIN] && qaf_mod->stream_in[QAF_IN_MAIN_2]);
+}
+
+//Checks if any main or pcm stream is running in the session.
+static bool is_any_stream_running(struct qaf_module* qaf_mod)
+{
+    //Not checking associated stream.
+    struct stream_out *out = qaf_mod->stream_in[QAF_IN_MAIN];
+    struct stream_out *out_pcm = qaf_mod->stream_in[QAF_IN_PCM];
+    struct stream_out *out_main2 = qaf_mod->stream_in[QAF_IN_MAIN_2];
+
+    if ((out == NULL || (out != NULL && check_stream_state(out, STOPPED)))
+        && (out_main2 == NULL || (out_main2 != NULL && check_stream_state(out_main2, STOPPED)))
+        && (out_pcm == NULL || (out_pcm != NULL && check_stream_state(out_pcm, STOPPED)))) {
+        return false;
+    }
+    return true;
 }
 
 /* Gets the pcm output buffer size(in samples) for the mm module. */
@@ -712,6 +729,10 @@ static int qaf_module_write_input_buffer(struct stream_out *out, const void *buf
         return ret;
     }
 
+    //If data received on associated stream when all other stream are stopped then drop the data.
+    if (out == qaf_mod->stream_in[QAF_IN_ASSOC] && !is_any_stream_running(qaf_mod))
+        return bytes;
+
     if (out->qaf_stream_handle) {
         ret = qaf_mod->qaf_audio_stream_write(out->qaf_stream_handle, buffer, bytes);
         if(ret > 0) set_stream_state(out, RUN);
@@ -763,8 +784,7 @@ static ssize_t qaf_out_write(struct audio_stream_out *stream, const void *buffer
     DEBUG_MSG_VV("ret [%d]", (int)ret);
 
     if (ret >= 0) {
-        bytes = ret;
-        out->written += bytes / ((popcount(out->channel_mask) * sizeof(short)));
+        out->written += ret / ((popcount(out->channel_mask) * sizeof(short)));
     }
 
 
@@ -784,6 +804,11 @@ exit:
                    / audio_stream_out_frame_size(stream)
                    / out->stream.common.get_sample_rate(&out->stream.common));
         }
+    } else if (ret < bytes) {
+        //partial buffer copied to the module.
+        DEBUG_MSG_VV("Not enough space available in mm module, post msg to cb thread");
+        (void)qaf_send_offload_cmd_l(out, OFFLOAD_CMD_WAIT_FOR_BUFFER);
+        bytes = ret;
     }
     return bytes;
 }
@@ -1044,6 +1069,9 @@ static int qaf_out_drain(struct audio_stream_out* stream, audio_drain_type_t typ
 {
     struct stream_out *out = (struct stream_out *)stream;
     int status = 0;
+    struct qaf_module *qaf_mod = NULL;
+
+    qaf_mod = get_qaf_module_for_input_stream(out);
     DEBUG_MSG("Output Stream %p", out);
 
     lock_output_stream(out);
@@ -1057,11 +1085,11 @@ static int qaf_out_drain(struct audio_stream_out* stream, audio_drain_type_t typ
                     (struct audio_stream_out *)p_qaf->passthrough_out, type);
         }
         pthread_mutex_unlock(&p_qaf->lock);
-    } else if (check_stream_state(out, STOPPED)) {
+    } else if (!is_any_stream_running(qaf_mod)) {
         //If stream is already stopped then send the drain ready.
         out->client_callback(STREAM_CBK_EVENT_DRAIN_READY, NULL, out->client_cookie);
+        set_stream_state(out, STOPPED);
     } else {
-
         //Drain the module input stream.
         /* Stream stop will trigger EOS and on EOS_EVENT received
          from callback DRAIN_READY command is sent */
@@ -1239,6 +1267,8 @@ static void notify_event_callback(audio_session_handle_t session_handle /*__unus
     audio_qaf_media_format_t *media_fmt = NULL;
 
     DEBUG_MSG_VV("Device 0x%X, Event = 0x%X, Bytes to write %d", device, event_id, size);
+
+
     pthread_mutex_lock(&p_qaf->lock);
 
     /* Default config initialization. */
@@ -1248,6 +1278,13 @@ static void notify_event_callback(audio_session_handle_t session_handle /*__unus
     config.format = config.offload_info.format = AUDIO_FORMAT_PCM_16_BIT;
     config.offload_info.bit_width = CODEC_BACKEND_DEFAULT_BIT_WIDTH;
     config.offload_info.channel_mask = config.channel_mask = AUDIO_CHANNEL_OUT_STEREO;
+
+    if (event_id == AUDIO_SEC_FAIL_EVENT) {
+        DEBUG_MSG("%s Security failed, closing session");
+        qaf_session_close(qaf_mod);
+        pthread_mutex_unlock(&p_qaf->lock);
+        return;
+    }
 
     if (event_id == AUDIO_DATA_EVENT) {
         data_buffer_p = (int8_t*)buf;
@@ -1370,7 +1407,8 @@ static void notify_event_callback(audio_session_handle_t session_handle /*__unus
 
                 flags = (AUDIO_OUTPUT_FLAG_NON_BLOCKING
                          | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD
-                         | AUDIO_OUTPUT_FLAG_DIRECT);
+                         | AUDIO_OUTPUT_FLAG_DIRECT
+                         | AUDIO_OUTPUT_FLAG_COMPRESS_PASSTHROUGH);
                 devices = AUDIO_DEVICE_OUT_AUX_DIGITAL;
 
                 ret = adev_open_output_stream((struct audio_hw_device *)p_qaf->adev,
@@ -1386,7 +1424,7 @@ static void notify_event_callback(audio_session_handle_t session_handle /*__unus
                     return;
                 }
 
-                if (format & AUDIO_FORMAT_E_AC3) {
+                if (format == AUDIO_FORMAT_E_AC3) {
                     qaf_mod->stream_out[QAF_OUT_TRANSCODE_PASSTHROUGH]->compr_config.fragment_size =
                             COMPRESS_PASSTHROUGH_DDP_FRAGMENT_SIZE;
                 }
@@ -1656,12 +1694,16 @@ static void notify_event_callback(audio_session_handle_t session_handle /*__unus
         }
         DEBUG_MSG_VV("Bytes written = %d", ret);
     }
-    else if (event_id == AUDIO_EOS_MAIN_DD_DDP_EVENT
+    else if (event_id == AUDIO_EOS_EVENT
+               || event_id == AUDIO_EOS_MAIN_DD_DDP_EVENT
                || event_id == AUDIO_EOS_MAIN_2_DD_DDP_EVENT
                || event_id == AUDIO_EOS_MAIN_AAC_EVENT
                || event_id == AUDIO_EOS_MAIN_AC4_EVENT
-               || event_id == AUDIO_EOS_ASSOC_DD_DDP_EVENT) {
+               || event_id == AUDIO_EOS_ASSOC_DD_DDP_EVENT
+               || event_id == AUDIO_EOS_ASSOC_AAC_EVENT
+               || event_id == AUDIO_EOS_ASSOC_AC4_EVENT) {
         struct stream_out *out = qaf_mod->stream_in[QAF_IN_MAIN];
+        struct stream_out *out_pcm = qaf_mod->stream_in[QAF_IN_PCM];
         struct stream_out *out_main2 = qaf_mod->stream_in[QAF_IN_MAIN_2];
         struct stream_out *out_assoc = qaf_mod->stream_in[QAF_IN_ASSOC];
 
@@ -1669,7 +1711,18 @@ static void notify_event_callback(audio_session_handle_t session_handle /*__unus
          * TODO:: Only DD/DDP Associate Eos is handled, need to add support
          * for other formats.
          */
-        if (event_id == AUDIO_EOS_ASSOC_DD_DDP_EVENT
+        if (event_id == AUDIO_EOS_EVENT
+                && (out_pcm != NULL)
+                && (check_stream_state(out_pcm, STOPPING))) {
+
+            lock_output_stream(out_pcm);
+            out_pcm->client_callback(STREAM_CBK_EVENT_DRAIN_READY, NULL, out_pcm->client_cookie);
+            set_stream_state(out_pcm, STOPPED);
+            unlock_output_stream(out_pcm);
+            DEBUG_MSG("sent pcm DRAIN_READY");
+        } else if ( (event_id == AUDIO_EOS_ASSOC_DD_DDP_EVENT
+                || event_id == AUDIO_EOS_ASSOC_AAC_EVENT
+                || event_id == AUDIO_EOS_ASSOC_AC4_EVENT)
                 && (out_assoc != NULL)
                 && (check_stream_state(out_assoc, STOPPING))) {
 
@@ -1733,6 +1786,11 @@ static int qaf_session_close(struct qaf_module* qaf_mod)
     }
 
     if (qaf_mod->session_handle != NULL && qaf_mod->qaf_audio_session_close) {
+#ifdef AUDIO_EXTN_IP_HDLR_ENABLED
+        if (qaf_mod == &p_qaf->qaf_mod[MS12]) {
+            audio_extn_ip_hdlr_intf_close(qaf_mod->ip_hdlr_hdl, false, qaf_mod->session_handle);
+        }
+#endif
         qaf_mod->qaf_audio_session_close(qaf_mod->session_handle);
         qaf_mod->session_handle = NULL;
         qaf_mod->is_vol_set = false;
@@ -1770,6 +1828,8 @@ static int qaf_stream_close(struct stream_out *out)
         return -EINVAL;
     }
 
+    pthread_mutex_lock(&p_qaf->lock);
+
     set_stream_state(out,STOPPED);
     qaf_mod->stream_in[index] = NULL;
     memset(&qaf_mod->adsp_hdlr_config[index], 0, sizeof(struct qaf_adsp_hdlr_config_state));
@@ -1784,12 +1844,14 @@ static int qaf_stream_close(struct stream_out *out)
     //If all streams are closed then close the session.
     qaf_session_close(qaf_mod);
 
+    pthread_mutex_unlock(&p_qaf->lock);
+
     DEBUG_MSG();
     return ret;
 }
 
 /* Open a MM module session with QAF. */
-static int audio_extn_qaf_session_open(mm_module_type mod_type)
+static int audio_extn_qaf_session_open(mm_module_type mod_type, struct stream_out *out)
 {
     ALOGV("%s %d", __func__, __LINE__);
     unsigned char* license_data = NULL;
@@ -1812,6 +1874,7 @@ static int audio_extn_qaf_session_open(mm_module_type mod_type)
         return 0;
     }
 
+#ifndef AUDIO_EXTN_IP_HDLR_ENABLED
     if (mod_type == MS12) {
         //Getting the license
         license_data = platform_get_license((struct audio_hw_device *)(p_qaf->adev->platform),
@@ -1840,6 +1903,7 @@ static int audio_extn_qaf_session_open(mm_module_type mod_type)
             goto exit;
         }
     }
+#endif
 
     ret = qaf_mod->qaf_audio_session_open(&qaf_mod->session_handle,
                                           AUDIO_SESSION_BROADCAST,
@@ -1863,6 +1927,16 @@ static int audio_extn_qaf_session_open(mm_module_type mod_type)
                                              AUDIO_DATA_EVENT_V2);
 
     set_hdmi_configuration_to_module();
+
+#ifdef AUDIO_EXTN_IP_HDLR_ENABLED
+    if (mod_type == MS12) {
+        ret = audio_extn_ip_hdlr_intf_open(qaf_mod->ip_hdlr_hdl, false, qaf_mod->session_handle, out->usecase);
+        if (ret < 0) {
+            ERROR_MSG("audio_extn_ip_hdlr_intf_open failed, ret = %d", __func__, ret);
+            goto exit;
+        }
+    }
+#endif
 
 exit:
     if (license_data != NULL) {
@@ -1889,15 +1963,18 @@ static int qaf_stream_open(struct stream_out *out,
     struct qaf_module* qaf_mod = NULL;
     DEBUG_MSG("Flags 0x%x, Device 0x%x", flags, devices);
 
-    if (mmtype >= MAX_MM_MODULE_TYPE
-        || p_qaf->qaf_mod[mmtype].qaf_audio_session_open == NULL
-        || p_qaf->qaf_mod[mmtype].qaf_audio_stream_open == NULL) {
+    if (mmtype >= MAX_MM_MODULE_TYPE) {
         ERROR_MSG("Unsupported Stream");
         return -ENOTSUP;
     }
 
+    if (p_qaf->qaf_mod[mmtype].qaf_audio_session_open == NULL ||
+        p_qaf->qaf_mod[mmtype].qaf_audio_stream_open == NULL) {
+        ERROR_MSG("Session or Stream is NULL");
+        return status;
+    }
     //Open the module session, if not opened already.
-    status = audio_extn_qaf_session_open(mmtype);
+    status = audio_extn_qaf_session_open(mmtype, out);
     qaf_mod = &(p_qaf->qaf_mod[mmtype]);
 
     if ((status != 0) || (qaf_mod->session_handle == NULL)) {
@@ -1930,7 +2007,11 @@ static int qaf_stream_open(struct stream_out *out,
                                                 input_config,
                                                 devices,
                                                 AUDIO_STREAM_SYSTEM_TONE);
-        qaf_mod->stream_in[QAF_IN_PCM] = out;
+        if (status == 0) {
+            qaf_mod->stream_in[QAF_IN_PCM] = out;
+        } else {
+            ERROR_MSG("System tone stream open failed with QAF module !!!");
+        }
     } else if ((flags & AUDIO_OUTPUT_FLAG_MAIN) && (flags & AUDIO_OUTPUT_FLAG_ASSOCIATED)) {
         if (is_main_active(qaf_mod) || is_dual_main_active(qaf_mod)) {
             ERROR_MSG("Dual Main or Main already active. So, Cannot open main and associated stream");
@@ -2110,7 +2191,7 @@ static void *qaf_offload_thread_loop(void *context)
                         parms = str_parms_create_str(kvpairs);
                         ret = str_parms_get_int(parms, "buf_available", &value);
                         if (ret >= 0) {
-                            if (value >= (int)out->compr_config.fragment_size) {
+                            if (value > 0) {
                                 DEBUG_MSG_VV("buffer available");
                                 str_parms_destroy(parms);
                                 parms = NULL;
@@ -2819,21 +2900,42 @@ int audio_extn_qaf_init(struct audio_device *adev)
 
         if (i == MS12) {
             property_get("vendor.audio.qaf.library", value, NULL);
-        } else if (i == DTS_M8) {
-            property_get("vendor.audio.qaf.m8.library", value, NULL);
-        } else {
+            snprintf(lib_name, PROPERTY_VALUE_MAX, "%s", value);
+#ifdef AUDIO_EXTN_IP_HDLR_ENABLED
+{
+        int ret = 0;
+        ret = audio_extn_ip_hdlr_intf_init(&qaf_mod->ip_hdlr_hdl, lib_name, &qaf_mod->qaf_lib,
+                                           adev, USECASE_AUDIO_PLAYBACK_OFFLOAD);
+        if (ret < 0) {
+            ERROR_MSG("audio_extn_ip_hdlr_intf_init failed, ret = %d", ret);
             continue;
         }
-
-        snprintf(lib_name, PROPERTY_VALUE_MAX, "%s", value);
-
+        if (qaf_mod->qaf_lib == NULL) {
+            ERROR_MSG("failed to get library handle");
+            continue;
+        }
+}
+#else
         qaf_mod->qaf_lib = dlopen(lib_name, RTLD_NOW);
         if (qaf_mod->qaf_lib == NULL) {
             ERROR_MSG("DLOPEN failed for %s", lib_name);
             continue;
         }
-
         DEBUG_MSG("DLOPEN successful for %s", lib_name);
+#endif
+        } else if (i == DTS_M8) {
+            property_get("audio.qaf.m8.library", value, NULL);
+            snprintf(lib_name, PROPERTY_VALUE_MAX, "%s", value);
+            qaf_mod->qaf_lib = dlopen(lib_name, RTLD_NOW);
+            if (qaf_mod->qaf_lib == NULL) {
+                ERROR_MSG("DLOPEN failed for %s", lib_name);
+                continue;
+            }
+            DEBUG_MSG("DLOPEN successful for %s", lib_name);
+        } else {
+            continue;
+        }
+
         qaf_mod->qaf_audio_session_open =
                     (int (*)(audio_session_handle_t* session_handle, audio_session_type_t s_type,
                                   void *p_data, void* license_data))dlsym(qaf_mod->qaf_lib,
@@ -2896,8 +2998,17 @@ void audio_extn_qaf_deinit()
             qaf_session_close(&p_qaf->qaf_mod[i]);
 
             if (p_qaf->qaf_mod[i].qaf_lib != NULL) {
-                dlclose(p_qaf->qaf_mod[i].qaf_lib);
-                p_qaf->qaf_mod[i].qaf_lib = NULL;
+                if (i == MS12) {
+#ifdef AUDIO_EXTN_IP_HDLR_ENABLED
+                    audio_extn_ip_hdlr_intf_deinit(p_qaf->qaf_mod[i].ip_hdlr_hdl);
+#else
+                    dlclose(p_qaf->qaf_mod[i].qaf_lib);
+#endif
+                    p_qaf->qaf_mod[i].qaf_lib = NULL;
+                } else {
+                    dlclose(p_qaf->qaf_mod[i].qaf_lib);
+                    p_qaf->qaf_mod[i].qaf_lib = NULL;
+                }
             }
         }
         if (p_qaf->passthrough_out) {

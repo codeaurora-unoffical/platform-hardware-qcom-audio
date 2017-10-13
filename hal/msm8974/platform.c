@@ -75,7 +75,7 @@
 #endif
 
 #include <linux/msm_audio.h>
-#if defined (PLATFORM_MSM8998) || (PLATFORM_SDM845)
+#if defined (PLATFORM_MSM8998) || (PLATFORM_SDM845) || (PLATFORM_SDM670)
 #include <sound/devdep_params.h>
 #endif
 
@@ -1671,6 +1671,11 @@ const char * get_snd_card_name_for_acdb_loader(const char *snd_card_name) {
         ALOGD("using tasha ACDB files for tasha-lite");
         return "sdm660-tasha-snd-card";
     }
+    if(!strncmp(snd_card_name, "sdm670-tashalite-snd-card",
+             sizeof("sdm670-tashalite-snd-card"))) {
+        ALOGD("using tasha ACDB files for tasha-lite");
+        return "sdm670-tasha-snd-card";
+    }
     return snd_card_name;
 }
 
@@ -2257,7 +2262,8 @@ acdb_init_fail:
         strdup("SLIM_5_RX SampleRate");
 
     if (!my_data->is_slimbus_interface) {
-        if (!strncmp(snd_card_name, "sdm660", strlen("sdm660"))) {
+        if (!strncmp(snd_card_name, "sdm660", strlen("sdm660")) ||
+               !strncmp(snd_card_name, "sdm670", strlen("sdm670"))) {
 
             my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].bitwidth_mixer_ctl =
                 strdup("INT4_MI2S_RX Format");
@@ -2969,6 +2975,8 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
         snd_device = voice_get_incall_rec_snd_device(usecase->in_snd_device);
     else if ((usecase->type == PCM_HFP_CALL) || (usecase->type == PCM_CAPTURE))
         snd_device = usecase->in_snd_device;
+    else if (usecase->type == TRANSCODE_LOOPBACK)
+        snd_device = usecase->out_snd_device;
 
     acdb_dev_id = acdb_device_table[platform_get_spkr_prot_snd_device(snd_device)];
     if (acdb_dev_id < 0) {
@@ -5251,49 +5259,68 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
             char *rate_str = NULL;
             struct  mixer_ctl *ctl = NULL;
 
-            switch (sample_rate) {
-            case 32000:
-                if (passthrough_enabled) {
-                    rate_str = "KHZ_32";
+            if (backend_idx == USB_AUDIO_RX_BACKEND ||
+                    backend_idx == USB_AUDIO_TX_BACKEND) {
+                switch (sample_rate) {
+                case 32000:
+                        rate_str = "KHZ_32";
+                        break;
+                case 8000:
+                        rate_str = "KHZ_8";
+                        break;
+                case 11025:
+                        rate_str = "HZ_11P025";
+                        break;
+                case 16000:
+                        rate_str = "KHZ_16";
+                        break;
+                case 22050:
+                        rate_str = "KHZ_22P05";
+                        break;
+                }
+            }
+
+            if (rate_str == NULL) {
+                switch (sample_rate) {
+                case 32000:
+                    if (passthrough_enabled) {
+                        rate_str = "KHZ_32";
+                        break;
+                    }
+                case 48000:
+                    rate_str = "KHZ_48";
+                    break;
+                case 44100:
+                    rate_str = "KHZ_44P1";
+                    break;
+                case 64000:
+                case 96000:
+                    rate_str = "KHZ_96";
+                    break;
+                case 88200:
+                    rate_str = "KHZ_88P2";
+                    break;
+                case 176400:
+                    rate_str = "KHZ_176P4";
+                    break;
+                case 192000:
+                    rate_str = "KHZ_192";
+                    break;
+                case 352800:
+                    rate_str = "KHZ_352P8";
+                    break;
+                case 384000:
+                    rate_str = "KHZ_384";
+                    break;
+                case 144000:
+                    if (passthrough_enabled) {
+                        rate_str = "KHZ_144";
+                        break;
+                    }
+                default:
+                    rate_str = "KHZ_48";
                     break;
                 }
-            case 8000:
-            case 11025:
-            case 16000:
-            case 22050:
-            case 48000:
-                rate_str = "KHZ_48";
-                break;
-            case 44100:
-                rate_str = "KHZ_44P1";
-                break;
-            case 64000:
-            case 96000:
-                rate_str = "KHZ_96";
-                break;
-            case 88200:
-                rate_str = "KHZ_88P2";
-                break;
-            case 176400:
-                rate_str = "KHZ_176P4";
-                break;
-            case 192000:
-                rate_str = "KHZ_192";
-                break;
-            case 352800:
-                rate_str = "KHZ_352P8";
-                break;
-            case 384000:
-                rate_str = "KHZ_384";
-                break;
-            case 144000:
-                if (passthrough_enabled) {
-                    rate_str = "KHZ_144";
-                    break;
-                }
-           default:
-                rate_str = "KHZ_48";
-                break;
             }
 
             ctl = mixer_get_ctl_by_name(adev->mixer,
@@ -5412,6 +5439,32 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
 }
 
 /*
+ * Get the backend configuration for current snd device
+ */
+int platform_get_codec_backend_cfg(struct audio_device* adev,
+                         snd_device_t snd_device,
+                         struct audio_backend_cfg *backend_cfg)
+{
+    int backend_idx = platform_get_backend_index(snd_device);
+    struct platform_data *my_data = (struct platform_data *)adev->platform;
+
+    backend_cfg->bit_width = my_data->current_backend_cfg[backend_idx].bit_width;
+    backend_cfg->sample_rate =
+                       my_data->current_backend_cfg[backend_idx].sample_rate;
+    backend_cfg->channels =
+                       my_data->current_backend_cfg[backend_idx].channels;
+    backend_cfg->format =
+                       my_data->current_backend_cfg[backend_idx].format;
+
+    ALOGV("%s:becf: afe: bitwidth %d, samplerate %d channels %d format %d"
+          ", backend_idx %d device (%s)", __func__,  backend_cfg->bit_width,
+          backend_cfg->sample_rate, backend_cfg->channels, backend_cfg->format,
+          backend_idx, platform_get_snd_device_name(snd_device));
+
+   return 0;
+}
+
+/*
  *Validate the selected bit_width, sample_rate and channels using the edid
  *of the connected sink device.
  */
@@ -5474,10 +5527,10 @@ static void platform_check_hdmi_backend_cfg(struct audio_device* adev,
                   __func__, DEFAULT_HDMI_OUT_CHANNELS);
             channels = DEFAULT_HDMI_OUT_CHANNELS;
         }
-        if ((usecase->stream.out->format == AUDIO_FORMAT_E_AC3) ||
+        if (((usecase->stream.out->format == AUDIO_FORMAT_E_AC3) ||
             (usecase->stream.out->format == AUDIO_FORMAT_E_AC3_JOC) ||
-            (usecase->stream.out->format == AUDIO_FORMAT_DOLBY_TRUEHD)) {
-
+            (usecase->stream.out->format == AUDIO_FORMAT_DOLBY_TRUEHD))
+            && (usecase->stream.out->compr_config.codec->compr_passthr == PASSTHROUGH)) {
             sample_rate = sample_rate * 4;
             if (sample_rate > HDMI_PASSTHROUGH_MAX_SAMPLE_RATE)
                 sample_rate = HDMI_PASSTHROUGH_MAX_SAMPLE_RATE;
@@ -6070,12 +6123,7 @@ int platform_set_stream_pan_scale_params(void *platform,
     int iter_i = 0;
     int iter_j = 0;
     int length = 0;
-    int pan_scale_data[MAX_LENGTH_MIXER_CONTROL_IN_INT] = {0};
-
-    if (sizeof(mm_params) > MAX_LENGTH_MIXER_CONTROL_IN_INT) {
-        ret = -EINVAL;
-        goto end;
-    }
+    int *pan_scale_data = NULL;
 
     snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
                           "Audio Stream %d Pan Scale Control", snd_id);
@@ -6086,6 +6134,11 @@ int platform_set_stream_pan_scale_params(void *platform,
         ALOGE("%s: Could not get ctl for mixer cmd - %s",
               __func__, mixer_ctl_name);
         ret = -EINVAL;
+        goto end;
+    }
+    pan_scale_data = (int* ) calloc(1, sizeof(mm_params));
+    if (!pan_scale_data) {
+        ret = -ENOMEM;
         goto end;
     }
     pan_scale_data[length++] = mm_params.num_output_channels;
@@ -6121,6 +6174,8 @@ int platform_set_stream_pan_scale_params(void *platform,
 
     ret = mixer_ctl_set_array(ctl, pan_scale_data, length);
 end:
+    if (pan_scale_data)
+        free(pan_scale_data);
     return ret;
 }
 
@@ -6133,19 +6188,12 @@ int platform_set_stream_downmix_params(void *platform,
     struct audio_device *adev = my_data->adev;
     struct mixer_ctl *ctl;
     char mixer_ctl_name[MIXER_PATH_MAX_LENGTH] = {0};
-    int downmix_param_data[MAX_LENGTH_MIXER_CONTROL_IN_INT] = {0};
+    int *downmix_param_data = NULL;
     int ret = 0;
     int iter_i = 0;
     int iter_j = 0;
     int length = 0;
     int be_idx = 0;
-
-    if ((sizeof(mm_params) +
-         sizeof(be_idx)) >
-        MAX_LENGTH_MIXER_CONTROL_IN_INT) {
-        ret = -EINVAL;
-        goto end;
-    }
 
     snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
                           "Audio Device %d Downmix Control", snd_id);
@@ -6158,8 +6206,13 @@ int platform_set_stream_downmix_params(void *platform,
         ret = -EINVAL;
     }
 
+    downmix_param_data = (int* ) calloc(1, sizeof(mm_params) + sizeof(be_idx));
+    if (!downmix_param_data) {
+        ret = -ENOMEM;
+        goto end;
+    }
     be_idx = platform_get_snd_device_backend_index(snd_device);
-    downmix_param_data[length]   = be_idx;
+    downmix_param_data[length++] = be_idx;
     downmix_param_data[length++] = mm_params.num_output_channels;
     downmix_param_data[length++] = mm_params.num_input_channels;
 
@@ -6194,6 +6247,8 @@ int platform_set_stream_downmix_params(void *platform,
 
     ret = mixer_ctl_set_array(ctl, downmix_param_data, length);
 end:
+    if (downmix_param_data)
+        free(downmix_param_data);
     return ret;
 }
 
@@ -7191,7 +7246,7 @@ int platform_get_max_codec_backend() {
     return MAX_CODEC_BACKENDS;
 }
 
-#if defined (PLATFORM_MSM8998) || (PLATFORM_SDM845)
+#if defined (PLATFORM_MSM8998) || (PLATFORM_SDM845) || (PLATFORM_SDM670)
 int platform_get_mmap_data_fd(void *platform, int fe_dev, int dir, int *fd,
                               uint32_t *size)
 {
