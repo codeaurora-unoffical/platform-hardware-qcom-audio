@@ -311,6 +311,8 @@ int pcm_device_table[AUDIO_USECASE_MAX][2] = {
                                            LOWLATENCY_PCM_DEVICE},
     [USECASE_AUDIO_PLAYBACK_MULTI_CH] = {MULTIMEDIA2_PCM_DEVICE,
                                         MULTIMEDIA2_PCM_DEVICE},
+    [USECASE_AUDIO_PLAYBACK_HIFI] = {MULTIMEDIA2_PCM_DEVICE,
+                                     MULTIMEDIA2_PCM_DEVICE},
     [USECASE_AUDIO_PLAYBACK_OFFLOAD] =
                      {PLAYBACK_OFFLOAD_DEVICE, PLAYBACK_OFFLOAD_DEVICE},
     /* Below entries are initialized with invalid values
@@ -335,6 +337,8 @@ int pcm_device_table[AUDIO_USECASE_MAX][2] = {
                                           LOWLATENCY_PCM_DEVICE},
     [USECASE_AUDIO_RECORD_FM_VIRTUAL] = {MULTIMEDIA2_PCM_DEVICE,
                                   MULTIMEDIA2_PCM_DEVICE},
+    [USECASE_AUDIO_RECORD_HIFI] = {MULTIMEDIA2_PCM_DEVICE,
+                                   MULTIMEDIA2_PCM_DEVICE},
     [USECASE_AUDIO_PLAYBACK_FM] = {FM_PLAYBACK_PCM_DEVICE, FM_CAPTURE_PCM_DEVICE},
     [USECASE_AUDIO_HFP_SCO] = {HFP_PCM_RX, HFP_SCO_RX},
     [USECASE_AUDIO_HFP_SCO_WB] = {HFP_PCM_RX, HFP_SCO_RX},
@@ -459,6 +463,8 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_OUT_VOICE_SPEAKER_2_PROTECTED_VBAT] = "voice-speaker-2-protected-vbat",
     [SND_DEVICE_OUT_SPEAKER_PROTECTED_RAS] = "speaker-protected",
     [SND_DEVICE_OUT_SPEAKER_PROTECTED_VBAT_RAS] = "speaker-protected-vbat",
+    [SND_DEVICE_OUT_SPEAKER_AND_BT_SCO] = "speaker-and-bt-sco",
+    [SND_DEVICE_OUT_SPEAKER_AND_BT_SCO_WB] = "speaker-and-bt-sco-wb",
 #ifdef RECORD_PLAY_CONCURRENCY
     [SND_DEVICE_OUT_VOIP_HANDSET] = "voip-handset",
     [SND_DEVICE_OUT_VOIP_SPEAKER] = "voip-speaker",
@@ -723,6 +729,8 @@ static struct name_to_index snd_device_name_index[SND_DEVICE_MAX] = {
     {TO_NAME_INDEX(SND_DEVICE_OUT_VOICE_TTY_FULL_HEADPHONES)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_VOICE_TTY_VCO_HEADPHONES)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_VOICE_TTY_HCO_HANDSET)},
+    {TO_NAME_INDEX(SND_DEVICE_OUT_SPEAKER_AND_BT_SCO)},
+    {TO_NAME_INDEX(SND_DEVICE_OUT_SPEAKER_AND_BT_SCO_WB)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_VOICE_TX)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_AFE_PROXY)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_USB_HEADSET)},
@@ -3592,6 +3600,18 @@ int platform_split_snd_device(void *platform,
         new_snd_devices[0] = SND_DEVICE_OUT_SPEAKER;
         new_snd_devices[1] = SND_DEVICE_OUT_USB_HEADSET;
         ret = 0;
+    } else if (snd_device == SND_DEVICE_OUT_SPEAKER_AND_BT_SCO &&
+               !platform_check_backends_match(SND_DEVICE_OUT_SPEAKER, SND_DEVICE_OUT_BT_SCO)) {
+        *num_devices = 2;
+        new_snd_devices[0] = SND_DEVICE_OUT_SPEAKER;
+        new_snd_devices[1] = SND_DEVICE_OUT_BT_SCO;
+        ret = 0;
+    } else if (snd_device == SND_DEVICE_OUT_SPEAKER_AND_BT_SCO_WB &&
+               !platform_check_backends_match(SND_DEVICE_OUT_SPEAKER, SND_DEVICE_OUT_BT_SCO_WB)) {
+        *num_devices = 2;
+        new_snd_devices[0] = SND_DEVICE_OUT_SPEAKER;
+        new_snd_devices[1] = SND_DEVICE_OUT_BT_SCO_WB;
+        ret = 0;
     } else if (SND_DEVICE_OUT_SPEAKER_AND_BT_A2DP == snd_device) {
         *num_devices = 2;
         new_snd_devices[0] = SND_DEVICE_OUT_SPEAKER;
@@ -3739,6 +3759,11 @@ snd_device_t platform_get_output_snd_device(void *platform, struct stream_out *o
         } else if ((devices & AUDIO_DEVICE_OUT_SPEAKER) &&
                    (devices & AUDIO_DEVICE_OUT_ALL_A2DP)) {
             snd_device = SND_DEVICE_OUT_SPEAKER_AND_BT_A2DP;
+        } else if ((devices & AUDIO_DEVICE_OUT_ALL_SCO) &&
+                   ((devices & ~AUDIO_DEVICE_OUT_ALL_SCO) == AUDIO_DEVICE_OUT_SPEAKER)) {
+            snd_device = adev->bt_wb_speech_enabled ?
+                    SND_DEVICE_OUT_SPEAKER_AND_BT_SCO_WB :
+                    SND_DEVICE_OUT_SPEAKER_AND_BT_SCO;
         } else {
             ALOGE("%s: Invalid combo device(%#x)", __func__, devices);
             goto exit;
