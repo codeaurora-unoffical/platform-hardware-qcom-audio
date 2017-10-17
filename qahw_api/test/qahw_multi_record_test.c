@@ -88,6 +88,7 @@ static volatile int tests_completed;
 int sourcetrack_done = 0;
 static pthread_mutex_t sourcetrack_lock;
 struct qahw_sound_focus_param sound_focus_data;
+void *context = NULL;
 
 static bool request_wake_lock(bool wakelock_acquired, bool enable)
 {
@@ -127,7 +128,6 @@ void stop_signal_handler(int signal __unused)
 {
    stop_record = true;
 }
-
 
 void read_soundfocus_param(void)
 {
@@ -578,6 +578,12 @@ void usage() {
     printf(" hal_rec_test -F 1 --kpi-mode -> start a recording with low latency input flag and calculate latency KPIs\n\n");
 }
 
+static void qti_audio_server_death_notify_cb(void *ctxt) {
+    fprintf(log_file, "qas died\n");
+    fprintf(stderr, "qas died\n");
+    stop_record = true;
+}
+
 int main(int argc, char* argv[]) {
     int max_recordings_requested = 0, status = 0;
     int thread_active[4] = {0};
@@ -664,6 +670,8 @@ int main(int argc, char* argv[]) {
                 break;
          }
     }
+    fprintf(log_file, "registering qas callback");
+    qahw_register_qas_death_notify_cb((audio_error_callback)qti_audio_server_death_notify_cb, context);
 
     wakelock_acquired = request_wake_lock(wakelock_acquired, true);
     qahw_mod_handle = qahw_load_module(mod_name);
