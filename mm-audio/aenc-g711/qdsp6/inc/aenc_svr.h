@@ -61,8 +61,8 @@ extern "C" {
 #endif
 
 #define DEBUG_PRINT_ERROR LOGE
-#define DEBUG_PRINT       LOGI
-#define DEBUG_DETAIL      LOGV
+#define DEBUG_PRINT(a...) do { } while(0)
+#define DEBUG_DETAIL(a...) do { } while(0)
 
 typedef void (*message_func)(void* client_data, unsigned char id);
 
