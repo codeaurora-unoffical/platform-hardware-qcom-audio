@@ -420,6 +420,7 @@ struct audio_device {
                                            struct str_parms *);
     void (*offload_effects_set_parameters)(struct str_parms *);
     void *ext_hw_plugin;
+    void *ext_audio_anc;
     struct listnode audio_patch_record_list;
     unsigned int audio_patch_index;
     struct listnode active_inputs_list;

@@ -4647,6 +4647,9 @@ static int adev_close(hw_device_t *device)
         if(adev->ext_hw_plugin)
             audio_extn_ext_hw_plugin_deinit(adev->ext_hw_plugin);
 
+        if(adev->ext_audio_anc)
+            audio_extn_ext_audio_anc_deinit(adev->ext_audio_anc);
+
         free(device);
         adev = NULL;
     }
@@ -4757,6 +4760,8 @@ static int adev_open(const hw_module_t *module, const char *name,
     }
 
     adev->ext_hw_plugin = audio_extn_ext_hw_plugin_init(adev);
+
+    adev->ext_audio_anc = audio_extn_ext_audio_anc_init(adev);
 
     adev->snd_card_status.state = SND_CARD_STATE_ONLINE;
 

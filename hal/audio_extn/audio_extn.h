@@ -567,6 +567,16 @@ int audio_extn_ext_hw_plugin_get_parameters(void *plugin,
 int audio_extn_ext_hw_plugin_set_mic_mute(void *plugin, bool mute);
 int audio_extn_ext_hw_plugin_get_mic_mute(void *plugin, bool *mute);
 #endif
+#ifndef EXT_AUDIO_ANC_ENABLED
+#define audio_extn_ext_audio_anc_init(adev)                (0)
+#define audio_extn_ext_audio_anc_deinit(handle)              (0)
+#define audio_extn_ext_audio_anc_set_parameters(handle) (0)
+#else
+void* audio_extn_ext_audio_anc_init(struct audio_device *adev);
+int audio_extn_ext_audio_anc_deinit(void *handle);
+int audio_extn_ext_audio_anc_set_parameters(void *handle,
+                                           struct str_parms *parms);
+#endif
 
 #ifndef ICC_ENABLED
 #define audio_extn_icc_get_parameters(adev, query, reply)   (0)

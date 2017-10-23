@@ -331,6 +331,11 @@ ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXT_HW_PLUGIN)),true)
     LOCAL_SRC_FILES += audio_extn/ext_hw_plugin.c
 endif
 
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXT_AUDIO_ANC)),true)
+    LOCAL_CFLAGS += -DEXT_AUDIO_ANC_ENABLED
+    LOCAL_SRC_FILES += audio_extn/ext_audio_anc.c
+endif
+
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_DRIVER_SIDE_PLAYBACK)),true)
     LOCAL_CFLAGS += -DDRIVER_SIDE_PLAYBACK_ENABLED
 endif
