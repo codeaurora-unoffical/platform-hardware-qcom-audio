@@ -50,9 +50,9 @@
 #include "audio_hw_extn_api.h"
 
 #if LINUX_ENABLED
-#define VISUALIZER_LIBRARY_PATH "/usr/lib/libqcomvisualizer.so"
-#define OFFLOAD_EFFECTS_BUNDLE_LIBRARY_PATH "/usr/lib/libqcompostprocbundle.so"
-#define ADM_LIBRARY_PATH "/usr/lib/libadm.so"
+#define VISUALIZER_LIBRARY_PATH "libqcomvisualizer.so"
+#define OFFLOAD_EFFECTS_BUNDLE_LIBRARY_PATH "libqcompostprocbundle.so"
+#define ADM_LIBRARY_PATH "libadm.so"
 #else
 #define VISUALIZER_LIBRARY_PATH "/system/lib/soundfx/libqcomvisualizer.so"
 #define OFFLOAD_EFFECTS_BUNDLE_LIBRARY_PATH "/system/lib/soundfx/libqcompostprocbundle.so"
@@ -172,6 +172,8 @@ enum {
     USECASE_AUDIO_PLAYBACK_INTERACTIVE_STREAM6,
     USECASE_AUDIO_PLAYBACK_INTERACTIVE_STREAM7,
     USECASE_AUDIO_PLAYBACK_INTERACTIVE_STREAM8,
+
+    USECASE_AUDIO_EC_REF_LOOPBACK,
     AUDIO_USECASE_MAX
 };
 
