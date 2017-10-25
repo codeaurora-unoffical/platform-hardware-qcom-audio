@@ -518,12 +518,14 @@ void process_loopback_data(void *ptr)
                 if ((dev_path != NULL) && (switch_name != NULL))
                     fprintf(log_file,"devpath = %s, switch_name = %s \n",dev_path, switch_name);
 
-                if((DEV_NODE_CHECK(tlb_hdmi_in_audio_dev_path, dev_path) == 0)  || (DEV_NODE_CHECK(tlb_hdmi_in_audio_sample_rate_dev_path, dev_path) == 0)
-                || (DEV_NODE_CHECK(tlb_hdmi_in_audio_state_dev_path, dev_path) == 0)
-                || (DEV_NODE_CHECK(tlb_hdmi_in_audio_channel_dev_path, dev_path) == 0)
-                || (DEV_NODE_CHECK(tlb_hdmi_in_audio_format_dev_path, dev_path) == 0)) {
+                if (dev_path != NULL) {
+                    if((DEV_NODE_CHECK(tlb_hdmi_in_audio_dev_path, dev_path) == 0)  || (DEV_NODE_CHECK(tlb_hdmi_in_audio_sample_rate_dev_path, dev_path) == 0)
+                    || (DEV_NODE_CHECK(tlb_hdmi_in_audio_state_dev_path, dev_path) == 0)
+                    || (DEV_NODE_CHECK(tlb_hdmi_in_audio_channel_dev_path, dev_path) == 0)
+                    || (DEV_NODE_CHECK(tlb_hdmi_in_audio_format_dev_path, dev_path) == 0)) {
                     source_data_event_handler(transcode_loopback_config);
-                }
+                    }
+               }
             }
         } else {
             ALOGD("NO Data\n");
