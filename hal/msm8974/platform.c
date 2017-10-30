@@ -283,6 +283,7 @@ struct platform_data {
     bool is_dsd_supported;
     bool is_asrc_supported;
     struct listnode acdb_meta_key_list;
+    bool use_generic_handset;
 };
 
 static int pcm_device_table[AUDIO_USECASE_MAX][2] = {
@@ -319,6 +320,8 @@ static int pcm_device_table[AUDIO_USECASE_MAX][2] = {
     [USECASE_AUDIO_RECORD_COMPRESS2] = {-1, -1},
     [USECASE_AUDIO_RECORD_COMPRESS3] = {-1, -1},
     [USECASE_AUDIO_RECORD_COMPRESS4] = {-1, -1},
+    [USECASE_AUDIO_RECORD_COMPRESS5] = {-1, -1},
+    [USECASE_AUDIO_RECORD_COMPRESS6] = {-1, -1},
     [USECASE_AUDIO_RECORD_LOW_LATENCY] = {LOWLATENCY_PCM_DEVICE,
                                           LOWLATENCY_PCM_DEVICE},
     [USECASE_AUDIO_RECORD_FM_VIRTUAL] = {MULTIMEDIA2_PCM_DEVICE,
@@ -489,6 +492,7 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_UNPROCESSED_THREE_MIC] = "three-mic",
     [SND_DEVICE_IN_UNPROCESSED_QUAD_MIC] = "quad-mic",
     [SND_DEVICE_IN_UNPROCESSED_HEADSET_MIC] = "headset-mic",
+    [SND_DEVICE_IN_HANDSET_GENERIC_QMIC] = "quad-mic",
 };
 
 // Platform specific backend bit width table
@@ -617,6 +621,7 @@ static int acdb_device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_UNPROCESSED_THREE_MIC] = 145,
     [SND_DEVICE_IN_UNPROCESSED_QUAD_MIC] = 146,
     [SND_DEVICE_IN_UNPROCESSED_HEADSET_MIC] = 147,
+    [SND_DEVICE_IN_HANDSET_GENERIC_QMIC] = 150,
 };
 
 struct name_to_index {
@@ -745,6 +750,7 @@ static struct name_to_index snd_device_name_index[SND_DEVICE_MAX] = {
     {TO_NAME_INDEX(SND_DEVICE_IN_UNPROCESSED_THREE_MIC)},
     {TO_NAME_INDEX(SND_DEVICE_IN_UNPROCESSED_QUAD_MIC)},
     {TO_NAME_INDEX(SND_DEVICE_IN_UNPROCESSED_HEADSET_MIC)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_GENERIC_QMIC)},
 };
 
 static char * backend_tag_table[SND_DEVICE_MAX] = {0};
@@ -769,6 +775,8 @@ static struct name_to_index usecase_name_index[AUDIO_USECASE_MAX] = {
     {TO_NAME_INDEX(USECASE_AUDIO_RECORD_COMPRESS2)},
     {TO_NAME_INDEX(USECASE_AUDIO_RECORD_COMPRESS3)},
     {TO_NAME_INDEX(USECASE_AUDIO_RECORD_COMPRESS4)},
+    {TO_NAME_INDEX(USECASE_AUDIO_RECORD_COMPRESS5)},
+    {TO_NAME_INDEX(USECASE_AUDIO_RECORD_COMPRESS6)},
     {TO_NAME_INDEX(USECASE_AUDIO_RECORD_LOW_LATENCY)},
     {TO_NAME_INDEX(USECASE_VOICE_CALL)},
     {TO_NAME_INDEX(USECASE_VOICE2_CALL)},
@@ -1345,6 +1353,7 @@ static void set_platform_defaults(struct platform_data * my_data)
     hw_interface_table[SND_DEVICE_IN_UNPROCESSED_THREE_MIC] = strdup("SLIMBUS_0_TX");
     hw_interface_table[SND_DEVICE_IN_UNPROCESSED_QUAD_MIC] = strdup("SLIMBUS_0_TX");
     hw_interface_table[SND_DEVICE_IN_UNPROCESSED_HEADSET_MIC] = strdup("SLIMBUS_0_TX");
+    hw_interface_table[SND_DEVICE_IN_HANDSET_GENERIC_QMIC] = strdup("SLIMBUS_0_TX");
 
     my_data->max_mic_count = PLATFORM_DEFAULT_MIC_COUNT;
 
@@ -2173,6 +2182,9 @@ acdb_init_fail:
         strdup("USB_AUDIO_RX SampleRate");
     my_data->current_backend_cfg[USB_AUDIO_RX_BACKEND].channels_mixer_ctl =
         strdup("USB_AUDIO_RX Channels");
+
+    if (property_get_bool("audio.apptype.multirec.enabled", false))
+        my_data->use_generic_handset = true;
 
     my_data->edid_info = NULL;
     free(snd_card_name);
@@ -3539,6 +3551,17 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
             }
         } else if (out_device & AUDIO_DEVICE_OUT_TELEPHONY_TX)
             snd_device = SND_DEVICE_IN_VOICE_RX;
+    } else if (my_data->use_generic_handset == true &&  //     system prop is enabled
+               (my_data->source_mic_type & SOURCE_QUAD_MIC) &&  // AND 4mic is available
+               ((in_device & AUDIO_DEVICE_IN_BUILTIN_MIC) ||    // AND device is buit-in mic or back mic
+                (in_device & AUDIO_DEVICE_IN_BACK_MIC)) &&
+               (my_data->fluence_in_audio_rec == true &&       //  AND fluencepro is enabled
+                my_data->fluence_type & FLUENCE_QUAD_MIC) &&
+               (source == AUDIO_SOURCE_CAMCORDER ||           // AND source is cam/mic/unprocessed
+                source == AUDIO_SOURCE_UNPROCESSED ||
+                source == AUDIO_SOURCE_MIC)) {
+                snd_device = SND_DEVICE_IN_HANDSET_GENERIC_QMIC;
+                platform_set_echo_reference(adev, true, out_device);
     } else if (source == AUDIO_SOURCE_CAMCORDER) {
         if (in_device & AUDIO_DEVICE_IN_BUILTIN_MIC ||
             in_device & AUDIO_DEVICE_IN_BACK_MIC) {
