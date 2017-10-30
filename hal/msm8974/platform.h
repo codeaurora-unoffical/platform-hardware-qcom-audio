@@ -302,6 +302,9 @@ enum {
 #define HDMI_MULTI_DEFAULT_CHANNEL_COUNT 6
 #define HDMI_MULTI_PERIOD_BYTES (HDMI_MULTI_PERIOD_SIZE * HDMI_MULTI_DEFAULT_CHANNEL_COUNT * 2)
 
+#define HIFI_BUFFER_OUTPUT_PERIOD_SIZE 1920
+#define HIFI_BUFFER_OUTPUT_PERIOD_DURATION 40 /* 40 milisecs */
+#define HIFI_BUFFER_OUTPUT_PERIOD_COUNT 2
 
 /* Used in calculating fragment size for pcm offload */
 #define PCM_OFFLOAD_BUFFER_DURATION 80 /* 80 millisecs */
@@ -488,7 +491,7 @@ enum {
 #define FM_RX_VOLUME "PRI MI2S LOOPBACK Volume"
 #elif PLATFORM_MSM8996
 #define FM_RX_VOLUME "Tert MI2S LOOPBACK Volume"
-#elif defined (PLATFORM_MSM8998) || defined (PLATFORM_SDM845) || defined (PLATFORM_MSMFALCON)
+#elif defined (PLATFORM_MSM8998) || defined (PLATFORM_SDM845) || defined (PLATFORM_MSMFALCON) || defined (PLATFORM_SDM670)
 #define FM_RX_VOLUME "SLIMBUS_8 LOOPBACK Volume"
 #else
 #define FM_RX_VOLUME "Internal FM RX Volume"
@@ -496,6 +499,11 @@ enum {
 
 #define PLATFORM_MAX_MIC_COUNT "input_mic_max_count"
 #define PLATFORM_DEFAULT_MIC_COUNT 2
+
+#define TX_VOICE_FLUENCE_PROV2 0x10F17
+#define TX_VOICE_DM_FV5_BROADSIDE 0x10F18
+#define TX_VOICE_FV5ECNS_SM 0x10F09
+#define TX_VOICE_FV5ECNS_DM 0x10F0A
 
 #define LIB_CSD_CLIENT "libcsd-client.so"
 /* CSD-CLIENT related functions */

@@ -705,7 +705,7 @@ void audio_extn_utils_update_stream_output_app_type_cfg(void *platform,
     if (!strncmp("true", value, sizeof("true"))) {
         if ((popcount(channel_mask) > 2) &&
                 (sample_rate > CODEC_BACKEND_DEFAULT_SAMPLE_RATE) &&
-                !(flags & AUDIO_OUTPUT_FLAG_COMPRESS_PASSTHROUGH))  {
+                !(flags & (audio_output_flags_t)AUDIO_OUTPUT_FLAG_COMPRESS_PASSTHROUGH))  {
                     sample_rate = CODEC_BACKEND_DEFAULT_SAMPLE_RATE;
                     ALOGD("%s: MCH session defaulting sample rate to %d",
                                __func__, sample_rate);
@@ -717,7 +717,7 @@ void audio_extn_utils_update_stream_output_app_type_cfg(void *platform,
      * Set Bit Width to 16. output will be 16 bit
      * post DoP in ASM.
      */
-    if ((flags & AUDIO_OUTPUT_FLAG_COMPRESS_PASSTHROUGH) &&
+    if ((flags & (audio_output_flags_t)AUDIO_OUTPUT_FLAG_COMPRESS_PASSTHROUGH) &&
         (format == AUDIO_FORMAT_DSD)) {
         bit_width = 16;
         if (sample_rate == INPUT_SAMPLING_RATE_DSD64)
@@ -951,11 +951,14 @@ static int send_app_type_cfg_for_device(struct audio_device *adev,
         if (!strncmp("true", value, sizeof("true"))) {
             if ((popcount(usecase->stream.out->channel_mask) > 2) &&
                    (usecase->stream.out->app_type_cfg.sample_rate > CODEC_BACKEND_DEFAULT_SAMPLE_RATE) &&
-                   !(usecase->stream.out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_PASSTHROUGH))
+                   !(usecase->stream.out->flags &
+                            (audio_output_flags_t)AUDIO_OUTPUT_FLAG_COMPRESS_PASSTHROUGH))
                sample_rate = CODEC_BACKEND_DEFAULT_SAMPLE_RATE;
         }
 
-        if (usecase->stream.out->devices & AUDIO_DEVICE_OUT_SPEAKER) {
+        if (usecase->id == USECASE_AUDIO_PLAYBACK_VOIP) {
+            usecase->stream.out->app_type_cfg.sample_rate = usecase->stream.out->sample_rate;
+        } else if (usecase->stream.out->devices & AUDIO_DEVICE_OUT_SPEAKER) {
             usecase->stream.out->app_type_cfg.sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
         } else if ((snd_device == SND_DEVICE_OUT_HDMI ||
                     snd_device == SND_DEVICE_OUT_USB_HEADSET ||
@@ -983,12 +986,12 @@ static int send_app_type_cfg_for_device(struct audio_device *adev,
          */
         list_for_each(node, &adev->streams_output_cfg_list) {
             s_info = node_to_item(node, struct streams_io_cfg, list);
-            if (s_info->flags.out_flags == (AUDIO_OUTPUT_FLAG_BD |
+            if (s_info->flags.out_flags == (audio_output_flags_t)(AUDIO_OUTPUT_FLAG_BD |
                                             AUDIO_OUTPUT_FLAG_DIRECT_PCM |
                                             AUDIO_OUTPUT_FLAG_DIRECT))
                 bd_app_type = s_info->app_type_cfg.app_type;
         }
-        if (usecase->stream.out->flags == AUDIO_OUTPUT_FLAG_INTERACTIVE)
+        if (usecase->stream.out->flags == (audio_output_flags_t)AUDIO_OUTPUT_FLAG_INTERACTIVE)
             app_type = bd_app_type;
         else
             app_type = usecase->stream.out->app_type_cfg.app_type;
@@ -1016,6 +1019,8 @@ static int send_app_type_cfg_for_device(struct audio_device *adev,
         app_type = usecase->stream.in->app_type_cfg.app_type;
         app_type_cfg[len++] = app_type;
         app_type_cfg[len++] = acdb_dev_id;
+        if (usecase->id == USECASE_AUDIO_RECORD_VOIP)
+            usecase->stream.in->app_type_cfg.sample_rate = usecase->stream.in->sample_rate;
         sample_rate = usecase->stream.in->app_type_cfg.sample_rate;
         app_type_cfg[len++] = sample_rate;
         if (snd_device_be_idx > 0)
@@ -1246,8 +1251,7 @@ uint32_t get_alsa_fragment_size(uint32_t bytes_per_sample,
      *be multiple of (number of channels * bytes per sample)
      *For writes to succeed, the buffer must be written at address which is multiple of 32
      */
-    fragment_size = ALIGN(fragment_size, (bytes_per_sample * noOfChannels));
-    fragment_size = ALIGN(fragment_size, 32);
+    fragment_size = ALIGN(fragment_size, (bytes_per_sample * noOfChannels * 32));
 
     ALOGI("PCM offload Fragment size to %d bytes", fragment_size);
     return fragment_size;

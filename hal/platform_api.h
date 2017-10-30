@@ -100,6 +100,12 @@ int platform_get_fluence_type(void *platform, char *value, uint32_t len);
 int platform_set_snd_device_acdb_id(snd_device_t snd_device, unsigned int acdb_id);
 int platform_get_snd_device_acdb_id(snd_device_t snd_device);
 int platform_set_snd_device_bit_width(snd_device_t snd_device, unsigned int bit_width);
+int platform_set_effect_config_data(snd_device_t snd_device,
+                                      struct audio_effect_config effect_config,
+                                      effect_type_t effect_type);
+int platform_get_effect_config_data(snd_device_t snd_device,
+                                      struct audio_effect_config *effect_config,
+                                      effect_type_t effect_type);
 int platform_get_snd_device_bit_width(snd_device_t snd_device);
 int platform_set_acdb_metainfo_key(void *platform, char *name, int key);
 int platform_get_meta_info_key_from_list(void *platform, char *mod_name);
@@ -172,10 +178,13 @@ bool platform_check_and_set_capture_codec_backend_cfg(struct audio_device* adev,
 int platform_get_usecase_index(const char * usecase);
 int platform_set_usecase_pcm_id(audio_usecase_t usecase, int32_t type, int32_t pcm_id);
 void platform_set_echo_reference(struct audio_device *adev, bool enable, audio_devices_t out_device);
+int platform_check_and_set_swap_lr_channels(struct audio_device *adev, bool swap_channels);
+int platform_set_swap_channels(struct audio_device *adev, bool swap_channels);
 void platform_get_device_to_be_id_map(int **be_id_map, int *length);
 
 int platform_set_channel_allocation(void *platform, int channel_alloc);
 int platform_get_edid_info(void *platform);
+int platform_get_supported_sampling_rate_on_hdmi(uint32_t stream_sr);
 int platform_set_channel_map(void *platform, int ch_count, char *ch_map,
                              int snd_id);
 int platform_set_stream_channel_map(void *platform, audio_channel_mask_t channel_mask,

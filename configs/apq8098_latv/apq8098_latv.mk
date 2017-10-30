@@ -30,7 +30,7 @@ AUDIO_FEATURE_ENABLED_HW_ACCELERATED_EFFECTS := false
 AUDIO_FEATURE_ENABLED_AUDIOSPHERE := true
 AUDIO_FEATURE_ENABLED_USB_TUNNEL_AUDIO := true
 AUDIO_FEATURE_ENABLED_SPLIT_A2DP := true
-AUDIO_FEATURE_ENABLED_3D_AUDIO := false
+AUDIO_FEATURE_ENABLED_3D_AUDIO := true
 AUDIO_FEATURE_ENABLED_VOICE_PRINT := false
 USE_LEGACY_AUDIO_DAEMON := false
 USE_LEGACY_AUDIO_MEASUREMENT := false
@@ -46,7 +46,7 @@ AUDIO_FEATURE_ENABLED_CUSTOMSTEREO := true
 AUDIO_FEATURE_ENABLED_FLUENCE := true
 AUDIO_FEATURE_ENABLED_HDMI_EDID := true
 AUDIO_FEATURE_ENABLED_HDMI_PASSTHROUGH := true
-#AUDIO_FEATURE_ENABLED_KEEP_ALIVE := true
+AUDIO_FEATURE_ENABLED_KEEP_ALIVE := true
 AUDIO_FEATURE_ENABLED_DISPLAY_PORT := true
 AUDIO_FEATURE_ENABLED_DS2_DOLBY_DAP := false
 AUDIO_FEATURE_ENABLED_HFP := true
@@ -56,11 +56,13 @@ AUDIO_FEATURE_ENABLED_KPI_OPTIMIZE := true
 AUDIO_FEATURE_ENABLED_SPKR_PROTECTION := true
 AUDIO_FEATURE_ENABLED_ACDB_LICENSE := true
 AUDIO_FEATURE_ENABLED_DEV_ARBI := false
+AUDIO_FEATURE_ENABLED_DYNAMIC_LOG := true
 MM_AUDIO_ENABLED_FTM := true
 TARGET_USES_QCOM_MM_AUDIO := true
 AUDIO_FEATURE_ENABLED_SOURCE_TRACKING := true
 AUDIO_FEATURE_ENABLED_GEF_SUPPORT := true
 BOARD_SUPPORTS_QAHW := true
+AUDIO_FEATURE_ENABLED_QAF := true
 AUDIO_FEATURE_ENABLED_RAS := true
 AUDIO_FEATURE_ENABLED_DYNAMIC_LOG := true
 AUDIO_FEATURE_ENABLED_SND_MONITOR := true
@@ -148,6 +150,14 @@ vendor.audio.offload.buffer.size.kb=32
 PRODUCT_PROPERTY_OVERRIDES += \
 audio.offload.video=true
 
+#Enable 16 bit PCM offload by default
+PRODUCT_PROPERTY_OVERRIDES += \
+audio.offload.pcm.16bit.enable=true
+
+#Enable 24 bit PCM offload by default
+PRODUCT_PROPERTY_OVERRIDES += \
+audio.offload.pcm.24bit.enable=true
+
 #Enable audio track offload by default
 PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.offload.track.enable=true
@@ -155,6 +165,10 @@ vendor.audio.offload.track.enable=true
 #Enable music through deep buffer
 PRODUCT_PROPERTY_OVERRIDES += \
 audio.deep_buffer.media=true
+
+#QC property used when calculating client heap size in audio flinger
+PRODUCT_PROPERTY_OVERRIDES += \
+audio.heap.size.multiplier=7
 
 #enable voice path for PCM VoIP by default
 PRODUCT_PROPERTY_OVERRIDES += \
@@ -171,11 +185,11 @@ vendor.audio.dolby.ds2.hardbypass=false
 
 #Disable Multiple offload sesison
 PRODUCT_PROPERTY_OVERRIDES += \
-vendor.audio.offload.multiple.enabled=false
+vendor.audio.offload.multiple.enabled=true
 
 #Disable Compress passthrough playback
 PRODUCT_PROPERTY_OVERRIDES += \
-vendor.audio.offload.passthrough=false
+vendor.audio.offload.passthrough=true
 
 #Disable surround sound recording
 PRODUCT_PROPERTY_OVERRIDES += \
