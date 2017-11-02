@@ -5,6 +5,7 @@ LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
 libqahw-inc := $(LOCAL_PATH)/inc
+libqahw-inc += external/tinyalsa/include
 
 LOCAL_MODULE := libqahw
 LOCAL_MODULE_TAGS := optional

@@ -463,20 +463,6 @@ void *drift_read(void* data)
     return NULL;
 }
 
-static int is_eof(stream_config *stream) {
-    if (stream->filename) {
-        if (feof(stream->file_stream)) {
-            fprintf(log_file, "stream %d: error in fread, error %d\n", stream->stream_index, ferror(stream->file_stream));
-            fprintf(stderr, "stream %d: error in fread, error %d\n", stream->stream_index, ferror(stream->file_stream));
-            return true;
-        }
-    } else if (AUDIO_DEVICE_NONE != stream->input_device)
-        /*
-         * assuming this is called after we got -ve bytes value from hal read
-         */
-        return true;
-    return false;
-}
 static int read_bytes(stream_config *stream, void *buff, int size) {
     if (stream->filename)
         return fread(buff, 1, size, stream->file_stream);
@@ -514,32 +500,6 @@ int write_to_hal(qahw_stream_handle_t* out_handle, char *data, size_t bytes, voi
 
     pthread_mutex_unlock(&stream_params->write_lock);
     return ret;
-}
-
-static bool is_assoc_active()
-{
-    int i = 0;
-    bool is_assoc_active = false;
-
-    for (i = 0; i < MAX_PLAYBACK_STREAMS; i++) {
-        if (stream_param[i].flags & AUDIO_OUTPUT_FLAG_ASSOCIATED) {
-            is_assoc_active = true;
-            break;
-        }
-    }
-    return is_assoc_active;
-}
-
-static int get_assoc_index()
-{
-    int i = 0;
-
-    for (i = 0; i < MAX_PLAYBACK_STREAMS; i++) {
-        if (stream_param[i].flags & AUDIO_OUTPUT_FLAG_ASSOCIATED) {
-            break;
-        }
-    }
-    return i;
 }
 
 /* Entry point function for stream playback
@@ -848,11 +808,13 @@ void *start_stream_playback (void* stream_data)
         // destory effect command thread
         params->cmd_data.exit = true;
         usleep(100000);  // give a chance for thread to exit gracefully
+        #if 0
         rc = pthread_cancel(params->cmd_data.cmd_thread);
         if (rc != 0) {
             fprintf(log_file, "Fail to cancel thread!\n");
             fprintf(stderr, "Fail to cancel thread!\n");
         }
+	#endif
         rc = pthread_join(params->cmd_data.cmd_thread, NULL);
         if (rc < 0) {
             fprintf(log_file, "Fail to join effect command thread!\n");
@@ -1185,7 +1147,7 @@ int measure_kpi_values(qahw_stream_handle_t* out_handle, bool is_offload) {
 int tigger_event(qahw_stream_handle_t* out_handle)
 {
     qahw_param_payload payload;
-    struct event_data event_payload = {0};
+    struct event_data event_payload = {0, 0, 0, 0, 0, 0, 0};
     int ret = 0;
 
     event_payload.num_events = 1;
@@ -1693,7 +1655,7 @@ static ssize_t  get_bytes_to_read(FILE* file, int file_type)
                 ret = fread(&read_chunk_size, 1, DTSHD_META_KEYWORD_SIZE, file);
                 chunk_size = convert_BE_to_LE(read_chunk_size);
                 if (ret != DTSHD_META_KEYWORD_SIZE) {
-                    fprintf(stderr,"%s %d file read error ret %\n",
+                    fprintf(stderr,"%s %d file read error ret %d\n",
                             __func__, __LINE__, ret);
                     file_read_size = -EINVAL;
                     break;
@@ -1885,7 +1847,6 @@ int extract_mixer_coeffs(qahw_mix_matrix_params_t * mm_params, const char * arg_
     if(token_string != NULL) {
         init_ptr = token_string;
         token = strtok_r(token_string, ",", &saveptr);
-        int index = 0;
         if (NULL == token)
             return -EINVAL;
         else {
@@ -1907,6 +1868,7 @@ int extract_mixer_coeffs(qahw_mix_matrix_params_t * mm_params, const char * arg_
         token_string = NULL;
     } else
         return -EINVAL;
+    return 0;
 }
 
 #ifdef QAP
@@ -1987,7 +1949,6 @@ int main(int argc, char* argv[]) {
     init_streams();
 
     int num_of_streams = 1;
-    char kvp_string[KV_PAIR_MAX_LENGTH] = {0};
 
     struct option long_options[] = {
         /* These options set a flag. */
