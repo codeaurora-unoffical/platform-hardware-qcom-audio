@@ -183,7 +183,6 @@ bool thread_active[MAX_PLAYBACK_STREAMS] = { false };
 
 stream_config stream_param[MAX_PLAYBACK_STREAMS];
 bool kpi_mode;
-void *context = NULL;
 
 /*
  * Set to a high number so it doesn't interfere with existing stream handles
@@ -793,7 +792,7 @@ int write_to_hal(qahw_stream_handle_t* out_handle, char *data, size_t bytes, voi
     ret = qahw_out_write(out_handle, &out_buf);
     if (ret < 0) {
         fprintf(log_file, "stream %d: writing data to hal failed (ret = %zd)\n", stream_params->stream_index, ret);
-    } else if (ret != bytes) {
+    } else if ((ret != bytes) && !stop_playback) {
         fprintf(log_file, "stream %d: provided bytes %zd, written bytes %d\n",stream_params->stream_index, bytes, ret);
         fprintf(log_file, "stream %d: waiting for event write ready\n", stream_params->stream_index);
         pthread_cond_wait(&stream_params->write_cond, &stream_params->write_lock);
@@ -1541,6 +1540,10 @@ static int unload_hals() {
 static void qti_audio_server_death_notify_cb(void *ctxt) {
     fprintf(log_file, "qas died\n");
     fprintf(stderr, "qas died\n");
+
+    stream_config *s_params = (stream_config*) ctxt;
+    pthread_cond_signal(&s_params->write_cond);
+    pthread_cond_signal(&s_params->drain_cond);
     stop_playback = true;
 }
 
@@ -1715,7 +1718,7 @@ int main(int argc, char* argv[]) {
         }
     }
     fprintf(log_file, "registering qas callback");
-    qahw_register_qas_death_notify_cb((audio_error_callback)qti_audio_server_death_notify_cb, context);
+    qahw_register_qas_death_notify_cb((audio_error_callback)qti_audio_server_death_notify_cb, &stream_param);
 
     wakelock_acquired = request_wake_lock(wakelock_acquired, true);
     num_of_streams = i+1;
