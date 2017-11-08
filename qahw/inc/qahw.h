@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-#ifndef QTI_AUDIO_QAHW_API_H
-#define QTI_AUDIO_QAHW_API_H
+#ifndef QTI_AUDIO_QAHW_H
+#define QTI_AUDIO_QAHW_H
 
 #include <stdint.h>
 #include <strings.h>
@@ -29,6 +29,7 @@
 #include "qahw_defs.h"
 
 __BEGIN_DECLS
+
 /*
  * Helper macros for module implementors.
  *
@@ -62,6 +63,10 @@ __BEGIN_DECLS
 typedef void qahw_module_handle_t;
 typedef void qahw_stream_handle_t;
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 /**************************************/
 /* Output stream specific APIs **/
 
@@ -443,6 +448,10 @@ int qahw_set_param_data_l(const qahw_module_handle_t *hw_module,
                         qahw_param_id param_id,
                         qahw_param_payload *payload);
 
+#ifdef __cplusplus
+}
+#endif
+
 __END_DECLS
 
-#endif  // QTI_AUDIO_QAHW_API_H
+#endif  // QTI_AUDIO_QAHW_H
