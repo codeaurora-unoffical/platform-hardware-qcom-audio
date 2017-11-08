@@ -41,99 +41,12 @@
 #include <hardware/audio.h>
 #include <cutils/properties.h>
 #include "qahw_api.h"
+#include "qahw.h"
 
 #include <mm-audio/qti-audio-server/qti_audio_server.h>
 #include <mm-audio/qti-audio-server/qti_audio_server_client.h>
 
 using namespace audiohal;
-
-
-extern "C"
-{
-#include <qahw.h>
-
-uint32_t qahw_out_get_sample_rate_l(const qahw_stream_handle_t *out_handle);
-int qahw_out_set_sample_rate_l(qahw_stream_handle_t *out_handle, uint32_t rate);
-size_t qahw_out_get_buffer_size_l(const qahw_stream_handle_t *out_handle);
-audio_channel_mask_t qahw_out_get_channels_l(const qahw_stream_handle_t *out_handle);
-audio_format_t qahw_out_get_format_l(const qahw_stream_handle_t *out_handle);
-int qahw_out_standby_l(qahw_stream_handle_t *out_handle);
-int qahw_out_set_parameters_l(qahw_stream_handle_t *out_handle, const char *kv_pairs);
-char *qahw_out_get_parameters_l(const qahw_stream_handle_t *out_handle,
-                              const char *keys);
-int qahw_out_get_param_data_l(qahw_stream_handle_t *out_handle,
-                            qahw_param_id param_id,
-                            qahw_param_payload *payload);
-int qahw_out_set_param_data_l(qahw_stream_handle_t *out_handle,
-                            qahw_param_id param_id,
-                            qahw_param_payload *payload);
-uint32_t qahw_out_get_latency_l(const qahw_stream_handle_t *out_handle);
-int qahw_out_set_volume_l(qahw_stream_handle_t *out_handle, float left, float right);
-ssize_t qahw_out_write_l(qahw_stream_handle_t *out_handle,
-        qahw_out_buffer_t *out_buf);
-int qahw_out_get_render_position_l(const qahw_stream_handle_t *out_handle,
-                                 uint32_t *dsp_frames);
-int qahw_out_set_callback_l(qahw_stream_handle_t *out_handle,
-                          qahw_stream_callback_t callback,
-                          void *cookie);
-int qahw_out_pause_l(qahw_stream_handle_t *out_handle);
-int qahw_out_resume_l(qahw_stream_handle_t *out_handle);
-int qahw_out_drain_l(qahw_stream_handle_t *out_handle, qahw_drain_type_t type );
-int qahw_out_flush_l(qahw_stream_handle_t *out_handle);
-int qahw_out_get_presentation_position_l(const qahw_stream_handle_t *out_handle,
-                           uint64_t *frames, struct timespec *timestamp);
-uint32_t qahw_in_get_sample_rate_l(const qahw_stream_handle_t *in_handle);
-int qahw_in_set_sample_rate_l(qahw_stream_handle_t *in_handle, uint32_t rate);
-size_t qahw_in_get_buffer_size_l(const qahw_stream_handle_t *in_handle);
-audio_channel_mask_t qahw_in_get_channels_l(const qahw_stream_handle_t *in_handle);
-audio_format_t qahw_in_get_format_l(const qahw_stream_handle_t *in_handle);
-int qahw_in_set_format_l(qahw_stream_handle_t *in_handle, audio_format_t format);
-int qahw_in_standby_l(qahw_stream_handle_t *in_handle);
-int qahw_in_set_parameters_l(qahw_stream_handle_t *in_handle, const char *kv_pairs);
-char* qahw_in_get_parameters_l(const qahw_stream_handle_t *in_handle,
-                              const char *keys);
-ssize_t qahw_in_read_l(qahw_stream_handle_t *in_handle,
-                     qahw_in_buffer_t *in_buf);
-uint32_t qahw_in_get_input_frames_lost_l(qahw_stream_handle_t *in_handle);
-int qahw_in_get_capture_position_l(const qahw_stream_handle_t *in_handle,
-                                 int64_t *frames, int64_t *time);
-int qahw_init_check_l(const qahw_module_handle_t *hw_module);
-int qahw_set_voice_volume_l(qahw_module_handle_t *hw_module, float volume);
-int qahw_set_mode_l(qahw_module_handle_t *hw_module, audio_mode_t mode);
-int qahw_set_mic_mute_l(qahw_module_handle_t *hw_module, bool state);
-int qahw_get_mic_mute_l(qahw_module_handle_t *hw_module, bool *state);
-int qahw_set_parameters_l(qahw_module_handle_t *hw_module, const char *kv_pairs);
-char* qahw_get_parameters_l(const qahw_module_handle_t *hw_module,
-                           const char *keys);
-int qahw_get_param_data_l(const qahw_module_handle_t *hw_module,
-                        qahw_param_id param_id,
-                        qahw_param_payload *payload);
-int qahw_set_param_data_l(const qahw_module_handle_t *hw_module,
-                        qahw_param_id param_id,
-                        qahw_param_payload *payload);
-size_t qahw_get_input_buffer_size_l(const qahw_module_handle_t *hw_module,
-                                  const struct audio_config *config);
-int qahw_open_output_stream_l(qahw_module_handle_t *hw_module,
-                            audio_io_handle_t handle,
-                            audio_devices_t devices,
-                            audio_output_flags_t flags,
-                            struct audio_config *config,
-                            qahw_stream_handle_t **out_handle,
-                            const char *address);
-int qahw_close_output_stream_l(qahw_stream_handle_t *out_handle);
-int qahw_open_input_stream_l(qahw_module_handle_t *hw_module,
-                           audio_io_handle_t handle,
-                           audio_devices_t devices,
-                           struct audio_config *config,
-                           qahw_stream_handle_t **in_handle,
-                           audio_input_flags_t flags,
-                           const char *address,
-                           audio_source_t source);
-int qahw_close_input_stream_l(qahw_stream_handle_t *in_handle);
-int qahw_get_version_l();
-int qahw_unload_module_l(qahw_module_handle_t *hw_module);
-qahw_module_handle_t *qahw_load_module_l(const char *);
-}
 
 /* Flag to indicate if QAS is enabled or not */
 bool g_binder_enabled = false;
@@ -307,7 +220,7 @@ int qahw_out_set_parameters(qahw_stream_handle_t *out_handle,
            ALOGE("%d:%s: invalid HAL handle %d",__LINE__, __func__);
            return -ENODEV;
         }
-        return qahw_out_set_parameters(out_handle, kv_pairs);
+        return qas->qahw_out_set_parameters(out_handle, kv_pairs);
     } else {
         return qahw_out_set_parameters_l(out_handle, kv_pairs);
     }
@@ -323,7 +236,7 @@ char *qahw_out_get_parameters(const qahw_stream_handle_t *out_handle,
            ALOGE("%d:%s: invalid HAL handle %d",__LINE__, __func__);
            return NULL;
         }
-        return qahw_out_get_parameters(out_handle, keys);
+        return qas->qahw_out_get_parameters(out_handle, keys);
     } else {
         return qahw_out_get_parameters_l(out_handle, keys);
     }
@@ -340,7 +253,7 @@ int qahw_out_set_param_data(qahw_stream_handle_t *out_handle,
            ALOGE("%d:%s: invalid HAL handle %d",__LINE__, __func__);
            return -ENODEV;
         }
-        return qahw_out_set_param_data(out_handle, param_id, payload);
+        return qas->qahw_out_set_param_data(out_handle, param_id, payload);
     } else {
         return qahw_out_set_param_data_l(out_handle, param_id, payload);
     }
@@ -357,7 +270,7 @@ int qahw_out_get_param_data(qahw_stream_handle_t *out_handle,
            ALOGE("%d:%s: invalid HAL handle %d",__LINE__, __func__);
            return -ENODEV;
         }
-        return qahw_out_get_param_data(out_handle, param_id, payload);
+        return qas->qahw_out_get_param_data(out_handle, param_id, payload);
     } else {
         return qahw_out_get_param_data_l(out_handle, param_id, payload);
     }
