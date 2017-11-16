@@ -228,6 +228,8 @@ const char * const use_case_table[AUDIO_USECASE_MAX] = {
     [USECASE_AUDIO_RECORD_COMPRESS2] = "audio-record-compress2",
     [USECASE_AUDIO_RECORD_COMPRESS3] = "audio-record-compress3",
     [USECASE_AUDIO_RECORD_COMPRESS4] = "audio-record-compress4",
+    [USECASE_AUDIO_RECORD_COMPRESS5] = "audio-record-compress5",
+    [USECASE_AUDIO_RECORD_COMPRESS6] = "audio-record-compress6",
     [USECASE_AUDIO_RECORD_LOW_LATENCY] = "low-latency-record",
     [USECASE_AUDIO_RECORD_FM_VIRTUAL] = "fm-virtual-record",
     [USECASE_AUDIO_PLAYBACK_FM] = "play-fm",
@@ -1922,6 +1924,12 @@ int start_input_stream(struct stream_in *in)
     /* 1. Enable output device and stream routing controls */
     int ret = 0;
     struct audio_usecase *uc_info;
+
+    if (in == NULL) {
+        ALOGE("%s: stream_in ptr is NULL", __func__);
+        return -EINVAL;
+    }
+
     struct audio_device *adev = in->dev;
     int snd_card_status = get_snd_card_state(adev);
     struct pcm_config config = in->config;
@@ -4108,6 +4116,12 @@ static ssize_t in_read(struct audio_stream_in *stream, void *buffer,
                        size_t bytes)
 {
     struct stream_in *in = (struct stream_in *)stream;
+
+    if (in == NULL) {
+        ALOGE("%s: stream_in ptr is NULL", __func__);
+        return -EINVAL;
+    }
+
     struct audio_device *adev = in->dev;
     int ret = -1;
     int snd_scard_state = get_snd_card_state(adev);
@@ -5503,6 +5517,11 @@ static void adev_close_input_stream(struct audio_hw_device *dev,
 
     /* Disable echo reference while closing input stream */
     platform_set_echo_reference(adev, false, AUDIO_DEVICE_NONE);
+
+    if (in == NULL) {
+        ALOGE("%s: audio_stream_in ptr is NULL", __func__);
+        return -EINVAL;
+    }
 
     if (in->usecase == USECASE_COMPRESS_VOIP_CALL) {
         pthread_mutex_lock(&adev->lock);
