@@ -115,6 +115,7 @@
 #include "audio_extn.h"
 #include <qti_audio.h>
 #include "sound/compress_params.h"
+#include "ip_hdlr_intf.h"
 
 #ifdef DYNAMIC_LOG_ENABLED
 #include <log_xml_parser.h>
@@ -219,6 +220,7 @@ struct qaf_module {
     float vol_right;
     bool is_vol_set;
     qaf_stream_state stream_state[MAX_QAF_MODULE_IN];
+    bool is_session_closing;
 };
 
 struct qaf {
@@ -936,14 +938,20 @@ static int qaf_get_rendered_frames(struct stream_out *out, uint64_t *frames)
     if ((qaf_mod->stream_out[QAF_OUT_OFFLOAD] != NULL)
         || (qaf_mod->stream_out[QAF_OUT_OFFLOAD_MCH] != NULL)) {
         unsigned int sample_rate = 0;
+        audio_usecase_t platform_latency = 0;
 
         if (qaf_mod->stream_out[QAF_OUT_OFFLOAD])
             sample_rate = qaf_mod->stream_out[QAF_OUT_OFFLOAD]->sample_rate;
         else if (qaf_mod->stream_out[QAF_OUT_OFFLOAD_MCH])
             sample_rate = qaf_mod->stream_out[QAF_OUT_OFFLOAD_MCH]->sample_rate;
 
-        audio_usecase_t platform_latency =
+        if (qaf_mod->stream_out[QAF_OUT_OFFLOAD])
+            platform_latency =
                 platform_render_latency(qaf_mod->stream_out[QAF_OUT_OFFLOAD]->usecase);
+        else
+            platform_latency =
+                platform_render_latency(qaf_mod->stream_out[QAF_OUT_OFFLOAD_MCH]->usecase);
+
         dsp_latency = (platform_latency * sample_rate) / 1000000LL;
     } else if (qaf_mod->stream_out[QAF_OUT_TRANSCODE_PASSTHROUGH] != NULL) {
         unsigned int sample_rate = 0;
@@ -1269,10 +1277,14 @@ static void notify_event_callback(audio_session_handle_t session_handle __unused
     struct audio_config config;
     audio_qaf_media_format_t *media_fmt = NULL;
 
+    if (qaf_mod->is_session_closing) {
+        DEBUG_MSG("Dropping event as session is closing."
+                "Device 0x%X, Event = 0x%X, Bytes to write %d", device, event_id, size);
+        return;
+    }
+
     DEBUG_MSG_VV("Device 0x%X, Event = 0x%X, Bytes to write %d", device, event_id, size);
 
-
-    pthread_mutex_lock(&p_qaf->lock);
 
     /* Default config initialization. */
     config.sample_rate = config.offload_info.sample_rate = QAF_OUTPUT_SAMPLING_RATE;
@@ -1283,11 +1295,12 @@ static void notify_event_callback(audio_session_handle_t session_handle __unused
     config.offload_info.channel_mask = config.channel_mask = AUDIO_CHANNEL_OUT_STEREO;
 
     if (event_id == AUDIO_SEC_FAIL_EVENT) {
-        DEBUG_MSG("%s Security failed, closing session");
+        DEBUG_MSG("%s Security failed, closing session", __func__);
         qaf_session_close(qaf_mod);
-        pthread_mutex_unlock(&p_qaf->lock);
         return;
     }
+
+    pthread_mutex_lock(&p_qaf->lock);
 
     if (event_id == AUDIO_DATA_EVENT) {
         data_buffer_p = (int8_t*)buf;
@@ -1777,6 +1790,8 @@ static int qaf_session_close(struct qaf_module* qaf_mod)
 {
     int j;
 
+    DEBUG_MSG("Closing Session.");
+
     //Check if all streams are closed or not.
     for (j = 0; j < MAX_QAF_MODULE_IN; j++) {
         if (qaf_mod->stream_in[j] != NULL) {
@@ -1786,6 +1801,9 @@ static int qaf_session_close(struct qaf_module* qaf_mod)
     if (j != MAX_QAF_MODULE_IN) {
         return 0; //Some stream is already active, Can not close session.
     }
+
+    qaf_mod->is_session_closing = true;
+    pthread_mutex_lock(&p_qaf->lock);
 
     if (qaf_mod->session_handle != NULL && qaf_mod->qaf_audio_session_close) {
 #ifdef AUDIO_EXTN_IP_HDLR_ENABLED
@@ -1810,6 +1828,8 @@ static int qaf_session_close(struct qaf_module* qaf_mod)
     }
     qaf_mod->new_out_format_index = 0;
 
+    pthread_mutex_unlock(&p_qaf->lock);
+    qaf_mod->is_session_closing = false;
     DEBUG_MSG("Session Closed.");
 
     return 0;
@@ -1843,10 +1863,10 @@ static int qaf_stream_close(struct stream_out *out)
     }
     unlock_output_stream(out);
 
+    pthread_mutex_unlock(&p_qaf->lock);
+
     //If all streams are closed then close the session.
     qaf_session_close(qaf_mod);
-
-    pthread_mutex_unlock(&p_qaf->lock);
 
     DEBUG_MSG();
     return ret;
@@ -1857,9 +1877,9 @@ static int audio_extn_qaf_session_open(mm_module_type mod_type, struct stream_ou
 {
     ALOGV("%s %d", __func__, __LINE__);
     unsigned char* license_data = NULL;
-    device_license_config_t lic_config = {NULL, 0, 0};
-    int ret = -ENOSYS, size = 0;
-    char value[PROPERTY_VALUE_MAX] = {0};
+    device_license_config_t lic_config = {0};
+    int ret = -ENOSYS;
+
     struct qaf_module *qaf_mod = NULL;
 
     if (mod_type >= MAX_MM_MODULE_TYPE || !(p_qaf->qaf_mod[mod_type].qaf_audio_session_open))
@@ -1877,6 +1897,9 @@ static int audio_extn_qaf_session_open(mm_module_type mod_type, struct stream_ou
     }
 
 #ifndef AUDIO_EXTN_IP_HDLR_ENABLED
+ {
+    int size=0;
+    char value[PROPERTY_VALUE_MAX] = {0};
     if (mod_type == MS12) {
         //Getting the license
         license_data = platform_get_license((struct audio_hw_device *)(p_qaf->adev->platform),
@@ -1905,6 +1928,7 @@ static int audio_extn_qaf_session_open(mm_module_type mod_type, struct stream_ou
             goto exit;
         }
     }
+}
 #endif
 
     ret = qaf_mod->qaf_audio_session_open(&qaf_mod->session_handle,
@@ -1934,7 +1958,7 @@ static int audio_extn_qaf_session_open(mm_module_type mod_type, struct stream_ou
     if (mod_type == MS12) {
         ret = audio_extn_ip_hdlr_intf_open(qaf_mod->ip_hdlr_hdl, false, qaf_mod->session_handle, out->usecase);
         if (ret < 0) {
-            ERROR_MSG("audio_extn_ip_hdlr_intf_open failed, ret = %d", __func__, ret);
+            ERROR_MSG("%s audio_extn_ip_hdlr_intf_open failed, ret = %d", __func__, ret);
             goto exit;
         }
     }
@@ -2775,7 +2799,6 @@ int audio_extn_qaf_set_parameters(struct audio_device *adev, struct str_parms *p
     int status = 0, val = 0, k;
     char *format_params, *kv_parirs;
     struct str_parms *qaf_params;
-    char value[32];
 
     DEBUG_MSG("Entry");
 
@@ -2783,10 +2806,9 @@ int audio_extn_qaf_set_parameters(struct audio_device *adev, struct str_parms *p
         return -EINVAL;
     }
 
-    status = str_parms_get_str(parms, AUDIO_PARAMETER_DEVICE_CONNECT, value, sizeof(value));
+    status = str_parms_get_int(parms, AUDIO_PARAMETER_DEVICE_CONNECT, &val);
 
-    if (status >= 0) {
-        val = atoi(value);
+    if ((status >= 0) && audio_is_output_device(val)) {
         if (val & AUDIO_DEVICE_OUT_AUX_DIGITAL) { //HDMI is connected.
 
             p_qaf->hdmi_connect = 1;
@@ -2823,9 +2845,8 @@ int audio_extn_qaf_set_parameters(struct audio_device *adev, struct str_parms *p
         //TODO else if: Need to consider other devices.
     }
 
-    status = str_parms_get_str(parms, AUDIO_PARAMETER_DEVICE_DISCONNECT, value, sizeof(value));
-    if (status >= 0) {
-        val = atoi(value);
+    status = str_parms_get_int(parms, AUDIO_PARAMETER_DEVICE_DISCONNECT, &val);
+    if ((status >= 0) && audio_is_output_device(val)) {
         if (val & AUDIO_DEVICE_OUT_AUX_DIGITAL) { //HDMI is disconnected.
 
             qaf_params = str_parms_create();
@@ -2921,7 +2942,7 @@ int audio_extn_qaf_init(struct audio_device *adev)
         }
 }
 #else
-        qaf_mod->qaf_lib = dlopen(lib_name, RTLD_NOW);
+       qaf_mod->qaf_lib = dlopen(lib_name, RTLD_NOW);
         if (qaf_mod->qaf_lib == NULL) {
             ERROR_MSG("DLOPEN failed for %s", lib_name);
             continue;

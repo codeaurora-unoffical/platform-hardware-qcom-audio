@@ -74,6 +74,7 @@
 #include <platform.h>
 #include "audio_extn.h"
 #include "voice_extn.h"
+#include "ip_hdlr_intf.h"
 
 #include "sound/compress_params.h"
 #include "sound/asound.h"
@@ -932,7 +933,6 @@ static void check_and_enable_effect(struct audio_device *adev)
 #define enable_disable_effect(x, y, z) ENOSYS
 #define check_and_enable_effect(x) ENOSYS
 #endif
-
 
 int pcm_ioctl(struct pcm *pcm, int request, ...)
 {
@@ -4037,7 +4037,7 @@ static int out_set_compr_volume(struct audio_stream_out *stream, float left,
                           float right)
 {
     struct stream_out *out = (struct stream_out *)stream;
-    int volume[2];
+    long volume[2];
     char mixer_ctl_name[128];
     struct audio_device *adev = out->dev;
     struct mixer_ctl *ctl;
@@ -4068,7 +4068,7 @@ static int out_set_voip_volume(struct audio_stream_out *stream, float left,
     char mixer_ctl_name[] = "App Type Gain";
     struct audio_device *adev = out->dev;
     struct mixer_ctl *ctl;
-    uint32_t set_values[4];
+    long set_values[4];
 
     ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
     if (!ctl) {
@@ -4079,8 +4079,8 @@ static int out_set_voip_volume(struct audio_stream_out *stream, float left,
 
     set_values[0] = 0; //0: Rx Session 1:Tx Session
     set_values[1] = out->app_type_cfg.app_type;
-    set_values[2] = (int)(left * VOIP_PLAYBACK_VOLUME_MAX);
-    set_values[3] = (int)(right * VOIP_PLAYBACK_VOLUME_MAX);
+    set_values[2] = (long)(left * VOIP_PLAYBACK_VOLUME_MAX);
+    set_values[3] = (long)(right * VOIP_PLAYBACK_VOLUME_MAX);
 
     mixer_ctl_set_array(ctl, set_values, ARRAY_SIZE(set_values));
     return 0;
@@ -4115,8 +4115,8 @@ static int out_set_volume(struct audio_stream_out *stream, float left,
                       __func__, mixer_ctl_name);
                 return -EINVAL;
             }
-            volume[0] = (int)(AmpToDb(left));
-            volume[1] = (int)(AmpToDb(right));
+            volume[0] = (long)(AmpToDb(left));
+            volume[1] = (long)(AmpToDb(right));
             mixer_ctl_set_array(ctl, volume, sizeof(volume)/sizeof(volume[0]));
             return 0;
         } else {
@@ -6242,7 +6242,8 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_DEVICE_CONNECT, value, sizeof(value));
     if (ret >= 0) {
         val = atoi(value);
-        if (val & AUDIO_DEVICE_OUT_AUX_DIGITAL) {
+        if (audio_is_output_device(val) &&
+            (val & AUDIO_DEVICE_OUT_AUX_DIGITAL)) {
             ALOGV("cache new ext disp type and edid");
             ret = platform_get_ext_disp_type(adev->platform);
             if (ret < 0) {
@@ -6251,8 +6252,8 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
                 goto done;
             }
             platform_cache_edid(adev->platform);
-        } else if ((val & AUDIO_DEVICE_OUT_USB_DEVICE) ||
-                   !(val ^ AUDIO_DEVICE_IN_USB_DEVICE)) {
+        } else if ((audio_is_output_device(val) && (val & AUDIO_DEVICE_OUT_USB_DEVICE)) ||
+                   (audio_is_input_device(val) && ((uint32_t)val & AUDIO_DEVICE_IN_USB_DEVICE))) {
             /*
              * Do not allow AFE proxy port usage by WFD source when USB headset is connected.
              * Per AudioPolicyManager, USB device is higher priority than WFD.
@@ -6262,8 +6263,10 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
              */
             ret = str_parms_get_str(parms, "card", value, sizeof(value));
             if (ret >= 0) {
-                audio_extn_usb_add_device(AUDIO_DEVICE_OUT_USB_DEVICE, atoi(value));
-                audio_extn_usb_add_device(AUDIO_DEVICE_IN_USB_DEVICE, atoi(value));
+                if (audio_is_output_device(val))
+                    audio_extn_usb_add_device(AUDIO_DEVICE_OUT_USB_DEVICE, atoi(value));
+                else
+                    audio_extn_usb_add_device(AUDIO_DEVICE_IN_USB_DEVICE, atoi(value));
             }
             ALOGV("detected USB connect .. disable proxy");
             adev->allow_afe_proxy_usage = false;
@@ -6279,12 +6282,14 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
          * invalidated prior to updating sysfs of the disconnect event
          * Invalidate will be handled by audio_extn_ext_disp_set_parameters()
          */
-        if ((val & AUDIO_DEVICE_OUT_USB_DEVICE) ||
-                   !(val ^ AUDIO_DEVICE_IN_USB_DEVICE)) {
+        if ((audio_is_output_device(val) && (val & AUDIO_DEVICE_OUT_USB_DEVICE)) ||
+            (audio_is_input_device(val) && ((uint32_t)val == AUDIO_DEVICE_IN_USB_DEVICE))) {
             ret = str_parms_get_str(parms, "card", value, sizeof(value));
             if (ret >= 0) {
-                audio_extn_usb_remove_device(AUDIO_DEVICE_OUT_USB_DEVICE, atoi(value));
-                audio_extn_usb_remove_device(AUDIO_DEVICE_IN_USB_DEVICE, atoi(value));
+                if (audio_is_output_device(val))
+                    audio_extn_usb_remove_device(AUDIO_DEVICE_OUT_USB_DEVICE, atoi(value));
+                else
+                    audio_extn_usb_remove_device(AUDIO_DEVICE_IN_USB_DEVICE, atoi(value));
             }
             ALOGV("detected USB disconnect .. enable proxy");
             adev->allow_afe_proxy_usage = true;
@@ -6496,8 +6501,9 @@ static bool adev_input_allow_hifi_record(struct audio_device *adev,
 
     switch (flags) {
         case AUDIO_INPUT_FLAG_NONE:
-        case AUDIO_INPUT_FLAG_FAST: // just fast, not fast|raw || fast|mmap
             break;
+        case AUDIO_INPUT_FLAG_FAST: // disallow hifi record for FAST as
+                                    // it affects RTD numbers over USB
         default:
             return !allowed;
     }
@@ -6593,6 +6599,15 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
     in->standby = 1;
     in->capture_handle = handle;
     in->flags = flags;
+    in->bit_width = 16;
+    in->af_period_multiplier = 1;
+
+    /* Update config params with the requested sample rate and channels */
+    if ((in->device == AUDIO_DEVICE_IN_TELEPHONY_RX) &&
+          (adev->mode != AUDIO_MODE_IN_CALL)) {
+        ret = -EINVAL;
+        goto err_open;
+    }
 
     /* restrict 24 bit capture for unprocessed source only
      * for other sources if 24 bit requested reject 24 and set 16 bit capture only
@@ -6615,7 +6630,9 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
             goto err_open;
         }
         channel_count = audio_channel_count_from_in_mask(config->channel_mask);
-    } else if (config->format == AUDIO_FORMAT_DEFAULT) {
+    }
+
+    if (config->format == AUDIO_FORMAT_DEFAULT) {
         config->format = AUDIO_FORMAT_PCM_16_BIT;
     } else if ((config->format == AUDIO_FORMAT_PCM_FLOAT) ||
                (config->format == AUDIO_FORMAT_PCM_32_BIT) ||
@@ -6638,11 +6655,8 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
             if (config->sample_rate > 48000)
                 config->sample_rate = 48000;
             ret_error = true;
-        } else if (config->format == AUDIO_FORMAT_PCM_24_BIT_PACKED) {
-            in->config.format = PCM_FORMAT_S24_3LE;
-        } else if (config->format == AUDIO_FORMAT_PCM_8_24_BIT) {
-            in->config.format = PCM_FORMAT_S24_LE;
-        } else {
+        } else if (!(config->format == AUDIO_FORMAT_PCM_24_BIT_PACKED ||
+                     config->format == AUDIO_FORMAT_PCM_8_24_BIT)) {
             config->format = AUDIO_FORMAT_PCM_24_BIT_PACKED;
             ret_error = true;
         }
@@ -6671,32 +6685,18 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
         in->realtime = 0;
         in->usecase = USECASE_AUDIO_RECORD_MMAP;
         in->config = pcm_config_mmap_capture;
+        in->config.format = pcm_format_from_audio_format(config->format);
         in->stream.start = in_start;
         in->stream.stop = in_stop;
         in->stream.create_mmap_buffer = in_create_mmap_buffer;
         in->stream.get_mmap_position = in_get_mmap_position;
-        in->af_period_multiplier = 1;
         ALOGV("%s: USECASE_AUDIO_RECORD_MMAP", __func__);
     } else if (in->realtime) {
         in->config = pcm_config_audio_capture_rt;
+        in->config.format = pcm_format_from_audio_format(config->format);
         in->sample_rate = in->config.rate;
         in->af_period_multiplier = af_period_multiplier;
-    } else {
-        in->config = pcm_config_audio_capture;
-        in->config.rate = config->sample_rate;
-        in->sample_rate = config->sample_rate;
-        in->af_period_multiplier = 1;
-    }
-    in->bit_width = 16;
-
-    /* Update config params with the requested sample rate and channels */
-    if ((in->device == AUDIO_DEVICE_IN_TELEPHONY_RX) &&
-          (adev->mode != AUDIO_MODE_IN_CALL)) {
-        ret = -EINVAL;
-        goto err_open;
-    }
-
-    if (is_usb_dev && may_use_hifi_record) {
+    } else if (is_usb_dev && may_use_hifi_record) {
         in->usecase = USECASE_AUDIO_RECORD_HIFI;
         in->config = pcm_config_audio_capture;
         frame_size = audio_stream_in_frame_size(&in->stream);
@@ -6706,7 +6706,6 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
                                             false /*is_low_latency*/);
         in->config.period_size = buffer_size / frame_size;
         in->config.rate = config->sample_rate;
-        in->af_period_multiplier = 1;
         in->config.format = pcm_format_from_audio_format(config->format);
         in->config.channels = channel_count;
     } else if ((in->device == AUDIO_DEVICE_IN_TELEPHONY_RX) ||
@@ -6749,41 +6748,54 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
         ret = audio_extn_cin_configure_input_stream(in);
         if (ret)
             goto err_open;
-    } else {
-        in->config.channels = channel_count;
-        if (!in->realtime) {
-            in->format = config->format;
-            frame_size = audio_stream_in_frame_size(&in->stream);
-            buffer_size = get_input_buffer_size(config->sample_rate,
-                                                config->format,
-                                                channel_count,
-                                                is_low_latency);
-            in->config.period_size = buffer_size / frame_size;
-        }
-
+    } else if (in->source == AUDIO_SOURCE_VOICE_COMMUNICATION) {
+        bool valid_rate = (config->sample_rate == 8000 ||
+                           config->sample_rate == 16000 ||
+                           config->sample_rate == 32000 ||
+                           config->sample_rate == 48000);
+        bool valid_ch = audio_channel_count_from_in_mask(in->channel_mask) == 1;
+        //XXX needed for voice_extn_compress_voip_open_input_stream
+        in->config.rate = config->sample_rate;
 #ifndef COMPRESS_VOIP_ENABLED
-        if ((in->source == AUDIO_SOURCE_VOICE_COMMUNICATION) &&
-            (in->config.rate == 8000 || in->config.rate == 16000 ||
-             in->config.rate == 32000 || in->config.rate == 48000) &&
-            (audio_channel_count_from_in_mask(in->channel_mask) == 1)) {
-
+        if (valid_rate && valid_ch) {
             in->usecase = USECASE_AUDIO_RECORD_VOIP;
             in->config = default_pcm_config_voip_copp;
-            in->config.period_size = VOIP_IO_BUF_SIZE(in->sample_rate, DEFAULT_VOIP_BUF_DURATION_MS, DEFAULT_VOIP_BIT_DEPTH_BYTE)/2;
-            in->config.rate = in->sample_rate;
-#else
-        if ((in->source == AUDIO_SOURCE_VOICE_COMMUNICATION) &&
-               (in->dev->mode == AUDIO_MODE_IN_COMMUNICATION ||
-                voice_extn_compress_voip_is_active(in->dev)) &&
-               (voice_extn_compress_voip_is_format_supported(in->format)) &&
-               (in->config.rate == 8000 || in->config.rate == 16000 ||
-                in->config.rate == 32000 || in->config.rate == 48000) &&
-               (audio_channel_count_from_in_mask(in->channel_mask) == 1)) {
-            voice_extn_compress_voip_open_input_stream(in);
-#endif
+            in->config.period_size = VOIP_IO_BUF_SIZE(in->sample_rate,
+                                                      DEFAULT_VOIP_BUF_DURATION_MS,
+                                                      DEFAULT_VOIP_BIT_DEPTH_BYTE)/2;
         }
+#else
+        if ((in->dev->mode == AUDIO_MODE_IN_COMMUNICATION ||
+             voice_extn_compress_voip_is_active(in->dev)) &&
+            (voice_extn_compress_voip_is_format_supported(in->format)) &&
+            valid_rate && valid_ch) {
+            voice_extn_compress_voip_open_input_stream(in);
+        }
+#endif
+        else {
+            ALOGE("%s AUDIO_SOURCE_VOICE_COMMUNICATION invalid args", __func__);
+            ret = -EINVAL;
+            if (!valid_ch) config->channel_mask = 1;
+            if (!valid_rate) config->sample_rate = 48000;
+            goto err_open;
+        }
+        // update back to whatever was overwritten
+        in->config.rate = config->sample_rate;
+        in->sample_rate = config->sample_rate;
+    } else {
+        in->config = pcm_config_audio_capture;
+        in->config.rate = config->sample_rate;
+        in->config.format = pcm_format_from_audio_format(config->format);
+        in->config.channels = channel_count;
+        in->sample_rate = config->sample_rate;
+        in->format = config->format;
+        frame_size = audio_stream_in_frame_size(&in->stream);
+        buffer_size = get_input_buffer_size(config->sample_rate,
+                                            config->format,
+                                            channel_count,
+                                            is_low_latency);
+        in->config.period_size = buffer_size / frame_size;
     }
-
     audio_extn_utils_update_stream_input_app_type_cfg(adev->platform,
                                                 &adev->streams_input_cfg_list,
                                                 devices, flags, in->format, in->sample_rate,

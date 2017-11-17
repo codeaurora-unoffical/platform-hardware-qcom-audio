@@ -39,6 +39,10 @@ LOCAL_SRC_FILES         += src/omx_aac_aenc.cpp
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/techpack/audio/include
 LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
+ifneq ($(filter sdm670 qcs605,$(TARGET_BOARD_PLATFORM)),)
+  LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/vendor/qcom/opensource/audio-kernel/include
+  LOCAL_ADDITIONAL_DEPENDENCIES += $(BOARD_VENDOR_KERNEL_MODULES)
+endif
 
 include $(BUILD_SHARED_LIBRARY)
 
@@ -50,7 +54,6 @@ include $(CLEAR_VARS)
 
 mm-aac-enc-test-inc    := $(LOCAL_PATH)/inc
 mm-aac-enc-test-inc    += $(LOCAL_PATH)/test
-mm-aac-enc-test-inc    += $(TARGET_OUT_HEADERS)/mm-audio/audio-alsa
 mm-aac-enc-test-inc    += $(TARGET_OUT_HEADERS)/mm-core/omxcore
 
 LOCAL_MODULE            := mm-aenc-omxaac-test
@@ -60,7 +63,6 @@ LOCAL_C_INCLUDES        := $(mm-aac-enc-test-inc)
 LOCAL_PRELINK_MODULE    := false
 LOCAL_SHARED_LIBRARIES  := libmm-omxcore
 LOCAL_SHARED_LIBRARIES  += libOmxAacEnc
-LOCAL_SHARED_LIBRARIES  += libaudioalsa
 LOCAL_SRC_FILES         := test/omx_aac_enc_test.c
 
 include $(BUILD_EXECUTABLE)

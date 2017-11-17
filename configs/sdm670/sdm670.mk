@@ -6,7 +6,7 @@ BOARD_USES_ALSA_AUDIO := true
 ifneq ($(TARGET_USES_AOSP_FOR_AUDIO), true)
 USE_CUSTOM_AUDIO_POLICY := 1
 AUDIO_FEATURE_ENABLED_COMPRESS_CAPTURE := false
-AUDIO_FEATURE_ENABLED_COMPRESS_VOIP := true
+AUDIO_FEATURE_ENABLED_COMPRESS_VOIP := false
 AUDIO_FEATURE_ENABLED_DYNAMIC_ECNS := false
 AUDIO_FEATURE_ENABLED_EXTN_FORMATS := true
 AUDIO_FEATURE_ENABLED_EXTN_FLAC_DECODER := true
@@ -139,6 +139,11 @@ persist.vendor.audio.fluence.voicecall=true\
 persist.vendor.audio.fluence.voicerec=false\
 persist.vendor.audio.fluence.speaker=true
 
+##speaker protection v3 switch and ADSP AFE API version
+PRODUCT_PROPERTY_OVERRIDES += \
+persist.vendor.audio.spv3.enable=true\
+persist.vendor.audio.avs.afe_api_version=2
+
 #disable tunnel encoding
 PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.tunnel.encode=false
@@ -237,6 +242,10 @@ persist.vendor.audio.hifi.int_codec=true
 #offload pausetime out duration to 3 secs to inline with other outputs
 PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.offload.pstimeout.secs=3
+
+#Set AudioFlinger client heap size
+PRODUCT_PROPERTY_OVERRIDES += \
+ro.af.client_heap_size_kbyte=7168
 
 # for HIDL related packages
 PRODUCT_PACKAGES += \

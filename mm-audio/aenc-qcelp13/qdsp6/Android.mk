@@ -39,6 +39,10 @@ LOCAL_SRC_FILES         += src/omx_qcelp13_aenc.cpp
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/techpack/audio/include
 LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
+ifneq ($(filter sdm670 qcs605,$(TARGET_BOARD_PLATFORM)),)
+  LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/vendor/qcom/opensource/audio-kernel/include
+  LOCAL_ADDITIONAL_DEPENDENCIES += $(BOARD_VENDOR_KERNEL_MODULES)
+endif
 
 
 include $(BUILD_SHARED_LIBRARY)
@@ -54,7 +58,6 @@ mm-qcelp13-enc-test-inc    := $(LOCAL_PATH)/inc
 mm-qcelp13-enc-test-inc    += $(LOCAL_PATH)/test
 
 mm-qcelp13-enc-test-inc    += $(TARGET_OUT_HEADERS)/mm-core/omxcore
-mm-qcelp13-enc-test-inc    += $(TARGET_OUT_HEADERS)/mm-audio/audio-alsa
 LOCAL_MODULE            := mm-aenc-omxqcelp13-test
 LOCAL_MODULE_TAGS       := optional
 LOCAL_CFLAGS            := $(libOmxQcelp13Enc-def)
@@ -62,7 +65,6 @@ LOCAL_C_INCLUDES        := $(mm-qcelp13-enc-test-inc)
 LOCAL_PRELINK_MODULE    := false
 LOCAL_SHARED_LIBRARIES  := libmm-omxcore
 LOCAL_SHARED_LIBRARIES  += libOmxQcelp13Enc
-LOCAL_SHARED_LIBRARIES  += libaudioalsa
 LOCAL_SRC_FILES         := test/omx_qcelp13_enc_test.c
 
 include $(BUILD_EXECUTABLE)

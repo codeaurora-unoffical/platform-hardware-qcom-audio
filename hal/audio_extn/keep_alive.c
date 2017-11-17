@@ -194,7 +194,8 @@ void audio_extn_keep_alive_start()
 {
     struct audio_device * adev = (struct audio_device *)ka.userdata;
     char mixer_ctl_name[MAX_LENGTH_MIXER_CONTROL_IN_INT];
-    int app_type_cfg[MAX_LENGTH_MIXER_CONTROL_IN_INT], len = 0, rc;
+    long app_type_cfg[MAX_LENGTH_MIXER_CONTROL_IN_INT];
+    int len = 0, rc;
     struct mixer_ctl *ctl;
     int acdb_dev_id, snd_device;
     struct listnode *node;
@@ -379,7 +380,8 @@ int audio_extn_keep_alive_set_parameters(struct audio_device *adev __unused,
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_DEVICE_CONNECT, value, sizeof(value));
     if (ret >= 0) {
         int val = atoi(value);
-        if (val & AUDIO_DEVICE_OUT_AUX_DIGITAL) {
+        if (audio_is_output_devices(val) &&
+            (val & AUDIO_DEVICE_OUT_AUX_DIGITAL)) {
             if (!audio_extn_passthru_is_active()) {
                 ALOGV("start keep alive");
                 audio_extn_keep_alive_start();
@@ -391,7 +393,8 @@ int audio_extn_keep_alive_set_parameters(struct audio_device *adev __unused,
                             sizeof(value));
     if (ret >= 0) {
         int val = atoi(value);
-        if (val & AUDIO_DEVICE_OUT_AUX_DIGITAL) {
+        if (audio_is_output_devices(val) &&
+            (val & AUDIO_DEVICE_OUT_AUX_DIGITAL)) {
             ALOGV("stop keep_alive");
             audio_extn_keep_alive_stop();
         }

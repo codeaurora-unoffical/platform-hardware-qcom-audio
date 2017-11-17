@@ -972,6 +972,8 @@ static int msm_device_to_be_id_external_codec [][NO_COLS] = {
 #define ULL_PLATFORM_DELAY (6*1000LL)
 #define MMAP_PLATFORM_DELAY (3*1000LL)
 
+static const char *platform_get_mixer_control(struct mixer_ctl *);
+
 static void update_interface(const char *snd_card_name) {
      if (!strncmp(snd_card_name, "apq8009-tashalite-snd-card",
                   sizeof("apq8009-tashalite-snd-card"))) {
@@ -2149,6 +2151,8 @@ void *platform_init(struct audio_device *adev)
     int idx;
     int wsaCount =0;
     bool is_wsa_combo_supported = false;
+    const char *id_string = NULL;
+    int cfg_value = -1;
 
     snd_card_num = audio_extn_utils_get_snd_card_num();
     if(snd_card_num < 0) {
@@ -2598,6 +2602,41 @@ acdb_init_fail:
         strdup("QUAT_MI2S_TX SampleRate");
     my_data->current_backend_cfg[HDMI_TX_BACKEND].channels_mixer_ctl =
         strdup("QUAT_MI2S_TX Channels");
+
+    for (idx = 0; idx < MAX_CODEC_BACKENDS; idx++) {
+        if (my_data->current_backend_cfg[idx].bitwidth_mixer_ctl) {
+            ctl = mixer_get_ctl_by_name(adev->mixer,
+                         my_data->current_backend_cfg[idx].bitwidth_mixer_ctl);
+            id_string = platform_get_mixer_control(ctl);
+            if (id_string) {
+                cfg_value = audio_extn_utils_get_bit_width_from_string(id_string);
+                if (cfg_value > 0)
+                    my_data->current_backend_cfg[idx].bit_width = cfg_value;
+            }
+        }
+
+        if (my_data->current_backend_cfg[idx].samplerate_mixer_ctl) {
+            ctl = mixer_get_ctl_by_name(adev->mixer,
+                         my_data->current_backend_cfg[idx].samplerate_mixer_ctl);
+            id_string = platform_get_mixer_control(ctl);
+            if (id_string) {
+                cfg_value = audio_extn_utils_get_sample_rate_from_string(id_string);
+                if (cfg_value > 0)
+                    my_data->current_backend_cfg[idx].sample_rate = cfg_value;
+            }
+        }
+
+        if (my_data->current_backend_cfg[idx].channels_mixer_ctl) {
+            ctl = mixer_get_ctl_by_name(adev->mixer,
+                         my_data->current_backend_cfg[idx].channels_mixer_ctl);
+            id_string = platform_get_mixer_control(ctl);
+            if (id_string) {
+                cfg_value = audio_extn_utils_get_channels_from_string(id_string);
+                if (cfg_value > 0)
+                    my_data->current_backend_cfg[idx].channels = cfg_value;
+            }
+        }
+    }
 
     ret = audio_extn_utils_get_codec_version(snd_card_name,
                                              my_data->adev->snd_card,
@@ -3520,9 +3559,9 @@ int platform_set_voice_volume(void *platform, int volume)
     struct mixer_ctl *ctl;
     const char *mixer_ctl_name = "Voice Rx Gain";
     int vol_index = 0, ret = 0;
-    uint32_t set_values[ ] = {0,
-                              ALL_SESSION_VSID,
-                              DEFAULT_VOLUME_RAMP_DURATION_MS};
+    long set_values[ ] = {0,
+                          ALL_SESSION_VSID,
+                          DEFAULT_VOLUME_RAMP_DURATION_MS};
 
     // Voice volume levels are mapped to adsp volume levels as follows.
     // 100 -> 5, 80 -> 4, 60 -> 3, 40 -> 2, 20 -> 1  0 -> 0
@@ -3536,7 +3575,7 @@ int platform_set_voice_volume(void *platform, int volume)
               __func__, mixer_ctl_name);
         ret = -EINVAL;
     } else {
-        ALOGV("%s Setting voice volume index: %d",__func__, set_values[0]);
+        ALOGV("%s Setting voice volume index: %ld",__func__, set_values[0]);
         mixer_ctl_set_array(ctl, set_values, ARRAY_SIZE(set_values));
     }
 
@@ -3557,9 +3596,9 @@ int platform_set_mic_mute(void *platform, bool state)
     struct mixer_ctl *ctl;
     const char *mixer_ctl_name = "Voice Tx Mute";
     int ret = 0;
-    uint32_t set_values[ ] = {0,
-                              ALL_SESSION_VSID,
-                              DEFAULT_MUTE_RAMP_DURATION_MS};
+    long set_values[ ] = {0,
+                          ALL_SESSION_VSID,
+                          DEFAULT_MUTE_RAMP_DURATION_MS};
 
     set_values[0] = state;
     ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
@@ -3589,9 +3628,9 @@ int platform_set_device_mute(void *platform, bool state, char *dir)
     struct mixer_ctl *ctl;
     char *mixer_ctl_name = NULL;
     int ret = 0;
-    uint32_t set_values[ ] = {0,
-                              ALL_SESSION_VSID,
-                              0};
+    long set_values[ ] = {0,
+                          ALL_SESSION_VSID,
+                          0};
     if(dir == NULL) {
         ALOGE("%s: Invalid direction:%s", __func__, dir);
         return -EINVAL;
@@ -3989,6 +4028,8 @@ snd_device_t platform_get_output_snd_device(void *platform, struct stream_out *o
                 snd_device = SND_DEVICE_OUT_HEADPHONES_44_1;
         } else if (out->format == AUDIO_FORMAT_DSD) {
                 snd_device = SND_DEVICE_OUT_HEADPHONES_DSD;
+        } else if (devices & AUDIO_DEVICE_OUT_LINE) {
+                snd_device = SND_DEVICE_OUT_LINE;
         }  else {
 #ifdef RECORD_PLAY_CONCURRENCY
             if (use_voip_out_devices)
@@ -4639,8 +4680,8 @@ static int platform_set_slowtalk(struct platform_data *my_data, bool state)
     struct audio_device *adev = my_data->adev;
     struct mixer_ctl *ctl;
     const char *mixer_ctl_name = "Slowtalk Enable";
-    uint32_t set_values[ ] = {0,
-                              ALL_SESSION_VSID};
+    long set_values[ ] = {0,
+                          ALL_SESSION_VSID};
 
     set_values[0] = state;
     ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
@@ -4670,8 +4711,8 @@ static int set_hd_voice(struct platform_data *my_data, bool state)
     struct mixer_ctl *ctl;
     const char *mixer_ctl_name = "HD Voice Enable";
     int ret = 0;
-    uint32_t set_values[ ] = {0,
-                              ALL_SESSION_VSID};
+    long set_values[ ] = {0,
+                          ALL_SESSION_VSID};
 
     set_values[0] = state;
     ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
@@ -6832,7 +6873,7 @@ int platform_set_channel_map(void *platform, int ch_count, char *ch_map, int snd
     char mixer_ctl_name[44] = {0}; // max length of name is 44 as defined
     int ret;
     unsigned int i;
-    int set_values[FCC_8] = {0};
+    long set_values[FCC_8] = {0};
     struct platform_data *my_data = (struct platform_data *)platform;
     struct audio_device *adev = my_data->adev;
     ALOGV("%s channel_count:%d",__func__, ch_count);
@@ -6863,7 +6904,7 @@ int platform_set_channel_map(void *platform, int ch_count, char *ch_map, int snd
         set_values[i] = ch_map[i];
     }
 
-    ALOGD("%s: set mapping(%d %d %d %d %d %d %d %d) for channel:%d", __func__,
+    ALOGD("%s: set mapping(%ld %ld %ld %ld %ld %ld %ld %d) for channel:%d", __func__,
         set_values[0], set_values[1], set_values[2], set_values[3], set_values[4],
         set_values[5], set_values[6], set_values[7], ch_count);
 
@@ -7134,7 +7175,7 @@ int platform_set_device_params(struct stream_out *out, int param, int value)
     struct mixer_ctl *ctl;
     char *mixer_ctl_name = "Device PP Params";
     int ret = 0;
-    uint32_t set_values[] = {0,0};
+    long set_values[] = {0,0};
 
     set_values[0] = param;
     set_values[1] = value;
@@ -7892,3 +7933,20 @@ int platform_get_mmap_data_fd(void *platform __unused, int fe_dev __unused,
     return -1;
 }
 #endif
+
+static const char *platform_get_mixer_control(struct mixer_ctl *ctl)
+{
+    int id = -1;
+    const char *id_string = NULL;
+
+    if (!ctl) {
+        ALOGD("%s: mixer ctl not obtained", __func__);
+    } else {
+        id = mixer_ctl_get_value(ctl, 0);
+        if (id >= 0) {
+            id_string = mixer_ctl_get_enum_string(ctl, id);
+        }
+    }
+
+    return id_string;
+}
