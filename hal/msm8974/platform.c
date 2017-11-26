@@ -135,7 +135,7 @@ char cal_name_info[WCD9XXX_MAX_CAL][MAX_CAL_NAME] = {
         [WCD9XXX_MBHC_CAL] = "mbhc_cal",
         [WCD9XXX_VBAT_CAL] = "vbat_cal",
 };
-
+static char *default_rx_backend = NULL;
 enum {
     VOICE_FEATURE_SET_DEFAULT,
     VOICE_FEATURE_SET_VOLUME_BOOST
@@ -202,6 +202,9 @@ typedef struct {
 } native_audio_prop;
 static native_audio_prop na_props = {0, 0};
 typedef int (*acdb_send_gain_dep_cal_t)(int, int, int, int, int);
+
+static int max_be_dai_names = 0;
+static const struct be_dai_name_struct *be_dai_name_table;
 
 struct platform_data {
     struct audio_device *adev;
@@ -659,6 +662,7 @@ static struct name_to_index snd_device_name_index[SND_DEVICE_MAX] = {
 };
 
 static char * backend_table[SND_DEVICE_MAX] = {0};
+static char * hw_interface_table[AUDIO_USECASE_MAX] = {0};
 
 static struct name_to_index usecase_name_index[AUDIO_USECASE_MAX] = {
     {TO_NAME_INDEX(USECASE_AUDIO_PLAYBACK_DEEP_BUFFER)},
@@ -1090,6 +1094,11 @@ static void set_platform_defaults()
     for (dev = 0; dev < SND_DEVICE_MAX; dev++) {
         backend_table[dev] = NULL;
     }
+
+    for (dev =0; dev < AUDIO_USECASE_MAX; dev ++) {
+        hw_interface_table[dev] = NULL;
+    }
+
     for (dev = 0; dev < SND_DEVICE_MAX; dev++) {
         backend_bit_width_table[dev] = CODEC_BACKEND_DEFAULT_BIT_WIDTH;
     }
@@ -1117,6 +1126,46 @@ static void set_platform_defaults()
     backend_table[SND_DEVICE_OUT_HEADPHONES] = strdup("headphones");
     backend_table[SND_DEVICE_OUT_HEADPHONES_44_1] = strdup("headphones-44.1");
     backend_table[SND_DEVICE_OUT_VOICE_SPEAKER_VBAT] = strdup("voice-speaker-vbat");
+
+    hw_interface_table[USECASE_AUDIO_PLAYBACK_DEEP_BUFFER] = strdup("QUAT_TDM_RX_0");
+    hw_interface_table[USECASE_AUDIO_PLAYBACK_LOW_LATENCY] = strdup("QUAT_TDM_RX_0");
+    hw_interface_table[USECASE_AUDIO_PLAYBACK_ULL] = strdup("QUAT_TDM_RX_0");
+    hw_interface_table[USECASE_AUDIO_PLAYBACK_MULTI_CH] = strdup("AFE_PCM_RX");
+    hw_interface_table[USECASE_AUDIO_PLAYBACK_OFFLOAD] = strdup("QUAT_TDM_RX_0");
+    hw_interface_table[USECASE_AUDIO_DIRECT_PCM_OFFLOAD] = strdup("QUAT_TDM_RX_0");
+    hw_interface_table[USECASE_AUDIO_RECORD] = strdup("QUAT_TDM_TX_0");
+    hw_interface_table[USECASE_AUDIO_RECORD_COMPRESS] = strdup("QUAT_TDM_TX_0");
+    hw_interface_table[USECASE_AUDIO_RECORD_LOW_LATENCY] = strdup("QUAT_TDM_TX_0");
+    hw_interface_table[USECASE_AUDIO_RECORD_FM_VIRTUAL] = strdup("QUAT_TDM_TX_0");
+    hw_interface_table[USECASE_AUDIO_PLAYBACK_FM] = strdup("SLIMBUS_0_RX");
+    hw_interface_table[USECASE_AUDIO_HFP_SCO_UPLINK] = strdup("QUAT_TDM_TX_0");
+    hw_interface_table[USECASE_AUDIO_HFP_SCO_DOWNLINK] = strdup("QUAT_TDM_RX_2");
+    hw_interface_table[USECASE_AUDIO_HFP_SCO_WB_UPLINK] = strdup("QUAT_TDM_TX_0");
+    hw_interface_table[USECASE_AUDIO_HFP_SCO_WB_DOWNLINK] = strdup("QUAT_TDM_RX_2");
+    hw_interface_table[USECASE_VOICE_CALL] = strdup("SLIM_0_RX");
+    hw_interface_table[USECASE_VOICE2_CALL] = strdup("SLIM_0_RX");
+    hw_interface_table[USECASE_VOLTE_CALL] = strdup("SLIM_0_RX");
+    hw_interface_table[USECASE_QCHAT_CALL] = strdup("SLIM_0_RX");
+    hw_interface_table[USECASE_VOWLAN_CALL] = strdup("SLIM_0_RX");
+    hw_interface_table[USECASE_VOICEMMODE1_CALL] = strdup("QUAT_TDM_RX_2");
+    hw_interface_table[USECASE_VOICEMMODE2_CALL] = strdup("SLIM_0_RX");
+    hw_interface_table[USECASE_COMPRESS_VOIP_CALL] = strdup("SLIM_0_RX");
+    hw_interface_table[USECASE_INCALL_REC_UPLINK] = strdup("QUAT_TDM_RX_0");
+    hw_interface_table[USECASE_INCALL_REC_DOWNLINK] = strdup("QUAT_TDM_RX_0");
+    hw_interface_table[USECASE_INCALL_REC_UPLINK_AND_DOWNLINK] = strdup("QUAT_TDM_RX_0");
+    hw_interface_table[USECASE_INCALL_REC_UPLINK_COMPRESS] = strdup("QUAT_TDM_RX_0");
+    hw_interface_table[USECASE_INCALL_REC_DOWNLINK_COMPRESS] = strdup("QUAT_TDM_RX_0");
+    hw_interface_table[USECASE_INCALL_REC_UPLINK_AND_DOWNLINK_COMPRESS] = strdup("QUAT_TDM_TX_0");
+    hw_interface_table[USECASE_INCALL_MUSIC_UPLINK] = strdup("QUAT_TDM_TX_0");
+    hw_interface_table[USECASE_INCALL_MUSIC_UPLINK2] = strdup("QUAT_TDM_RX_1");
+    hw_interface_table[USECASE_AUDIO_SPKR_CALIB_RX] = strdup("QUAT_TDM_RX_0");
+    hw_interface_table[USECASE_AUDIO_SPKR_CALIB_TX] = strdup("QUAT_TDM_RX_0");
+    hw_interface_table[USECASE_AUDIO_PLAYBACK_AFE_PROXY] = strdup("AFE_PCM_RX");
+    hw_interface_table[USECASE_AUDIO_RECORD_AFE_PROXY] = strdup("AFE_PCM_TX");
+    hw_interface_table[USECASE_AUDIO_PLAYBACK_DRIVER_SIDE] = strdup("QUAT_TDM_RX_1");
+    hw_interface_table[USECASE_AUDIO_FM_TUNER_EXT] = strdup("SLIMBUS_0_RX");
+    hw_interface_table[USECASE_ICC_CALL] = strdup("TERT_TDM_RX_0");
+    hw_interface_table[USECASE_ANC_LOOPBACK] = strdup("TERT_TDM_RX_0");
 }
 
 void get_cvd_version(char *cvd_version, struct audio_device *adev)
@@ -1320,6 +1369,100 @@ static int platform_acdb_init(void *platform)
     return result;
 }
 
+/*
+ * Retrieves the be_dai_name_table from kernel to enable a mapping
+ * between sound device hw interfaces and backend IDs. This allows HAL to
+ * specify the backend a specific calibration is needed for.
+ */
+static int init_be_dai_name_table(struct audio_device *adev)
+{
+    const char *mixer_ctl_name = "Backend DAI Name Table";
+    struct mixer_ctl *ctl;
+    int i, j, ret, size;
+    bool valid_hw_interface;
+
+    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+    if (!ctl) {
+        ALOGE("%s: Could not get ctl for mixer name %s\n",
+               __func__, mixer_ctl_name);
+        ret = -EINVAL;
+        goto done;
+    }
+
+    mixer_ctl_update(ctl);
+
+    size = mixer_ctl_get_num_values(ctl);
+    if (size <= 0){
+        ALOGE("%s: Failed to get %s size %d\n",
+               __func__, mixer_ctl_name, size);
+        ret = -EFAULT;
+        goto done;
+    }
+
+    be_dai_name_table =
+        (const struct be_dai_name_struct *)calloc(1, size);
+    if (be_dai_name_table == NULL) {
+        ALOGE("%s: Failed to allocate memory for %s\n",
+               __func__, mixer_ctl_name);
+        ret = -ENOMEM;
+        goto freeMem;
+    }
+
+    ret = mixer_ctl_get_array(ctl, (void *)be_dai_name_table, size);
+    if (ret) {
+        ALOGE("%s: Failed to get %s, ret %d\n",
+               __func__, mixer_ctl_name, ret);
+        ret = -EFAULT;
+        goto freeMem;
+    }
+
+    if (be_dai_name_table != NULL) {
+        max_be_dai_names = size / sizeof(struct be_dai_name_struct);
+        ALOGV("%s: Successfully got %s, number of be dais is %d\n",
+              __func__, mixer_ctl_name, max_be_dai_names);
+        ret = 0;
+    } else {
+        ALOGE("%s: Failed to get %s\n", __func__, mixer_ctl_name);
+        ret = -EFAULT;
+        goto freeMem;
+    }
+
+    /*
+     * Validate all sound devices have a valid backend set to catch
+     * errors for uncommon sound devices
+     */
+    for (i = 0; i < AUDIO_USECASE_MAX; i++) {
+        valid_hw_interface = false;
+
+        if (hw_interface_table[i] == NULL) {
+            ALOGW("%s: sound device %s has no hw interface set\n",
+                  __func__, platform_get_snd_device_name(i));
+            continue;
+        }
+
+        for (j = 0; j < max_be_dai_names; j++) {
+            if (strcmp(hw_interface_table[i], be_dai_name_table[j].be_name)
+                == 0) {
+                valid_hw_interface = true;
+                break;
+            }
+        }
+        if (!valid_hw_interface)
+            ALOGE("%s: sound device %s does not have a valid hw interface set (disregard for combo devices) %s\n",
+                   __func__, platform_get_snd_device_name(i), hw_interface_table[i]);
+    }
+
+    goto done;
+
+freeMem:
+    if (be_dai_name_table) {
+        free((void *)be_dai_name_table);
+        be_dai_name_table = NULL;
+    }
+
+done:
+    return ret;
+}
 void *platform_init(struct audio_device *adev)
 {
     char platform[PROPERTY_VALUE_MAX];
@@ -1460,6 +1603,7 @@ void *platform_init(struct audio_device *adev)
     my_data->slowtalk = false;
     my_data->hd_voice = false;
     my_data->edid_info = NULL;
+    be_dai_name_table = NULL;
     my_data->multi_channel_ec_pri_mic_ch = MULTI_CHANNEL_EC_MIC_CH_FRONT_LEFT;
 
     property_get("ro.qc.sdk.audio.fluencetype", my_data->fluence_cap, "");
@@ -1586,6 +1730,11 @@ void *platform_init(struct audio_device *adev)
 
 acdb_init_fail:
 
+    /*
+     * Get the be_dai_name_table from kernel which provides a mapping
+     * between a backend string name and a backend ID
+     */
+    init_be_dai_name_table(adev);
     set_platform_defaults();
 
     /* Initialize ACDB ID's */
@@ -1624,6 +1773,7 @@ acdb_init_fail:
     /* init audio device arbitration */
     audio_extn_dev_arbi_init();
 
+    default_rx_backend = strdup("QUAT_TDM_RX_0");
     /* initialize backend config */
     for (idx = 0; idx < MAX_CODEC_BACKENDS; idx++) {
         my_data->current_backend_cfg[idx].sample_rate = CODEC_BACKEND_DEFAULT_SAMPLE_RATE;
@@ -1656,6 +1806,10 @@ void platform_deinit(void *platform)
         my_data->edid_info = NULL;
     }
 
+    if (be_dai_name_table) {
+        free((void *)be_dai_name_table);
+        be_dai_name_table = NULL;
+    }
     hw_info_deinit(my_data->hw_info);
     close_csd_client(my_data->csd);
 
@@ -4199,6 +4353,50 @@ int platform_set_snd_device_backend(snd_device_t device, const char *backend)
     backend_table[device] = strdup(backend);
 done:
     return ret;
+}
+
+int platform_get_usecase_backend_index(int usecase_id)
+{
+    int i, be_dai_id = -EINVAL;
+    const char * hw_interface_name = NULL;
+
+    ALOGV("%s: enter with usecase_id %d\n", __func__, usecase_id);
+
+    if ((usecase_id <= USECASE_INVALID) || (usecase_id >= AUDIO_USECASE_MAX)) {
+        ALOGE("%s: Invalid usecase_id = %d",
+              __func__, usecase_id);
+        be_dai_id = -EINVAL;
+        goto done;
+    }
+
+    /* Get string value of necessary backend for device */
+    hw_interface_name = hw_interface_table[usecase_id];
+    if (hw_interface_name == NULL) {
+        ALOGE("%s: no hw_interface set for device %d\n", __func__, usecase_id);
+        be_dai_id = -EINVAL;
+        goto done;
+    }
+
+    /* Check if be dai name table was retrieved successfully */
+    if (be_dai_name_table == NULL) {
+        ALOGE("%s: BE DAI Name Table is not present\n", __func__);
+        be_dai_id = -EFAULT;
+        goto done;
+    }
+
+    /* Get backend ID for device specified */
+    for (i = 0; i < max_be_dai_names; i++) {
+        if (strcmp(hw_interface_name, be_dai_name_table[i].be_name) == 0) {
+            be_dai_id = be_dai_name_table[i].be_id;
+            goto done;
+        }
+    }
+    ALOGE("%s: no interface matching name %s\n", __func__, hw_interface_name);
+    be_dai_id = -EINVAL;
+    goto done;
+
+done:
+    return be_dai_id;
 }
 
 int platform_set_usecase_pcm_id(audio_usecase_t usecase, int32_t type, int32_t pcm_id)
