@@ -17,6 +17,10 @@ include $(MY_LOCAL_PATH)/visualizer/Android.mk
 include $(MY_LOCAL_PATH)/post_proc/Android.mk
 endif
 
+ifeq ($(AUDIO_FEATURE_ENABLED_VHAL_HELPER), true)
+include $(MY_LOCAL_PATH)/vhal_helper/Android.mk
+endif
+
 ifeq ($(USE_LEGACY_AUDIO_DAEMON), true)
 include $(MY_LOCAL_PATH)/audiod/Android.mk
 endif
