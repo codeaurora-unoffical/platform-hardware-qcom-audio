@@ -58,6 +58,7 @@ PRODUCT_COPY_FILES += \
     hardware/qcom/audio/configs/msm8909/mixer_paths_skuc.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_skuc.xml \
     hardware/qcom/audio/configs/msm8909/mixer_paths_skue.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_skue.xml \
     hardware/qcom/audio/configs/msm8909/mixer_paths_qrd_skut.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_qrd_skut.xml \
+    hardware/qcom/audio/configs/msm8909/mixer_paths_wtp.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_wtp.xml \
     hardware/qcom/audio/configs/msm8909/sound_trigger_mixer_paths.xml:$(TARGET_COPY_OUT_VENDOR)/etc/sound_trigger_mixer_paths.xml \
     hardware/qcom/audio/configs/msm8909/sound_trigger_mixer_paths_wcd9326.xml:$(TARGET_COPY_OUT_VENDOR)/etc/sound_trigger_mixer_paths_wcd9326.xml \
     hardware/qcom/audio/configs/msm8909/sound_trigger_platform_info.xml:$(TARGET_COPY_OUT_VENDOR)/etc/sound_trigger_platform_info.xml \
