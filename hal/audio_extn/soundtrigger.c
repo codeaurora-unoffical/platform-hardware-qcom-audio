@@ -133,6 +133,13 @@ int audio_hw_call_back(sound_trigger_event_type_t event,
         ALOGV("%s: add capture_handle %d st session opaque ptr %p", __func__,
               st_ses_info->st_ses.capture_handle, st_ses_info->st_ses.p_ses);
         list_add_tail(&st_dev->st_ses_list, &st_ses_info->list);
+
+        break;
+
+    case ST_EVENT_START_KEEP_ALIVE:
+            pthread_mutex_lock(&st_dev->adev->lock);
+            audio_extn_keep_alive_start(KEEP_ALIVE_OUT_PRIMARY);
+            pthread_mutex_unlock(&st_dev->adev->lock);
         break;
 
     case ST_EVENT_SESSION_DEREGISTER:
@@ -151,6 +158,13 @@ int audio_hw_call_back(sound_trigger_event_type_t event,
               st_ses_info->st_ses.capture_handle, st_ses_info->st_ses.p_ses);
         list_remove(&st_ses_info->list);
         free(st_ses_info);
+
+        break;
+
+    case ST_EVENT_STOP_KEEP_ALIVE:
+            pthread_mutex_lock(&st_dev->adev->lock);
+            audio_extn_keep_alive_stop(KEEP_ALIVE_OUT_PRIMARY);
+            pthread_mutex_unlock(&st_dev->adev->lock);
         break;
     default:
         ALOGW("%s: Unknown event %d", __func__, event);

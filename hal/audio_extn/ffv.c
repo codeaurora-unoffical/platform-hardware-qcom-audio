@@ -47,6 +47,7 @@
 #include <sys/resource.h>
 
 #include "audio_hw.h"
+#include "audio_extn.h"
 #include "platform.h"
 #include "platform_api.h"
 
@@ -435,7 +436,7 @@ int32_t audio_extn_ffv_stream_init(struct stream_in *in)
 
     if (ffvmod.handle != NULL) {
         ALOGV("%s: reinitializing ffv library", __func__);
-        audio_extn_ffv_stream_deinit();
+        audio_extn_ffv_stream_deinit(in);
     }
 
     ffvmod.capture_config = ffv_pcm_config;
@@ -497,7 +498,9 @@ int32_t audio_extn_ffv_stream_init(struct stream_in *in)
     }
 
     ffvmod.in = in;
-
+    pthread_mutex_lock(&in->dev->lock);
+    audio_extn_keep_alive_start(KEEP_ALIVE_OUT_PRIMARY);
+    pthread_mutex_unlock(&in->dev->lock);
 #ifdef FFV_PCM_DUMP
     if (!ffvmod.fp_input) {
         ALOGD("%s: Opening input dump file \n", __func__);
@@ -520,11 +523,11 @@ int32_t audio_extn_ffv_stream_init(struct stream_in *in)
     return 0;
 
 fail:
-    audio_extn_ffv_stream_deinit();
+    audio_extn_ffv_stream_deinit(in);
     return ret;
 }
 
-int32_t audio_extn_ffv_stream_deinit()
+int32_t audio_extn_ffv_stream_deinit(struct stream_in *in)
 {
     ALOGV("%s: entry", __func__);
 
@@ -547,7 +550,9 @@ int32_t audio_extn_ffv_stream_deinit()
 
     if (ffvmod.buffers_allocated)
         deallocate_buffers();
-
+    pthread_mutex_lock(&in->dev->lock);
+    audio_extn_keep_alive_stop(KEEP_ALIVE_OUT_PRIMARY);
+    pthread_mutex_unlock(&in->dev->lock);
     ffvmod.handle = NULL;
     ffvmod.in = NULL;
     ALOGV("%s: exit", __func__);
