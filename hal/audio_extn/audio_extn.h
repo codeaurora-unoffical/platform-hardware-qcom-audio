@@ -761,15 +761,22 @@ int audio_extn_bt_hal_get_latency(void *handle);
 #endif
 
 #ifndef KEEP_ALIVE_ENABLED
-#define audio_extn_keep_alive_init(a) do {} while(0)
-#define audio_extn_keep_alive_start() do {} while(0)
-#define audio_extn_keep_alive_stop() do {} while(0)
+#define audio_extn_keep_alive_init(adev) do {} while(0)
+#define audio_extn_keep_alive_deinit() do {} while(0)
+#define audio_extn_keep_alive_start(ka_mode) do {} while(0)
+#define audio_extn_keep_alive_stop(ka_mode) do {} while(0)
 #define audio_extn_keep_alive_is_active() (false)
 #define audio_extn_keep_alive_set_parameters(adev, parms) (0)
 #else
+typedef enum {
+    KEEP_ALIVE_OUT_NONE = 0,
+    KEEP_ALIVE_OUT_PRIMARY,
+    KEEP_ALIVE_OUT_HDMI,
+} ka_mode_t;
 void audio_extn_keep_alive_init(struct audio_device *adev);
-void audio_extn_keep_alive_start();
-void audio_extn_keep_alive_stop();
+void audio_extn_keep_alive_deinit();
+void audio_extn_keep_alive_start(ka_mode_t ka_mode);
+void audio_extn_keep_alive_stop(ka_mode_t ka_mode);
 bool audio_extn_keep_alive_is_active();
 int audio_extn_keep_alive_set_parameters(struct audio_device *adev,
                                          struct str_parms *parms);
