@@ -131,6 +131,7 @@ FILE *fp_output_writer_hdmi = NULL;
 #endif
 
 void set_hdmi_configuration_to_module();
+void set_bt_configuration_to_module();
 
 struct qaf_adsp_hdlr_config_state {
     struct audio_adsp_event event_params;
@@ -228,6 +229,7 @@ struct qaf {
 
     pthread_mutex_t lock;
 
+    bool bt_connect;
     bool hdmi_connect;
     int hdmi_sink_channels;
 
@@ -808,7 +810,7 @@ exit:
                    / audio_stream_out_frame_size(stream)
                    / out->stream.common.get_sample_rate(&out->stream.common));
         }
-    } else if (ret < bytes) {
+    } else if (ret < (ssize_t)bytes) {
         //partial buffer copied to the module.
         DEBUG_MSG_VV("Not enough space available in mm module, post msg to cb thread");
         (void)qaf_send_offload_cmd_l(out, OFFLOAD_CMD_WAIT_FOR_BUFFER);
@@ -993,6 +995,36 @@ static int qaf_get_rendered_frames(struct stream_out *out, uint64_t *frames)
         ret = -EINVAL;
     }
 
+    return ret;
+}
+
+static int qaf_out_get_render_position(const struct audio_stream_out *stream,
+                                   uint32_t *dsp_frames)
+{
+    struct stream_out *out = (struct stream_out *)stream;
+    int ret = 0;
+    uint64_t frames=0;
+    struct qaf_module* qaf_mod = NULL;
+    ALOGV("%s, Output Stream %p,dsp frames %d",__func__, stream, (int)dsp_frames);
+
+    qaf_mod = get_qaf_module_for_input_stream(out);
+    if (!qaf_mod) {
+        ret = out->stream.get_render_position(stream, dsp_frames);
+        ALOGV("%s, non qaf_MOD DSP FRAMES %d",__func__, (int)dsp_frames);
+        return ret;
+    }
+
+    if (p_qaf->passthrough_out) {
+        pthread_mutex_lock(&p_qaf->lock);
+        ret = p_qaf->passthrough_out->stream.get_render_position((struct audio_stream_out *)p_qaf->passthrough_out, dsp_frames);
+        pthread_mutex_unlock(&p_qaf->lock);
+        ALOGV("%s, PASS THROUGH DSP FRAMES %p",__func__, dsp_frames);
+        return ret;
+        }
+    frames=*dsp_frames;
+    ret = qaf_get_rendered_frames(out, &frames);
+    *dsp_frames = (uint32_t)frames;
+    ALOGV("%s, DSP FRAMES %d",__func__, (int)dsp_frames);
     return ret;
 }
 
@@ -1877,7 +1909,7 @@ static int audio_extn_qaf_session_open(mm_module_type mod_type, struct stream_ou
 {
     ALOGV("%s %d", __func__, __LINE__);
     unsigned char* license_data = NULL;
-    device_license_config_t lic_config = {0};
+    device_license_config_t lic_config = {NULL, 0, 0};
     int ret = -ENOSYS;
 
     struct qaf_module *qaf_mod = NULL;
@@ -1951,8 +1983,10 @@ static int audio_extn_qaf_session_open(mm_module_type mod_type, struct stream_ou
                                              qaf_mod,
                                              &notify_event_callback,
                                              AUDIO_DATA_EVENT_V2);
-
-    set_hdmi_configuration_to_module();
+    if(p_qaf->bt_connect)
+         set_bt_configuration_to_module();
+    else
+         set_hdmi_configuration_to_module();
 
 #ifdef AUDIO_EXTN_IP_HDLR_ENABLED
     if (mod_type == MS12) {
@@ -1997,7 +2031,7 @@ static int qaf_stream_open(struct stream_out *out,
     if (p_qaf->qaf_mod[mmtype].qaf_audio_session_open == NULL ||
         p_qaf->qaf_mod[mmtype].qaf_audio_stream_open == NULL) {
         ERROR_MSG("Session or Stream is NULL");
-        return status;
+        return -ENOTSUP;
     }
     //Open the module session, if not opened already.
     status = audio_extn_qaf_session_open(mmtype, out);
@@ -2098,7 +2132,7 @@ static int qaf_stream_open(struct stream_out *out,
     if (status != 0) {
         //If no stream is active then close the session.
         qaf_session_close(qaf_mod);
-        return status;
+        return 0;
     }
 
     //If Device is HDMI, QAF passthrough is enabled and there is no previous QAF passthrough input stream.
@@ -2316,6 +2350,7 @@ static int qaf_out_set_parameters(struct audio_stream *stream, const char *kvpai
      */
     out->devices = val;
 
+#ifndef SPLIT_A2DP_ENABLED
     if (val == AUDIO_DEVICE_OUT_BLUETOOTH_A2DP) {
         //If device is BT then open the BT stream if not already opened.
         if ( audio_extn_bt_hal_get_output_stream(qaf_mod->bt_hdl) == NULL
@@ -2334,6 +2369,7 @@ static int qaf_out_set_parameters(struct audio_stream *stream, const char *kvpai
             audio_extn_bt_hal_close_output_stream(qaf_mod->bt_hdl);
         }
     }
+#endif
 
     if (p_qaf->passthrough_in == out) { //Device routing is received for QAF passthrough stream.
 
@@ -2512,16 +2548,21 @@ int audio_extn_qaf_open_output_stream(struct audio_hw_device *dev,
         return ret;
     }
 
+#ifndef LINUX_ENABLED
+//Bypass QAF for dummy PCM session opened by APM during boot time
+    if(flags == 0) {
+        ALOGD("bypassing QAF for flags is equal to none");
+        return ret;
+    }
+#endif
+
     out = (struct stream_out *)*stream_out;
 
     ret = qaf_stream_open(out, config, flags, devices);
-    if (ret == -ENOTSUP) {
+    if (ret < 0) {
+        ERROR_MSG("Error opening QAF stream err[%d]! QAF bypassed.", ret);
         //Stream not supported by QAF, Bypass QAF.
         return 0;
-    } else if (ret < 0) {
-        ERROR_MSG("Error opening QAF stream err[%d]!", ret);
-        adev_close_output_stream(dev, *stream_out);
-        return ret;
     }
 
     /* Override function pointers based on qaf definitions */
@@ -2534,6 +2575,7 @@ int audio_extn_qaf_open_output_stream(struct audio_hw_device *dev,
     out->stream.common.standby = qaf_out_standby;
     out->stream.common.set_parameters = qaf_out_set_parameters;
     out->stream.get_latency = qaf_out_get_latency;
+    out->stream.get_render_position = qaf_out_get_render_position;
     out->stream.write = qaf_out_write;
     out->stream.get_presentation_position = qaf_out_get_presentation_position;
     out->platform_latency = 0;
@@ -2566,7 +2608,7 @@ void audio_extn_qaf_close_output_stream(struct audio_hw_device *dev,
     struct qaf_module* qaf_mod = get_qaf_module_for_input_stream(out);
 
     if (!qaf_mod) {
-        DEBUG_MSG("qaf module is NULL, by passing qaf on close output stream");
+        DEBUG_MSG("qaf module is NULL, bypassing qaf on close output stream");
         /*closing non-MS12/default output stream opened with qaf */
         adev_close_output_stream(dev, stream);
         return;
@@ -2608,6 +2650,50 @@ bool audio_extn_qaf_is_enabled()
     prop_enabled = atoi(value) || !strncmp("true", value, 4);
     return (prop_enabled);
 }
+
+void set_bt_configuration_to_module()
+{
+    if (!p_qaf) {
+        return;
+    }
+
+    if (!p_qaf->bt_connect) {
+        DEBUG_MSG("BT is not connected.");
+        return;
+    }
+
+    struct str_parms *qaf_params;
+    char *format_params = NULL;
+
+    qaf_params = str_parms_create();
+    if (qaf_params) {
+        //ms12 wrapper don't support bt, treat this as speaker and routign to bt
+        //will take care as a part of data callback notifier
+        str_parms_add_str(qaf_params,
+            AUDIO_QAF_PARAMETER_KEY_DEVICE,
+            AUDIO_QAF_PARAMETER_VALUE_DEVICE_SPEAKER);
+
+        str_parms_add_str(qaf_params,
+                          AUDIO_QAF_PARAMETER_KEY_RENDER_FORMAT,
+                          AUDIO_QAF_PARAMETER_VALUE_PCM);
+        format_params = str_parms_to_str(qaf_params);
+
+        if (p_qaf->qaf_mod[MS12].session_handle && p_qaf->qaf_mod[MS12].qaf_audio_session_set_param) {
+            ALOGE(" Configuring BT/speaker for MS12 wrapper");
+            p_qaf->qaf_mod[MS12].qaf_audio_session_set_param(p_qaf->qaf_mod[MS12].session_handle,
+                                                         format_params);
+        }
+        if (p_qaf->qaf_mod[DTS_M8].session_handle
+                && p_qaf->qaf_mod[DTS_M8].qaf_audio_session_set_param) {
+            ALOGE(" Configuring BT/speaker for MS12 wrapper");
+            p_qaf->qaf_mod[DTS_M8].qaf_audio_session_set_param(p_qaf->qaf_mod[DTS_M8].session_handle,
+                                                           format_params);
+        }
+    }
+    str_parms_destroy(qaf_params);
+
+}
+
 
 /* Query HDMI EDID and sets module output accordingly.*/
 void set_hdmi_configuration_to_module()
@@ -2831,6 +2917,9 @@ int audio_extn_qaf_set_parameters(struct audio_device *adev, struct str_parms *p
             set_hdmi_configuration_to_module();
 
         } else if (val & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP) {
+            p_qaf->bt_connect = 1;
+            set_bt_configuration_to_module();
+#ifndef SPLIT_A2DP_ENABLED
             for (k = 0; k < MAX_MM_MODULE_TYPE; k++) {
                 if (!p_qaf->qaf_mod[k].bt_hdl) {
                     DEBUG_MSG("Opening a2dp output...");
@@ -2841,6 +2930,7 @@ int audio_extn_qaf_set_parameters(struct audio_device *adev, struct str_parms *p
                     }
                 }
             }
+#endif
         }
         //TODO else if: Need to consider other devices.
     }
@@ -2876,6 +2966,11 @@ int audio_extn_qaf_set_parameters(struct audio_device *adev, struct str_parms *p
             str_parms_destroy(qaf_params);
             close_qaf_passthrough_stream();
         } else if (val & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP) {
+        p_qaf->bt_connect = 0;
+        //reconfig HDMI as end device (if connected)
+        if(p_qaf->hdmi_connect)
+            set_hdmi_configuration_to_module();
+#ifndef SPLIT_A2DP_ENABLED
             DEBUG_MSG("Closing a2dp output...");
             for (k = 0; k < MAX_MM_MODULE_TYPE; k++) {
                 if (p_qaf->qaf_mod[k].bt_hdl) {
@@ -2883,6 +2978,7 @@ int audio_extn_qaf_set_parameters(struct audio_device *adev, struct str_parms *p
                     p_qaf->qaf_mod[k].bt_hdl = NULL;
                 }
             }
+#endif
         }
         //TODO else if: Need to consider other devices.
     }

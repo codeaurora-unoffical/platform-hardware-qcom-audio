@@ -139,6 +139,7 @@ const struct string_to_enum s_flag_name_to_enum_table[] = {
     STRING_TO_ENUM(AUDIO_INPUT_FLAG_RAW),
     STRING_TO_ENUM(AUDIO_INPUT_FLAG_SYNC),
     STRING_TO_ENUM(AUDIO_INPUT_FLAG_TIMESTAMP),
+    STRING_TO_ENUM(AUDIO_INPUT_FLAG_COMPRESS),
 };
 
 const struct string_to_enum s_format_name_to_enum_table[] = {
@@ -736,12 +737,6 @@ void audio_extn_utils_update_stream_output_app_type_cfg(void *platform,
             sample_rate = OUTPUT_SAMPLING_RATE_DSD128;
     }
 
-    if(devices & AUDIO_DEVICE_OUT_ALL_A2DP) {
-        //TODO: Handle fractional sampling rate configuration for LL
-        audio_extn_a2dp_get_apptype_params(&sample_rate, &bit_width);
-        ALOGI("%s using %d sampling rate %d bit width for A2DP CoPP",
-              __func__, sample_rate, bit_width);
-    }
 
     ALOGV("%s: flags: %x, format: %x sample_rate %d, profile %s, app_type %d",
            __func__, flags, format, sample_rate, profile, app_type_cfg->app_type);
@@ -988,6 +983,14 @@ static int send_app_type_cfg_for_device(struct audio_device *adev,
             (usecase->stream.out->sample_rate < OUTPUT_SAMPLING_RATE_44100)) {
             /* Reset to default if no native stream is active*/
             usecase->stream.out->app_type_cfg.sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
+        } else if (usecase->stream.out->devices & AUDIO_DEVICE_OUT_ALL_A2DP) {
+                 /*
+                  * For a2dp playback get encoder sampling rate and set copp sampling rate,
+                  * for bit width use the stream param only.
+                  */
+                   audio_extn_a2dp_get_sample_rate(&usecase->stream.out->app_type_cfg.sample_rate);
+                   ALOGI("%s using %d sample rate rate for A2DP CoPP",
+                        __func__, usecase->stream.out->app_type_cfg.sample_rate);
         }
         sample_rate = usecase->stream.out->app_type_cfg.sample_rate;
 
@@ -2069,8 +2072,8 @@ int audio_extn_utils_compress_set_start_delay(
 #endif
 
 #define MAX_SND_CARD 8
-#define RETRY_US 500000
-#define RETRY_NUMBER 10
+#define RETRY_US 1000000
+#define RETRY_NUMBER 40
 
 int audio_extn_utils_get_snd_card_num()
 {
@@ -2078,24 +2081,31 @@ int audio_extn_utils_get_snd_card_num()
     void *hw_info = NULL;
     struct mixer *mixer = NULL;
     int retry_num = 0;
-    int snd_card_num = 0;
+    int snd_card_num = 0, min_snd_card_num = 0;
     char* snd_card_name = NULL;
 
-    while (snd_card_num < MAX_SND_CARD) {
-        mixer = mixer_open(snd_card_num);
+    /*
+    * Try with all the sound cards ( 0 to 8 ) and if none of them were detected
+    * sleep for 1 sec and try detections with sound card 0 again.
+    * If sound card gets detected, check if it is relevant, if not check with the
+    * other sound cards. To ensure that the irrelevant sound card is not check again,
+    * we maintain it in min_snd_card_num.
+    */
+    while (retry_num < RETRY_NUMBER) {
 
-        while (!mixer && retry_num < RETRY_NUMBER) {
-            usleep(RETRY_US);
-            mixer = mixer_open(snd_card_num);
-            retry_num++;
+        while (snd_card_num <= MAX_SND_CARD) {
+           mixer = mixer_open(snd_card_num);
+           if (!mixer)
+              snd_card_num++;
+           else
+              break;
         }
 
         if (!mixer) {
-            ALOGE("%s: Unable to open the mixer card: %d", __func__,
-                   snd_card_num);
-            retry_num = 0;
-            snd_card_num++;
-            continue;
+           usleep(RETRY_US);
+           snd_card_num = min_snd_card_num;
+           retry_num++;
+           continue;
         }
 
         snd_card_name = strdup(mixer_get_name(mixer));
@@ -2112,8 +2122,11 @@ int audio_extn_utils_get_snd_card_num()
             break;
         }
         ALOGE("%s: Failed to init hardware info", __func__);
-        retry_num = 0;
-        snd_card_num++;
+        min_snd_card_num++;
+        snd_card_num = min_snd_card_num;
+
+        if (snd_card_num >= MAX_SND_CARD)
+            break;
 
         free(snd_card_name);
         snd_card_name = NULL;
@@ -2123,12 +2136,14 @@ int audio_extn_utils_get_snd_card_num()
     }
     if (snd_card_name)
         free(snd_card_name);
+
     if (mixer)
         mixer_close(mixer);
+
     if (hw_info)
         hw_info_deinit(hw_info);
 
-    if (snd_card_num >= MAX_SND_CARD) {
+    if ((snd_card_num >= MAX_SND_CARD) || (retry_num >= RETRY_NUMBER)) {
         ALOGE("%s: Unable to find correct sound card, aborting.", __func__);
         return -1;
     }

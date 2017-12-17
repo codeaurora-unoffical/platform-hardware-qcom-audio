@@ -116,6 +116,8 @@ struct pcm_config default_pcm_config_voip_copp = {
     .period_size = VOIP_IO_BUF_SIZE(DEFAULT_VOIP_SAMP_RATE, DEFAULT_VOIP_BUF_DURATION_MS, DEFAULT_VOIP_BIT_DEPTH_BYTE)/2,
     .period_count = 2,
     .format = PCM_FORMAT_S16_LE,
+    .avail_min = VOIP_IO_BUF_SIZE(DEFAULT_VOIP_SAMP_RATE, DEFAULT_VOIP_BUF_DURATION_MS, DEFAULT_VOIP_BIT_DEPTH_BYTE)/2,
+    .stop_threshold = INT_MAX,
 };
 
 #define MIN_CHANNEL_COUNT                1
@@ -300,6 +302,8 @@ const char * const use_case_table[AUDIO_USECASE_MAX] = {
     [USECASE_AUDIO_RECORD_COMPRESS2] = "audio-record-compress2",
     [USECASE_AUDIO_RECORD_COMPRESS3] = "audio-record-compress3",
     [USECASE_AUDIO_RECORD_COMPRESS4] = "audio-record-compress4",
+    [USECASE_AUDIO_RECORD_COMPRESS5] = "audio-record-compress5",
+    [USECASE_AUDIO_RECORD_COMPRESS6] = "audio-record-compress6",
     [USECASE_AUDIO_RECORD_LOW_LATENCY] = "low-latency-record",
     [USECASE_AUDIO_RECORD_FM_VIRTUAL] = "fm-virtual-record",
     [USECASE_AUDIO_RECORD_MMAP] = "mmap-record",
@@ -2732,10 +2736,11 @@ static void *offload_thread_loop(void *context)
                     ret = -errno;
             }
             else if (ret == -ETIMEDOUT)
-                compress_drain(out->compr);
+                ret = compress_drain(out->compr);
             else
                 ALOGE("%s: Next track returned error %d",__func__, ret);
-            if (ret != -ENETRESET) {
+            if (-ENETRESET != ret && !(-EINTR == ret &&
+                        CARD_STATUS_OFFLINE == out->card_status)) {
                 send_callback = true;
                 pthread_mutex_lock(&out->lock);
                 out->send_new_metadata = 1;
@@ -2748,10 +2753,15 @@ static void *offload_thread_loop(void *context)
             break;
         case OFFLOAD_CMD_DRAIN:
             ALOGD("copl(%p):calling compress_drain", out);
-            compress_drain(out->compr);
-            ALOGD("copl(%p):calling compress_drain", out);
-            send_callback = true;
-            event = STREAM_CBK_EVENT_DRAIN_READY;
+            ret = compress_drain(out->compr);
+            ALOGD("copl(%p):out of compress_drain", out);
+            // EINTR check avoids drain interruption due to SSR
+            if (-ENETRESET != ret && !(-EINTR == ret &&
+                        CARD_STATUS_OFFLINE == out->card_status)) {
+                send_callback = true;
+                event = STREAM_CBK_EVENT_DRAIN_READY;
+            } else
+                ALOGI("%s: Block drain ready event during SSR", __func__);
             break;
         case OFFLOAD_CMD_ERROR:
             ALOGD("copl(%p): sending error callback to AF", out);
@@ -3348,8 +3358,6 @@ static int out_standby(struct audio_stream *stream)
 {
     struct stream_out *out = (struct stream_out *)stream;
     struct audio_device *adev = out->dev;
-    struct audio_usecase *uc_info;
-    struct listnode *node;
     bool do_stop = true;
 
     ALOGD("%s: enter: stream (%p) usecase(%d: %s)", __func__,
@@ -3394,13 +3402,6 @@ static int out_standby(struct audio_stream *stream)
         }
         if (do_stop) {
             stop_output_stream(out);
-        }
-        //restore output device for active usecase when current snd device and output device mismatch
-        list_for_each(node, &adev->usecase_list) {
-            uc_info = node_to_item(node, struct audio_usecase, list);
-            if ((uc_info->type == PCM_PLAYBACK) &&
-                (uc_info->out_snd_device != platform_get_output_snd_device(adev->platform, uc_info->stream.out)))
-                select_devices(adev, uc_info->id);
         }
         pthread_mutex_unlock(&adev->lock);
     }
@@ -3596,7 +3597,8 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
          * Avoid this by routing audio to speaker until standby.
          */
         if ((out->devices & AUDIO_DEVICE_OUT_ALL_A2DP) &&
-                (val == AUDIO_DEVICE_NONE)) {
+                (val == AUDIO_DEVICE_NONE) &&
+                !audio_extn_a2dp_is_ready()) {
                 val = AUDIO_DEVICE_OUT_SPEAKER;
         }
         /* To avoid a2dp to sco overlapping / BT device improper state
@@ -3645,7 +3647,7 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
             out->devices = new_dev;
 
             if (output_drives_call(adev, out)) {
-                if(!voice_is_in_call(adev)) {
+                if (!voice_is_call_state_active(adev)) {
                     if (adev->mode == AUDIO_MODE_IN_CALL) {
                         adev->current_call_output = out;
                         ret = voice_start_call(adev);
@@ -3728,7 +3730,9 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
     }
 
     //suspend, resume handling block
-    if (out->dynamic_pm_qos_enabled) {
+    //remove QOS only if vendor.audio.hal.dynamic.qos.config.supported is set to true
+    // and vendor.audio.hal.output.suspend.supported is set to true
+    if (out->hal_output_suspend_supported && out->dynamic_pm_qos_config_supported) {
         //check suspend parameter only for low latency and if the property
         //is enabled
         if (str_parms_get_str(parms, "suspend_playback", value, sizeof(value)) >= 0) {
@@ -3977,7 +3981,7 @@ static char* out_get_parameters(const struct audio_stream *stream, const char *k
     if (str_parms_get_str(query, "supports_hw_suspend", value, sizeof(value)) >= 0) {
         //only low latency track supports suspend_resume
         str_parms_add_int(reply, "supports_hw_suspend",
-                (out->dynamic_pm_qos_enabled));
+                (out->hal_output_suspend_supported));
         if (str)
             free(str);
         str = str_parms_to_str(reply);
@@ -4541,7 +4545,7 @@ static int out_get_presentation_position(const struct audio_stream_out *stream,
                                    uint64_t *frames, struct timespec *timestamp)
 {
     struct stream_out *out = (struct stream_out *)stream;
-    int ret = -1;
+    int ret = -ENODATA;
     unsigned long dsp_frames;
 
     /* below piece of code is not guarded against any lock because audioFliner serializes
@@ -5532,7 +5536,8 @@ int adev_open_output_stream(struct audio_hw_device *dev,
     out->convert_buffer = NULL;
     out->started = 0;
     out->a2dp_compress_mute = false;
-    out->dynamic_pm_qos_enabled = 0;
+    out->hal_output_suspend_supported = 0;
+    out->dynamic_pm_qos_config_supported = 0;
 
     if ((flags & AUDIO_OUTPUT_FLAG_BD) &&
         (property_get_bool("audio.matrix.limiter.enable", false)))
@@ -5917,8 +5922,11 @@ int adev_open_output_stream(struct audio_hw_device *dev,
             out->stream.get_mmap_position = out_get_mmap_position;
         } else if (out->flags & AUDIO_OUTPUT_FLAG_FAST) {
             out->usecase = USECASE_AUDIO_PLAYBACK_LOW_LATENCY;
-            out->dynamic_pm_qos_enabled = property_get_bool("vendor.audio.dynamic.qos.enable", false);
-            if (!out->dynamic_pm_qos_enabled) {
+            out->hal_output_suspend_supported =
+                property_get_bool("vendor.audio.hal.output.suspend.supported", false);
+            out->dynamic_pm_qos_config_supported =
+                property_get_bool("vendor.audio.hal.dynamic.qos.config.supported", false);
+            if (!out->dynamic_pm_qos_config_supported) {
                 ALOGI("%s: dynamic qos voting not enabled for platform", __func__);
             } else {
                 ALOGI("%s: dynamic qos voting enabled for platform", __func__);
@@ -6252,8 +6260,8 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
                 goto done;
             }
             platform_cache_edid(adev->platform);
-        } else if ((audio_is_output_device(val) && (val & AUDIO_DEVICE_OUT_USB_DEVICE)) ||
-                   (audio_is_input_device(val) && ((uint32_t)val & AUDIO_DEVICE_IN_USB_DEVICE))) {
+        } else if (((audio_devices_t)val == AUDIO_DEVICE_OUT_USB_DEVICE) ||
+                   ((audio_devices_t)val == AUDIO_DEVICE_IN_USB_DEVICE)) {
             /*
              * Do not allow AFE proxy port usage by WFD source when USB headset is connected.
              * Per AudioPolicyManager, USB device is higher priority than WFD.
@@ -6268,8 +6276,10 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
                 else
                     audio_extn_usb_add_device(AUDIO_DEVICE_IN_USB_DEVICE, atoi(value));
             }
-            ALOGV("detected USB connect .. disable proxy");
-            adev->allow_afe_proxy_usage = false;
+            if (!audio_extn_usb_is_tunnel_supported()) {
+                ALOGV("detected USB connect .. disable proxy");
+                adev->allow_afe_proxy_usage = false;
+            }
         }
     }
 
@@ -6282,8 +6292,8 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
          * invalidated prior to updating sysfs of the disconnect event
          * Invalidate will be handled by audio_extn_ext_disp_set_parameters()
          */
-        if ((audio_is_output_device(val) && (val & AUDIO_DEVICE_OUT_USB_DEVICE)) ||
-            (audio_is_input_device(val) && ((uint32_t)val == AUDIO_DEVICE_IN_USB_DEVICE))) {
+        if (((audio_devices_t)val == AUDIO_DEVICE_OUT_USB_DEVICE) ||
+            ((audio_devices_t)val == AUDIO_DEVICE_IN_USB_DEVICE)) {
             ret = str_parms_get_str(parms, "card", value, sizeof(value));
             if (ret >= 0) {
                 if (audio_is_output_device(val))
@@ -6291,8 +6301,10 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
                 else
                     audio_extn_usb_remove_device(AUDIO_DEVICE_IN_USB_DEVICE, atoi(value));
             }
-            ALOGV("detected USB disconnect .. enable proxy");
-            adev->allow_afe_proxy_usage = true;
+            if (!audio_extn_usb_is_tunnel_supported()) {
+                ALOGV("detected USB disconnect .. enable proxy");
+                adev->allow_afe_proxy_usage = true;
+            }
         }
     }
 

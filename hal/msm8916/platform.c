@@ -302,6 +302,7 @@ struct platform_data {
     bool is_dsd_supported;
     bool is_asrc_supported;
     struct listnode acdb_meta_key_list;
+    bool use_generic_handset;
 };
 
 static bool is_external_codec = false;
@@ -336,6 +337,9 @@ int pcm_device_table[AUDIO_USECASE_MAX][2] = {
     [USECASE_AUDIO_RECORD_COMPRESS2] = {-1, -1},
     [USECASE_AUDIO_RECORD_COMPRESS3] = {-1, -1},
     [USECASE_AUDIO_RECORD_COMPRESS4] = {-1, -1},
+    [USECASE_AUDIO_RECORD_COMPRESS5] = {-1, -1},
+    [USECASE_AUDIO_RECORD_COMPRESS6] = {-1, -1},
+
     [USECASE_AUDIO_RECORD_LOW_LATENCY] = {LOWLATENCY_PCM_DEVICE,
                                           LOWLATENCY_PCM_DEVICE},
     [USECASE_AUDIO_RECORD_FM_VIRTUAL] = {MULTIMEDIA2_PCM_DEVICE,
@@ -548,6 +552,7 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_HANDSET_8MIC] = "handset-8mic",
     [SND_DEVICE_IN_EC_REF_LOOPBACK_MONO] = "ec-ref-loopback-mono",
     [SND_DEVICE_IN_EC_REF_LOOPBACK_STEREO] = "ec-ref-loopback-stereo",
+    [SND_DEVICE_IN_HANDSET_GENERIC_QMIC] = "quad-mic",
 };
 
 // Platform specific backend bit width table
@@ -710,7 +715,8 @@ static int acdb_device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_HANDSET_6MIC] = 4,
     [SND_DEVICE_IN_HANDSET_8MIC] = 4,
     [SND_DEVICE_IN_EC_REF_LOOPBACK_MONO] = 4,
-    [SND_DEVICE_IN_EC_REF_LOOPBACK_STEREO] = 4
+    [SND_DEVICE_IN_EC_REF_LOOPBACK_STEREO] = 4,
+    [SND_DEVICE_IN_HANDSET_GENERIC_QMIC] = 150
 };
 
 struct name_to_index {
@@ -859,6 +865,7 @@ static struct name_to_index snd_device_name_index[SND_DEVICE_MAX] = {
     {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_8MIC)},
     {TO_NAME_INDEX(SND_DEVICE_IN_EC_REF_LOOPBACK_MONO)},
     {TO_NAME_INDEX(SND_DEVICE_IN_EC_REF_LOOPBACK_STEREO)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_GENERIC_QMIC)},
 };
 
 static char * backend_tag_table[SND_DEVICE_MAX] = {0};
@@ -884,6 +891,8 @@ static struct name_to_index usecase_name_index[AUDIO_USECASE_MAX] = {
     {TO_NAME_INDEX(USECASE_AUDIO_RECORD_COMPRESS2)},
     {TO_NAME_INDEX(USECASE_AUDIO_RECORD_COMPRESS3)},
     {TO_NAME_INDEX(USECASE_AUDIO_RECORD_COMPRESS4)},
+    {TO_NAME_INDEX(USECASE_AUDIO_RECORD_COMPRESS5)},
+    {TO_NAME_INDEX(USECASE_AUDIO_RECORD_COMPRESS6)},
     {TO_NAME_INDEX(USECASE_AUDIO_RECORD_LOW_LATENCY)},
     {TO_NAME_INDEX(USECASE_AUDIO_RECORD_MMAP)},
     {TO_NAME_INDEX(USECASE_VOICE_CALL)},
@@ -1652,6 +1661,7 @@ static void set_platform_defaults(struct platform_data * my_data)
     hw_interface_table[SND_DEVICE_IN_UNPROCESSED_THREE_MIC] = strdup("SLIMBUS_0_TX");
     hw_interface_table[SND_DEVICE_IN_UNPROCESSED_QUAD_MIC] = strdup("SLIMBUS_0_TX");
     hw_interface_table[SND_DEVICE_IN_UNPROCESSED_HEADSET_MIC] = strdup("SLIMBUS_0_TX");
+    hw_interface_table[SND_DEVICE_IN_HANDSET_GENERIC_QMIC] = strdup("SLIMBUS_0_TX");
 
     my_data->max_mic_count = PLATFORM_DEFAULT_MIC_COUNT;
     /*remove ALAC & APE from DSP decoder list based on software decoder availability*/
@@ -2661,6 +2671,9 @@ acdb_init_fail:
             platform_set_native_support(NATIVE_AUDIO_MODE_MULTIPLE_44_1);
         }
     }
+
+    if (property_get_bool("vendor.audio.apptype.multirec.enabled", false))
+        my_data->use_generic_handset = true;
 
     my_data->edid_info = NULL;
     return my_data;
@@ -4386,6 +4399,17 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
                 snd_device = SND_DEVICE_IN_VOICE_USB_HEADSET_MIC;
             }
         }
+    } else if (my_data->use_generic_handset == true &&  //     system prop is enabled
+               (my_data->source_mic_type & SOURCE_QUAD_MIC) &&  // AND 4mic is available
+               ((in_device & AUDIO_DEVICE_IN_BUILTIN_MIC) ||    // AND device is buit-in mic or back mic
+                (in_device & AUDIO_DEVICE_IN_BACK_MIC)) &&
+               (my_data->fluence_in_audio_rec == true &&       //  AND fluencepro is enabled
+                my_data->fluence_type & FLUENCE_QUAD_MIC) &&
+               (source == AUDIO_SOURCE_CAMCORDER ||           // AND source is cam/mic/unprocessed
+                source == AUDIO_SOURCE_UNPROCESSED ||
+                source == AUDIO_SOURCE_MIC)) {
+                snd_device = SND_DEVICE_IN_HANDSET_GENERIC_QMIC;
+                platform_set_echo_reference(adev, true, out_device);
     } else if (source == AUDIO_SOURCE_CAMCORDER) {
         if (in_device & AUDIO_DEVICE_IN_BUILTIN_MIC ||
             in_device & AUDIO_DEVICE_IN_BACK_MIC) {
@@ -4807,6 +4831,7 @@ static void set_audiocal(void *platform, struct str_parms *parms, char *value, i
         goto done_key_audcal;
     }
 
+    memset(&cal, 0, sizeof(acdb_audio_cal_cfg_t));
     /* parse audio calibration keys */
     ret = parse_audiocal_cfg(parms, &cal);
 
@@ -5100,6 +5125,8 @@ static void get_audiocal(void *platform, void *keys, void *pReply) {
         ret=-EINVAL;
         goto done;
     }
+
+    memset(&cal, 0, sizeof(acdb_audio_cal_cfg_t));
     /* parse audiocal configuration keys */
     ret = parse_audiocal_cfg(query, &cal);
     if(ret == 0) {

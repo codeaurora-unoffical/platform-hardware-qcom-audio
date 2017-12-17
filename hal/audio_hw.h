@@ -147,6 +147,8 @@ enum {
     USECASE_AUDIO_RECORD_COMPRESS2,
     USECASE_AUDIO_RECORD_COMPRESS3,
     USECASE_AUDIO_RECORD_COMPRESS4,
+    USECASE_AUDIO_RECORD_COMPRESS5,
+    USECASE_AUDIO_RECORD_COMPRESS6,
     USECASE_AUDIO_RECORD_LOW_LATENCY,
     USECASE_AUDIO_RECORD_FM_VIRTUAL,
     USECASE_AUDIO_RECORD_HIFI,
@@ -339,7 +341,8 @@ struct stream_out {
     float volume_r;
 
     char pm_qos_mixer_path[MAX_MIXER_PATH_LEN];
-    int dynamic_pm_qos_enabled;
+    int hal_output_suspend_supported;
+    int dynamic_pm_qos_config_supported;
     bool stream_config_changed;
     mix_matrix_params_t pan_scale_params;
     mix_matrix_params_t downmix_params;
@@ -522,6 +525,7 @@ struct audio_device {
     bool bt_sco_on;
     struct audio_device_config_param *device_cfg_params;
     unsigned int interactive_usecase_state;
+    bool dp_allowed_for_voice;
 };
 
 int select_devices(struct audio_device *adev,

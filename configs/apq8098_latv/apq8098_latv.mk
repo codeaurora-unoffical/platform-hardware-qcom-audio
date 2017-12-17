@@ -30,7 +30,7 @@ AUDIO_FEATURE_ENABLED_HW_ACCELERATED_EFFECTS := false
 AUDIO_FEATURE_ENABLED_AUDIOSPHERE := true
 AUDIO_FEATURE_ENABLED_USB_TUNNEL_AUDIO := true
 AUDIO_FEATURE_ENABLED_SPLIT_A2DP := true
-AUDIO_FEATURE_ENABLED_3D_AUDIO := true
+AUDIO_FEATURE_ENABLED_3D_AUDIO := false
 AUDIO_FEATURE_ENABLED_VOICE_PRINT := false
 USE_LEGACY_AUDIO_DAEMON := false
 USE_LEGACY_AUDIO_MEASUREMENT := false
@@ -149,6 +149,10 @@ persist.vendor.audio.ras.enabled=false
 PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.offload.buffer.size.kb=2
 
+#Minimum duration for offload playback in secc
+PRODUCT_PROPERTY_OVERRIDES += \
+audio.offload.min.duration.secs=0
+
 #Enable offload audio video playback by default
 PRODUCT_PROPERTY_OVERRIDES += \
 audio.offload.video=true
@@ -216,7 +220,7 @@ vendor.audio.qaf.library=/vendor/lib/libdolby_ms12_wrapper.so
 
 #Disable reencode
 PRODUCT_PROPERTY_OVERRIDES += \
-vendor.audio.qaf.reencode=false
+vendor.audio.qaf.reencode=true
 
 #HDMI passthrough out
 PRODUCT_PROPERTY_OVERRIDES += \
