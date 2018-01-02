@@ -99,6 +99,10 @@
 #define AUDIO_FORMAT_AC4  0x22000000UL
 #endif
 
+#ifndef AUDIO_FORMAT_LDAC
+#define AUDIO_FORMAT_LDAC 0x23000000UL
+#endif
+
 #ifndef AUDIO_OUTPUT_FLAG_MAIN
 #define AUDIO_OUTPUT_FLAG_MAIN 0x8000000
 #endif
@@ -216,6 +220,7 @@ int32_t audio_extn_get_afe_proxy_channel_count();
 #define audio_extn_usb_get_max_channels(p)                             (0)
 #define audio_extn_usb_get_max_bit_width(p)                            (0)
 #define audio_extn_usb_get_sup_sample_rates(t, s, l)                   (0)
+#define audio_extn_usb_is_tunnel_supported()                           (0)
 #else
 void audio_extn_usb_init(void *adev);
 void audio_extn_usb_deinit();
@@ -232,6 +237,7 @@ bool audio_extn_usb_is_capture_supported();
 int audio_extn_usb_get_max_channels(bool playback);
 int audio_extn_usb_get_max_bit_width(bool playback);
 int audio_extn_usb_get_sup_sample_rates(int type, uint32_t *sr, uint32_t l);
+bool audio_extn_usb_is_tunnel_supported();
 #endif
 
 #ifndef SPLIT_A2DP_ENABLED
@@ -241,7 +247,7 @@ int audio_extn_usb_get_sup_sample_rates(int type, uint32_t *sr, uint32_t l);
 #define audio_extn_a2dp_set_parameters(parms)            (0)
 #define audio_extn_a2dp_is_force_device_switch()         (0)
 #define audio_extn_a2dp_set_handoff_mode(is_on)          (0)
-#define audio_extn_a2dp_get_apptype_params(sample_rate,bit_width)    (0)
+#define audio_extn_a2dp_get_sample_rate(sample_rate)     (0)
 #define audio_extn_a2dp_get_encoder_latency()            (0)
 #define audio_extn_a2dp_is_ready()                       (0)
 #define audio_extn_a2dp_is_suspended()                   (0)
@@ -252,8 +258,7 @@ int audio_extn_a2dp_stop_playback();
 void audio_extn_a2dp_set_parameters(struct str_parms *parms);
 bool audio_extn_a2dp_is_force_device_switch();
 void audio_extn_a2dp_set_handoff_mode(bool is_on);
-void audio_extn_a2dp_get_apptype_params(uint32_t *sample_rate,
-                                        uint32_t *bit_width);
+void audio_extn_a2dp_get_sample_rate(int *sample_rate);
 uint32_t audio_extn_a2dp_get_encoder_latency();
 bool audio_extn_a2dp_is_ready();
 bool audio_extn_a2dp_is_suspended();

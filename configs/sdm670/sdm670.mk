@@ -65,6 +65,7 @@ TARGET_USES_QCOM_MM_AUDIO := true
 AUDIO_FEATURE_ENABLED_SOURCE_TRACKING := true
 AUDIO_FEATURE_ENABLED_GEF_SUPPORT := true
 BOARD_SUPPORTS_QAHW := true
+BOARD_SUPPORTS_QSTHW_API := true
 AUDIO_FEATURE_ENABLED_RAS := true
 AUDIO_FEATURE_ENABLED_SND_MONITOR := true
 ##AUDIO_FEATURE_FLAGS
@@ -91,6 +92,7 @@ PRODUCT_COPY_FILES += \
     hardware/qcom/audio/configs/sdm670/mixer_paths_tashalite.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_tashalite.xml \
     hardware/qcom/audio/configs/sdm670/mixer_paths_i2s.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_i2s.xml \
     hardware/qcom/audio/configs/sdm670/mixer_paths_skuw.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_skuw.xml \
+    hardware/qcom/audio/configs/sdm670/mixer_paths_360cam.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_360cam.xml \
     hardware/qcom/audio/configs/sdm670/audio_tuning_mixer.txt:$(TARGET_COPY_OUT_VENDOR)/etc/audio_tuning_mixer.txt \
     hardware/qcom/audio/configs/sdm670/audio_tuning_mixer_tavil.txt:$(TARGET_COPY_OUT_VENDOR)/etc/audio_tuning_mixer_tavil.txt \
     hardware/qcom/audio/configs/sdm670/audio_tuning_mixer_tasha.txt:$(TARGET_COPY_OUT_VENDOR)/etc/audio_tuning_mixer_tasha.txt \
@@ -138,7 +140,8 @@ PRODUCT_PROPERTY_OVERRIDES += \
 ro.vendor.audio.sdk.fluencetype=none\
 persist.vendor.audio.fluence.voicecall=true\
 persist.vendor.audio.fluence.voicerec=false\
-persist.vendor.audio.fluence.speaker=true
+persist.vendor.audio.fluence.speaker=true\
+persist.vendor.audio.fluence.tmic.enabled=false
 
 ##speaker protection v3 switch and ADSP AFE API version
 PRODUCT_PROPERTY_OVERRIDES += \
