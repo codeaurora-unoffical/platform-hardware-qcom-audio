@@ -43,6 +43,7 @@
 #include "qahw_api.h"
 #include "qahw.h"
 
+#if QTI_AUDIO_SERVER_ENABLED
 #include <mm-audio/qti-audio-server/qti_audio_server.h>
 #include <mm-audio/qti-audio-server/qti_audio_server_client.h>
 
@@ -1356,3 +1357,412 @@ int32_t qahw_effect_process_reverse(qahw_effect_handle_t self,
         return qahw_effect_process_reverse_l(self, in_buffer, out_buffer);
     }
 }
+
+#else
+void qahw_register_qas_death_notify_cb(audio_error_callback cb __unused, void* context __unused)
+{
+}
+
+uint32_t qahw_out_get_sample_rate(const qahw_stream_handle_t *out_handle)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_out_get_sample_rate_l(out_handle);
+}
+
+int qahw_out_set_sample_rate(qahw_stream_handle_t *out_handle, uint32_t rate)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_out_set_sample_rate_l(out_handle, rate);
+}
+
+size_t qahw_out_get_buffer_size(const qahw_stream_handle_t *out_handle)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_out_get_buffer_size_l(out_handle);
+}
+
+audio_channel_mask_t qahw_out_get_channels(const qahw_stream_handle_t
+                                              *out_handle)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_out_get_channels_l(out_handle);
+}
+
+audio_format_t qahw_out_get_format(const qahw_stream_handle_t *out_handle)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_out_get_format_l(out_handle);
+}
+
+int qahw_out_standby(qahw_stream_handle_t *out_handle)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_out_standby_l(out_handle);
+}
+
+int qahw_out_set_parameters(qahw_stream_handle_t *out_handle,
+                                const char *kv_pairs)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_out_set_parameters_l(out_handle, kv_pairs);
+}
+
+char *qahw_out_get_parameters(const qahw_stream_handle_t *out_handle,
+                                 const char *keys)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_out_get_parameters_l(out_handle, keys);
+}
+
+int qahw_out_set_param_data(qahw_stream_handle_t *out_handle,
+                            qahw_param_id param_id,
+                            qahw_param_payload *payload)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_out_set_param_data_l(out_handle, param_id, payload);
+}
+
+int qahw_out_get_param_data(qahw_stream_handle_t *out_handle,
+                            qahw_param_id param_id,
+                            qahw_param_payload *payload)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_out_get_param_data_l(out_handle, param_id, payload);
+}
+
+uint32_t qahw_out_get_latency(const qahw_stream_handle_t *out_handle)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_out_get_latency_l(out_handle);
+}
+
+int qahw_out_set_volume(qahw_stream_handle_t *out_handle, float left, float right)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_out_set_volume_l(out_handle, left, right);
+}
+
+ssize_t qahw_out_write(qahw_stream_handle_t *out_handle,
+                        qahw_out_buffer_t *out_buf)
+{
+    return qahw_out_write_l(out_handle, out_buf);
+}
+
+int qahw_out_get_render_position(const qahw_stream_handle_t *out_handle,
+                                 uint32_t *dsp_frames)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_out_get_render_position_l(out_handle, dsp_frames);
+}
+
+int qahw_out_set_callback(qahw_stream_handle_t *out_handle,
+                          qahw_stream_callback_t callback,
+                          void *cookie)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_out_set_callback_l(out_handle, callback, cookie);
+}
+
+int qahw_out_pause(qahw_stream_handle_t *out_handle)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_out_pause_l(out_handle);
+}
+
+int qahw_out_resume(qahw_stream_handle_t *out_handle)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_out_resume_l(out_handle);
+}
+
+int qahw_out_drain(qahw_stream_handle_t *out_handle, qahw_drain_type_t type )
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_out_drain_l(out_handle, type);
+}
+
+int qahw_out_flush(qahw_stream_handle_t *out_handle)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_out_flush_l(out_handle);
+}
+
+int qahw_out_get_presentation_position(const qahw_stream_handle_t *out_handle,
+                           uint64_t *frames, struct timespec *timestamp)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_out_get_presentation_position_l(out_handle,
+                                     frames, timestamp);
+}
+
+uint32_t qahw_in_get_sample_rate(const qahw_stream_handle_t *in_handle)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_in_get_sample_rate_l(in_handle);
+}
+
+int qahw_in_set_sample_rate(qahw_stream_handle_t *in_handle, uint32_t rate)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_in_set_sample_rate_l(in_handle, rate);
+}
+
+size_t qahw_in_get_buffer_size(const qahw_stream_handle_t *in_handle)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_in_get_buffer_size_l(in_handle);
+}
+
+audio_channel_mask_t qahw_in_get_channels(const qahw_stream_handle_t *in_handle)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_in_get_channels_l(in_handle);
+}
+
+audio_format_t qahw_in_get_format(const qahw_stream_handle_t *in_handle)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_in_get_format_l(in_handle);
+}
+
+int qahw_in_set_format(qahw_stream_handle_t *in_handle, audio_format_t format)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_in_set_format_l(in_handle, format);
+}
+
+int qahw_in_standby(qahw_stream_handle_t *in_handle)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_in_standby_l(in_handle);
+}
+
+int qahw_in_set_parameters(qahw_stream_handle_t *in_handle, const char *kv_pairs)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_in_set_parameters_l(in_handle, kv_pairs);
+}
+
+char* qahw_in_get_parameters(const qahw_stream_handle_t *in_handle,
+                              const char *keys)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_in_get_parameters_l(in_handle, keys);
+}
+
+ssize_t qahw_in_read(qahw_stream_handle_t *in_handle,
+                     qahw_in_buffer_t *in_buf)
+{
+    return qahw_in_read_l(in_handle, in_buf);
+}
+
+uint32_t qahw_in_get_input_frames_lost(qahw_stream_handle_t *in_handle)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_in_get_input_frames_lost_l(in_handle);
+}
+
+int qahw_in_get_capture_position(const qahw_stream_handle_t *in_handle,
+                                 int64_t *frames, int64_t *time)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_in_get_capture_position_l(in_handle, frames, time);
+}
+
+int qahw_init_check(const qahw_module_handle_t *hw_module)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_init_check_l(hw_module);
+}
+
+int qahw_set_voice_volume(qahw_module_handle_t *hw_module, float volume)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_set_voice_volume_l(hw_module, volume);
+}
+
+int qahw_set_mode(qahw_module_handle_t *hw_module, audio_mode_t mode)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_set_mode_l(hw_module, mode);
+}
+
+int qahw_set_mic_mute(qahw_module_handle_t *hw_module, bool state)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_set_mic_mute_l(hw_module, state);
+}
+
+int qahw_get_mic_mute(qahw_module_handle_t *hw_module, bool *state)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_get_mic_mute_l(hw_module, state);
+}
+
+int qahw_set_parameters(qahw_module_handle_t *hw_module, const char *kv_pairs)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_set_parameters_l(hw_module, kv_pairs);
+}
+
+char* qahw_get_parameters(const qahw_module_handle_t *hw_module,
+                           const char *keys)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_get_parameters_l(hw_module, keys);
+}
+
+int qahw_get_param_data(const qahw_module_handle_t *hw_module,
+                        qahw_param_id param_id,
+                        qahw_param_payload *payload)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_get_param_data_l(hw_module, param_id, payload);
+}
+
+int qahw_set_param_data(const qahw_module_handle_t *hw_module,
+                        qahw_param_id param_id,
+                        qahw_param_payload *payload)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_set_param_data_l(hw_module, param_id, payload);
+}
+
+/* Audio effects API */
+qahw_effect_lib_handle_t qahw_effect_load_library(const char *lib_path)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_effect_load_library_l(lib_path);
+}
+
+int32_t qahw_effect_unload_library(qahw_effect_lib_handle_t handle)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_effect_unload_library_l(handle);
+}
+
+int32_t qahw_effect_create(qahw_effect_lib_handle_t handle,
+                           const qahw_effect_uuid_t *uuid,
+                           int32_t io_handle,
+                           qahw_effect_handle_t *effect_handle)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_effect_create_l(handle, uuid, io_handle, effect_handle);
+}
+
+int32_t qahw_effect_release(qahw_effect_lib_handle_t handle,
+                            qahw_effect_handle_t effect_handle)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_effect_release_l(handle, effect_handle);
+}
+
+int32_t qahw_effect_get_descriptor(qahw_effect_lib_handle_t handle,
+                                   const qahw_effect_uuid_t *uuid,
+                                   qahw_effect_descriptor_t *effect_desc)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_effect_get_descriptor_l(handle, uuid, effect_desc);
+}
+
+int32_t qahw_effect_get_version()
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_effect_get_version_l();
+}
+
+int32_t qahw_effect_process(qahw_effect_handle_t self,
+                            qahw_audio_buffer_t *in_buffer,
+                            qahw_audio_buffer_t *out_buffer)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_effect_process_l(self, in_buffer, out_buffer);
+}
+
+int32_t qahw_effect_command(qahw_effect_handle_t self,
+                            uint32_t cmd_code,
+                            uint32_t cmd_size,
+                            void *cmd_data,
+                            uint32_t *reply_size,
+                            void *reply_data)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_effect_command_l(self, cmd_code, cmd_size,
+                                 cmd_data, reply_size, reply_data);
+}
+
+int32_t qahw_effect_process_reverse(qahw_effect_handle_t self,
+                                    qahw_audio_buffer_t *in_buffer,
+                                    qahw_audio_buffer_t *out_buffer)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_effect_process_reverse_l(self, in_buffer,
+                                         out_buffer);
+}
+
+size_t qahw_get_input_buffer_size(const qahw_module_handle_t *hw_module,
+                                  const struct audio_config *config)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_get_input_buffer_size_l(hw_module, config);
+}
+
+int qahw_open_output_stream(qahw_module_handle_t *hw_module,
+                            audio_io_handle_t handle,
+                            audio_devices_t devices,
+                            audio_output_flags_t flags,
+                            struct audio_config *config,
+                            qahw_stream_handle_t **out_handle,
+                            const char *address)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_open_output_stream_l(hw_module, handle, devices,
+                                       flags, config, out_handle,
+                                       address);
+}
+
+int qahw_close_output_stream(qahw_stream_handle_t *out_handle)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_close_output_stream_l(out_handle);
+}
+
+int qahw_open_input_stream(qahw_module_handle_t *hw_module,
+                           audio_io_handle_t handle,
+                           audio_devices_t devices,
+                           struct audio_config *config,
+                           qahw_stream_handle_t **in_handle,
+                           audio_input_flags_t flags,
+                           const char *address,
+                           audio_source_t source)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_open_input_stream_l(hw_module, handle, devices,
+                                   config, in_handle, flags,
+                                   address, source);
+}
+
+int qahw_close_input_stream(qahw_stream_handle_t *in_handle)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_close_input_stream_l(in_handle);
+}
+
+int qahw_get_version()
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_get_version_l();
+}
+
+int qahw_unload_module(qahw_module_handle_t *hw_module)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_unload_module_l(hw_module);
+}
+
+qahw_module_handle_t *qahw_load_module(const char *hw_module_id)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_load_module_l(hw_module_id);
+}
+#endif
