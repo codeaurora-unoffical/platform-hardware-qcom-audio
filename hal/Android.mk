@@ -262,10 +262,10 @@ LOCAL_SHARED_LIBRARIES := \
 	libdl \
 	libexpat
 
-ifeq ($(DEFAULT_PLATFORM_VERSION),OPM1)
-	LOCAL_SHARED_LIBRARIES += libtinycompress
+ifeq ($(strip $(USE_AOSP_FOR_AUDIO)),true)
+       LOCAL_SHARED_LIBRARIES += libtinycompress
 else
-	LOCAL_SHARED_LIBRARIES += libtinycompress_vendor
+       LOCAL_SHARED_LIBRARIES += libtinycompress_vendor
 endif
 
 LOCAL_C_INCLUDES += \
