@@ -5632,7 +5632,7 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
             if (rate_str == NULL) {
                 switch (sample_rate) {
                 case 32000:
-                    if (passthrough_enabled) {
+                    if (passthrough_enabled || (backend_idx == HDMI_TX_BACKEND )) {
                         rate_str = "KHZ_32";
                         break;
                     }
@@ -6777,7 +6777,7 @@ void platform_check_and_update_copp_sample_rate(void* platform, snd_device_t snd
          *sample_rate = stream_sr;
 
      if (snd_device == SND_DEVICE_OUT_HDMI)
-         *sample_rate = platform_get_supported_sampling_rate_on_hdmi(stream_sr);
+         *sample_rate = platform_get_supported_copp_sampling_rate(stream_sr);
 
      ALOGI("sn_device %d device sr %d stream sr %d copp sr %d", snd_device, device_sr, stream_sr
 , *sample_rate);
@@ -7882,7 +7882,7 @@ int platform_get_max_codec_backend() {
     return MAX_CODEC_BACKENDS;
 }
 
-int platform_get_supported_sampling_rate_on_hdmi(uint32_t stream_sr)
+int platform_get_supported_copp_sampling_rate(uint32_t stream_sr)
 {
     int sample_rate;
     switch (stream_sr){
