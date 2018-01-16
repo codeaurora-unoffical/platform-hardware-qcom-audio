@@ -20,6 +20,7 @@ LOCAL_SRC_FILES:= \
 	offload_visualizer.c
 
 LOCAL_CFLAGS+= -O2 -fvisibility=hidden
+LOCAL_CFLAGS+= -Wno-error
 
 LOCAL_CFLAGS += -Wno-unused-variable -Wno-unused-parameter -Wno-gnu-designator -Wno-unused-value -Wno-typedef-redefinition
 

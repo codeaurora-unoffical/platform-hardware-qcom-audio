@@ -72,6 +72,8 @@ ifeq ($(USE_XML_AUDIO_POLICY_CONF), 1)
 LOCAL_CFLAGS += -DUSE_XML_AUDIO_POLICY_CONF
 endif
 
+LOCAL_CFLAGS += -Wno-error
+
 LOCAL_MODULE := libaudiopolicymanager
 
 include $(BUILD_SHARED_LIBRARY)

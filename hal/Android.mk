@@ -271,15 +271,10 @@ LOCAL_SHARED_LIBRARIES := \
 	liblog \
 	libcutils \
 	libtinyalsa \
+	libtinycompress \
 	libaudioroute \
 	libdl \
 	libexpat
-
-ifeq ($(strip $(USE_AOSP_FOR_AUDIO)),true)
-       LOCAL_SHARED_LIBRARIES += libtinycompress
-else
-       LOCAL_SHARED_LIBRARIES += libtinycompress_vendor
-endif
 
 LOCAL_C_INCLUDES += \
 	external/tinyalsa/include \
@@ -359,6 +354,8 @@ LOCAL_MODULE := audio.primary.$(TARGET_BOARD_PLATFORM)
 LOCAL_MODULE_RELATIVE_PATH := hw
 
 LOCAL_MODULE_TAGS := optional
+
+LOCAL_CFLAGS += -Wno-error
 
 LOCAL_VENDOR_MODULE := true
 
