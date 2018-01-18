@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -63,7 +63,7 @@
 #define PLATFORM_INFO_XML_PATH "/etc/audio_platform_info.xml"
 #define MIXER_XML_PATH_AUXPCM "/etc/mixer_paths_auxpcm.xml"
 #define MIXER_XML_PATH_I2S "/etc/mixer_paths_i2s.xml"
-#define PLATFORM_INFO_XML_PATH_I2S "/etc/audio_platform_info_i2s.xml"
+#define PLATFORM_INFO_XML_PATH_I2S "/etc/audio_platform_info_extcodec.xml"
 #else
 #define MIXER_XML_BASE_STRING "/vendor/etc/mixer_paths"
 #define MIXER_XML_DEFAULT_PATH "/vendor/etc/mixer_paths.xml"
@@ -2061,6 +2061,7 @@ void *platform_init(struct audio_device *adev)
     my_data->ext_disp_type = EXT_DISPLAY_TYPE_NONE;
     my_data->hw_dep_fd = -1;
     my_data->mono_speaker = SPKR_1;
+    my_data->speaker_lr_swap = false;
 
     be_dai_name_table = NULL;
 
