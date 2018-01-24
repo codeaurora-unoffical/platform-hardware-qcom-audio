@@ -206,6 +206,7 @@ struct stream_out {
     struct audio_stream_out stream;
     pthread_mutex_t lock; /* see note below on mutex acquisition order */
     pthread_mutex_t pre_lock; /* acquire before lock to avoid DOS by playback thread */
+    pthread_mutex_t compr_mute_lock; /* acquire before setting compress volume */
     pthread_cond_t  cond;
     struct pcm_config config;
     struct compr_config compr_config;
@@ -259,6 +260,9 @@ struct stream_out {
     uint32_t platform_latency;
     audio_offload_info_t info;
     int started;
+    bool a2dp_compress_mute;
+    float volume_l;
+    float volume_r;
 };
 
 struct stream_in {
@@ -461,6 +465,8 @@ int pcm_ioctl(struct pcm *pcm, int request, ...);
 int get_snd_card_state(struct audio_device *adev);
 audio_usecase_t get_usecase_id_from_usecase_type(const struct audio_device *adev,
                                                  usecase_type_t type);
+
+int check_a2dp_restore(struct audio_device *adev, struct stream_out *out, bool restore);
 
 int adev_open_output_stream(struct audio_hw_device *dev,
                             audio_io_handle_t handle,

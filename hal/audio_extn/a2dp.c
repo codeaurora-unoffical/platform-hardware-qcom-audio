@@ -708,6 +708,8 @@ void audio_extn_a2dp_set_parameters(struct str_parms *parms)
 {
      int ret, val;
      char value[32]={0};
+     struct audio_usecase *uc_info;
+     struct listnode *node;
 
      if(a2dp.is_a2dp_offload_supported == false) {
         ALOGV("no supported encoders identified,ignoring a2dp setparam");
@@ -744,6 +746,15 @@ void audio_extn_a2dp_set_parameters(struct str_parms *parms)
              if ((!strncmp(value,"true",sizeof(value)))) {
                 ALOGD("Setting a2dp to suspend state");
                 a2dp.a2dp_suspended = true;
+                list_for_each(node, &a2dp.adev->usecase_list) {
+                    uc_info = node_to_item(node, struct audio_usecase, list);
+                    if (uc_info->type == PCM_PLAYBACK &&
+                         (uc_info->stream.out->devices & AUDIO_DEVICE_OUT_ALL_A2DP)) {
+                        pthread_mutex_unlock(&a2dp.adev->lock);
+                        check_a2dp_restore(a2dp.adev, uc_info->stream.out, false);
+                        pthread_mutex_lock(&a2dp.adev->lock);
+                    }
+                }
                 reset_a2dp_enc_config_params();
                 if(a2dp.audio_suspend_stream)
                    a2dp.audio_suspend_stream();
@@ -771,6 +782,16 @@ void audio_extn_a2dp_set_parameters(struct str_parms *parms)
                             ALOGE("BT controller start failed");
                             a2dp.a2dp_started = false;
                         }
+                    }
+                }
+
+                list_for_each(node, &a2dp.adev->usecase_list) {
+                    uc_info = node_to_item(node, struct audio_usecase, list);
+                    if (uc_info->type == PCM_PLAYBACK &&
+                         (uc_info->stream.out->devices & AUDIO_DEVICE_OUT_ALL_A2DP)) {
+                        pthread_mutex_unlock(&a2dp.adev->lock);
+                        check_a2dp_restore(a2dp.adev, uc_info->stream.out, true);
+                        pthread_mutex_lock(&a2dp.adev->lock);
                     }
                 }
             }
@@ -803,11 +824,19 @@ bool audio_extn_a2dp_is_ready()
 {
     bool ret = false;
 
+    if (a2dp.a2dp_suspended)
+        return ret;
+
     if ((a2dp.bt_state != A2DP_STATE_DISCONNECTED) &&
         (a2dp.is_a2dp_offload_supported) &&
         (a2dp.audio_check_a2dp_ready))
            ret = a2dp.audio_check_a2dp_ready();
     return ret;
+}
+
+bool audio_extn_a2dp_is_suspended()
+{
+    return a2dp.a2dp_suspended;
 }
 
 void audio_extn_a2dp_init (void *adev)
