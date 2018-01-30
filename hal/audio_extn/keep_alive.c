@@ -29,7 +29,6 @@
 
 #define LOG_TAG "keep_alive"
 /*#define LOG_NDEBUG 0*/
-
 #include <stdlib.h>
 #include <cutils/log.h>
 #include "audio_hw.h"
@@ -65,8 +64,10 @@ typedef struct {
     state_t state;
     struct listnode cmd_list;
     struct pcm *pcm;
+    struct stream_out *out;
     bool done;
     void * userdata;
+    audio_devices_t active_devices;
 } keep_alive_t;
 
 struct keep_alive_cmd {
@@ -88,30 +89,27 @@ static struct pcm_config silence_config = {
 };
 
 static void * keep_alive_loop(void * context);
+static int keep_alive_stop_l();
+static int keep_alive_start_l();
 
 void audio_extn_keep_alive_init(struct audio_device *adev)
 {
     ka.userdata = adev;
     ka.state = STATE_IDLE;
     ka.pcm = NULL;
-
-    if (property_get_bool("audio.keep_alive.disabled", false)) {
-        ALOGE("keep alive disabled");
-        ka.state = STATE_DISABLED;
-        return;
-    }
-
+    ka.done = false;
+    ka.active_devices = 0;
     pthread_mutex_init(&ka.lock, (const pthread_mutexattr_t *) NULL);
     pthread_cond_init(&ka.cond, (const pthread_condattr_t *) NULL);
-    pthread_cond_init(&ka.wake_up_cond, (const pthread_condattr_t *) NULL);
-    pthread_mutex_init(&ka.sleep_lock, (const pthread_mutexattr_t *) NULL);
-    list_init(&ka.cmd_list);
-    if (pthread_create(&ka.thread,  (const pthread_attr_t *) NULL,
-                       keep_alive_loop, NULL) < 0) {
-        ALOGW("Failed to create keep_alive_thread");
-        /* can continue without keep alive */
-        ka.state = STATE_DEINIT;
-    }
+    ALOGD("%s init done", __func__);
+}
+
+void audio_extn_keep_alive_deinit()
+{
+    ka.userdata = NULL;
+    pthread_mutex_destroy(&ka.lock);
+    pthread_cond_destroy(&ka.cond);
+    ALOGD("%s deinit done", __func__);
 }
 
 static void send_cmd_l(request_t r)
@@ -131,210 +129,187 @@ static void send_cmd_l(request_t r)
     list_add_tail(&ka.cmd_list, &cmd->node);
     pthread_cond_signal(&ka.cond);
 }
-
-static int close_silence_stream()
-{
-    if (!ka.pcm)
-        return -ENODEV;
-
-    pcm_close(ka.pcm);
-    ka.pcm = NULL;
-    return 0;
-}
-
-static int open_silence_stream()
-{
-    unsigned int flags = PCM_OUT|PCM_MONOTONIC;
-
-    if (ka.pcm)
-        return -EEXIST;
-
-    int silence_pcm_dev_id = platform_get_pcm_device_id(USECASE_AUDIO_PLAYBACK_EXT_DISP_SILENCE,
-                                                        PCM_PLAYBACK);
-
-    ALOGD("opening silence device %d", silence_pcm_dev_id);
-    struct audio_device * adev = (struct audio_device *)ka.userdata;
-    ka.pcm = pcm_open(adev->snd_card, silence_pcm_dev_id,
-                      flags, &silence_config);
-    ALOGD("opened silence device %d", silence_pcm_dev_id);
-    if (ka.pcm == NULL || !pcm_is_ready(ka.pcm)) {
-        ALOGE("%s: %s", __func__, pcm_get_error(ka.pcm));
-        if (ka.pcm != NULL) {
-            pcm_close(ka.pcm);
-            ka.pcm = NULL;
-        }
-        return -1;
-    }
-    return 0;
-}
-
-
-static int set_mixer_control(struct mixer *mixer,
-                             const char * mixer_ctl_name,
-                             const char *mixer_val)
-{
-    struct mixer_ctl *ctl;
-    if ((mixer == NULL) || (mixer_ctl_name == NULL) || (mixer_val == NULL)) {
-       ALOGE("%s: Invalid input", __func__);
-       return -EINVAL;
-    }
-    ALOGD("setting mixer ctl %s with value %s", mixer_ctl_name, mixer_val);
-    ctl = mixer_get_ctl_by_name(mixer, mixer_ctl_name);
-    if (!ctl) {
-        ALOGE("%s: could not get ctl for mixer cmd - %s",
-              __func__, mixer_ctl_name);
-        return -EINVAL;
-    }
-
-    return mixer_ctl_set_enum_by_string(ctl, mixer_val);
-}
-
-/* must be called with adev lock held */
-void audio_extn_keep_alive_start()
+audio_devices_t get_device_id_from_mode(ka_mode_t ka_mode)
 {
     struct audio_device * adev = (struct audio_device *)ka.userdata;
-    char mixer_ctl_name[MAX_LENGTH_MIXER_CONTROL_IN_INT];
-    int app_type_cfg[MAX_LENGTH_MIXER_CONTROL_IN_INT], len = 0, rc;
-    struct mixer_ctl *ctl;
-    int acdb_dev_id, snd_device;
-    struct listnode *node;
-    struct audio_usecase *usecase;
-    int32_t sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
+    audio_devices_t out_device;
+    switch(ka_mode)
+    {
+        case KEEP_ALIVE_OUT_PRIMARY:
+            if(adev->primary_output)
+            {
+                if(adev->primary_output->devices & AUDIO_DEVICE_OUT_ALL)
+                   out_device = adev->primary_output->devices & AUDIO_DEVICE_OUT_ALL;
+            }
+            else
+            {
+                out_device = AUDIO_DEVICE_OUT_SPEAKER;
+            }
+            break;
+
+        case KEEP_ALIVE_OUT_HDMI:
+            out_device = AUDIO_DEVICE_OUT_AUX_DIGITAL;
+            break;
+
+        default:
+            out_device = AUDIO_DEVICE_NONE;
+    }
+    return out_device;
+}
+
+void audio_extn_keep_alive_start(ka_mode_t ka_mode)
+{
+    struct audio_device * adev = (struct audio_device *)ka.userdata;
+    audio_devices_t out_devices = AUDIO_DEVICE_NONE;
 
     if (ka.state == STATE_DISABLED)
         return;
 
     pthread_mutex_lock(&ka.lock);
-
+    ALOGV("%s: mode %x", __func__, ka_mode);
     if (ka.state == STATE_DEINIT) {
         ALOGE(" %s : Invalid state ",__func__);
         goto exit;
     }
 
-    if (audio_extn_passthru_is_active()) {
-        ALOGE(" %s : Pass through is already active", __func__);
+    out_devices = get_device_id_from_mode(ka_mode);
+    if((out_devices == ka.active_devices) && (ka.state == STATE_ACTIVE))
+    {
+        ALOGV(" %s : Already feeding silence to device %x",__func__, out_devices);
         goto exit;
     }
+    ALOGV(" %s : active devices %x, new device %x",__func__, ka.active_devices, out_devices);
+    ka.active_devices |= out_devices;
 
-    if (ka.state == STATE_ACTIVE) {
-        ALOGV(" %s : Keep alive state is already Active",__func__ );
-        goto exit;
-    }
+    if(audio_extn_passthru_is_active())
+        ka.active_devices &= ~AUDIO_DEVICE_OUT_AUX_DIGITAL;
 
-    /* Dont start keep_alive if any other PCM session is routed to HDMI*/
-    list_for_each(node, &adev->usecase_list) {
-         usecase = node_to_item(node, struct audio_usecase, list);
-         if (usecase->type == PCM_PLAYBACK &&
-                 usecase->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL)
-             goto exit;
-    }
+    if(ka.state == STATE_ACTIVE)
+        select_devices(adev, USECASE_AUDIO_PLAYBACK_SILENCE);
 
-    ka.done = false;
-
-    /*configure app type */
-    int silence_pcm_dev_id = platform_get_pcm_device_id(USECASE_AUDIO_PLAYBACK_EXT_DISP_SILENCE,
-                                                        PCM_PLAYBACK);
-    snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
-             "Audio Stream %d App Type Cfg", silence_pcm_dev_id);
-
-    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
-    if (!ctl) {
-        ALOGE("%s: Could not get ctl for mixer cmd - %s", __func__,
-              mixer_ctl_name);
-        rc = -EINVAL;
-        goto exit;
-    }
-
-    /* Configure HDMI/DP Backend with default values, this as well
-     * helps reconfigure HDMI/DP backend after passthrough.
-     */
-    int ext_disp_type = platform_get_ext_disp_type(adev->platform);
-    switch(ext_disp_type) {
-        case EXT_DISPLAY_TYPE_HDMI:
-            snd_device = SND_DEVICE_OUT_HDMI;
-            set_mixer_control(adev->mixer, "HDMI RX Format", "LPCM");
-            set_mixer_control(adev->mixer, "HDMI_RX SampleRate", "KHZ_48");
-            set_mixer_control(adev->mixer, "HDMI_RX Channels", "Two");
-            break;
-        case EXT_DISPLAY_TYPE_DP:
-            snd_device = SND_DEVICE_OUT_DISPLAY_PORT;
-            set_mixer_control(adev->mixer, "Display Port RX Format", "LPCM");
-            set_mixer_control(adev->mixer, "Display Port RX SampleRate", "KHZ_48");
-            set_mixer_control(adev->mixer, "Display Port RX Channels", "Two");
-            break;
-        default:
-            ALOGE("%s: Invalid external display type:%d", __func__, ext_disp_type);
-            goto exit;
-    }
-
-    acdb_dev_id = platform_get_snd_device_acdb_id(snd_device);
-    if (acdb_dev_id < 0) {
-        ALOGE("%s: Couldn't get the acdb dev id", __func__);
-        rc = -EINVAL;
-        goto exit;
-    }
-
-    sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
-    app_type_cfg[len++] = platform_get_default_app_type(adev->platform);
-    app_type_cfg[len++] = acdb_dev_id;
-    app_type_cfg[len++] = sample_rate;
-
-    ALOGI("%s:%d PLAYBACK app_type %d, acdb_dev_id %d, sample_rate %d",
-          __func__, __LINE__,
-          platform_get_default_app_type(adev->platform),
-          acdb_dev_id, sample_rate);
-    mixer_ctl_set_array(ctl, app_type_cfg, len);
-
-    /*send calibration*/
-    usecase = calloc(1, sizeof(struct audio_usecase));
-
-    if (usecase == NULL) {
-        ALOGE("%s: usecase is NULL", __func__);
-        rc = -ENOMEM;
-        goto exit;
-    }
-    usecase->type = PCM_PLAYBACK;
-    usecase->out_snd_device = snd_device;
-
-    platform_send_audio_calibration(adev->platform, usecase,
-                platform_get_default_app_type(adev->platform), sample_rate);
-
-    /*apply audio route */
-    switch(ext_disp_type) {
-        case EXT_DISPLAY_TYPE_HDMI:
-            audio_route_apply_and_update_path(adev->audio_route, "silence-playback hdmi");
-            break;
-        case EXT_DISPLAY_TYPE_DP:
-            audio_route_apply_and_update_path(adev->audio_route, "silence-playback display-port");
-            break;
-        default:
-            ALOGE("%s: Invalid external display type:%d", __func__, ext_disp_type);
-            goto exit;
-    }
-
-    if (open_silence_stream() == 0) {
-        send_cmd_l(REQUEST_WRITE);
-        while (ka.state != STATE_ACTIVE) {
-            pthread_cond_wait(&ka.cond, &ka.lock);
-        }
-    }
+    if(ka.state == STATE_IDLE)
+        keep_alive_start_l();
 
 exit:
     pthread_mutex_unlock(&ka.lock);
 }
 
 /* must be called with adev lock held */
-void audio_extn_keep_alive_stop()
+static int keep_alive_start_l()
 {
     struct audio_device * adev = (struct audio_device *)ka.userdata;
+    unsigned int flags = PCM_OUT|PCM_MONOTONIC;
+    struct audio_usecase *usecase;
+    int rc = 0;
 
-    if (ka.state == STATE_DISABLED)
-        return;
+    int silence_pcm_dev_id =
+            platform_get_pcm_device_id(USECASE_AUDIO_PLAYBACK_SILENCE,
+                                       PCM_PLAYBACK);
 
-    pthread_mutex_lock(&ka.lock);
-
-    if ((ka.state == STATE_DEINIT) || (ka.state == STATE_IDLE))
+    ka.done = false;
+    pthread_cond_init(&ka.wake_up_cond, (const pthread_condattr_t *) NULL);
+    pthread_mutex_init(&ka.sleep_lock, (const pthread_mutexattr_t *) NULL);
+    list_init(&ka.cmd_list);
+    if (pthread_create(&ka.thread,  (const pthread_attr_t *) NULL,
+                       keep_alive_loop, NULL) < 0) {
+        ALOGW("Failed to create keep_alive_thread");
+        /* can continue without keep alive */
+        ka.state = STATE_DEINIT;
         goto exit;
+    }
+
+    usecase = calloc(1, sizeof(struct audio_usecase));
+    if (usecase == NULL) {
+        ALOGE("%s: usecase is NULL", __func__);
+        rc = -ENOMEM;
+        goto exit;
+    }
+
+    ka.out = (struct stream_out *)calloc(1, sizeof(struct stream_out));
+    if (ka.out == NULL) {
+        ALOGE("%s: keep_alive out is NULL", __func__);
+        rc = -ENOMEM;
+        goto exit;
+    }
+
+    ka.out->flags = 0;
+    ka.out->devices = ka.active_devices;
+    ka.out->dev = adev;
+    ka.out->format = AUDIO_FORMAT_PCM_16_BIT;
+    ka.out->sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
+    ka.out->channel_mask = AUDIO_CHANNEL_OUT_STEREO;
+    ka.out->supported_channel_masks[0] = AUDIO_CHANNEL_OUT_STEREO;
+    ka.out->config = silence_config;
+
+    usecase->stream.out = ka.out;
+    usecase->type = PCM_PLAYBACK;
+    usecase->id = USECASE_AUDIO_PLAYBACK_SILENCE;
+    usecase->out_snd_device = SND_DEVICE_NONE;
+    usecase->in_snd_device = SND_DEVICE_NONE;
+
+    list_add_tail(&adev->usecase_list, &usecase->list);
+    select_devices(adev, USECASE_AUDIO_PLAYBACK_SILENCE);
+
+    ALOGD("opening silence device %x", silence_pcm_dev_id);
+    ka.pcm = pcm_open(adev->snd_card, silence_pcm_dev_id,
+                      flags, &silence_config);
+    if (ka.pcm == NULL || !pcm_is_ready(ka.pcm)) {
+        ALOGE("%s: %s", __func__, pcm_get_error(ka.pcm));
+        if (ka.pcm != NULL) {
+            pcm_close(ka.pcm);
+            ka.pcm = NULL;
+        }
+        goto exit;
+    }
+    send_cmd_l(REQUEST_WRITE);
+    while (ka.state != STATE_ACTIVE) {
+        pthread_cond_wait(&ka.cond, &ka.lock);
+    }
+    return rc;
+exit:
+    keep_alive_stop_l();
+    return rc;
+}
+
+void audio_extn_keep_alive_stop(ka_mode_t ka_mode)
+{
+    struct audio_device * adev = (struct audio_device *)ka.userdata;
+    audio_devices_t out_devices;
+    pthread_mutex_lock(&ka.lock);
+    ALOGV("%s: mode %x", __func__, ka_mode);
+    if (ka_mode && (ka.state != STATE_ACTIVE)) {
+        ALOGV(" %s : Can't stop, keep_alive is not running on device %x",__func__, get_device_id_from_mode(ka_mode));
+        goto exit;
+    }
+    out_devices = get_device_id_from_mode(ka_mode);
+    ka.active_devices &= ~out_devices;
+
+    if(ka.active_devices == AUDIO_DEVICE_NONE)
+        keep_alive_stop_l();
+    else
+        select_devices(adev, USECASE_AUDIO_PLAYBACK_SILENCE);
+exit:
+    pthread_mutex_unlock(&ka.lock);
+}
+
+/* must be called with adev lock held */
+static int keep_alive_stop_l()
+{
+    struct audio_device * adev = (struct audio_device *)ka.userdata;
+    struct audio_usecase *uc_info;
+
+    uc_info = get_usecase_from_list(adev, USECASE_AUDIO_PLAYBACK_SILENCE);
+    if (uc_info == NULL) {
+        ALOGE("%s: Could not find keep alive usecase in the list", __func__);
+    } else {
+        disable_audio_route(adev, uc_info);
+        disable_snd_device(adev, uc_info->out_snd_device);
+        list_remove(&uc_info->list);
+        free(uc_info);
+    }
+
+    if(ka.out != NULL)
+        free(ka.out);
 
     pthread_mutex_lock(&ka.sleep_lock);
     ka.done = true;
@@ -343,23 +318,18 @@ void audio_extn_keep_alive_stop()
     while (ka.state != STATE_IDLE) {
         pthread_cond_wait(&ka.cond, &ka.lock);
     }
-    close_silence_stream();
-
-    /*apply audio route */
-    int ext_disp_type = platform_get_ext_disp_type(adev->platform);
-    switch(ext_disp_type) {
-        case EXT_DISPLAY_TYPE_HDMI:
-            audio_route_reset_and_update_path(adev->audio_route, "silence-playback hdmi");
-            break;
-        case EXT_DISPLAY_TYPE_DP:
-            audio_route_reset_and_update_path(adev->audio_route, "silence-playback display-port");
-            break;
-        default:
-            ALOGE("%s: Invalid external display type:%d", __func__, ext_disp_type);
-    }
-
-exit:
     pthread_mutex_unlock(&ka.lock);
+    pthread_join(ka.thread, (void **) NULL);
+    pthread_mutex_lock(&ka.lock);
+    pthread_cond_destroy(&ka.wake_up_cond);
+    pthread_mutex_destroy(&ka.sleep_lock);
+    pcm_close(ka.pcm);
+
+    ka.state = STATE_IDLE;
+    ALOGV("%s: keep_alive state changed to %x", __func__, ka.state);
+    ka.pcm = NULL;
+    ka.active_devices = KEEP_ALIVE_OUT_NONE;
+    return 0;
 }
 
 bool audio_extn_keep_alive_is_active()
@@ -368,37 +338,24 @@ bool audio_extn_keep_alive_is_active()
 }
 
 int audio_extn_keep_alive_set_parameters(struct audio_device *adev __unused,
-                                         struct str_parms *parms)
+                                         struct str_parms *parms __unused)
 {
     char value[32];
-    int ret;
+    int ret, pcm_device_id=0;
 
-    if (ka.state == STATE_DISABLED)
-        return;
-
-    ret = str_parms_get_str(parms, AUDIO_PARAMETER_DEVICE_CONNECT, value, sizeof(value));
-    if (ret >= 0) {
-        int val = atoi(value);
-        if (val & AUDIO_DEVICE_OUT_AUX_DIGITAL) {
-            if (!audio_extn_passthru_is_active()) {
-                ALOGV("start keep alive");
-                audio_extn_keep_alive_start();
+    if (audio_extn_keep_alive_is_active()) {
+        ret = str_parms_get_str(parms, AUDIO_PARAMETER_STREAM_ROUTING,
+                                value, sizeof(value));
+        if (ret >= 0) {
+            pcm_device_id = atoi(value);
+            if(pcm_device_id > 0)
+            {
+                audio_extn_keep_alive_start(AUDIO_DEVICE_OUT_SPEAKER);
             }
-        }
-    }
-
-    ret = str_parms_get_str(parms, AUDIO_PARAMETER_DEVICE_DISCONNECT, value,
-                            sizeof(value));
-    if (ret >= 0) {
-        int val = atoi(value);
-        if (val & AUDIO_DEVICE_OUT_AUX_DIGITAL) {
-            ALOGV("stop keep_alive");
-            audio_extn_keep_alive_stop();
         }
     }
     return 0;
 }
-
 
 static void * keep_alive_loop(void * context __unused)
 {
@@ -428,6 +385,7 @@ static void * keep_alive_loop(void * context __unused)
 
         free(cmd);
         ka.state = STATE_ACTIVE;
+        ALOGV("%s: state changed to %x", __func__, ka.state);
         pthread_cond_signal(&ka.cond);
         pthread_mutex_unlock(&ka.lock);
 
@@ -458,8 +416,11 @@ static void * keep_alive_loop(void * context __unused)
         }
         pthread_mutex_lock(&ka.lock);
         ka.state = STATE_IDLE;
+        ALOGV("%s: state changed to %x", __func__, ka.state);
         pthread_cond_signal(&ka.cond);
         pthread_mutex_unlock(&ka.lock);
+        break;
     }
+    ALOGV("%s: Exiting", __func__);
     return 0;
 }
