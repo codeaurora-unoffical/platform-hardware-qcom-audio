@@ -2159,7 +2159,8 @@ static void *offload_thread_loop(void *context)
             break;
         }
 
-        if (out->compr == NULL) {
+        if (cmd->cmd != OFFLOAD_CMD_ERROR &&
+            out->compr == NULL) {
             ALOGE("%s: Compress handle is NULL", __func__);
             free(cmd);
             pthread_cond_signal(&out->cond);
@@ -2206,6 +2207,11 @@ static void *offload_thread_loop(void *context)
             ALOGD("copl(%p):calling compress_drain", out);
             send_callback = true;
             event = STREAM_CBK_EVENT_DRAIN_READY;
+            break;
+        case OFFLOAD_CMD_ERROR:
+            ALOGD("copl(%p): sending error callback to AF", out);
+            send_callback = true;
+            event = STREAM_CBK_EVENT_ERROR;
             break;
         default:
             ALOGE("%s unknown command received: %d", __func__, cmd->cmd);
@@ -3415,8 +3421,8 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
         } else if (-ENETRESET == ret) {
             ALOGE("copl %s: received sound card offline state on compress write", __func__);
             set_snd_card_state(adev,SND_CARD_STATE_OFFLINE);
+            send_offload_cmd_l(out, OFFLOAD_CMD_ERROR);
             pthread_mutex_unlock(&out->lock);
-            out_standby(&out->stream.common);
             return ret;
         }
 
@@ -3522,10 +3528,16 @@ exit:
             pthread_mutex_unlock(&adev->lock);
             out->standby = true;
         }
-        out_standby(&out->stream.common);
-        if (!(out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD))
+        if ((out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)) {
+            lock_output_stream(out);
+            send_offload_cmd_l(out, OFFLOAD_CMD_ERROR);
+            pthread_mutex_unlock(&out->lock);
+        }
+        else {
+            out_standby(&out->stream.common);
             usleep((uint64_t)bytes * 1000000 / audio_stream_out_frame_size(stream) /
                             out_get_sample_rate(&out->stream.common));
+        }
     }
     return bytes;
 }
