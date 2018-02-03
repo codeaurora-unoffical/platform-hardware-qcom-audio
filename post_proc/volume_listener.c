@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015, 2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -44,7 +44,8 @@
 #define VOL_FLAG ( EFFECT_FLAG_TYPE_INSERT | \
                    EFFECT_FLAG_VOLUME_IND | \
                    EFFECT_FLAG_DEVICE_IND | \
-                   EFFECT_FLAG_OFFLOAD_SUPPORTED)
+                   EFFECT_FLAG_OFFLOAD_SUPPORTED | \
+                   EFFECT_FLAG_NO_PROCESS)
 
 #define PRINT_STREAM_TYPE(i) ALOGV("descriptor found and is of stream type %s ",\
                                                             i == MUSIC?"MUSIC": \
@@ -202,6 +203,19 @@ pthread_mutex_t vol_listner_init_lock;
 /*
  *  Local functions
  */
+static bool verify_context(vol_listener_context_t *context)
+{
+    if (context->stream_type == VOICE_CALL)
+        return true;
+    else {
+        if (context->dev_id & AUDIO_DEVICE_OUT_SPEAKER ||
+            context->dev_id & AUDIO_DEVICE_OUT_BUS)
+            return true;
+        else
+            return false;
+    }
+}
+
 static void dump_list_l()
 {
     struct listnode *node;
@@ -247,8 +261,7 @@ static void check_and_set_gain_dep_cal()
     list_for_each(node, &vol_effect_list) {
         context = node_to_item(node, struct vol_listener_context_s, effect_list_node);
         if ((context->state == VOL_LISTENER_STATE_ACTIVE) &&
-            (context->dev_id & AUDIO_DEVICE_OUT_SPEAKER ||
-             context->dev_id & AUDIO_DEVICE_OUT_BUS) &&
+            verify_context(context) &&
             (new_vol < (context->left_vol + context->right_vol) / 2)) {
             new_vol = (context->left_vol + context->right_vol) / 2;
         }
@@ -453,9 +466,8 @@ static int vol_effect_command(effect_handle_t self,
 
         // After changing the state and if device is speaker
         // recalculate gain dep cal level
-        if (context->dev_id & AUDIO_DEVICE_OUT_SPEAKER ||
-            context->dev_id & AUDIO_DEVICE_OUT_BUS) {
-                check_and_set_gain_dep_cal();
+        if (verify_context(context)) {
+            check_and_set_gain_dep_cal();
         }
 
         break;
@@ -481,8 +493,7 @@ static int vol_effect_command(effect_handle_t self,
 
         // After changing the state and if device is speaker
         // recalculate gain dep cal level
-        if (context->dev_id & AUDIO_DEVICE_OUT_SPEAKER ||
-            context->dev_id & AUDIO_DEVICE_OUT_BUS) {
+        if (verify_context(context)) {
             check_and_set_gain_dep_cal();
         }
 
@@ -512,12 +523,15 @@ static int vol_effect_command(effect_handle_t self,
             ALOGV("%s :: EFFECT_CMD_SET_DEVICE: (current/new) device (0x%x / 0x%x)",
                    __func__, context->dev_id, new_device);
 
-            // check if old or new device is speaker
-            if ((context->dev_id & AUDIO_DEVICE_OUT_SPEAKER) ||
-                (new_device & AUDIO_DEVICE_OUT_SPEAKER) ||
-                (context->dev_id & AUDIO_DEVICE_OUT_BUS) ||
-                (new_device & AUDIO_DEVICE_OUT_BUS)) {
+            // check if old or new device is speaker for playback usecase
+            if (context->stream_type == VOICE_CALL)
                 recompute_gain_dep_cal_Level = true;
+            else {
+                if (context->dev_id & AUDIO_DEVICE_OUT_SPEAKER ||
+                    new_device & AUDIO_DEVICE_OUT_SPEAKER ||
+                    context->dev_id & AUDIO_DEVICE_OUT_BUS ||
+                    new_device & AUDIO_DEVICE_OUT_BUS)
+                    recompute_gain_dep_cal_Level = true;
             }
 
             context->dev_id = new_device;
@@ -541,8 +555,7 @@ static int vol_effect_command(effect_handle_t self,
                 goto exit;
             }
 
-            if (context->dev_id & AUDIO_DEVICE_OUT_SPEAKER ||
-                context->dev_id & AUDIO_DEVICE_OUT_BUS) {
+            if (verify_context(context)) {
                 recompute_gain_dep_cal_Level = true;
             }
 
@@ -729,8 +742,7 @@ static int vol_prc_lib_release(effect_handle_t handle)
             ALOGV("--- Found something to remove ---");
             list_remove(node);
             PRINT_STREAM_TYPE(context->stream_type);
-            if (context->dev_id & AUDIO_DEVICE_OUT_SPEAKER ||
-                context->dev_id & AUDIO_DEVICE_OUT_BUS) {
+            if (verify_context(context)) {
                 recompute_flag = true;
             }
             list_remove(&context->effect_list_node);
