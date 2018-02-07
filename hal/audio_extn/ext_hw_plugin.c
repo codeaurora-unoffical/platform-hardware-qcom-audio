@@ -39,6 +39,11 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 #include "platform.h"
 #include "audio_hal_plugin.h"
 
+#ifdef VHAL_HELPER_ENABLED
+    #include <vehicle-hal-audio-helper-for-c.h>
+    vehicle_hal_audio_helper_t *vhal_audio_helper;
+#endif
+
 #ifdef EXT_HW_PLUGIN_ENABLED
 
 typedef int32_t (*audio_hal_plugin_init_t)(void);
@@ -555,6 +560,35 @@ done_dword_to_string:
 
 int32_t audio_extn_ext_hw_plugin_set_parameters(void *plugin, struct str_parms *parms)
 {
+
+#ifdef VHAL_HELPER_ENABLED
+    const char *str;
+    int ret;
+
+    if ( parms == NULL) {
+        ALOGE("[%s] received null pointer",__func__);
+        return -EINVAL;
+    }
+    str = str_parms_to_str(parms);
+
+    if (vhal_audio_helper == NULL) {
+        vhal_audio_helper = vehicle_hal_audio_helper_create_with_default_timeout();
+        if (vhal_audio_helper == NULL) {
+            ALOGE("%s: vhal audio helper not allocated", __func__);
+            return -EINVAL;
+        }
+    }
+
+    ALOGD("%s: params = %s",__func__,str);
+    // notify stream params.
+    ret = vehicle_hal_audio_helper_set_parameters(vhal_audio_helper, (const char*)str);
+    if ( ret < 0 ) {
+        ALOGE("%s: set parameters failed",__func__);
+        return -EINVAL;
+    }
+    return 0;
+#else
+
     char *value = NULL;
     int32_t val, len = 0;
     int32_t ret = 0, err;
@@ -994,11 +1028,46 @@ done:
     if(value != NULL)
         free(value);
     return ret;
+#endif
 }
 
 int audio_extn_ext_hw_plugin_get_parameters(void *plugin,
                   struct str_parms *query, struct str_parms *reply)
 {
+
+#ifdef VHAL_HELPER_ENABLED
+    const char *v_reply, *a_query;
+    int len = 0;
+    struct str_parms *rly = str_parms_create();
+
+    if(query == NULL || reply == NULL) {
+        ALOGE("[%s] received null pointer",__func__);
+        return -EINVAL;
+    }
+
+    a_query = str_parms_to_str(query);
+    len = strlen(a_query);
+    ALOGD("%s: query = %s",__func__,a_query);
+
+    if (vhal_audio_helper == NULL) {
+        vhal_audio_helper = vehicle_hal_audio_helper_create_with_default_timeout();
+        if (vhal_audio_helper == NULL) {
+            ALOGE("%s: vhal audio helper not allocated", __func__);
+        }
+    }
+
+    // notify stream params.
+    v_reply = vehicle_hal_audio_helper_get_parameters(vhal_audio_helper, (const char*)a_query);
+    if (v_reply == NULL) {
+        ALOGE("get parameters failed");
+        return -EINVAL;
+    }
+    memset(reply,0,sizeof(len+1));
+    rly = str_parms_create_str(v_reply);
+    memcpy(reply,rly,sizeof(len+1));
+    free(rly);
+    return 0;
+#else
     char *value = NULL;
     int32_t val, len = 0;;
     int32_t ret = 0, err;
@@ -1432,6 +1501,7 @@ done:
     if(value != NULL)
         free(value);
     return ret;
+#endif
 }
 
 int audio_extn_ext_hw_plugin_set_mic_mute(void *plugin, bool mute)

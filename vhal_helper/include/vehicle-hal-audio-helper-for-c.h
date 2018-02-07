@@ -55,6 +55,18 @@ vehicle_hal_audio_helper_t* vehicle_hal_audio_helper_create_with_default_timeout
 void vehicle_hal_audio_helper_destroy(vehicle_hal_audio_helper_t* helper);
 
 /**
+ * set audio params.
+ */
+int32_t vehicle_hal_audio_helper_set_parameters(vehicle_hal_audio_helper_t* helper,
+        const char* query);
+
+/**
+ *  get audio params.
+ */
+const char* vehicle_hal_audio_helper_get_parameters(vehicle_hal_audio_helper_t* helper,
+                const char* query);
+
+/**
  * Notify stream start and reset focus timeout timer if it is not reset already.
  */
 void vehicle_hal_audio_helper_notify_stream_started(vehicle_hal_audio_helper_t* helper,

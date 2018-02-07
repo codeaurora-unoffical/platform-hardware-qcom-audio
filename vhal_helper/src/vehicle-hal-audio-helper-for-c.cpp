@@ -106,4 +106,38 @@ int vehicle_hal_audio_helper_wait_for_stream_focus(vehicle_hal_audio_helper_t* h
     return 0;
 }
 
+int32_t vehicle_hal_audio_helper_set_parameters(vehicle_hal_audio_helper_t* helper,
+        const char *query) {
+    int32_t ret;
+    if (helper == NULL) { // caller should validate helper
+        ALOGE(" vhal helper is NULL");
+        return 0;
+    }
+    android::VehicleHalAudioHelper* helperObj =
+            (android::VehicleHalAudioHelper*) helper->obj;
+    ret = helperObj->setParameters(query);
+    if (ret < 0){
+        ALOGE("%s: set parameters failed",__func__);
+        return ret;
+    }
+    return 0;
+}
+
+const char* vehicle_hal_audio_helper_get_parameters(vehicle_hal_audio_helper_t* helper,
+        const char *query) {
+    const char *reply = NULL;
+    if (helper == NULL) { // caller should validate helper
+        ALOGE("vhal helper handle is NULL");
+        return NULL;
+    }
+    android::VehicleHalAudioHelper* helperObj =
+            (android::VehicleHalAudioHelper*) helper->obj;
+    reply = helperObj->getParameters(query);
+    if (reply == NULL) {
+        ALOGE("%s: get parameters failed",__func__);
+        return NULL;
+    }
+    return reply;
+}
+
 }

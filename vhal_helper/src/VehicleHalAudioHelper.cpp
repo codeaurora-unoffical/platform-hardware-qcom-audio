@@ -157,6 +157,50 @@ static int32_t streamFlagToStreamNumber(int32_t streamFlag) {
     return -1;
 }
 
+int32_t VehicleHalAudioHelper::setParameters(const char* query) {
+    Mutex::Autolock autoLock(mLock);
+
+    mAudioParams.prop = static_cast<int32_t>(VehicleProperty::AUDIO_PARAMETERS);
+    mAudioParams.value.stringValue = query;
+
+    StatusCode status = invokeSet(&mAudioParams);
+    if (status != StatusCode::OK) {
+        ALOGE("setParameters, failed with status %d",
+            status);
+        return BAD_VALUE;
+    }
+    return OK;
+}
+
+const char* VehicleHalAudioHelper::getParameters(const char* query) {
+    const char* reply = NULL;
+    Mutex::Autolock autoLock(mLock);
+
+    mAudioParams.prop = static_cast<int32_t>(VehicleProperty::AUDIO_PARAMETERS);
+    mAudioParams.value.stringValue = query;
+
+    if(mVehicle.get() == NULL) {
+        ALOGE("%s: Vehicle Interface is not initialized", __func__);
+        return NULL;
+    } else {
+        StatusCode status = invokeGet(&mAudioParams);
+        if (status != StatusCode::OK) {
+            ALOGE("getParameters, failed with status %d",
+            status);
+            return NULL;
+        }
+
+        reply = mAudioParams.value.stringValue.c_str();
+        if (reply == NULL) {
+            ALOGE("%s: getParameters failed, retuning null",__func__);
+            return NULL;
+        }
+    }
+
+    return reply;
+
+}
+
 void VehicleHalAudioHelper::notifyStreamStarted(int32_t stream) {
 
     LOGD("notifyStreamStarted, stream:0x%x", stream);
