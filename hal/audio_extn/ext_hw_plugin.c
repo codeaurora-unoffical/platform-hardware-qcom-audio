@@ -225,6 +225,12 @@ static int32_t ext_hw_plugin_check_plugin_usecase(audio_usecase_t hal_usecase,
     case USECASE_ANC_LOOPBACK:
         *plugin_usecase = AUDIO_HAL_PLUGIN_USECASE_ANC;
         break;
+    case USECASE_AUDIO_LINE_IN_PASSTHROUGH:
+        *plugin_usecase = AUDIO_HAL_PLUGIN_USECASE_LINE_IN_PASSTHROUGH;
+        break;
+    case USECASE_AUDIO_HDMI_IN_PASSTHROUGH:
+        *plugin_usecase = AUDIO_HAL_PLUGIN_USECASE_HDMI_IN_PASSTHROUGH;
+        break;
     default:
         ret = -EINVAL;
     }

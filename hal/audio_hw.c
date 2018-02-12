@@ -251,6 +251,9 @@ const char * const use_case_table[AUDIO_USECASE_MAX] = {
     [USECASE_AUDIO_PLAYBACK_MEDIA] = "media-playback",
     [USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION] = "sys-notification-playback",
 #endif
+    [USECASE_AUDIO_LINE_IN_PASSTHROUGH] = "line-in-passthrough",
+    [USECASE_AUDIO_HDMI_IN_PASSTHROUGH] = "hdmi-in-passthrough",
+
 };
 
 static const audio_usecase_t offload_usecases[] = {
@@ -4402,6 +4405,24 @@ static int adev_create_audio_patch(struct audio_hw_device *dev,
             uc_info->type = PCM_PASSTHROUGH;
             uc_info->devices = AUDIO_DEVICE_IN_FM_TUNER;
             uc_info->in_snd_device = SND_DEVICE_IN_CAPTURE_FM;
+            uc_info->out_snd_device = SND_DEVICE_OUT_SPEAKER;
+            break;
+#endif
+#ifdef LINE_IN_PASSTHROUGH_ENABLED
+       case AUDIO_DEVICE_IN_LINE:
+            uc_info->id = USECASE_AUDIO_LINE_IN_PASSTHROUGH;
+            uc_info->type = PCM_PASSTHROUGH;
+            uc_info->devices = AUDIO_DEVICE_IN_LINE;
+            uc_info->in_snd_device = SND_DEVICE_IN_LINE;
+            uc_info->out_snd_device = SND_DEVICE_OUT_SPEAKER;
+            break;
+#endif
+#ifdef HDMI_IN_PASSTHROUGH_ENABLED
+        case AUDIO_DEVICE_IN_HDMI:
+            uc_info->id = USECASE_AUDIO_HDMI_IN_PASSTHROUGH;
+            uc_info->type = PCM_PASSTHROUGH;
+            uc_info->devices = AUDIO_DEVICE_IN_HDMI;
+            uc_info->in_snd_device = SND_DEVICE_IN_HDMI_MIC;
             uc_info->out_snd_device = SND_DEVICE_OUT_SPEAKER;
             break;
 #endif

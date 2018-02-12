@@ -254,6 +254,14 @@ ifeq ($(strip $(AUDIO_FEATURE_ENABLED_SOURCE_TRACKING)),true)
     LOCAL_SRC_FILES += audio_extn/source_track.c
 endif
 
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_LINE_IN_PASSTHROUGH)),true)
+    LOCAL_CFLAGS += -DLINE_IN_PASSTHROUGH_ENABLED
+endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_HDMI_IN_PASSTHROUGH)),true)
+    LOCAL_CFLAGS += -DHDMI_IN_PASSTHROUGH_ENABLED
+endif
+
 LOCAL_SHARED_LIBRARIES := \
 	liblog \
 	libcutils \

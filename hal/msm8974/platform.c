@@ -340,6 +340,9 @@ static int pcm_device_table[AUDIO_USECASE_MAX][2] = {
     [USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION] = {SYS_NOTIFICATION_PCM_DEVICE,
                                                  SYS_NOTIFICATION_PCM_DEVICE},
 #endif
+    [USECASE_AUDIO_LINE_IN_PASSTHROUGH] = {-1, -1},
+    [USECASE_AUDIO_HDMI_IN_PASSTHROUGH] = {-1, -1},
+
 };
 
 /* Array to store sound devices */
@@ -442,6 +445,7 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_SPEAKER_QMIC_NS] = "quad-mic",
     [SND_DEVICE_IN_SPEAKER_QMIC_AEC_NS] = "quad-mic",
     [SND_DEVICE_IN_BUS] = "bus-mic",
+    [SND_DEVICE_IN_LINE] = "line-in",
 };
 
 // Platform specific backend bit width table
@@ -3016,7 +3020,7 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
 
     if (snd_device != AUDIO_DEVICE_NONE)
         goto exit;
-     
+
     if (my_data->ec_car_state) {
         ALOGE("%s: EC is enabled", __func__);
         snd_device = SND_DEVICE_IN_SPEAKER_QMIC_AEC;
@@ -3037,7 +3041,7 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
 
     if (snd_device != SND_DEVICE_NONE) {
         goto exit;
-    }    
+    }
 
     if ((out_device != AUDIO_DEVICE_NONE) && ((mode == AUDIO_MODE_IN_CALL) ||
         voice_extn_compress_voip_is_active(adev) || audio_extn_hfp_is_active(adev) || audio_extn_icc_is_active(adev) || audio_extn_anc_is_active(adev) )) {
@@ -3990,7 +3994,7 @@ void platform_get_parameters(void *platform,
 
         str_parms_add_str(reply, AUDIO_PARAMETER_KEY_VOLUME_BOOST, value);
     }
-    
+
     ret = str_parms_get_str(query,AUDIO_PARAMETER_KEY_EC_CAR_STATE,
                             value,sizeof(value));
     if (ret >= 0) {
