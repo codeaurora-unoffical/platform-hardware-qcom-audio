@@ -603,7 +603,7 @@ void *start_stream_playback (void* stream_data)
     if (rc) {
         fprintf(log_file, "stream %d: could not open output stream, error - %d \n", params->stream_index, rc);
         fprintf(stderr, "stream %d: could not open output stream, error - %d \n", params->stream_index, rc);
-        pthread_exit(0);
+        return NULL;
     }
 
     fprintf(log_file, "stream %d: open output stream is success, out_handle %p\n", params->stream_index, params->out_handle);
@@ -628,14 +628,14 @@ void *start_stream_playback (void* stream_data)
             if (!(params->kvpair_values)) {
                fprintf(log_file, "stream %d: error!!No metadata for the clip\n", params->stream_index);
                fprintf(stderr, "stream %d: error!!No metadata for the clip\n", params->stream_index);
-               pthread_exit(0);;
+               return NULL;
             }
             read_kvpair(kvpair, params->kvpair_values, params->filetype);
             rc = qahw_out_set_parameters(params->out_handle, kvpair);
             if(rc){
                 fprintf(log_file, "stream %d: failed to set kvpairs\n", params->stream_index);
                 fprintf(stderr, "stream %d: failed to set kvpairs\n", params->stream_index);
-                pthread_exit(0);;
+                return NULL;
             }
             fprintf(log_file, "stream %d: kvpairs are set\n", params->stream_index);
             break;
@@ -668,7 +668,7 @@ void *start_stream_playback (void* stream_data)
         if (rc < 0) {
             fprintf(log_file, "stream %d: could not create effect command thread!\n", params->stream_index);
             fprintf(stderr, "stream %d: could not create effect command thread!\n", params->stream_index);
-            pthread_exit(0);
+            return NULL;
         }
 
         fprintf(log_file, "stream %d: loading effects\n", params->stream_index);
@@ -687,7 +687,7 @@ void *start_stream_playback (void* stream_data)
             notify_effect_command(params->ethread_data, EFFECT_CMD, QAHW_EFFECT_CMD_SET_DEVICE, sizeof(audio_devices_t), &(params->output_device));
 
             // Enable and Set default values
-            params->ethread_data->default_value = params->effect_preset_strength; 
+            params->ethread_data->default_value = params->effect_preset_strength;
             params->ethread_data->default_flag = true;
             notify_effect_command(params->ethread_data, EFFECT_CMD, QAHW_EFFECT_CMD_ENABLE, 0, NULL);
         }
@@ -760,7 +760,7 @@ void *start_stream_playback (void* stream_data)
     if (data_ptr == NULL) {
         fprintf(log_file, "stream %d: failed to allocate data buffer\n", params->stream_index);
         fprintf(stderr, "stream %d: failed to allocate data buffer\n", params->stream_index);
-        pthread_exit(0);
+        return NULL;
     }
 
     latency = qahw_out_get_latency(params->out_handle);
