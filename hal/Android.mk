@@ -322,6 +322,16 @@ ifeq ($(strip $(AUDIO_FEATURE_ENABLED_DRIVER_SIDE_PLAYBACK)),true)
     LOCAL_CFLAGS += -DDRIVER_SIDE_PLAYBACK_ENABLED
 endif
 
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_BUS_ADDRESS)),true)
+    LOCAL_CFLAGS += -DBUS_ADDRESS_ENABLED
+endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_VHAL_HELPER)),true)
+    LOCAL_CFLAGS += -DVHAL_HELPER_ENABLED
+    LOCAL_C_INCLUDES += hardware/qcom/audio/vhal_helper/include
+    LOCAL_SHARED_LIBRARIES += libvehiclehalaudiohelper
+endif
+
 LOCAL_MODULE := audio.primary.$(TARGET_BOARD_PLATFORM)
 
 LOCAL_MODULE_RELATIVE_PATH := hw

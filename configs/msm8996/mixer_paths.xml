@@ -1568,7 +1568,7 @@
         <!--ctl name="QUAT_TDM_RX_0 Channels" value="Eight" /-->
     </path>
 
-    <path name="bus">
+    <path name="bus-speaker">
         <!--ctl name="QUAT_TDM_RX_0 Channels" value="Six" /-->
     </path>
 

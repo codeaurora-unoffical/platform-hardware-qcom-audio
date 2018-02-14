@@ -2179,55 +2179,6 @@ AudioPolicyManagerCustom::AudioPolicyManagerCustom(AudioPolicyClientInterface *c
     char ssr_enabled[PROPERTY_VALUE_MAX] = {0};
     bool prop_ssr_enabled = false;
 
-#ifdef DRIVER_SIDE_PLAYBACK_ENABLED
-    audio_module_handle_t moduleHandle;
-    audio_config_t config;
-    audio_io_handle_t handle = AUDIO_IO_HANDLE_NONE;
-    status_t status;
-
-    if (mPrimaryOutput != 0) {
-        mDriverSideProfile = new IOProfile(String8("driver-side"), AUDIO_PORT_ROLE_SOURCE);
-        mDriverSideProfile->attach(mPrimaryOutput->mPort->mModule);
-        mDriverSideProfile->getAudioProfiles().addProfileFromHal(new AudioProfile(AUDIO_FORMAT_PCM_16_BIT,
-                                      AUDIO_CHANNEL_OUT_STEREO, 48000));
-        mDriverSideProfile->addSupportedDevice(mDefaultOutputDevice);
-        mDriverSideProfile->setFlags((audio_output_flags_t)(AUDIO_OUTPUT_FLAG_DRIVER_SIDE));
-        mPrimaryOutput->mPort->mModule->mOutputProfiles.add(mDriverSideProfile);
-
-        moduleHandle = mPrimaryOutput->getModuleHandle();
-
-        mDriverSideOutput = new SwAudioOutputDescriptor(mDriverSideProfile,
-                                                        mpClientInterface);
-        mDriverSideOutput->mDevice = AUDIO_DEVICE_OUT_SPEAKER;
-
-        config = AUDIO_CONFIG_INITIALIZER;
-        config.sample_rate = 48000;
-        config.channel_mask = AUDIO_CHANNEL_OUT_STEREO;
-        config.format = AUDIO_FORMAT_PCM_16_BIT;
-
-        status = mpClientInterface->openOutput(moduleHandle,
-                                               &handle,
-                                               &config,
-                                               &mDriverSideOutput->mDevice,
-                                               String8(""),
-                                               &mDriverSideOutput->mLatency,
-                                               mDriverSideOutput->mFlags);
-
-        if (status != NO_ERROR) {
-            ALOGE("Cannot open driver side output stream.");
-        } else {
-            mDriverSideOutput->mSamplingRate = config.sample_rate;
-            mDriverSideOutput->mChannelMask = config.channel_mask;
-            mDriverSideOutput->mFormat = config.format;
-
-            addOutput(handle, mDriverSideOutput);
-            setOutputDevice(mDriverSideOutput,
-                            mDriverSideOutput->mDevice,
-                            true);
-        }
-    }
-#endif
-
     if (property_get("ro.qc.sdk.audio.ssr", ssr_enabled, NULL)) {
         prop_ssr_enabled = atoi(ssr_enabled) || !strncmp("true", ssr_enabled, 4);
     }

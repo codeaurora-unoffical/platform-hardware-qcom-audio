@@ -378,6 +378,7 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_OUT_VOICE_SPEAKER_PROTECTED] = "voice-speaker-protected",
     [SND_DEVICE_OUT_SPEAKER_PROTECTED_VBAT] = "speaker-protected-vbat",
     [SND_DEVICE_OUT_VOICE_SPEAKER_PROTECTED_VBAT] = "voice-speaker-protected-vbat",
+    [SND_DEVICE_OUT_BUS] = "bus-speaker",
 
     /* Capture sound devices */
     [SND_DEVICE_IN_HANDSET_MIC] = "handset-mic",
@@ -435,6 +436,7 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_SPEAKER_QMIC_AEC] = "quad-mic",
     [SND_DEVICE_IN_SPEAKER_QMIC_NS] = "quad-mic",
     [SND_DEVICE_IN_SPEAKER_QMIC_AEC_NS] = "quad-mic",
+    [SND_DEVICE_IN_BUS] = "bus-mic",
 };
 
 // Platform specific backend bit width table
@@ -2945,6 +2947,10 @@ snd_device_t platform_get_output_snd_device(void *platform, struct stream_out *o
         ALOGD("%s: setting sink capability(%d) for Proxy", __func__, channel_count);
         audio_extn_set_afe_proxy_channel_mixer(adev, channel_count);
         snd_device = SND_DEVICE_OUT_AFE_PROXY;
+#endif
+#ifdef BUS_ADDRESS_ENABLED
+    } else if (devices & AUDIO_DEVICE_OUT_BUS) {
+        snd_device = SND_DEVICE_OUT_BUS;
 #endif
     } else {
         ALOGE("%s: Unknown device(s) %#x", __func__, devices);

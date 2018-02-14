@@ -48,6 +48,10 @@
 #include "audio_defs.h"
 #include "voice.h"
 
+#ifdef VHAL_HELPER_ENABLED
+#include <vehicle-hal-audio-helper-for-c.h>
+#endif
+
 #define VISUALIZER_LIBRARY_PATH "/vendor/lib/soundfx/libqcomvisualizer.so"
 #define OFFLOAD_EFFECTS_BUNDLE_LIBRARY_PATH "/vendor/lib/soundfx/libqcompostprocbundle.so"
 #define ADM_LIBRARY_PATH "/vendor/lib/libadm.so"
@@ -234,6 +238,15 @@ struct stream_out {
     bool send_next_track_params;
     bool is_compr_metadata_avail;
     unsigned int bit_width;
+
+#ifdef BUS_ADDRESS_ENABLED
+    char address[AUDIO_DEVICE_MAX_ADDRESS_LEN];
+    int car_audio_stream;
+#endif
+
+#ifdef VHAL_HELPER_ENABLED
+    vehicle_hal_audio_helper_t *vhal_audio_helper;
+#endif
 
     struct audio_device *dev;
 };
