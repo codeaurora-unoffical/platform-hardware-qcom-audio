@@ -80,6 +80,7 @@ typedef void (*clear_a2dpsuspend_flag_t)(void);
 typedef void * (*audio_get_codec_config_t)(uint8_t *multicast_status,uint8_t *num_dev,
                                audio_format_t *codec_type);
 typedef int (*audio_check_a2dp_ready_t)(void);
+typedef int (*audio_get_addl_latency_t)(void);
 
 enum A2DP_STATE {
     A2DP_STATE_CONNECTED,
@@ -104,6 +105,7 @@ struct a2dp_data {
     clear_a2dpsuspend_flag_t clear_a2dpsuspend_flag;
     audio_get_codec_config_t audio_get_codec_config;
     audio_check_a2dp_ready_t audio_check_a2dp_ready;
+    audio_get_addl_latency_t audio_get_addl_latency;
     enum A2DP_STATE bt_state;
     audio_format_t bt_encoder_format;
     uint32_t enc_sampling_rate;
@@ -112,6 +114,7 @@ struct a2dp_data {
     int  a2dp_total_active_session_request;
     bool is_a2dp_offload_supported;
     bool is_handoff_in_progress;
+    int  addl_latency;
 };
 
 struct a2dp_data a2dp;
@@ -248,6 +251,8 @@ static void open_a2dp_output()
                           dlsym(a2dp.bt_lib_handle, "audio_stream_close");
             a2dp.audio_check_a2dp_ready = (audio_check_a2dp_ready_t)
                         dlsym(a2dp.bt_lib_handle,"audio_check_a2dp_ready");
+            a2dp.audio_get_addl_latency = (audio_get_addl_latency_t)
+                        dlsym(a2dp.bt_lib_handle,"audio_get_addl_latency");
         }
     }
 
@@ -596,6 +601,14 @@ bool configure_a2dp_encoder_format()
             is_configured = false;
             break;
     }
+    //Get additional latency value.
+    if (a2dp.audio_get_addl_latency) {
+        a2dp.addl_latency = a2dp.audio_get_addl_latency();
+        if (a2dp.addl_latency < 0) {
+            ALOGW("Invalid latency value %d defaulting to 0", a2dp.addl_latency);
+            a2dp.addl_latency = 0;
+        }
+    }
     return is_configured;
 }
 
@@ -827,6 +840,7 @@ void audio_extn_a2dp_init (void *adev)
   a2dp.enc_sampling_rate = 48000;
   a2dp.is_a2dp_offload_supported = false;
   a2dp.is_handoff_in_progress = false;
+  a2dp.addl_latency = 0;
   update_offload_codec_capabilities();
 }
 
@@ -864,6 +878,7 @@ uint32_t audio_extn_a2dp_get_encoder_latency()
             latency = 200;
             break;
     }
+    latency =  latency + a2dp.addl_latency;
     return latency;
 }
 #endif // SPLIT_A2DP_ENABLED
