@@ -247,6 +247,10 @@ const char * const use_case_table[AUDIO_USECASE_MAX] = {
     [USECASE_AUDIO_FM_TUNER_EXT] = "fm-tuner-ext",
     [USECASE_ICC_CALL] = "icc-call",
     [USECASE_ANC_LOOPBACK] = "anc-loopback",
+#ifdef BUS_ADDRESS_ENABLED
+    [USECASE_AUDIO_PLAYBACK_MEDIA] = "media-playback",
+    [USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION] = "sys-notification-playback",
+#endif
 };
 
 static const audio_usecase_t offload_usecases[] = {
@@ -3179,6 +3183,8 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
             return -EINVAL;
         }
     }
+    // FIXME: Bus address validation for uniqueness. Framework does not support
+    //        multiple streams over same bus address.
 #endif
 
     pthread_mutex_lock(&adev->lock);
@@ -3445,19 +3451,23 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
         out->sample_rate = out->config.rate;
 #ifdef BUS_ADDRESS_ENABLED
     } else if (out->devices & AUDIO_DEVICE_OUT_BUS) {
-        /* For streams with bus device, currently falls into legacy use case.
-           For extended support, car specific output flag and use case should
-           be introduced and stream configuration should be assigned to handle
-           mixer path and codec related control. */
         switch(car_audio_stream) {
         case CAR_AUDIO_STREAM_MEDIA:
-            /* media bus will fall into legacy usecases per output flag */
+            /* FIXME: media bus stream shares pcm device with deep-buffer */
+            format = AUDIO_FORMAT_PCM_16_BIT;
+            out->usecase = USECASE_AUDIO_PLAYBACK_MEDIA;
+            out->config = pcm_config_deep_buffer;
+            out->sample_rate = out->config.rate;
             break;
         case CAR_AUDIO_STREAM_SYS_NOTIFICATION:
-            /* nav guidance bus will fall into legacy low latency usecase per output flag*/
+            /* FIXME: sys notification bus stream shares pcm device with low-latency */
+            format = AUDIO_FORMAT_PCM_16_BIT;
+            out->usecase = USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION;
+            out->config = pcm_config_low_latency;
+            out->sample_rate = out->config.rate;
             break;
         case CAR_AUDIO_STREAM_NAV_GUIDANCE:
-            /* nav guidance bus will fall into legacy driver side usecase */
+            /* nav guidance bus will fall into legacy driver-side */
 #ifdef DRIVER_SIDE_PLAYBACK_ENABLED
             format = AUDIO_FORMAT_PCM_16_BIT;
             out->usecase = USECASE_AUDIO_PLAYBACK_DRIVER_SIDE;
@@ -3485,12 +3495,12 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
         /* save car audio stream and address for bus device */
         out->car_audio_stream = car_audio_stream;
         strncpy(out->address, address, AUDIO_DEVICE_MAX_ADDRESS_LEN);
-        ALOGV("%s address %s, car_audio_stream %x",
+        ALOGV("%s: address %s, car_audio_stream %x",
             __func__, out->address, out->car_audio_stream);
     }
 #endif
 
-    ALOGV("%s devices %d, flags %x, format %x, out->sample_rate %d, out->bit_width %d",
+    ALOGV("%s: devices %d, flags %x, format %x, out->sample_rate %d, out->bit_width %d",
            __func__, devices, flags, format, out->sample_rate, out->bit_width);
     /* TODO remove this hardcoding and check why width is zero*/
     if (out->bit_width == 0)

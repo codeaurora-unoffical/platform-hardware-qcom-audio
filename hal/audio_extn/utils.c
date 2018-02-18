@@ -792,6 +792,10 @@ int audio_extn_utils_send_app_type_cfg(struct audio_device *adev,
         (usecase->id != USECASE_AUDIO_PLAYBACK_LOW_LATENCY) &&
         (usecase->id != USECASE_AUDIO_PLAYBACK_MULTI_CH) &&
         (usecase->id != USECASE_AUDIO_PLAYBACK_DRIVER_SIDE) &&
+#ifdef BUS_ADDRESS_ENABLED
+        (usecase->id != USECASE_AUDIO_PLAYBACK_MEDIA) &&
+        (usecase->id != USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION) &&
+#endif
         (!is_offload_usecase(usecase->id)) &&
         (usecase->type != PCM_CAPTURE) &&
         (usecase->id != USECASE_AUDIO_HFP_SCO_UPLINK) &&

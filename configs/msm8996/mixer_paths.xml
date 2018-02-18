@@ -869,6 +869,17 @@
         <path name="compress-offload-playback9" />
     </path>
 
+    <!-- The following use cases are used for bus streams  -->
+    <path name="media-playback">
+        <ctl name="QUAT_TDM_RX_0 Channels" value="Two" />
+        <ctl name="QUAT_TDM_RX_0 Audio Mixer MultiMedia1" value="1" />
+    </path>
+
+    <path name="sys-notification-playback">
+        <ctl name="QUAT_TDM_RX_0 Channels" value="Two" />
+        <ctl name="QUAT_TDM_RX_0 Audio Mixer MultiMedia5" value="1" />
+    </path>
+
     <!-- The following use case uses PRI_RX and maps to  -->
     <!-- AUDIO_HAL_PLUGIN_USECASE_DRIVER_SIDE_PLAYBACK  -->
     <path name="driver-side-playback">
@@ -1568,7 +1579,7 @@
         <!--ctl name="QUAT_TDM_RX_0 Channels" value="Eight" /-->
     </path>
 
-    <path name="bus-speaker">
+    <path name="bus-speaker-agave">
         <!--ctl name="QUAT_TDM_RX_0 Channels" value="Six" /-->
     </path>
 

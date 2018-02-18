@@ -171,7 +171,8 @@ int bass_set_device(effect_context_t *context, uint32_t device)
 {
     bass_context_t *bass_ctxt = (bass_context_t *)context;
 
-    if (device == AUDIO_DEVICE_OUT_SPEAKER) {
+    if (device == AUDIO_DEVICE_OUT_SPEAKER ||
+        device == AUDIO_DEVICE_OUT_BUS) {
         bass_ctxt->active_index = BASS_PBE;
         ALOGV("%s: set PBE mode, device: %x", __func__, device);
     } else if (device == AUDIO_DEVICE_OUT_WIRED_HEADSET ||
@@ -508,7 +509,8 @@ int pbe_set_device(effect_context_t *context, uint32_t device)
                               !strncmp("true", propValue, 4);
     }
 
-    if (device == AUDIO_DEVICE_OUT_SPEAKER && pbe_enabled_by_prop == true) {
+    if ((device == AUDIO_DEVICE_OUT_SPEAKER || device == AUDIO_DEVICE_OUT_BUS) &&
+        pbe_enabled_by_prop == true) {
         if (pbe_ctxt->temp_disabled) {
             if (effect_is_active(&pbe_ctxt->common)) {
                 offload_pbe_set_enable_flag(&(pbe_ctxt->offload_pbe), true);

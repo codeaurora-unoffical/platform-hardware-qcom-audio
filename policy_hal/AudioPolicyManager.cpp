@@ -2111,13 +2111,14 @@ status_t AudioPolicyManagerCustom::setStreamVolumeIndex(audio_stream_type_t stre
     if ((device == AUDIO_DEVICE_OUT_DEFAULT) &&
             ((stream != AUDIO_STREAM_MUSIC) ||
             (!mVolumeCurves->getVolumeIndex(stream, getDeviceForStrategy(getStrategy(stream), true))))){
-                mVolumeCurves->clearCurrentVolumeIndex(stream);
+        mVolumeCurves->clearCurrentVolumeIndex(stream);
     }
-        mVolumeCurves->addCurrentVolumeIndex((audio_stream_type_t)stream, device, index);
+    mVolumeCurves->addCurrentVolumeIndex((audio_stream_type_t)stream, device, index);
 
     // update volume on all outputs whose current device is also selected by the same
     // strategy as the device specified by the caller
     audio_devices_t strategyDevice = getDeviceForStrategy(getStrategy(stream), true /*fromCache*/);
+    int strategyIndex = mVolumeCurves->getVolumeIndex(stream, strategyDevice);
 
     //FIXME: AUDIO_STREAM_ACCESSIBILITY volume follows AUDIO_STREAM_MUSIC for now
     audio_devices_t accessibilityDevice = AUDIO_DEVICE_NONE;
@@ -2133,9 +2134,19 @@ status_t AudioPolicyManagerCustom::setStreamVolumeIndex(audio_stream_type_t stre
     for (size_t i = 0; i < mOutputs.size(); i++) {
         sp<SwAudioOutputDescriptor> desc = mOutputs.valueAt(i);
         audio_devices_t curDevice = Volume::getDeviceForVolume(desc->device());
+
+        // FIXME: AUDIO_DEVICE_OUT_BUS device volume follows Strategy device for now
+        if (((curDevice & AUDIO_DEVICE_OUT_BUS) != 0) &&
+                (mVolumeCurves->getVolumeIndex(stream, curDevice) != strategyIndex)) {
+            mVolumeCurves->addCurrentVolumeIndex((audio_stream_type_t)stream, curDevice, strategyIndex);
+        }
+        ALOGV("setStreamVolumeIndex() curDevice %04x, strategyDevice %04x, curIndex %d",
+              curDevice, strategyDevice, mVolumeCurves->getVolumeIndex(stream, curDevice));
+
         if ((device == AUDIO_DEVICE_OUT_DEFAULT) || ((curDevice & strategyDevice) != 0)) {
             status_t volStatus = checkAndSetVolume(stream,
-                                                   ((stream == AUDIO_STREAM_MUSIC) ?
+                                                   (((stream == AUDIO_STREAM_MUSIC) ||
+                                                     ((curDevice & AUDIO_DEVICE_OUT_BUS) != 0)) ?
                                                        mVolumeCurves->getVolumeIndex(stream, curDevice) : index),
                                                    desc,
                                                    curDevice);
