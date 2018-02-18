@@ -334,7 +334,12 @@ static int pcm_device_table[AUDIO_USECASE_MAX][2] = {
     [USECASE_AUDIO_FM_TUNER_EXT] = {-1, -1},
     [USECASE_ICC_CALL] = {ICC_PCM_DEVICE, ICC_PCM_DEVICE},
     [USECASE_ANC_LOOPBACK] = {ANC_PCM_DEVICE, ANC_PCM_DEVICE},
-
+#ifdef BUS_ADDRESS_ENABLED
+    [USECASE_AUDIO_PLAYBACK_MEDIA] = {MEDIA_PCM_DEVICE,
+                                      MEDIA_PCM_DEVICE},
+    [USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION] = {SYS_NOTIFICATION_PCM_DEVICE,
+                                                 SYS_NOTIFICATION_PCM_DEVICE},
+#endif
 };
 
 /* Array to store sound devices */
@@ -716,6 +721,10 @@ static struct name_to_index usecase_name_index[AUDIO_USECASE_MAX] = {
     {TO_NAME_INDEX(USECASE_AUDIO_FM_TUNER_EXT)},
     {TO_NAME_INDEX(USECASE_ICC_CALL)},
     {TO_NAME_INDEX(USECASE_ANC_LOOPBACK)},
+#ifdef BUS_ADDRESS_ENABLED
+    {TO_NAME_INDEX(USECASE_AUDIO_PLAYBACK_MEDIA)},
+    {TO_NAME_INDEX(USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION)},
+#endif
 };
 
 #define NO_COLS 2
@@ -836,7 +845,8 @@ bool platform_send_gain_dep_cal(void *platform, int level) {
 
             if (usecase != NULL &&
                 usecase->type == PCM_PLAYBACK &&
-                usecase->stream.out->devices == AUDIO_DEVICE_OUT_SPEAKER) {
+                (usecase->stream.out->devices == AUDIO_DEVICE_OUT_SPEAKER ||
+                 usecase->stream.out->devices == AUDIO_DEVICE_OUT_BUS)) {
 
                 ALOGV("%s: out device is %d", __func__,  usecase->out_snd_device);
                 app_type = usecase->stream.out->app_type_cfg.app_type;
@@ -844,7 +854,12 @@ bool platform_send_gain_dep_cal(void *platform, int level) {
                 if (audio_extn_spkr_prot_is_enabled()) {
                     acdb_dev_id = audio_extn_spkr_prot_get_acdb_id(usecase->out_snd_device);
                 } else {
+#ifdef EXT_HW_PLUGIN_ENABLED
+                    acdb_dev_id = platform_get_usecase_acdb_id(platform, usecase,
+                                                               ACDB_DEV_TYPE_OUT);
+#else
                     acdb_dev_id = acdb_device_table[usecase->out_snd_device];
+#endif
                 }
 
                 if (!my_data->acdb_send_gain_dep_cal(acdb_dev_id, app_type,
@@ -1139,19 +1154,19 @@ static void set_platform_defaults()
     hw_interface_table[USECASE_AUDIO_RECORD_COMPRESS] = strdup("QUAT_TDM_TX_0");
     hw_interface_table[USECASE_AUDIO_RECORD_LOW_LATENCY] = strdup("QUAT_TDM_TX_0");
     hw_interface_table[USECASE_AUDIO_RECORD_FM_VIRTUAL] = strdup("QUAT_TDM_TX_0");
-    hw_interface_table[USECASE_AUDIO_PLAYBACK_FM] = strdup("SLIMBUS_0_RX");
+    hw_interface_table[USECASE_AUDIO_PLAYBACK_FM] = strdup("QUAT_TDM_RX_0");
     hw_interface_table[USECASE_AUDIO_HFP_SCO_UPLINK] = strdup("QUAT_TDM_TX_0");
     hw_interface_table[USECASE_AUDIO_HFP_SCO_DOWNLINK] = strdup("QUAT_TDM_RX_2");
     hw_interface_table[USECASE_AUDIO_HFP_SCO_WB_UPLINK] = strdup("QUAT_TDM_TX_0");
     hw_interface_table[USECASE_AUDIO_HFP_SCO_WB_DOWNLINK] = strdup("QUAT_TDM_RX_2");
-    hw_interface_table[USECASE_VOICE_CALL] = strdup("SLIM_0_RX");
-    hw_interface_table[USECASE_VOICE2_CALL] = strdup("SLIM_0_RX");
-    hw_interface_table[USECASE_VOLTE_CALL] = strdup("SLIM_0_RX");
-    hw_interface_table[USECASE_QCHAT_CALL] = strdup("SLIM_0_RX");
-    hw_interface_table[USECASE_VOWLAN_CALL] = strdup("SLIM_0_RX");
+    hw_interface_table[USECASE_VOICE_CALL] = strdup("QUAT_TDM_RX_2");
+    hw_interface_table[USECASE_VOICE2_CALL] = strdup("QUAT_TDM_RX_2");
+    hw_interface_table[USECASE_VOLTE_CALL] = strdup("QUAT_TDM_RX_2");
+    hw_interface_table[USECASE_QCHAT_CALL] = strdup("QUAT_TDM_RX_2");
+    hw_interface_table[USECASE_VOWLAN_CALL] = strdup("QUAT_TDM_RX_2");
     hw_interface_table[USECASE_VOICEMMODE1_CALL] = strdup("QUAT_TDM_RX_2");
-    hw_interface_table[USECASE_VOICEMMODE2_CALL] = strdup("SLIM_0_RX");
-    hw_interface_table[USECASE_COMPRESS_VOIP_CALL] = strdup("SLIM_0_RX");
+    hw_interface_table[USECASE_VOICEMMODE2_CALL] = strdup("QUAT_TDM_RX_2");
+    hw_interface_table[USECASE_COMPRESS_VOIP_CALL] = strdup("QUAT_TDM_RX_2");
     hw_interface_table[USECASE_INCALL_REC_UPLINK] = strdup("QUAT_TDM_RX_0");
     hw_interface_table[USECASE_INCALL_REC_DOWNLINK] = strdup("QUAT_TDM_RX_0");
     hw_interface_table[USECASE_INCALL_REC_UPLINK_AND_DOWNLINK] = strdup("QUAT_TDM_RX_0");
@@ -1165,9 +1180,13 @@ static void set_platform_defaults()
     hw_interface_table[USECASE_AUDIO_PLAYBACK_AFE_PROXY] = strdup("AFE_PCM_RX");
     hw_interface_table[USECASE_AUDIO_RECORD_AFE_PROXY] = strdup("AFE_PCM_TX");
     hw_interface_table[USECASE_AUDIO_PLAYBACK_DRIVER_SIDE] = strdup("QUAT_TDM_RX_1");
-    hw_interface_table[USECASE_AUDIO_FM_TUNER_EXT] = strdup("SLIMBUS_0_RX");
+    hw_interface_table[USECASE_AUDIO_FM_TUNER_EXT] = strdup("QUAT_TDM_RX_0");
     hw_interface_table[USECASE_ICC_CALL] = strdup("TERT_TDM_RX_0");
     hw_interface_table[USECASE_ANC_LOOPBACK] = strdup("TERT_TDM_RX_0");
+#ifdef BUS_ADDRESS_ENABLED
+    hw_interface_table[USECASE_AUDIO_PLAYBACK_MEDIA] = strdup("QUAT_TDM_RX_0");
+    hw_interface_table[USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION] = strdup("QUAT_TDM_RX_0");
+#endif
 }
 
 void get_cvd_version(char *cvd_version, struct audio_device *adev)
@@ -2375,6 +2394,10 @@ int platform_get_usecase_acdb_id(void *platform,
 #endif
         case USECASE_AUDIO_PLAYBACK_ULL:
         case USECASE_AUDIO_DIRECT_PCM_OFFLOAD:
+#ifdef BUS_ADDRESS_ENABLED
+        case USECASE_AUDIO_PLAYBACK_MEDIA:
+        case USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION:
+#endif
             /* If HDMI audio is enabled, calibrate HDMI speaker */
             if (snd_device == SND_DEVICE_OUT_HDMI)
                 acdb_dev_id = 18;
@@ -3990,8 +4013,17 @@ int64_t platform_render_latency(audio_usecase_t usecase)
 {
     switch (usecase) {
         case USECASE_AUDIO_PLAYBACK_DEEP_BUFFER:
+#ifdef BUS_ADDRESS_ENABLED
+        case USECASE_AUDIO_PLAYBACK_MEDIA:
+#ifdef DRIVER_SIDE_PLAYBACK_ENABLED
+        case USECASE_AUDIO_PLAYBACK_DRIVER_SIDE:
+#endif
+#endif
             return DEEP_BUFFER_PLATFORM_DELAY;
         case USECASE_AUDIO_PLAYBACK_LOW_LATENCY:
+#ifdef BUS_ADDRESS_ENABLED
+        case USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION:
+#endif
             return LOW_LATENCY_PLATFORM_DELAY;
         case USECASE_AUDIO_PLAYBACK_OFFLOAD:
              return PCM_OFFLOAD_PLATFORM_DELAY;

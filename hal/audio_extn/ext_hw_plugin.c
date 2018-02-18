@@ -169,6 +169,10 @@ static int32_t ext_hw_plugin_check_plugin_usecase(audio_usecase_t hal_usecase,
 #endif
     case USECASE_AUDIO_PLAYBACK_ULL:
     case USECASE_AUDIO_DIRECT_PCM_OFFLOAD:
+#ifdef BUS_ADDRESS_ENABLED
+    case USECASE_AUDIO_PLAYBACK_MEDIA:
+    case USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION:
+#endif
         *plugin_usecase = AUDIO_HAL_PLUGIN_USECASE_DEFAULT_PLAYBACK;
         break;
     case USECASE_AUDIO_RECORD:

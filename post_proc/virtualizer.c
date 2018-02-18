@@ -90,6 +90,7 @@ int virtualizer_set_strength(virtualizer_context_t *context, uint32_t strength)
 bool virtualizer_is_device_supported(audio_devices_t device) {
     switch (device) {
     case AUDIO_DEVICE_OUT_SPEAKER:
+    case AUDIO_DEVICE_OUT_BUS:
     case AUDIO_DEVICE_OUT_BLUETOOTH_SCO_CARKIT:
     case AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_SPEAKER:
 #ifdef AFE_PROXY_ENABLED

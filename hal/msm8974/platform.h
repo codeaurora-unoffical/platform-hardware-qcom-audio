@@ -362,6 +362,11 @@ enum {
 #define FM_RX_VOLUME "Internal FM RX Volume"
 #endif
 
+#ifdef BUS_ADDRESS_ENABLED
+#define MEDIA_PCM_DEVICE DEEP_BUFFER_PCM_DEVICE
+#define SYS_NOTIFICATION_PCM_DEVICE LOWLATENCY_PCM_DEVICE
+#endif
+
 #define LIB_CSD_CLIENT "libcsd-client.so"
 /* CSD-CLIENT related functions */
 typedef int (*init_t)(bool);
