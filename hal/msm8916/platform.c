@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -132,8 +132,8 @@
 #define DEFAULT_APP_TYPE_TX_PATH 0x11132
 
 /* Retry for delay in FW loading*/
-#define RETRY_NUMBER 20
-#define RETRY_US 500000
+#define RETRY_NUMBER 40
+#define RETRY_US 1000000
 #define MAX_SND_CARD 8
 
 #define SAMPLE_RATE_8KHZ  8000
@@ -2086,6 +2086,7 @@ void *platform_init(struct audio_device *adev)
     char value[PROPERTY_VALUE_MAX];
     struct platform_data *my_data = NULL;
     int retry_num = 0, snd_card_num = 0;
+    int min_snd_card_num = 0;
     const char *snd_card_name;
     char mixer_xml_path[MAX_MIXER_XML_PATH],ffspEnable[PROPERTY_VALUE_MAX];
     const char *mixer_ctl_name = "Set HPX ActiveBe";
@@ -2103,20 +2104,19 @@ void *platform_init(struct audio_device *adev)
         return NULL;
     }
 
-    while (snd_card_num < MAX_SND_CARD) {
-        adev->mixer = mixer_open(snd_card_num);
-
-        while (!adev->mixer && retry_num < RETRY_NUMBER) {
-            usleep(RETRY_US);
+    while (retry_num < RETRY_NUMBER) {
+        while (snd_card_num < MAX_SND_CARD) {
             adev->mixer = mixer_open(snd_card_num);
-            retry_num++;
+            if (!adev->mixer)
+                snd_card_num++;
+            else
+                break;
         }
 
         if (!adev->mixer) {
-            ALOGE("%s: Unable to open the mixer card: %d", __func__,
-                   snd_card_num);
-            retry_num = 0;
-            snd_card_num++;
+            usleep(RETRY_US);
+            snd_card_num = min_snd_card_num;
+            retry_num++;
             continue;
         }
 
@@ -2126,6 +2126,8 @@ void *platform_init(struct audio_device *adev)
         my_data->hw_info = hw_info_init(snd_card_name);
         if (!my_data->hw_info) {
             ALOGE("%s: Failed to init hardware info", __func__);
+            min_snd_card_num++;
+            snd_card_num = min_snd_card_num;
         } else {
             query_platform(snd_card_name, mixer_xml_path);
             ALOGD("%s: mixer path file is %s", __func__,
@@ -2148,12 +2150,13 @@ void *platform_init(struct audio_device *adev)
             ALOGD("%s: Opened sound card:%d", __func__, snd_card_num);
             break;
         }
-        retry_num = 0;
-        snd_card_num++;
+
         mixer_close(adev->mixer);
+        if (snd_card_num >= MAX_SND_CARD)
+            break;
     }
 
-    if (snd_card_num >= MAX_SND_CARD) {
+    if (snd_card_num >= MAX_SND_CARD || retry_num >= RETRY_NUMBER) {
         ALOGE("%s: Unable to find correct sound card, aborting.", __func__);
         free(my_data);
         return NULL;
