@@ -677,7 +677,7 @@ void audio_extn_utils_update_stream_app_type_cfg_for_usecase(
         switch (usecase->id) {
         case USECASE_AUDIO_HFP_SCO_UPLINK:
             usecase->out_app_type_cfg.sample_rate = 8000;
-            sample_rate = 16000;
+            sample_rate = 8000;
             ALOGV("%s: Allowing HFP uplink on input device at sampling rate: %d",
                   __func__, sample_rate);
             break;
