@@ -156,6 +156,11 @@ enum {
 
     /* Active Noise Cancellation usecase*/
     USECASE_ANC_LOOPBACK,
+#ifdef BUS_ADDRESS_ENABLED
+    /* bus address streams for car support */
+    USECASE_AUDIO_PLAYBACK_MEDIA,
+    USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION,
+#endif
 
     AUDIO_USECASE_MAX
 };
