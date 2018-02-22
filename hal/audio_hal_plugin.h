@@ -45,6 +45,7 @@ extern "C" {
 
 #define AUDIO_PARAMETER_KEY_EXT_HW_PLUGIN_MSG_TYPE     "ext_hw_plugin_msg_type"
 #define AUDIO_PARAMETER_KEY_EXT_HW_PLUGIN_UC           "ext_hw_plugin_usecase"
+#define AUDIO_PARAMETER_KEY_EXT_HW_PLUGIN_SND_DEVICE   "ext_hw_plugin_snd_device"
 #define AUDIO_PARAMETER_KEY_EXT_HW_PLUGIN_DIRECTION    "ext_hw_plugin_direction"
 #define AUDIO_PARAMETER_KEY_EXT_HW_PLUGIN_CMASK        "ext_hw_plugin_channel_mask"
 #define AUDIO_PARAMETER_KEY_EXT_HW_PLUGIN_GAIN         "ext_hw_plugin_gain"
