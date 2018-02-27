@@ -1423,6 +1423,11 @@ static void check_usecases_codec_backend(struct audio_device *adev,
                                                                         usecase->out_snd_device,
                                                                         platform_get_input_snd_device(adev->platform, uc_info->devices));
                     enable_audio_route(adev, usecase);
+                    if (usecase->id == USECASE_AUDIO_PLAYBACK_FM) {
+                        struct str_parms *parms = str_parms_create_str("fm_restore_volume=1");
+                        if (parms)
+                            audio_extn_fm_set_parameters(adev, parms);
+                    }
                 }
             }
         }
@@ -1917,6 +1922,11 @@ static bool force_device_switch(struct audio_usecase *usecase)
     bool ret = false;
     bool is_it_true_mode = false;
 
+    if (usecase->type == PCM_CAPTURE ||
+        usecase->type == TRANSCODE_LOOPBACK) {
+        return false;
+    }
+
     if(usecase->stream.out == NULL) {
         ALOGE("%s: stream.out is NULL", __func__);
         return false;
@@ -2356,6 +2366,12 @@ int start_input_stream(struct stream_in *in)
     /* 1. Enable output device and stream routing controls */
     int ret = 0;
     struct audio_usecase *uc_info;
+
+    if (in == NULL) {
+        ALOGE("%s: stream_in ptr is NULL", __func__);
+        return -EINVAL;
+    }
+
     struct audio_device *adev = in->dev;
     struct pcm_config config = in->config;
     int usecase = platform_update_usecase_from_source(in->source,in->usecase);
@@ -3731,8 +3747,9 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
                     out->a2dp_compress_mute = false;
                     out_set_compr_volume(&out->stream, out->volume_l, out->volume_r);
                     pthread_mutex_unlock(&out->compr_mute_lock);
+                } else if (out->usecase == USECASE_AUDIO_PLAYBACK_VOIP) {
+                    out_set_voip_volume(&out->stream, out->volume_l, out->volume_r);
                 }
-
             }
         }
 
