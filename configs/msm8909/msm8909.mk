@@ -16,6 +16,7 @@ AUDIO_FEATURE_ENABLED_VOICE_CONCURRENCY := true
 AUDIO_FEATURE_ENABLED_RECORD_PLAY_CONCURRENCY := true
 AUDIO_FEATURE_ENABLED_PM_SUPPORT := true
 AUDIO_FEATURE_ENABLED_DS2_DOLBY_DAP := false
+AUDIO_FEATURE_ENABLED_SPLIT_A2DP := true
 MM_AUDIO_ENABLED_SAFX := true
 DOLBY_ENABLE := false
 
@@ -133,13 +134,9 @@ vendor.audio.sys.init=false
 PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.dolby.ds2.enabled=false
 
-#split  a2dp
+#split a2dp DSP supported encoder list
 PRODUCT_PROPERTY_OVERRIDES += \
-persist.vendor.bt.enable.splita2dp=false
-
-#split  a2dp
-PRODUCT_PROPERTY_OVERRIDES += \
-persist.vendor.bt.enable.splita2dp=false
+persist.vendor.bt.a2dp_offload_cap=sbc
 
 ifneq ($(strip $(TARGET_HAS_LOW_RAM)),true)
 PRODUCT_PACKAGES += android.hardware.audio@2.0-service
