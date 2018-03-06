@@ -3164,7 +3164,7 @@ static int32_t out_get_car_audio_stream_from_address(const char *address)
     }
 
     /* strtok will modify the original string. make a copy first */
-    strncpy(local_address, address, AUDIO_DEVICE_MAX_ADDRESS_LEN);
+    strlcpy(local_address, address, AUDIO_DEVICE_MAX_ADDRESS_LEN);
 
     /* extract bus number from address */
     str = strtok(local_address, "BUS_");
@@ -3523,7 +3523,7 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
     if (out->devices & AUDIO_DEVICE_OUT_BUS) {
         /* save car audio stream and address for bus device */
         out->car_audio_stream = car_audio_stream;
-        strncpy(out->address, address, AUDIO_DEVICE_MAX_ADDRESS_LEN);
+        strlcpy(out->address, address, AUDIO_DEVICE_MAX_ADDRESS_LEN);
         ALOGV("%s: address %s, car_audio_stream %x",
             __func__, out->address, out->car_audio_stream);
     }

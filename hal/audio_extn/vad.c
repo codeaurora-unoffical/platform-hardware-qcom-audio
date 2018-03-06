@@ -176,7 +176,7 @@ static void * vad_pcm_read_loop(void *context)
   int ret = 0;
   uint32_t i;
   int vad_detected_per_frame_count = 0;
-  FILE *vad_fp, *pcm_fp;
+  FILE *vad_fp = NULL, *pcm_fp = NULL;
 
   if (self.isVADDumpEnabled) {
     vad_fp = fopen("/data/misc/audio/vad_process_output.raw","w");
@@ -233,10 +233,10 @@ static void * vad_pcm_read_loop(void *context)
       usleep(AUDIO_CAPTURE_PERIOD_DURATION_MSEC * 1000);
       continue;
     }
-
-    if (self.isVADDumpEnabled)
-      fwrite (&self.circ_buf.buffer[self.circ_buf.end], 1, self.circ_buf.frame_size_in_bytes, pcm_fp);
-
+    if (self.isVADDumpEnabled) {
+        if (pcm_fp != NULL)
+            fwrite (&self.circ_buf.buffer[self.circ_buf.end], 1, self.circ_buf.frame_size_in_bytes, pcm_fp);
+    }
     vad_process_ptr = &self.circ_buf.buffer[self.circ_buf.end];
     ret = self.vad_func.vad_process(&self.vad_lib,
                                   &vad_process_ptr,
@@ -269,11 +269,11 @@ static void * vad_pcm_read_loop(void *context)
         __func__, self.circ_buf.end, self.circ_buf.start, self.circ_buf.byte_count);
 
     pthread_mutex_unlock(&self.vad_loop_mutex);
-
-    if (self.isVADDumpEnabled)
-      /* Analyse VAD output to see if VAD detected */
-      fwrite (self.vad_status_buffer, 1, self.circ_buf.frame_size_in_bytes, vad_fp);
-
+    if (self.isVADDumpEnabled) {
+        if (vad_fp != NULL)
+            /* Analyse VAD output to see if VAD detected */
+            fwrite (self.vad_status_buffer, 1, self.circ_buf.frame_size_in_bytes, vad_fp);
+     }
     for (i = 0; i < self.circ_buf.frame_size_in_bytes; (i += self.vad_output_byte_traverse)) {
       if ((self.vad_status_buffer[i]) != 1) {
         vad_detected_per_frame_count = -1;
@@ -293,8 +293,10 @@ static void * vad_pcm_read_loop(void *context)
     adev->vad_stream_running = false;
 
   self.isVadLoopDeinit = false;
-  if (self.isVADDumpEnabled)
-    fclose(vad_fp);
+  if (self.isVADDumpEnabled) {
+      if (vad_fp != NULL)
+          fclose(vad_fp);
+   }
 
   pthread_cond_signal(&self.vad_loop_cond);
 
@@ -329,8 +331,6 @@ static int vad_init ()
 
   self.circ_buf.buffer = (uint8_t*) calloc (self.circ_buf.length, sizeof(uint8_t));
   self.vad_status_buffer = (uint8_t*) calloc (self.circ_buf.frame_size_in_bytes, sizeof(uint8_t));
-  memset ((void*) self.circ_buf.buffer, 0, self.circ_buf.length);
-  memset ((void*) self.vad_status_buffer, 0, self.circ_buf.frame_size_in_bytes);
 
   if (self.circ_buf.buffer == NULL) {
     ALOGE("%s: Circular buffer calloc failed for size %d",
@@ -345,6 +345,8 @@ static int vad_init ()
     ret = -ENOMEM;
     goto error;
   }
+  memset ((void*) self.circ_buf.buffer, 0, self.circ_buf.length);
+  memset ((void*) self.vad_status_buffer, 0, self.circ_buf.frame_size_in_bytes);
 
   ALOGD("%s: Circular buffer created with size %d and VAD status buffer created with size %d",
     __func__, self.circ_buf.length, self.circ_buf.frame_size_in_bytes);

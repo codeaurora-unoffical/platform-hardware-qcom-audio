@@ -365,40 +365,44 @@ static void send_app_type_cfg(void *platform, struct mixer *mixer,
     }
 
     app_type_cfg[length++] = num_app_types;
-    list_for_each(node, streams_output_cfg_list) {
-        so_info_out = node_to_item(node, struct streams_output_cfg, list);
-        update = true;
-        for (i=0; i<length; i=i+3) {
-            if (app_type_cfg[i+1] == -1)
-                break;
-            else if (app_type_cfg[i+1] == so_info_out->app_type_cfg.app_type) {
-                update = false;
-                break;
+    if (streams_output_cfg_list != NULL) {
+        list_for_each(node, streams_output_cfg_list) {
+            so_info_out = node_to_item(node, struct streams_output_cfg, list);
+            update = true;
+            for (i=0; i<length; i=i+3) {
+                if (app_type_cfg[i+1] == -1)
+                    break;
+                else if (app_type_cfg[i+1] == so_info_out->app_type_cfg.app_type) {
+                    update = false;
+                    break;
+                }
             }
-        }
-        if (update && ((length + 3) <= MAX_LENGTH_MIXER_CONTROL_IN_INT)) {
-            num_app_types += 1;
-            app_type_cfg[length++] = so_info_out->app_type_cfg.app_type;
-            app_type_cfg[length++] = so_info_out->app_type_cfg.sample_rate;
-            app_type_cfg[length++] = so_info_out->app_type_cfg.bit_width;
+            if (update && ((length + 3) <= MAX_LENGTH_MIXER_CONTROL_IN_INT)) {
+                num_app_types += 1;
+                app_type_cfg[length++] = so_info_out->app_type_cfg.app_type;
+                app_type_cfg[length++] = so_info_out->app_type_cfg.sample_rate;
+                app_type_cfg[length++] = so_info_out->app_type_cfg.bit_width;
+            }
         }
     }
-    list_for_each(node, streams_input_cfg_list) {
-        so_info_in = node_to_item(node, struct streams_input_cfg, list);
-        update = true;
-        for (i=0; i<length; i=i+3) {
-            if (app_type_cfg[i+1] == -1)
-                break;
-            else if (app_type_cfg[i+1] == so_info_in->app_type_cfg.app_type) {
-                update = false;
-                break;
+    if (streams_input_cfg_list != NULL) {
+        list_for_each(node, streams_input_cfg_list) {
+            so_info_in = node_to_item(node, struct streams_input_cfg, list);
+            update = true;
+            for (i=0; i<length; i=i+3) {
+                if (app_type_cfg[i+1] == -1)
+                    break;
+                else if (app_type_cfg[i+1] == so_info_in->app_type_cfg.app_type) {
+                    update = false;
+                    break;
+                }
             }
-        }
-        if (update && ((length + 3) <= MAX_LENGTH_MIXER_CONTROL_IN_INT)) {
-            num_app_types += 1;
-            app_type_cfg[length++] = so_info_in->app_type_cfg.app_type;
-            app_type_cfg[length++] = so_info_in->app_type_cfg.sample_rate;
-            app_type_cfg[length++] = so_info_in->app_type_cfg.bit_width;
+            if (update && ((length + 3) <= MAX_LENGTH_MIXER_CONTROL_IN_INT)) {
+                num_app_types += 1;
+                app_type_cfg[length++] = so_info_in->app_type_cfg.app_type;
+                app_type_cfg[length++] = so_info_in->app_type_cfg.sample_rate;
+                app_type_cfg[length++] = so_info_in->app_type_cfg.bit_width;
+            }
         }
     }
     ALOGV("%s: num_app_types: %d", __func__, num_app_types);
