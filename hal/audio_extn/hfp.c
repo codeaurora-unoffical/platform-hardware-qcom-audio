@@ -206,6 +206,11 @@ static int32_t start_hfp(struct audio_device *adev,
         (uc_uplink_info->in_snd_device != SND_DEVICE_NONE)) {
         if (audio_extn_ext_hw_plugin_usecase_start(adev->ext_hw_plugin, uc_uplink_info))
             ALOGE("%s: failed to start ext hw plugin", __func__);
+        /* Set cached mic mute upon hfp start */
+        bool mute = false;
+        audio_extn_ext_hw_plugin_get_mic_mute(adev->ext_hw_plugin, &mute);
+        if (audio_extn_ext_hw_plugin_set_mic_mute(adev->ext_hw_plugin, mute))
+            ALOGE("%s: failed to set mic mute", __func__);
     }
     ALOGD("%s: Opening PCM playback device card_id(%d) device_id(%d)",
           __func__, adev->snd_card, pcm_ul_rx_id);

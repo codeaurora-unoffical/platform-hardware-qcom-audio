@@ -1739,7 +1739,11 @@ int audio_extn_ext_hw_plugin_set_mic_mute(void *plugin, bool mute)
     }
 
     my_plugin = (struct ext_hw_plugin_data *)plugin;
+#ifdef VHAL_HELPER_ENABLED
+    if (!my_plugin->vhal_audio_helper) {
+#else
     if (!my_plugin->audio_hal_plugin_send_msg) {
+#endif
         ALOGE("%s: NULL audio_hal_plugin_send_msg func ptr", __func__);
         return -EINVAL;
     }
@@ -1769,5 +1773,20 @@ int audio_extn_ext_hw_plugin_set_mic_mute(void *plugin, bool mute)
     }
 
     return ret;
+}
+
+int audio_extn_ext_hw_plugin_get_mic_mute(void *plugin, bool *mute)
+{
+    struct ext_hw_plugin_data *my_plugin = (struct ext_hw_plugin_data *)plugin;
+
+    if (my_plugin == NULL || mute == NULL) {
+        ALOGE("[%s] received null pointer", __func__);
+        return -EINVAL;
+    }
+
+    *mute = my_plugin->mic_mute;
+    ALOGD("%s: received get mic mute (%d)", __func__, *mute);
+
+    return 0;
 }
 #endif /* EXT_HW_PLUGIN_ENABLED */
