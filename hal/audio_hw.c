@@ -1601,6 +1601,7 @@ static int stop_output_stream(struct stream_out *out)
         return -EINVAL;
     }
 
+#ifdef BUS_ADDRESS_ENABLED
 #ifdef VHAL_HELPER_ENABLED
     if (out->car_audio_stream) {
         if (out->vhal_audio_helper == NULL) {
@@ -1613,13 +1614,24 @@ static int stop_output_stream(struct stream_out *out)
         if (out->vhal_audio_helper != NULL)
             vehicle_hal_audio_helper_notify_stream_stopped(out->vhal_audio_helper,
                                                            out->car_audio_stream);
+    } else { // legacy stream will disable codec via vhal helper
+        if (uc_info->out_snd_device != SND_DEVICE_NONE) {
+            if (audio_extn_ext_hw_plugin_usecase_stop(adev->ext_hw_plugin, uc_info))
+                ALOGE("%s: failed to stop ext hw plugin", __func__);
+        }
     }
 #else
     if (uc_info->out_snd_device != SND_DEVICE_NONE) {
         if (audio_extn_ext_hw_plugin_usecase_stop(adev->ext_hw_plugin, uc_info))
             ALOGE("%s: failed to stop ext hw plugin", __func__);
     }
-#endif
+#endif // VHAL_HELPER_ENABLED
+#else
+    if (uc_info->out_snd_device != SND_DEVICE_NONE) {
+        if (audio_extn_ext_hw_plugin_usecase_stop(adev->ext_hw_plugin, uc_info))
+            ALOGE("%s: failed to stop ext hw plugin", __func__);
+    }
+#endif // BUS_ADDRESS_ENABLED
 
     if (is_offload_usecase(out->usecase) &&
         !(audio_extn_dolby_is_passthrough_stream(out->flags))) {
@@ -1732,6 +1744,7 @@ int start_output_stream(struct stream_out *out)
 
     select_devices(adev, out->usecase);
 
+#ifdef BUS_ADDRESS_ENABLED
 #ifdef VHAL_HELPER_ENABLED
     if (out->car_audio_stream) {
         if (out->vhal_audio_helper == NULL) {
@@ -1759,13 +1772,24 @@ int start_output_stream(struct stream_out *out)
             ALOGI("%s: FOCUS not ready, wait", __func__);
             usleep(100000);
         }
+    } else { // legacy stream will enable codec via vhal helper
+        if (uc_info->out_snd_device != SND_DEVICE_NONE) {
+            if (audio_extn_ext_hw_plugin_usecase_start(adev->ext_hw_plugin, uc_info))
+                ALOGE("%s: failed to start ext hw plugin", __func__);
+        }
     }
 #else
     if (uc_info->out_snd_device != SND_DEVICE_NONE) {
         if (audio_extn_ext_hw_plugin_usecase_start(adev->ext_hw_plugin, uc_info))
             ALOGE("%s: failed to start ext hw plugin", __func__);
     }
-#endif
+#endif // VHAL_HELPER_ENABLED
+#else
+    if (uc_info->out_snd_device != SND_DEVICE_NONE) {
+        if (audio_extn_ext_hw_plugin_usecase_start(adev->ext_hw_plugin, uc_info))
+            ALOGE("%s: failed to start ext hw plugin", __func__);
+    }
+#endif // BUS_ADDRESS_ENABLED
 
     ALOGV("%s: Opening PCM device card_id(%d) device_id(%d) format(%#x)",
           __func__, adev->snd_card, out->pcm_device_id, out->config.format);
@@ -2379,8 +2403,9 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
         adev->is_channel_status_set = true;
     }
 
-#ifdef VHAL_HELPER_ENABLED
+#ifdef BUS_ADDRESS_ENABLED
     if (out->car_audio_stream) {
+#ifdef VHAL_HELPER_ENABLED
         if (out->vhal_audio_helper == NULL) {
             // Should not happen, continue regardless
             ALOGE("%s: vhal audio helper not allocated, continue", __func__);
@@ -2415,6 +2440,7 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
             } else
                 ALOGVV("%s: FOCUS", __func__);
         }
+#endif
     }
 #endif
 
@@ -3567,8 +3593,9 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
         audio_extn_dts_notify_playback_state(out->usecase, 0, out->sample_rate,
                                              popcount(out->channel_mask), out->playback_started);
 
-#ifdef VHAL_HELPER_ENABLED
+#ifdef BUS_ADDRESS_ENABLED
     if (out->car_audio_stream) {
+#ifdef VHAL_HELPER_ENABLED
         if (out->vhal_audio_helper == NULL) {
             out->vhal_audio_helper =
                 vehicle_hal_audio_helper_create(FOCUS_WAIT_DEFAULT_TIMEOUT_NS);
@@ -3578,6 +3605,7 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
                 goto error_open;
             }
         }
+#endif
     }
 #endif
 
@@ -3634,12 +3662,14 @@ static void adev_close_output_stream(struct audio_hw_device *dev __unused,
     if (adev->voice_tx_output == out)
         adev->voice_tx_output = NULL;
 
-#ifdef VHAL_HELPER_ENABLED
+#ifdef BUS_ADDRESS_ENABLED
     if (out->car_audio_stream) {
+#ifdef VHAL_HELPER_ENABLED
         if (out->vhal_audio_helper != NULL) {
             vehicle_hal_audio_helper_destroy(out->vhal_audio_helper);
             out->vhal_audio_helper = NULL;
         }
+#endif
     }
 #endif
 
