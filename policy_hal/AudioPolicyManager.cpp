@@ -2145,8 +2145,16 @@ status_t AudioPolicyManagerCustom::setStreamVolumeIndex(audio_stream_type_t stre
 
         if ((device == AUDIO_DEVICE_OUT_DEFAULT) || ((curDevice & strategyDevice) != 0)) {
             status_t volStatus = checkAndSetVolume(stream,
-                                                   (((stream == AUDIO_STREAM_MUSIC) ||
-                                                     ((curDevice & AUDIO_DEVICE_OUT_BUS) != 0)) ?
+                                                   ((stream == AUDIO_STREAM_MUSIC) ?
+                                                       mVolumeCurves->getVolumeIndex(stream, curDevice) : index),
+                                                   desc,
+                                                   curDevice);
+            if (volStatus != NO_ERROR) {
+                status = volStatus;
+            }
+        } else if ((curDevice & AUDIO_DEVICE_OUT_BUS) != 0) {
+            status_t volStatus = checkAndSetVolume(stream,
+                                                   ((stream == AUDIO_STREAM_MUSIC) ?
                                                        mVolumeCurves->getVolumeIndex(stream, curDevice) : index),
                                                    desc,
                                                    curDevice);

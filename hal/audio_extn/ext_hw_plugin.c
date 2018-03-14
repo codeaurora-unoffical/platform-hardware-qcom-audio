@@ -39,6 +39,10 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 #include "platform.h"
 #include "audio_hal_plugin.h"
 
+#ifdef VHAL_HELPER_ENABLED
+    #include <vehicle-hal-audio-helper-for-c.h>
+#endif
+
 #ifdef EXT_HW_PLUGIN_ENABLED
 
 typedef int32_t (*audio_hal_plugin_init_t)(void);
@@ -56,6 +60,9 @@ struct ext_hw_plugin_data {
     snd_device_t                   out_snd_dev[AUDIO_HAL_PLUGIN_USECASE_MAX];
     snd_device_t                   in_snd_dev[AUDIO_HAL_PLUGIN_USECASE_MAX];
     bool                           mic_mute;
+#ifdef VHAL_HELPER_ENABLED
+    vehicle_hal_audio_helper_t    *vhal_audio_helper;
+#endif
 };
 
 /* This can be defined in platform specific file or use compile flag */
@@ -75,6 +82,13 @@ void* audio_extn_ext_hw_plugin_init(struct audio_device *adev)
 
     my_plugin->adev = adev;
 
+#ifdef VHAL_HELPER_ENABLED
+    my_plugin->vhal_audio_helper = vehicle_hal_audio_helper_create_with_default_timeout();
+    if (my_plugin->vhal_audio_helper == NULL) {
+        ALOGE("%s: vhal audio helper not allocated", __func__);
+        goto plugin_init_fail;
+    }
+#else
     my_plugin->plugin_handle = dlopen(LIB_PLUGIN_DRIVER, RTLD_NOW);
     if (my_plugin->plugin_handle == NULL) {
         ALOGE("%s: DLOPEN failed for %s", __func__, LIB_PLUGIN_DRIVER);
@@ -112,13 +126,19 @@ void* audio_extn_ext_hw_plugin_init(struct audio_device *adev)
             goto plugin_init_fail;
         }
     }
+#endif
 
     my_plugin->mic_mute = false;
     return my_plugin;
 
 plugin_init_fail:
-    if(my_plugin->plugin_handle != NULL)
+#ifdef VHAL_HELPER_ENABLED
+    if (my_plugin->vhal_audio_helper != NULL)
+        vehicle_hal_audio_helper_destroy(my_plugin->vhal_audio_helper);
+#else
+    if (my_plugin->plugin_handle != NULL)
         dlclose(my_plugin->plugin_handle);
+#endif
     free(my_plugin);
     return NULL;
 }
@@ -133,6 +153,10 @@ int32_t audio_extn_ext_hw_plugin_deinit(void *plugin)
         return -EINVAL;
     }
 
+#ifdef VHAL_HELPER_ENABLED
+    if (my_plugin->vhal_audio_helper != NULL)
+        vehicle_hal_audio_helper_destroy(my_plugin->vhal_audio_helper);
+#else
     if (my_plugin->audio_hal_plugin_deinit) {
         ret = my_plugin->audio_hal_plugin_deinit();
         if (ret) {
@@ -140,9 +164,10 @@ int32_t audio_extn_ext_hw_plugin_deinit(void *plugin)
                   __func__, ret);
         }
     }
-
     if(my_plugin->plugin_handle != NULL)
         dlclose(my_plugin->plugin_handle);
+#endif
+
     free(my_plugin);
     return ret;
 }
@@ -200,12 +225,170 @@ static int32_t ext_hw_plugin_check_plugin_usecase(audio_usecase_t hal_usecase,
     case USECASE_ANC_LOOPBACK:
         *plugin_usecase = AUDIO_HAL_PLUGIN_USECASE_ANC;
         break;
+    case USECASE_AUDIO_LINE_IN_PASSTHROUGH:
+        *plugin_usecase = AUDIO_HAL_PLUGIN_USECASE_LINE_IN_PASSTHROUGH;
+        break;
+    case USECASE_AUDIO_HDMI_IN_PASSTHROUGH:
+        *plugin_usecase = AUDIO_HAL_PLUGIN_USECASE_HDMI_IN_PASSTHROUGH;
+        break;
     default:
         ret = -EINVAL;
     }
 
     return ret;
 }
+
+#ifdef VHAL_HELPER_ENABLED
+int32_t audio_extn_ext_hw_plugin_codec_enable(struct ext_hw_plugin_data *my_plugin, audio_hal_plugin_codec_enable_t *codec_enable)
+{
+    char *str = NULL;
+    int ret = 0;
+    struct str_parms *parms = str_parms_create();
+
+    if (my_plugin == NULL || codec_enable == NULL) {
+        ALOGE("%s: received null pointer", __func__);
+        ret = -EINVAL;
+        goto end;
+    }
+
+    str_parms_add_int(parms, AUDIO_PARAMETER_KEY_EXT_HW_PLUGIN_MSG_TYPE, AUDIO_HAL_PLUGIN_MSG_CODEC_ENABLE);
+    str_parms_add_int(parms, AUDIO_PARAMETER_KEY_EXT_HW_PLUGIN_UC, codec_enable->usecase);
+    str_parms_add_int(parms, AUDIO_PARAMETER_KEY_EXT_HW_PLUGIN_SND_DEVICE, codec_enable->snd_dev);
+    str_parms_add_int(parms, AUDIO_PARAMETER_KEY_EXT_HW_PLUGIN_CMASK, codec_enable->num_chs);
+
+    str = str_parms_to_str(parms);
+    if (str == NULL) {
+        ALOGE("%s: str is NULL", __func__);
+        ret = -ENOMEM;
+        goto end;
+    }
+
+    if (my_plugin->vhal_audio_helper == NULL) {
+        my_plugin->vhal_audio_helper = vehicle_hal_audio_helper_create_with_default_timeout();
+        if (my_plugin->vhal_audio_helper == NULL) {
+            ALOGE("%s: vhal audio helper not allocated", __func__);
+            ret = -EINVAL;
+            goto end;
+        }
+    }
+
+    ALOGD("%s: params = %s", __func__, str);
+    // notify audio params.
+    ret = vehicle_hal_audio_helper_set_parameters(my_plugin->vhal_audio_helper, (const char*)str);
+    if (ret < 0) {
+        ALOGE("%s: set parameters failed", __func__);
+        ret = -EINVAL;
+        goto end;
+    }
+
+end:
+    if (parms != NULL)
+        str_parms_destroy(parms);
+    if (str != NULL)
+        free(str);
+    return ret;
+}
+
+int32_t audio_extn_ext_hw_plugin_codec_disable(struct ext_hw_plugin_data *my_plugin, audio_hal_plugin_codec_disable_t *codec_disable)
+{
+    char *str = NULL;
+    int ret = 0;
+    struct str_parms *parms = str_parms_create();
+
+    if (my_plugin == NULL || codec_disable == NULL) {
+        ALOGE("%s: received null pointer", __func__);
+        ret = -EINVAL;
+        goto end;
+    }
+
+    str_parms_add_int(parms, AUDIO_PARAMETER_KEY_EXT_HW_PLUGIN_MSG_TYPE, AUDIO_HAL_PLUGIN_MSG_CODEC_DISABLE);
+    str_parms_add_int(parms, AUDIO_PARAMETER_KEY_EXT_HW_PLUGIN_UC, codec_disable->usecase);
+    str_parms_add_int(parms, AUDIO_PARAMETER_KEY_EXT_HW_PLUGIN_SND_DEVICE, codec_disable->snd_dev);
+
+    str = str_parms_to_str(parms);
+    if (str == NULL) {
+        ALOGE("%s: str is NULL", __func__);
+        ret = -ENOMEM;
+        goto end;
+    }
+
+    if (my_plugin->vhal_audio_helper == NULL) {
+        my_plugin->vhal_audio_helper = vehicle_hal_audio_helper_create_with_default_timeout();
+        if (my_plugin->vhal_audio_helper == NULL) {
+            ALOGE("%s: vhal audio helper not allocated", __func__);
+            ret = -EINVAL;
+            goto end;
+        }
+    }
+
+    ALOGD("%s: params = %s", __func__, str);
+    // notify audio params.
+    ret = vehicle_hal_audio_helper_set_parameters(my_plugin->vhal_audio_helper, (const char*)str);
+    if (ret < 0) {
+        ALOGE("%s: set parameters failed", __func__);
+        ret = -EINVAL;
+        goto end;
+    }
+
+end:
+    if (parms != NULL)
+        str_parms_destroy(parms);
+    if (str != NULL)
+        free(str);
+    return ret;
+}
+
+int32_t audio_extn_ext_hw_plugin_codec_pp_mute(struct ext_hw_plugin_data *my_plugin, audio_hal_plugin_codec_set_pp_mute_t *codec_mute)
+{
+    char *str = NULL;
+    int ret = 0;
+    struct str_parms *parms = str_parms_create();
+
+    if (my_plugin == NULL || codec_mute == NULL) {
+        ALOGE("%s: received null pointer", __func__);
+        ret = -EINVAL;
+        goto end;
+    }
+
+    str_parms_add_int(parms, AUDIO_PARAMETER_KEY_EXT_HW_PLUGIN_MSG_TYPE, AUDIO_HAL_PLUGIN_MSG_CODEC_SET_PP_MUTE);
+    str_parms_add_int(parms, AUDIO_PARAMETER_KEY_EXT_HW_PLUGIN_UC, codec_mute->usecase);
+    str_parms_add_int(parms, AUDIO_PARAMETER_KEY_EXT_HW_PLUGIN_SND_DEVICE, codec_mute->snd_dev);
+    str_parms_add_int(parms, AUDIO_PARAMETER_KEY_EXT_HW_PLUGIN_CMASK, codec_mute->ch_mask);
+    str_parms_add_int(parms, AUDIO_PARAMETER_KEY_EXT_HW_PLUGIN_MUTE_FLAG, codec_mute->flag);
+
+    str = str_parms_to_str(parms);
+    if (str == NULL) {
+        ALOGE("%s: str is NULL", __func__);
+        ret = -ENOMEM;
+        goto end;
+    }
+
+    if (my_plugin->vhal_audio_helper == NULL) {
+        my_plugin->vhal_audio_helper = vehicle_hal_audio_helper_create_with_default_timeout();
+        if (my_plugin->vhal_audio_helper == NULL) {
+            ALOGE("%s: vhal audio helper not allocated", __func__);
+            ret = -EINVAL;
+            goto end;
+        }
+    }
+
+    ALOGD("%s: params = %s", __func__, str);
+    // notify audio params.
+    ret = vehicle_hal_audio_helper_set_parameters(my_plugin->vhal_audio_helper, (const char*)str);
+    if (ret < 0) {
+        ALOGE("%s: set parameters failed", __func__);
+        ret = -EINVAL;
+        goto end;
+    }
+
+end:
+    if (parms != NULL)
+        str_parms_destroy(parms);
+    if (str != NULL)
+        free(str);
+    return ret;
+}
+#endif
 
 int32_t audio_extn_ext_hw_plugin_usecase_start(void *plugin, struct audio_usecase *usecase)
 {
@@ -216,8 +399,11 @@ int32_t audio_extn_ext_hw_plugin_usecase_start(void *plugin, struct audio_usecas
         ALOGE("[%s] NULL input pointer",__func__);
         return -EINVAL;
     }
-
+#ifdef VHAL_HELPER_ENABLED
+    if (my_plugin->vhal_audio_helper) {
+#else
     if (my_plugin->audio_hal_plugin_send_msg) {
+#endif
         audio_hal_plugin_msg_type_t msg = AUDIO_HAL_PLUGIN_MSG_CODEC_ENABLE;
         audio_hal_plugin_codec_enable_t codec_enable;
 
@@ -257,9 +443,12 @@ int32_t audio_extn_ext_hw_plugin_usecase_start(void *plugin, struct audio_usecas
                 (int)codec_enable.sample_rate,
                 (int)codec_enable.bit_width,
                 (int)codec_enable.num_chs);
-
+#ifdef VHAL_HELPER_ENABLED
+            ret = audio_extn_ext_hw_plugin_codec_enable(my_plugin, &codec_enable);
+#else
             ret = my_plugin->audio_hal_plugin_send_msg(msg,
                 (void*)&codec_enable, sizeof(codec_enable));
+#endif
             if (ret) {
                 ALOGE("%s: enable audio hal plugin input failed ret = %d",
                     __func__, ret);
@@ -273,17 +462,20 @@ int32_t audio_extn_ext_hw_plugin_usecase_start(void *plugin, struct audio_usecas
                 audio_hal_plugin_codec_set_pp_mute_t pp_mute;
 
                 pp_mute.usecase = codec_enable.usecase;
-                pp_mute.snd_dev= codec_enable.snd_dev;
+                pp_mute.snd_dev = codec_enable.snd_dev;
                 pp_mute.ch_mask = AUDIO_CHANNEL_IN_ALL;
                 pp_mute.flag = my_plugin->mic_mute;
 
                 ALOGV("%s: sending codec pp mute msg to HAL plugin driver, %d, %d, %x, %d",
                         __func__, (int)pp_mute.usecase, (int)pp_mute.snd_dev,
                         (int)pp_mute.ch_mask, (int)pp_mute.flag);
-
+#ifdef VHAL_HELPER_ENABLED
+                plugin_ret = audio_extn_ext_hw_plugin_codec_pp_mute(my_plugin, &pp_mute);
+#else
                 plugin_ret = my_plugin->audio_hal_plugin_send_msg(
                                AUDIO_HAL_PLUGIN_MSG_CODEC_SET_PP_MUTE, &pp_mute,
                                sizeof(pp_mute));
+#endif
                 if (plugin_ret)
                   ALOGE("%s: Failed to set plugin pp mute err: %d", __func__, plugin_ret);
             }
@@ -306,9 +498,12 @@ int32_t audio_extn_ext_hw_plugin_usecase_start(void *plugin, struct audio_usecas
                 (int)codec_enable_ec.sample_rate,
                 (int)codec_enable_ec.bit_width,
                 (int)codec_enable_ec.num_chs);
-
+#ifdef VHAL_HELPER_ENABLED
+            ret = audio_extn_ext_hw_plugin_codec_enable(my_plugin, &codec_enable_ec);
+#else
             ret = my_plugin->audio_hal_plugin_send_msg(msg,
                 (void*)&codec_enable_ec, sizeof(codec_enable_ec));
+#endif
             if (ret) {
                 ALOGE("%s: enable audio hal plugin input failed ret = %d",
                     __func__, ret);
@@ -331,9 +526,12 @@ int32_t audio_extn_ext_hw_plugin_usecase_start(void *plugin, struct audio_usecas
                 (int)codec_enable.sample_rate,
                 (int)codec_enable.bit_width,
                 (int)codec_enable.num_chs);
-
+#ifdef VHAL_HELPER_ENABLED
+            ret = audio_extn_ext_hw_plugin_codec_enable(my_plugin, &codec_enable);
+#else
             ret = my_plugin->audio_hal_plugin_send_msg(msg,
                 (void*)&codec_enable, sizeof(codec_enable));
+#endif
             if (ret) {
                 ALOGE("%s: enable audio hal plugin output failed ret = %d",
                     __func__, ret);
@@ -358,8 +556,11 @@ int32_t audio_extn_ext_hw_plugin_usecase_stop(void *plugin, struct audio_usecase
         ALOGE("[%s] NULL input pointer",__func__);
         return -EINVAL;
     }
-
+#ifdef VHAL_HELPER_ENABLED
+    if (my_plugin->vhal_audio_helper) {
+#else
     if (my_plugin->audio_hal_plugin_send_msg) {
+#endif
         audio_hal_plugin_msg_type_t msg = AUDIO_HAL_PLUGIN_MSG_CODEC_DISABLE;
         audio_hal_plugin_codec_disable_t codec_disable;
 
@@ -394,9 +595,12 @@ int32_t audio_extn_ext_hw_plugin_usecase_stop(void *plugin, struct audio_usecase
             ALOGD("%s: disable audio hal plugin output, %d, %d",
                 __func__, (int)codec_disable.usecase,
                 (int)codec_disable.snd_dev);
-
-            ret= my_plugin->audio_hal_plugin_send_msg(msg,
+#ifdef VHAL_HELPER_ENABLED
+            ret = audio_extn_ext_hw_plugin_codec_disable(my_plugin, &codec_disable);
+#else
+            ret = my_plugin->audio_hal_plugin_send_msg(msg,
                 (void*)&codec_disable, sizeof(codec_disable));
+#endif
             if (ret) {
                 ALOGE("%s: disable audio hal plugin output failed ret = %d",
                     __func__, ret);
@@ -412,9 +616,12 @@ int32_t audio_extn_ext_hw_plugin_usecase_stop(void *plugin, struct audio_usecase
             ALOGD("%s: disable audio hal plugin input, %d, %d",
                 __func__, (int)codec_disable.usecase,
                 (int)codec_disable.snd_dev);
-
-            ret= my_plugin->audio_hal_plugin_send_msg(msg,
+#ifdef VHAL_HELPER_ENABLED
+            ret = audio_extn_ext_hw_plugin_codec_disable(my_plugin, &codec_disable);
+#else
+            ret = my_plugin->audio_hal_plugin_send_msg(msg,
                 (void*)&codec_disable, sizeof(codec_disable));
+#endif
             if (ret) {
                 ALOGE("%s: disable audio hal plugin input failed ret = %d",
                     __func__, ret);
@@ -432,9 +639,12 @@ int32_t audio_extn_ext_hw_plugin_usecase_stop(void *plugin, struct audio_usecase
             ALOGD("%s: disable audio hal plugin input for echo reference, %d, %d",
                 __func__, (int)codec_disable_ec.usecase,
                 (int)codec_disable_ec.snd_dev);
-
+#ifdef VHAL_HELPER_ENABLED
+            ret = audio_extn_ext_hw_plugin_codec_disable(my_plugin, &codec_disable_ec);
+#else
             ret = my_plugin->audio_hal_plugin_send_msg(msg,
                 (void*)&codec_disable_ec, sizeof(codec_disable_ec));
+#endif
             if (ret) {
                 ALOGE("%s: disable audio hal plugin input failed ret = %d",
                     __func__, ret);
@@ -555,6 +765,43 @@ done_dword_to_string:
 
 int32_t audio_extn_ext_hw_plugin_set_parameters(void *plugin, struct str_parms *parms)
 {
+
+#ifdef VHAL_HELPER_ENABLED
+    char *str = NULL;
+    int ret = 0;
+    struct ext_hw_plugin_data *my_plugin = NULL;
+
+    if (plugin == NULL || parms == NULL) {
+        ALOGE("[%s] received null pointer",__func__);
+        return -EINVAL;
+    }
+    my_plugin = (struct ext_hw_plugin_data *)plugin;
+
+    if (my_plugin->vhal_audio_helper == NULL) {
+        my_plugin->vhal_audio_helper = vehicle_hal_audio_helper_create_with_default_timeout();
+        if (my_plugin->vhal_audio_helper == NULL) {
+            ALOGE("%s: vhal audio helper not allocated", __func__);
+            ret = -EINVAL;
+            goto end;
+        }
+    }
+    // FIXME: snd_dev should be translated from my_plugin table into key-value pair
+    str = str_parms_to_str(parms);
+    ALOGD("%s: params = %s",__func__,str);
+    // notify audio params.
+    ret = vehicle_hal_audio_helper_set_parameters(my_plugin->vhal_audio_helper, (const char*)str);
+    if ( ret < 0 ) {
+        ALOGE("%s: set parameters failed",__func__);
+        ret = -EINVAL;
+        goto end;
+    }
+
+end:
+    if (str != NULL)
+        free(str);
+    return ret;
+#else
+
     char *value = NULL;
     int32_t val, len = 0;
     int32_t ret = 0, err;
@@ -994,11 +1241,60 @@ done:
     if(value != NULL)
         free(value);
     return ret;
+#endif
 }
 
 int audio_extn_ext_hw_plugin_get_parameters(void *plugin,
                   struct str_parms *query, struct str_parms *reply)
 {
+
+#ifdef VHAL_HELPER_ENABLED
+    int32_t ret = 0;
+    const char *v_reply;
+    char *a_query = NULL;
+    int len = 0;
+    struct str_parms *rly = str_parms_create();
+    struct ext_hw_plugin_data *my_plugin = NULL;
+
+    if (plugin == NULL || query == NULL || reply == NULL) {
+        ALOGE("[%s] received null pointer",__func__);
+        ret = -EINVAL;
+        goto end;
+    }
+
+    // FIXME: snd_dev should be translated from my_plugin table into key-value pair
+    a_query = str_parms_to_str(query);
+    len = strlen(a_query);
+    ALOGD("%s: query = %s",__func__,a_query);
+
+    my_plugin = (struct ext_hw_plugin_data *)plugin;
+    if (my_plugin->vhal_audio_helper == NULL) {
+        my_plugin->vhal_audio_helper = vehicle_hal_audio_helper_create_with_default_timeout();
+        if (my_plugin->vhal_audio_helper == NULL) {
+            ALOGE("%s: vhal audio helper not allocated", __func__);
+            ret = -EINVAL;
+            goto end;
+        }
+    }
+
+    // notify audio params.
+    v_reply = vehicle_hal_audio_helper_get_parameters(my_plugin->vhal_audio_helper, (const char*)a_query);
+    if (v_reply == NULL) {
+        ALOGE("get parameters failed");
+        ret = -EINVAL;
+        goto end;
+    }
+    memset(reply,0,sizeof(len+1));
+    rly = str_parms_create_str(v_reply);
+    memcpy(reply,rly,sizeof(len+1));
+
+end:
+    if (a_query != NULL)
+        free(a_query);
+    if (rly != NULL)
+        free(rly);
+    return ret;
+#else
     char *value = NULL;
     int32_t val, len = 0;;
     int32_t ret = 0, err;
@@ -1432,6 +1728,7 @@ done:
     if(value != NULL)
         free(value);
     return ret;
+#endif
 }
 
 int audio_extn_ext_hw_plugin_set_mic_mute(void *plugin, bool mute)
@@ -1448,7 +1745,11 @@ int audio_extn_ext_hw_plugin_set_mic_mute(void *plugin, bool mute)
     }
 
     my_plugin = (struct ext_hw_plugin_data *)plugin;
+#ifdef VHAL_HELPER_ENABLED
+    if (!my_plugin->vhal_audio_helper) {
+#else
     if (!my_plugin->audio_hal_plugin_send_msg) {
+#endif
         ALOGE("%s: NULL audio_hal_plugin_send_msg func ptr", __func__);
         return -EINVAL;
     }
@@ -1465,15 +1766,33 @@ int audio_extn_ext_hw_plugin_set_mic_mute(void *plugin, bool mute)
         ALOGV("%s: sending codec pp mute msg to HAL plugin driver, %d, %d, %x, %d",
                 __func__, (int)pp_mute.usecase, (int)pp_mute.snd_dev,
                 (int)pp_mute.ch_mask, (int)pp_mute.flag);
-
+#ifdef VHAL_HELPER_ENABLED
+        ret = audio_extn_ext_hw_plugin_codec_pp_mute(my_plugin, &pp_mute);
+#else
         ret = my_plugin->audio_hal_plugin_send_msg(
                 AUDIO_HAL_PLUGIN_MSG_CODEC_SET_PP_MUTE, &pp_mute,
                 sizeof(pp_mute));
+#endif
         if (ret) {
             ALOGE("%s: Failed to set plugin pp mute err: %d", __func__, ret);
         }
     }
 
     return ret;
+}
+
+int audio_extn_ext_hw_plugin_get_mic_mute(void *plugin, bool *mute)
+{
+    struct ext_hw_plugin_data *my_plugin = (struct ext_hw_plugin_data *)plugin;
+
+    if (my_plugin == NULL || mute == NULL) {
+        ALOGE("[%s] received null pointer", __func__);
+        return -EINVAL;
+    }
+
+    *mute = my_plugin->mic_mute;
+    ALOGD("%s: received get mic mute (%d)", __func__, *mute);
+
+    return 0;
 }
 #endif /* EXT_HW_PLUGIN_ENABLED */

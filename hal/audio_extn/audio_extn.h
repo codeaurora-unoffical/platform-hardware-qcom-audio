@@ -99,7 +99,7 @@ int audio_extn_parse_compress_metadata(struct stream_out *out,
 
 #define MAX_LENGTH_MIXER_CONTROL_IN_INT                  (128)
 
-void audio_extn_set_parameters(struct audio_device *adev,
+int audio_extn_set_parameters(struct audio_device *adev,
                                struct str_parms *parms);
 
 void audio_extn_get_parameters(const struct audio_device *adev,
@@ -547,6 +547,7 @@ void audio_utils_set_hdmi_channel_status(struct stream_out *out, char * buffer, 
 #define audio_extn_ext_hw_plugin_enable(plugin, out, enable) (0)
 #define audio_extn_ext_hw_plugin_set_parameters(plugin, parms) (0)
 #define audio_extn_ext_hw_plugin_set_mic_mute(plugin, mute) (0)
+#define audio_extn_ext_hw_plugin_get_mic_mute(plugin, mute) (0)
 #else
 void* audio_extn_ext_hw_plugin_init(struct audio_device *adev);
 int audio_extn_ext_hw_plugin_deinit(void *plugin);
@@ -557,6 +558,7 @@ int audio_extn_ext_hw_plugin_set_parameters(void *plugin,
 int audio_extn_ext_hw_plugin_get_parameters(void *plugin,
                   struct str_parms *query, struct str_parms *reply);
 int audio_extn_ext_hw_plugin_set_mic_mute(void *plugin, bool mute);
+int audio_extn_ext_hw_plugin_get_mic_mute(void *plugin, bool *mute);
 #endif
 
 #ifndef ICC_ENABLED

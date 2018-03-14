@@ -206,6 +206,11 @@ static int32_t start_hfp(struct audio_device *adev,
         (uc_uplink_info->in_snd_device != SND_DEVICE_NONE)) {
         if (audio_extn_ext_hw_plugin_usecase_start(adev->ext_hw_plugin, uc_uplink_info))
             ALOGE("%s: failed to start ext hw plugin", __func__);
+        /* Set cached mic mute upon hfp start */
+        bool mute = false;
+        audio_extn_ext_hw_plugin_get_mic_mute(adev->ext_hw_plugin, &mute);
+        if (audio_extn_ext_hw_plugin_set_mic_mute(adev->ext_hw_plugin, mute))
+            ALOGE("%s: failed to set mic mute", __func__);
     }
     ALOGD("%s: Opening PCM playback device card_id(%d) device_id(%d)",
           __func__, adev->snd_card, pcm_ul_rx_id);
@@ -362,7 +367,7 @@ audio_usecase_t audio_extn_hfp_get_usecase()
     return hfpmod.ucid;
 }
 
-void audio_extn_hfp_set_parameters(struct audio_device *adev, struct str_parms *parms)
+int audio_extn_hfp_set_parameters(struct audio_device *adev, struct str_parms *parms)
 {
     int ret;
     int rate;
@@ -372,12 +377,19 @@ void audio_extn_hfp_set_parameters(struct audio_device *adev, struct str_parms *
 
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_HFP_ENABLE, value,
                             sizeof(value));
+
     if (ret >= 0) {
-           if (!strncmp(value,"true",sizeof(value)))
+           if ((!strncmp(value,"true",sizeof(value))) && (!hfpmod.is_hfp_running))
                ret = start_hfp(adev,parms);
-           else
+           else if((!strncmp(value,"false",sizeof(value))) && (hfpmod.is_hfp_running))
                stop_hfp(adev);
+           else {
+               ALOGE("%s: concurrent start_hfp() and concurrent stop_hfp() is not valid", __func__);
+               ret = -EINVAL;
+               goto exit;
+           }
     }
+
     memset(value, 0, sizeof(value));
     ret = str_parms_get_str(parms,AUDIO_PARAMETER_HFP_SET_SAMPLING_RATE, value,
                             sizeof(value));
@@ -418,5 +430,6 @@ void audio_extn_hfp_set_parameters(struct audio_device *adev, struct str_parms *
     }
 exit:
     ALOGV("%s Exit",__func__);
+    return ret;
 }
 #endif /*HFP_ENABLED*/

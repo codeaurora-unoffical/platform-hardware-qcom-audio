@@ -58,7 +58,8 @@ public:
     status_t init();
 
     void release();
-
+    int32_t setParameters(const char* query);
+    const char* getParameters(const char* query);
     void notifyStreamStarted(int32_t stream);
     void notifyStreamStopped(int32_t stream);
 
@@ -102,6 +103,7 @@ private:
     int32_t mAllowedStreams;
     VehiclePropValue mScratchValueFocus;
     VehiclePropValue mScratchValueStreamState;
+    VehiclePropValue mAudioParams;
     Vector<StreamState> mStreamStates;
 };
 
