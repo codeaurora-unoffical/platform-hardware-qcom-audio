@@ -3487,6 +3487,10 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
             out->usecase = USECASE_AUDIO_PLAYBACK_MEDIA;
             out->config = pcm_config_deep_buffer;
             out->sample_rate = out->config.rate;
+            /* Assign output flag if not provided. This is primarily for app_type based
+             * calibration within audio HAL. */
+            if (out->flags == AUDIO_OUTPUT_FLAG_NONE)
+                out->flags |=  AUDIO_OUTPUT_FLAG_MEDIA;
             break;
         case CAR_AUDIO_STREAM_SYS_NOTIFICATION:
             /* FIXME: sys notification bus stream shares pcm device with low-latency */
@@ -3494,6 +3498,8 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
             out->usecase = USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION;
             out->config = pcm_config_low_latency;
             out->sample_rate = out->config.rate;
+            if (out->flags == AUDIO_OUTPUT_FLAG_NONE)
+                out->flags |=  AUDIO_OUTPUT_FLAG_SYS_NOTIFICATION;
             break;
         case CAR_AUDIO_STREAM_NAV_GUIDANCE:
             /* nav guidance bus will fall into legacy driver-side */
@@ -3502,6 +3508,8 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
             out->usecase = USECASE_AUDIO_PLAYBACK_DRIVER_SIDE;
             out->config = pcm_config_driver_side;
             out->sample_rate = out->config.rate;
+            if (out->flags == AUDIO_OUTPUT_FLAG_NONE)
+                out->flags |=  AUDIO_OUTPUT_FLAG_DRIVER_SIDE;
 #endif
             break;
         default:
@@ -3530,13 +3538,13 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
 #endif
 
     ALOGV("%s: devices %d, flags %x, format %x, out->sample_rate %d, out->bit_width %d",
-           __func__, devices, flags, format, out->sample_rate, out->bit_width);
+           __func__, devices, out->flags, format, out->sample_rate, out->bit_width);
     /* TODO remove this hardcoding and check why width is zero*/
     if (out->bit_width == 0)
         out->bit_width = 16;
     audio_extn_utils_update_stream_output_app_type_cfg(adev->platform,
                                                 &adev->streams_output_cfg_list,
-                                                devices, flags, format, out->sample_rate,
+                                                devices, out->flags, format, out->sample_rate,
                                                 out->bit_width, &out->app_type_cfg);
     if ((out->usecase == USECASE_AUDIO_PLAYBACK_PRIMARY) ||
         (flags & AUDIO_OUTPUT_FLAG_PRIMARY)) {
