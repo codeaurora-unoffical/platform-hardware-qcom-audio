@@ -555,6 +555,7 @@ void audio_utils_set_hdmi_channel_status(struct stream_out *out, char * buffer, 
 #define audio_extn_ext_hw_plugin_get_parameters(plugin, query, reply) (0)
 #define audio_extn_ext_hw_plugin_set_mic_mute(plugin, mute) (0)
 #define audio_extn_ext_hw_plugin_get_mic_mute(plugin, mute) (0)
+#define audio_extn_ext_hw_plugin_set_audio_gain(plugin, usecase, gain) (0)
 #else
 void* audio_extn_ext_hw_plugin_init(struct audio_device *adev);
 int audio_extn_ext_hw_plugin_deinit(void *plugin);
@@ -566,6 +567,8 @@ int audio_extn_ext_hw_plugin_get_parameters(void *plugin,
                   struct str_parms *query, struct str_parms *reply);
 int audio_extn_ext_hw_plugin_set_mic_mute(void *plugin, bool mute);
 int audio_extn_ext_hw_plugin_get_mic_mute(void *plugin, bool *mute);
+int audio_extn_ext_hw_plugin_set_audio_gain(void *plugin,
+            struct audio_usecase *usecase, uint32_t gain);
 #endif
 
 #ifndef ICC_ENABLED
