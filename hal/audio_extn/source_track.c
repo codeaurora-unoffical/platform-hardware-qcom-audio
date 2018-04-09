@@ -263,6 +263,11 @@ static int parse_soundfocus_sourcetracking_keys(struct str_parms *parms)
 
     ALOGV_IF(kv_pairs != NULL, "%s: enter: %s", __func__, kv_pairs);
 
+    if (NULL == kv_pairs) {
+         ALOGE("str_parms_to_str failed");
+         ret = -EINVAL;
+         goto done;
+    }
     len = strlen(kv_pairs);
     value = (char*)calloc(len, sizeof(char));
     if(value == NULL) {
@@ -322,7 +327,8 @@ static int parse_soundfocus_sourcetracking_keys(struct str_parms *parms)
     }
 
 done:
-    free(kv_pairs);
+    if(kv_pairs != NULL)
+        free(kv_pairs);
     if(value != NULL)
         free(value);
     ALOGV("%s: returning bitmask = %d", __func__, ret);
@@ -528,6 +534,11 @@ void audio_extn_source_track_set_parameters(struct audio_device *adev,
     char *value = NULL;
     char *kv_pairs = str_parms_to_str(parms);
 
+    if (NULL == kv_pairs) {
+        ALOGE("str_parms_to_str failed");
+        ret = -EINVAL;
+        goto done;
+    }
     len = strlen(kv_pairs);
     value = (char*)calloc(len, sizeof(char));
     if(value == NULL) {
