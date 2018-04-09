@@ -3174,6 +3174,7 @@ static int32_t out_get_car_audio_stream_from_address(const char *address)
 {
     int32_t bus_num = -1;
     char *str = NULL;
+    char *last_r;
     char local_address[AUDIO_DEVICE_MAX_ADDRESS_LEN];
 
     /* bus device with null address error out */
@@ -3186,7 +3187,7 @@ static int32_t out_get_car_audio_stream_from_address(const char *address)
     strlcpy(local_address, address, AUDIO_DEVICE_MAX_ADDRESS_LEN);
 
     /* extract bus number from address */
-    str = strtok(local_address, "BUS_");
+    str = strtok_r(local_address, "BUS_",&last_r);
     if (str != NULL)
         bus_num = (int32_t)strtol(str, (char **)NULL, 10);
 
