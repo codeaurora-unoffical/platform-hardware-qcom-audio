@@ -587,4 +587,9 @@ void audio_extn_vad_circ_buf_start_read_loop();
 size_t audio_extn_vad_circ_buf_read(struct stream_in *in,
                                   void *buffer, size_t bytes);
 #endif
+
+#ifdef BUS_ADDRESS_ENABLED
+#define AUDIO_OUTPUT_FLAG_MEDIA 0x200000
+#define AUDIO_OUTPUT_FLAG_SYS_NOTIFICATION 0x400000
+#endif
 #endif /* AUDIO_EXTN_H */
