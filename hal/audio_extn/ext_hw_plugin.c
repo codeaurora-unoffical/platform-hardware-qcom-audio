@@ -203,6 +203,7 @@ static int32_t ext_hw_plugin_check_plugin_usecase(audio_usecase_t hal_usecase,
     case USECASE_AUDIO_RECORD:
     case USECASE_AUDIO_RECORD_COMPRESS:
     case USECASE_AUDIO_RECORD_LOW_LATENCY:
+    case USECASE_AUDIO_RECORD_FM_VIRTUAL:
         *plugin_usecase = AUDIO_HAL_PLUGIN_USECASE_DEFAULT_CAPTURE;
         break;
     case USECASE_AUDIO_HFP_SCO_UPLINK:

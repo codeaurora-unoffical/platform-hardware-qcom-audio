@@ -544,8 +544,10 @@ void audio_utils_set_hdmi_channel_status(struct stream_out *out, char * buffer, 
 #ifndef EXT_HW_PLUGIN_ENABLED
 #define audio_extn_ext_hw_plugin_init(adev)                (0)
 #define audio_extn_ext_hw_plugin_deinit(plugin)              (0)
-#define audio_extn_ext_hw_plugin_enable(plugin, out, enable) (0)
+#define audio_extn_ext_hw_plugin_usecase_start(plugin, usecase) (0)
+#define audio_extn_ext_hw_plugin_usecase_stop(plugin, usecase) (0)
 #define audio_extn_ext_hw_plugin_set_parameters(plugin, parms) (0)
+#define audio_extn_ext_hw_plugin_get_parameters(plugin, query, reply) (0)
 #define audio_extn_ext_hw_plugin_set_mic_mute(plugin, mute) (0)
 #define audio_extn_ext_hw_plugin_get_mic_mute(plugin, mute) (0)
 #else
