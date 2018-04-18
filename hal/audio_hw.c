@@ -2479,6 +2479,11 @@ int start_input_stream(struct stream_in *in)
             in->pcm = pcm_open(adev->snd_card, in->pcm_device_id,
                                flags, &config);
             ATRACE_END();
+            if (errno == -ENETRESET) {
+                ALOGE("%s: pcm_open failed errno:%d\n", __func__, errno);
+                in->card_status = CARD_STATUS_OFFLINE;
+                goto error_open;
+            }
             if (in->pcm == NULL || !pcm_is_ready(in->pcm)) {
                 ALOGE("%s: %s", __func__, pcm_get_error(in->pcm));
                 if (in->pcm != NULL) {
@@ -3061,6 +3066,11 @@ int start_output_stream(struct stream_out *out)
             out->pcm = pcm_open(adev->snd_card, out->pcm_device_id,
                                flags, &out->config);
             ATRACE_END();
+            if (errno == -ENETRESET) {
+                ALOGE("%s: pcm_open failed errno:%d\n", __func__, errno);
+                out->card_status = CARD_STATUS_OFFLINE;
+                goto error_open;
+            }
             if (out->pcm == NULL || !pcm_is_ready(out->pcm)) {
                 ALOGE("%s: %s", __func__, pcm_get_error(out->pcm));
                 if (out->pcm != NULL) {
