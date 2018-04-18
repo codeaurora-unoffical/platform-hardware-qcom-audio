@@ -810,6 +810,7 @@ int audio_extn_utils_send_app_type_cfg(struct audio_device *adev,
 #ifdef BUS_ADDRESS_ENABLED
         (usecase->id != USECASE_AUDIO_PLAYBACK_MEDIA) &&
         (usecase->id != USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION) &&
+        (usecase->id != USECASE_AUDIO_PLAYBACK_PHONE) &&
 #endif
         (!is_offload_usecase(usecase->id)) &&
         (usecase->type != PCM_CAPTURE) &&
