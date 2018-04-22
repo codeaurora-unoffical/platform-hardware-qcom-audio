@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2016, 2018, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -42,6 +42,7 @@
 #include "edid.h"
 #include "sound/compress_params.h"
 #include "sound/msmcal-hwdep.h"
+#include <linux/msm_audio_calibration.h>
 
 #define SOUND_TRIGGER_DEVICE_HANDSET_MONO_LOW_POWER_ACDB_ID (100)
 #define MIXER_XML_DEFAULT_PATH "/vendor/etc/mixer_paths.xml"
@@ -206,6 +207,12 @@ typedef int (*acdb_send_gain_dep_cal_t)(int, int, int, int, int);
 static int max_be_dai_names = 0;
 static const struct be_dai_name_struct *be_dai_name_table;
 
+struct meta_key_list {
+    struct listnode list;
+    struct audio_cal_info_metainfo cal_info;
+    char name[ACDB_METAINFO_KEY_MODULE_NAME_LEN];
+};
+
 struct platform_data {
     struct audio_device *adev;
     bool fluence_in_spkr_mode;
@@ -250,6 +257,7 @@ struct platform_data {
     bool edid_valid;
     char ec_ref_mixer_path[64];
     codec_backend_cfg_t current_backend_cfg[MAX_CODEC_BACKENDS];
+    struct listnode acdb_meta_key_list;
 };
 
 static int pcm_device_table[AUDIO_USECASE_MAX][2] = {
@@ -1367,20 +1375,26 @@ static int platform_acdb_init(void *platform)
 {
     struct platform_data *my_data = (struct platform_data *)platform;
     char *cvd_version = NULL;
-    int key = 0;
     const char *snd_card_name;
-    int result;
-    char value[PROPERTY_VALUE_MAX];
+    int result = -1;
+    struct listnode *node;
+    struct meta_key_list *key_info;
+    int key = 0;
+
     cvd_version = calloc(1, MAX_CVD_VERSION_STRING_SIZE);
     if (!cvd_version)
         ALOGE("Failed to allocate cvd version");
     else
         get_cvd_version(cvd_version, my_data->adev);
 
-    property_get("audio.ds1.metainfo.key",value,"0");
-    key = atoi(value);
     snd_card_name = mixer_get_name(my_data->adev->mixer);
-    result = my_data->acdb_init(snd_card_name, cvd_version, key);
+    if (my_data->acdb_init) {
+        node = list_head(&my_data->acdb_meta_key_list);
+        key_info = node_to_item(node, struct meta_key_list, list);
+        key = key_info->cal_info.nKey;
+        result = my_data->acdb_init(snd_card_name, cvd_version, key);
+    }
+
     if (cvd_version)
         free(cvd_version);
     if (!result) {
@@ -1673,6 +1687,16 @@ void *platform_init(struct audio_device *adev)
     if (ret)
         my_data->is_vbat_speaker = true;
 
+    list_init(&my_data->acdb_meta_key_list);
+
+    set_platform_defaults(my_data);
+
+    /* Initialize ACDB ID's */
+    if (my_data->is_i2s_ext_modem)
+        platform_info_init(PLATFORM_INFO_XML_PATH_I2S, my_data);
+    else
+        platform_info_init(PLATFORM_INFO_XML_PATH, my_data);
+
     my_data->voice_feature_set = VOICE_FEATURE_SET_DEFAULT;
     my_data->acdb_handle = dlopen(LIB_ACDB_LOADER, RTLD_NOW);
     if (my_data->acdb_handle == NULL) {
@@ -1742,7 +1766,6 @@ void *platform_init(struct audio_device *adev)
             ALOGE("%s: Could not find the symbol acdb_get_default_app_type from %s",
                   __func__, LIB_ACDB_LOADER);
 
-
         my_data->acdb_init = (acdb_init_t)dlsym(my_data->acdb_handle,
                                                     "acdb_loader_init_v2");
         if (my_data->acdb_init == NULL) {
@@ -1760,13 +1783,6 @@ acdb_init_fail:
      * between a backend string name and a backend ID
      */
     init_be_dai_name_table(adev);
-    set_platform_defaults();
-
-    /* Initialize ACDB ID's */
-    if (my_data->is_i2s_ext_modem)
-        platform_info_init(PLATFORM_INFO_XML_PATH_I2S, my_data);
-    else
-        platform_info_init(PLATFORM_INFO_XML_PATH, my_data);
 
     /* If platform is apq8084 and baseband is MDM, load CSD Client specific
      * symbols. Voice call is handled by MDM and apps processor talks to
@@ -2053,6 +2069,46 @@ int platform_set_snd_device_acdb_id(snd_device_t snd_device, unsigned int acdb_i
     acdb_device_table[snd_device] = acdb_id;
 done:
     return ret;
+}
+
+int platform_set_acdb_metainfo_key(void *platform, char *name, int key)
+{
+    struct meta_key_list *key_info;
+    struct platform_data *pdata = (struct platform_data *)platform;
+
+    key_info = (struct meta_key_list *)calloc(1, sizeof(struct meta_key_list));
+    if (!key_info) {
+        ALOGE("%s: Could not allocate memory for key %d", __func__, key);
+        return -ENOMEM;
+    }
+
+    key_info->cal_info.nKey = key;
+    strlcpy(key_info->name, name, sizeof(key_info->name));
+    list_add_tail(&pdata->acdb_meta_key_list, &key_info->list);
+
+    ALOGD("%s: successfully added module %s and key %d to the list", __func__,
+            key_info->name, key_info->cal_info.nKey);
+    return 0;
+}
+
+int platform_get_meta_info_key_from_list(void *platform, char *mod_name)
+{
+    struct listnode *node;
+    struct meta_key_list *key_info;
+    struct platform_data *pdata = (struct platform_data *)platform;
+    int key = 0;
+
+    ALOGV("%s: for module %s", __func__, mod_name);
+
+    list_for_each(node, &pdata->acdb_meta_key_list) {
+        key_info = node_to_item(node, struct meta_key_list, list);
+        if (strcmp(key_info->name, mod_name) == 0) {
+            key = key_info->cal_info.nKey;
+            ALOGD("%s: Found key %d for module %s", __func__, key, mod_name);
+            break;
+        }
+    }
+    return key;
 }
 
 int platform_get_default_app_type(void *platform)

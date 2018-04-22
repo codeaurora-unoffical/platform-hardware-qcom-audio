@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2016, 2018, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -71,6 +71,10 @@
 
 #ifndef APE_OFFLOAD_ENABLED
 #define AUDIO_FORMAT_APE 0x1D000000UL
+#endif
+
+#ifndef APTX_OFFLOAD_ENABLED
+#define AUDIO_FORMAT_APTX 0x20000000UL
 #endif
 
 #ifndef AAC_ADTS_OFFLOAD_ENABLED
@@ -447,6 +451,7 @@ int audio_extn_pm_vote (void);
 void audio_extn_pm_unvote(void);
 #endif
 
+void audio_extn_init(struct audio_device *adev);
 void audio_extn_utils_update_streams_cfg_list(void *platform,
                                   struct mixer *mixer,
                                   struct listnode *streams_output_cfg_list,
@@ -594,4 +599,23 @@ size_t audio_extn_vad_circ_buf_read(struct stream_in *in,
 #define AUDIO_OUTPUT_FLAG_MEDIA 0x200000
 #define AUDIO_OUTPUT_FLAG_SYS_NOTIFICATION 0x400000
 #endif
+
+#ifndef APTX_OFFLOAD_ENABLED
+#define audio_extn_aptx_dec_set_license(adev); (0)
+#define audio_extn_set_aptx_dec_bt_addr(adev, parms); (0)
+#define audio_extn_send_aptx_dec_bt_addr_to_dsp(out); (0)
+#define audio_extn_parse_aptx_dec_bt_addr(value); (0)
+#else
+struct aptx_dec_bt_addr {
+    uint32_t nap;
+    uint32_t uap;
+    uint32_t lap;
+};
+
+static void audio_extn_aptx_dec_set_license(struct audio_device *adev);
+static void audio_extn_set_aptx_dec_bt_addr(struct audio_device *adev, struct str_parms *parms);
+void audio_extn_send_aptx_dec_bt_addr_to_dsp(struct stream_out *out);
+static void audio_extn_parse_aptx_dec_bt_addr(char *value);
+#endif
+
 #endif /* AUDIO_EXTN_H */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2016, 2018, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -377,6 +377,9 @@ static bool is_supported_format(audio_format_t format)
         || format == AUDIO_FORMAT_WMA ||
         format == AUDIO_FORMAT_WMA_PRO
 #endif
+#ifdef APTX_OFFLOAD_ENABLED
+        || format == AUDIO_FORMAT_APTX
+#endif
        )
            return true;
 
@@ -426,6 +429,11 @@ static int get_snd_codec_id(audio_format_t format)
         break;
     case AUDIO_FORMAT_WMA_PRO:
         id = SND_AUDIOCODEC_WMA_PRO;
+        break;
+#endif
+#ifdef APTX_OFFLOAD_ENABLED
+    case AUDIO_FORMAT_APTX:
+        id = SND_AUDIOCODEC_APTX;
         break;
 #endif
     default:
@@ -3430,6 +3438,12 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
         if (config->offload_info.format == AUDIO_FORMAT_FLAC)
             out->compr_config.codec->options.flac_dec.sample_size = AUDIO_OUTPUT_BIT_WIDTH;
 #endif
+#ifdef APTX_OFFLOAD_ENABLED
+        if (config->offload_info.format == AUDIO_FORMAT_APTX) {
+            audio_extn_send_aptx_dec_bt_addr_to_dsp(out);
+        }
+#endif
+
         if (flags & AUDIO_OUTPUT_FLAG_NON_BLOCKING)
             out->non_blocking = 1;
 
@@ -4759,6 +4773,7 @@ static int adev_open(const hw_module_t *module, const char *name,
                                                         "visualizer_hal_stop_output");
         }
     }
+    audio_extn_init(adev);
     audio_extn_listen_init(adev, adev->snd_card);
     audio_extn_sound_trigger_init(adev);
 
