@@ -3648,6 +3648,18 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
                 !audio_extn_a2dp_is_ready()) {
                 val = AUDIO_DEVICE_OUT_SPEAKER;
         }
+        /*
+        * When USB headset is disconnected the music platback paused
+        * and the policy manager send routing=0. But if the USB is connected
+        * back before the standby time, AFE is not closed and opened
+        * when USB is connected back. So routing to speker will guarantee
+        * AFE reconfiguration and AFE will be opend once USB is connected again
+        */
+        if ((out->devices & AUDIO_DEVICE_OUT_ALL_USB) &&
+                (val == AUDIO_DEVICE_NONE) &&
+                 !audio_extn_usb_connected(parms)) {
+                 val = AUDIO_DEVICE_OUT_SPEAKER;
+         }
         /* To avoid a2dp to sco overlapping / BT device improper state
          * check with BT lib about a2dp streaming support before routing
          */
@@ -6828,6 +6840,7 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
         in->stream.stop = in_stop;
         in->stream.create_mmap_buffer = in_create_mmap_buffer;
         in->stream.get_mmap_position = in_get_mmap_position;
+        in->sample_rate = in->config.rate;
         ALOGV("%s: USECASE_AUDIO_RECORD_MMAP", __func__);
     } else if (in->realtime) {
         in->config = pcm_config_audio_capture_rt;
@@ -6847,6 +6860,7 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
         in->config.rate = config->sample_rate;
         in->config.format = pcm_format_from_audio_format(config->format);
         in->config.channels = channel_count;
+        in->sample_rate = in->config.rate;
     } else if ((in->device == AUDIO_DEVICE_IN_TELEPHONY_RX) ||
              (in->device == AUDIO_DEVICE_IN_PROXY)) {
         if (config->sample_rate == 0)
