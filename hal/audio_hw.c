@@ -1767,13 +1767,19 @@ int start_output_stream(struct stream_out *out)
          *       notification or touch tone. Wait for FOCUS during write will cause
          *       Audioflinger to drop the first touch tone.
          */
-        int focus_state =
-            vehicle_hal_audio_helper_get_stream_focus_state(out->vhal_audio_helper,
-                                                            out->car_audio_stream);
-        if ((focus_state == VEHICLE_HAL_AUDIO_HELPER_FOCUS_STATE_NO_FOCUS) ||
-            (focus_state == VEHICLE_HAL_AUDIO_HELPER_FOCUS_STATE_TIMEOUT)) {
-            ALOGI("%s: FOCUS not ready, wait", __func__);
-            usleep(100000);
+        if (!property_get_bool("vendor.audio.vehicle.focus.enabled", true)) {
+            ALOGVV("%s: vhal audio focus disabled, continue", __func__);
+        } else if (out->vhal_audio_helper == NULL) {
+            ALOGE("%s: vhal audio helper not allocated, continue", __func__);
+        } else {
+            int focus_state =
+                vehicle_hal_audio_helper_get_stream_focus_state(out->vhal_audio_helper,
+                                                                out->car_audio_stream);
+            if ((focus_state == VEHICLE_HAL_AUDIO_HELPER_FOCUS_STATE_NO_FOCUS) ||
+                (focus_state == VEHICLE_HAL_AUDIO_HELPER_FOCUS_STATE_TIMEOUT)) {
+                ALOGI("%s: FOCUS not ready, wait", __func__);
+                usleep(100000);
+            }
         }
     } else { // legacy stream will enable codec via vhal helper
         if (uc_info->out_snd_device != SND_DEVICE_NONE) {
@@ -2409,8 +2415,9 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
 #ifdef BUS_ADDRESS_ENABLED
     if (out->car_audio_stream) {
 #ifdef VHAL_HELPER_ENABLED
-        if (out->vhal_audio_helper == NULL) {
-            // Should not happen, continue regardless
+        if (!property_get_bool("vendor.audio.vehicle.focus.enabled", true)) {
+            ALOGVV("%s: vhal audio focus disabled, continue", __func__);
+        } else if (out->vhal_audio_helper == NULL) {
             ALOGE("%s: vhal audio helper not allocated, continue", __func__);
         } else {
             int focus_state =

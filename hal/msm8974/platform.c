@@ -2422,6 +2422,7 @@ int platform_get_usecase_acdb_id(void *platform,
         case USECASE_AUDIO_RECORD:
         case USECASE_AUDIO_RECORD_COMPRESS:
         case USECASE_AUDIO_RECORD_LOW_LATENCY:
+        case USECASE_AUDIO_RECORD_FM_VIRTUAL:
             if (my_data->ec_car_state)
                 acdb_dev_id = 12;
             else
