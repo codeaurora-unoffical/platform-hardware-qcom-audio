@@ -2484,9 +2484,11 @@ int start_input_stream(struct stream_in *in)
             in->pcm = pcm_open(adev->snd_card, in->pcm_device_id,
                                flags, &config);
             ATRACE_END();
-            if (errno == -ENETRESET) {
+            if (errno == ENETRESET) {
                 ALOGE("%s: pcm_open failed errno:%d\n", __func__, errno);
+                adev->card_status = CARD_STATUS_OFFLINE;
                 in->card_status = CARD_STATUS_OFFLINE;
+                ret = -EIO;
                 goto error_open;
             }
             if (in->pcm == NULL || !pcm_is_ready(in->pcm)) {
@@ -3071,9 +3073,11 @@ int start_output_stream(struct stream_out *out)
             out->pcm = pcm_open(adev->snd_card, out->pcm_device_id,
                                flags, &out->config);
             ATRACE_END();
-            if (errno == -ENETRESET) {
+            if (errno == ENETRESET) {
                 ALOGE("%s: pcm_open failed errno:%d\n", __func__, errno);
                 out->card_status = CARD_STATUS_OFFLINE;
+                adev->card_status = CARD_STATUS_OFFLINE;
+                ret = -EIO;
                 goto error_open;
             }
             if (out->pcm == NULL || !pcm_is_ready(out->pcm)) {
@@ -3121,6 +3125,13 @@ int start_output_stream(struct stream_out *out)
                                    out->pcm_device_id,
                                    COMPRESS_IN, &out->compr_config);
         ATRACE_END();
+        if (errno == ENETRESET) {
+                ALOGE("%s: compress_open failed errno:%d\n", __func__, errno);
+                adev->card_status = CARD_STATUS_OFFLINE;
+                out->card_status = CARD_STATUS_OFFLINE;
+                ret = -EIO;
+                goto error_open;
+        }
         if (out->compr && !is_compress_ready(out->compr)) {
             ALOGE("%s: failed /w error %s", __func__, compress_get_error(out->compr));
             compress_close(out->compr);
@@ -4883,6 +4894,13 @@ static int out_create_mmap_buffer(const struct audio_stream_out *stream,
     ALOGV("%s", __func__);
     pthread_mutex_lock(&adev->lock);
 
+    if (CARD_STATUS_OFFLINE == out->card_status ||
+        CARD_STATUS_OFFLINE == adev->card_status) {
+        ALOGW("out->card_status or adev->card_status offline, try again");
+        ret = -EIO;
+        goto exit;
+    }
+
     if (info == NULL || min_size_frames == 0) {
         ALOGE("%s: info = %p, min_size_frames = %d", __func__, info, min_size_frames);
         ret = -EINVAL;
@@ -4907,6 +4925,13 @@ static int out_create_mmap_buffer(const struct audio_stream_out *stream,
           __func__, adev->snd_card, out->pcm_device_id, out->config.channels);
     out->pcm = pcm_open(adev->snd_card, out->pcm_device_id,
                         (PCM_OUT | PCM_MMAP | PCM_NOIRQ | PCM_MONOTONIC), &out->config);
+    if (errno == ENETRESET) {
+        ALOGE("%s: pcm_open failed errno:%d\n", __func__, errno);
+        out->card_status = CARD_STATUS_OFFLINE;
+        adev->card_status = CARD_STATUS_OFFLINE;
+        ret = -EIO;
+        goto exit;
+    }
     if (out->pcm == NULL || !pcm_is_ready(out->pcm)) {
         step = "open";
         ret = -ENODEV;
@@ -5488,6 +5513,13 @@ static int in_create_mmap_buffer(const struct audio_stream_in *stream,
     pthread_mutex_lock(&adev->lock);
     ALOGV("%s in %p", __func__, in);
 
+    if (CARD_STATUS_OFFLINE == in->card_status||
+        CARD_STATUS_OFFLINE == adev->card_status) {
+        ALOGW("in->card_status or adev->card_status offline, try again");
+        ret = -EIO;
+        goto exit;
+    }
+
     if (info == NULL || min_size_frames == 0) {
         ALOGE("%s invalid argument info %p min_size_frames %d", __func__, info, min_size_frames);
         ret = -EINVAL;
@@ -5513,6 +5545,13 @@ static int in_create_mmap_buffer(const struct audio_stream_in *stream,
           __func__, adev->snd_card, in->pcm_device_id, in->config.channels);
     in->pcm = pcm_open(adev->snd_card, in->pcm_device_id,
                         (PCM_IN | PCM_MMAP | PCM_NOIRQ | PCM_MONOTONIC), &in->config);
+    if (errno == ENETRESET) {
+        ALOGE("%s: pcm_open failed errno:%d\n", __func__, errno);
+        in->card_status = CARD_STATUS_OFFLINE;
+        adev->card_status = CARD_STATUS_OFFLINE;
+        ret = -EIO;
+        goto exit;
+    }
     if (in->pcm == NULL || !pcm_is_ready(in->pcm)) {
         step = "open";
         ret = -ENODEV;
