@@ -94,10 +94,12 @@
 //To Do: Fine Tune Encoder CELT/LDAC latency.
 #define ENCODER_LATENCY_CELT       40
 #define ENCODER_LATENCY_LDAC       40
+#define ENCODER_LATENCY_PCM        50
 #define DEFAULT_SINK_LATENCY_SBC       140
 #define DEFAULT_SINK_LATENCY_APTX      160
 #define DEFAULT_SINK_LATENCY_APTX_HD   180
 #define DEFAULT_SINK_LATENCY_AAC       180
+#define DEFAULT_SINK_LATENCY_PCM       140
 //To Do: Fine Tune Default CELT/LDAC Latency.
 #define DEFAULT_SINK_LATENCY_CELT      180
 #define DEFAULT_SINK_LATENCY_LDAC      180
@@ -122,6 +124,7 @@ typedef enum {
 #endif
     CODEC_TYPE_LDAC = AUDIO_FORMAT_LDAC, // 0x23000000UL
     CODEC_TYPE_CELT = 603979776u, // 0x24000000UL
+    CODEC_TYPE_PCM = AUDIO_FORMAT_PCM_16_BIT, // 0x1u
 }codec_t;
 
 typedef int (*audio_source_open_t)(void);
@@ -670,6 +673,10 @@ static bool a2dp_set_backend_cfg(uint8_t direction)
         sampling_rate = sampling_rate *2;
     }
 
+    // No need to configure backend for PCM format.
+    if (a2dp.bt_encoder_format == CODEC_TYPE_PCM) {
+        return 0;
+    }
     //Configure backend sampling rate
     switch (sampling_rate) {
     case 44100:
@@ -1516,6 +1523,11 @@ bool configure_a2dp_encoder_format()
             is_configured =
               configure_ldac_enc_format((audio_ldac_encoder_config *)codec_info);
             break;
+         case CODEC_TYPE_PCM:
+             ALOGD("Received PCM format for BT device");
+             a2dp.bt_encoder_format = CODEC_TYPE_PCM;
+             is_configured = true;
+             break;
         default:
             ALOGD(" Received Unsupported encoder formar");
             is_configured = false;
@@ -2007,6 +2019,10 @@ uint32_t audio_extn_a2dp_get_encoder_latency()
         case CODEC_TYPE_LDAC:
             latency = (avsync_runtime_prop > 0) ? ldac_offset : ENCODER_LATENCY_LDAC;
             latency += (slatency <= 0) ? DEFAULT_SINK_LATENCY_LDAC : slatency;
+            break;
+        case CODEC_TYPE_PCM:
+            latency = ENCODER_LATENCY_PCM;
+            latency += DEFAULT_SINK_LATENCY_PCM;
             break;
         default:
             latency = 200;
