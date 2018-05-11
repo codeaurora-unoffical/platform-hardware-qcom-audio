@@ -44,8 +44,17 @@ using ::android::hardware::Void;
 using ::android::hardware::hidl_vec;
 using ::android::hardware::hidl_handle;
 using ::android::sp;
+using ::android::hardware::hidl_death_recipient;
 
 namespace android {
+
+// ----------------------------------------------------------------------------
+
+struct VehicleHalDeathRecipient : hidl_death_recipient {
+    public:
+        virtual void serviceDied(uint64_t cookie,
+                const wp<hidl::base::V1_0::IBase>& who);
+};
 
 // ----------------------------------------------------------------------------
 
@@ -65,6 +74,8 @@ public:
 
     void setFocusTimeout(int64_t timeoutNs);
 
+    void handleVehicleHalDeath();
+
     // from IVehicleCallback
     Return<void> onPropertyEvent(const hidl_vec <VehiclePropValue> & propValues) override;
     Return<void> onPropertySet(const VehiclePropValue & propValue) override;
@@ -77,7 +88,7 @@ private:
     virtual ~VehicleHalAudioHelper();
 
     status_t initLocked();
-    void release();
+    void releaseLocked();
 
     void updatePropertiesLocked();
 
@@ -109,6 +120,7 @@ private:
 
     int64_t mTimeoutNs;
     sp<IVehicle> mVehicle;
+    sp<VehicleHalDeathRecipient> mVehicleHalDeathRecipient;
     bool mHasFocusProperty;
     int32_t mAllowedStreams;
     VehiclePropValue mScratchValueFocus;
