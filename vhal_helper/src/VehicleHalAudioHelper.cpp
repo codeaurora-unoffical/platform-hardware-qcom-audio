@@ -55,10 +55,10 @@ namespace android {
 VehicleHalAudioHelper* VehicleHalAudioHelper::mVehicleHalAudioHelper = NULL;
 Mutex VehicleHalAudioHelper::mLock;
 
-
 VehicleHalAudioHelper::VehicleHalAudioHelper()
     : mTimeoutNs(FOCUS_WAIT_DEFAULT_TIMEOUT_NS),
       mHasFocusProperty(false) {
+    mVehicleHalDeathRecipient = new VehicleHalDeathRecipient();
 }
 
 VehicleHalAudioHelper::~VehicleHalAudioHelper() {
@@ -81,8 +81,9 @@ VehicleHalAudioHelper* VehicleHalAudioHelper::getInstance() {
 void VehicleHalAudioHelper::destroy() {
 
     // Delete the instance
+    Mutex::Autolock autoLock(mLock);
     if (mVehicleHalAudioHelper != NULL) {
-        mVehicleHalAudioHelper->release();
+        mVehicleHalAudioHelper->releaseLocked();
         delete mVehicleHalAudioHelper;
         mVehicleHalAudioHelper = NULL;
     }
@@ -102,12 +103,8 @@ status_t VehicleHalAudioHelper::initLocked() {
         return UNKNOWN_ERROR;
     }
 
-    mScratchValueStreamState.prop = static_cast<int32_t>(VehicleProperty::AUDIO_STREAM_STATE);
-    mScratchValueStreamState.value.int32Values = std::vector<int32_t>(2);
-    mScratchValueStreamState.timestamp = 0;
-    mScratchValueFocus.prop = static_cast<int32_t>(VehicleProperty::AUDIO_FOCUS);
-    mScratchValueFocus.value.int32Values = std::vector<int32_t>(4);
-    mScratchValueFocus.timestamp = 0;
+    // Link to DeathRecipient of Vehicle HAL
+    mVehicle->linkToDeath(mVehicleHalDeathRecipient, 0);
 
     updatePropertiesLocked();
 
@@ -130,6 +127,9 @@ void VehicleHalAudioHelper::updatePropertiesLocked() {
                 __func__, status);
         }
 
+        mScratchValueFocus.prop = static_cast<int32_t>(VehicleProperty::AUDIO_FOCUS);
+        mScratchValueFocus.value.int32Values = std::vector<int32_t>(4);
+        mScratchValueFocus.timestamp = 0;
         if (invokeGet(&mScratchValueFocus) == StatusCode::OK) {
             mAllowedStreams =
                 mScratchValueFocus.value.int32Values[static_cast<int32_t>(VehicleAudioFocusIndex::STREAMS)];
@@ -145,16 +145,15 @@ void VehicleHalAudioHelper::updatePropertiesLocked() {
         mHasFocusProperty = false;
         mAllowedStreams = 0xffffffff;
     }
-    // FIXME: initialization is done by streamState constructor already
+
     for (size_t i = 0; i < VEHICLE_HAL_AUDIO_HELPER_STREAMS_MAX; i++) {
+        Mutex::Autolock autoLock(mStreamStates[i].lock);
         mStreamStates[i].timeoutStartNs = 0;
         mStreamStates[i].started = false;
     }
 }
 
-void VehicleHalAudioHelper::release() {
-
-    Mutex::Autolock autoLock(mLock);
+void VehicleHalAudioHelper::releaseLocked() {
 
     if (mVehicle.get() == NULL) {
         ALOGD("%s: Vehicle Interface already released", __func__);
@@ -168,6 +167,9 @@ void VehicleHalAudioHelper::release() {
                 __func__, status);
         }
     }
+
+    // Unlink to DeathRecipient of Vehicle HAL
+    mVehicle->unlinkToDeath(mVehicleHalDeathRecipient);
 }
 
 static int32_t streamFlagToStreamNumber(int32_t streamFlag) {
@@ -211,11 +213,16 @@ int32_t VehicleHalAudioHelper::setParameters(const char* query) {
     mAudioParams.prop = static_cast<int32_t>(VehicleProperty::AUDIO_PARAMETERS);
     mAudioParams.value.stringValue = query;
 
-    StatusCode status = invokeSet(&mAudioParams);
-    if (status != StatusCode::OK) {
-        ALOGE("setParameters, failed with status %d",
-            status);
-        return BAD_VALUE;
+    if (mVehicle.get() == NULL) {
+        ALOGE("setParameters, Vehicle Interface is not initialized");
+        return NO_INIT;
+    } else {
+        StatusCode status = invokeSet(&mAudioParams);
+        if (status != StatusCode::OK) {
+            ALOGE("setParameters, failed with status %d",
+                status);
+            return BAD_VALUE;
+        }
     }
     return OK;
 }
@@ -227,8 +234,8 @@ const char* VehicleHalAudioHelper::getParameters(const char* query) {
     mAudioParams.prop = static_cast<int32_t>(VehicleProperty::AUDIO_PARAMETERS);
     mAudioParams.value.stringValue = query;
 
-    if(mVehicle.get() == NULL) {
-        ALOGE("%s: Vehicle Interface is not initialized", __func__);
+    if (mVehicle.get() == NULL) {
+        ALOGE("getParameters, Vehicle Interface is not initialized");
         return NULL;
     } else {
         StatusCode status = invokeGet(&mAudioParams);
@@ -285,8 +292,13 @@ void VehicleHalAudioHelper::notifyStreamStarted(int32_t stream) {
     tScratchValueFocus.value.int32Values[static_cast<int32_t>(VehicleAudioFocusIndex::STREAMS)] = stream;
     tScratchValueFocus.value.int32Values[static_cast<int32_t>(VehicleAudioFocusIndex::EXTERNAL_FOCUS_STATE)] = 0;
     tScratchValueFocus.value.int32Values[static_cast<int32_t>(VehicleAudioFocusIndex::AUDIO_CONTEXTS)] = 0;
-    if (invokeSet(&tScratchValueFocus) != StatusCode::OK) {
-        ALOGE("notifyStreamStarted, failed to request focus for stream 0x%x", stream);
+    if (mVehicle.get() == NULL) {
+        ALOGE("notifyStreamStarted, Vehicle Interface is not initialized");
+        return;
+    } else {
+        if (invokeSet(&tScratchValueFocus) != StatusCode::OK) {
+            ALOGE("notifyStreamStarted, failed to request focus for stream 0x%x", stream);
+        }
     }
 #endif
 
@@ -309,10 +321,15 @@ void VehicleHalAudioHelper::notifyStreamStarted(int32_t stream) {
             streamNumber;
     mScratchValueStreamState.timestamp = android::elapsedRealtimeNano();
 
-    StatusCode status = invokeSet(&mScratchValueStreamState);
-    if (status != StatusCode::OK) {
-        ALOGE("notifyStreamStarted, failed for stream 0x%x with status %d",
-            streamNumber, status);
+    if (mVehicle.get() == NULL) {
+        ALOGE("notifyStreamStarted, Vehicle Interface is not initialized");
+        return;
+    } else {
+        StatusCode status = invokeSet(&mScratchValueStreamState);
+        if (status != StatusCode::OK) {
+            ALOGE("notifyStreamStarted, failed for stream 0x%x with status %d",
+                streamNumber, status);
+        }
     }
 }
 
@@ -352,8 +369,13 @@ void VehicleHalAudioHelper::notifyStreamStopped(int32_t stream) {
     tScratchValueFocus.value.int32Values[static_cast<int32_t>(VehicleAudioFocusIndex::STREAMS)] = stream;
     tScratchValueFocus.value.int32Values[static_cast<int32_t>(VehicleAudioFocusIndex::EXTERNAL_FOCUS_STATE)] = 0;
     tScratchValueFocus.value.int32Values[static_cast<int32_t>(VehicleAudioFocusIndex::AUDIO_CONTEXTS)] = 0;
-    if (invokeSet(&tScratchValueFocus) != StatusCode::OK) {
-        ALOGE("notifyStreamStopped, failed to release focus for stream 0x%x", stream);
+    if (mVehicle.get() == NULL) {
+        ALOGE("notifyStreamStopped, Vehicle Interface is not initialized");
+        return;
+    } else {
+        if (invokeSet(&tScratchValueFocus) != StatusCode::OK) {
+            ALOGE("notifyStreamStopped, failed to release focus for stream 0x%x", stream);
+        }
     }
 #endif
 
@@ -372,10 +394,15 @@ void VehicleHalAudioHelper::notifyStreamStopped(int32_t stream) {
             streamNumber;
     mScratchValueStreamState.timestamp = android::elapsedRealtimeNano();
 
-    StatusCode status = invokeSet(&mScratchValueStreamState);
-    if (status != StatusCode::OK) {
-        ALOGE("notifyStreamStopped, failed for stream 0x%x with status %d",
-            streamNumber, status);
+    if (mVehicle.get() == NULL) {
+        ALOGE("notifyStreamStopped, Vehicle Interface is not initialized");
+        return;
+    } else {
+        StatusCode status = invokeSet(&mScratchValueStreamState);
+        if (status != StatusCode::OK) {
+            ALOGE("notifyStreamStopped, failed for stream 0x%x with status %d",
+                streamNumber, status);
+        }
     }
 }
 
@@ -502,8 +529,6 @@ Return<void> VehicleHalAudioHelper::onPropertySetError(StatusCode errorCode,
     return Return<void>();
 }
 
-// TODO: how to monitor vehicle HAL restart
-
 StatusCode VehicleHalAudioHelper::invokeGetPropConfigs(hidl_vec<int32_t> requestedProp) {
     ALOGD("invokeGetPropConfigs");
 
@@ -563,6 +588,48 @@ StatusCode VehicleHalAudioHelper::invokeSet(VehiclePropValue * pRequestedPropVal
     LOGD("invokeSet: status %d", status);
 
     return status;
+}
+
+void VehicleHalAudioHelper::handleVehicleHalDeath() {
+
+#if 1 // crash our process
+    LOG_ALWAYS_FATAL("Vehicle HAL crashed, need to restart audio HAL");
+#else
+    Mutex::Autolock autoLock(mLock);
+
+    // FIXME: there's no need to unsubscribe
+    mVehicle->unlinkToDeath(mVehicleHalDeathRecipient);
+    mVehicle = NULL;
+
+    ALOGI("%s: Reconnecting to Vehicle HAL", __func__);
+    // FIXME: getService() is a blocking call from HIDL, no need to retry
+    mVehicle = IVehicle::getService();
+    int64_t start = android::elapsedRealtime();
+    while (mVehicle.get() == NULL &&
+            (start + VEHICLE_HAL_WAIT_TIMEOUT_MS) > android::elapsedRealtime()) {
+        LOGD("Vehicle Interface is not ready, wait to retry");
+        usleep(100000); // wait 100 ms
+        mVehicle = IVehicle::getService();
+    }
+    if (mVehicle.get() == NULL) {
+        ALOGE("%s: Vehicle Interface is not initialized", __func__);
+        return;
+    }
+
+    mVehicle->linkToDeath(mVehicleHalDeathRecipient, 0);
+    ALOGI("%s: Vehicle HAL Reconnected", __func__);
+
+    updatePropertiesLocked();
+#endif
+}
+
+// ----------------------------------------------------------------------------
+
+void VehicleHalDeathRecipient::serviceDied(uint64_t cookie __unused,
+        const wp<hidl::base::V1_0::IBase>& who __unused) {
+
+    ALOGI("Vehicle HAL Died");
+    VehicleHalAudioHelper::getInstance()->handleVehicleHalDeath();
 }
 
 }; // namespace android
