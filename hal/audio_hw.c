@@ -1361,7 +1361,9 @@ static void check_usecases_codec_backend(struct audio_device *adev,
               platform_get_snd_device_name(snd_device),
               platform_get_snd_device_name(usecase->out_snd_device),
               platform_check_backends_match(snd_device, usecase->out_snd_device));
-        if ((usecase->type != PCM_CAPTURE) && (usecase != uc_info)) {
+        if ((usecase->type != PCM_CAPTURE) &&
+            (usecase->type != VOICE_CALL) &&
+            (usecase != uc_info)) {
             uc_derive_snd_device = derive_playback_snd_device(adev->platform,
                                                usecase, uc_info, snd_device);
             if (((uc_derive_snd_device != usecase->out_snd_device) || force_routing) &&
@@ -3081,6 +3083,8 @@ int start_output_stream(struct stream_out *out)
             }
             break;
         }
+        platform_set_stream_channel_map(adev->platform, out->channel_mask,
+                   out->pcm_device_id, &out->channel_map_param.channel_map[0]);
 
         ALOGV("%s: pcm_prepare", __func__);
         if (pcm_is_ready(out->pcm)) {
@@ -3094,8 +3098,6 @@ int start_output_stream(struct stream_out *out)
                 goto error_open;
             }
         }
-        platform_set_stream_channel_map(adev->platform, out->channel_mask,
-                   out->pcm_device_id, &out->channel_map_param.channel_map[0]);
         // apply volume for voip playback after path is set up
         if (out->usecase == USECASE_AUDIO_PLAYBACK_VOIP)
             out_set_voip_volume(&out->stream, out->volume_l, out->volume_r);
@@ -3792,6 +3794,13 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
         pthread_mutex_unlock(&out->lock);
     }
 
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_DUAL_MONO, value,
+                            sizeof(value));
+    if (err >= 0) {
+        if (!strncmp("true", value, sizeof("true")) || atoi(value))
+            audio_extn_send_dual_mono_mixing_coefficients(out);
+    }
+
     err = str_parms_get_str(parms, AUDIO_PARAMETER_STREAM_PROFILE, value, sizeof(value));
     if (err >= 0) {
         strlcpy(out->profile, value, sizeof(out->profile));
@@ -4359,6 +4368,8 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
             ret = -EINVAL;
             goto exit;
         }
+        if (out->set_dual_mono)
+            audio_extn_send_dual_mono_mixing_coefficients(out);
     }
 
     if (adev->is_channel_status_set == false && (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL)){
@@ -5394,7 +5405,8 @@ static int add_remove_audio_effect(const struct audio_stream *stream,
 
     lock_input_stream(in);
     pthread_mutex_lock(&in->dev->lock);
-    if ((in->source == AUDIO_SOURCE_VOICE_COMMUNICATION) &&
+    if ((in->source == AUDIO_SOURCE_VOICE_COMMUNICATION ||
+         in->dev->mode == AUDIO_MODE_IN_COMMUNICATION) &&
             in->enable_aec != enable &&
             (memcmp(&desc.type, FX_IID_AEC, sizeof(effect_uuid_t)) == 0)) {
         in->enable_aec = enable;
@@ -5408,7 +5420,8 @@ static int add_remove_audio_effect(const struct audio_stream *stream,
             (memcmp(&desc.type, FX_IID_NS, sizeof(effect_uuid_t)) == 0)) {
         in->enable_ns = enable;
         if (!in->standby) {
-            if (in->source == AUDIO_SOURCE_VOICE_COMMUNICATION) {
+            if (in->source == AUDIO_SOURCE_VOICE_COMMUNICATION ||
+                in->dev->mode == AUDIO_MODE_IN_COMMUNICATION) {
                 if (enable_disable_effect(in->dev, EFFECT_NS, enable) == ENOSYS)
                     select_devices(in->dev, in->usecase);
             } else
@@ -5640,6 +5653,7 @@ int adev_open_output_stream(struct audio_hw_device *dev,
     out->a2dp_compress_mute = false;
     out->hal_output_suspend_supported = 0;
     out->dynamic_pm_qos_config_supported = 0;
+    out->set_dual_mono = false;
 
     if ((flags & AUDIO_OUTPUT_FLAG_BD) &&
         (property_get_bool("vendor.audio.matrix.limiter.enable", false)))
@@ -6647,7 +6661,8 @@ static int adev_update_voice_comm_input_stream(struct stream_in *in,
     bool valid_ch = audio_channel_count_from_in_mask(in->channel_mask) == 1;
 
 #ifndef COMPRESS_VOIP_ENABLED
-    if (valid_rate && valid_ch) {
+    if (valid_rate && valid_ch &&
+        in->dev->mode == AUDIO_MODE_IN_COMMUNICATION) {
         in->usecase = USECASE_AUDIO_RECORD_VOIP;
         in->config = default_pcm_config_voip_copp;
         in->config.period_size = VOIP_IO_BUF_SIZE(in->sample_rate,
