@@ -980,7 +980,11 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
             usecase->devices = usecase->stream.out->devices;
             in_snd_device = SND_DEVICE_NONE;
             if (out_snd_device == SND_DEVICE_NONE) {
-                out_snd_device = platform_get_output_snd_device(adev->platform,
+                if (is_offload_usecase(usecase->id))
+                    /* Using SND_DEVICE_OUT_BUS for compress offload usecase*/
+                    out_snd_device = SND_DEVICE_OUT_BUS;
+                else
+                    out_snd_device = platform_get_output_snd_device(adev->platform,
                                             usecase->stream.out);
                 if (usecase->stream.out == adev->primary_output &&
                         adev->active_input &&
@@ -3218,6 +3222,18 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
             ALOGE("%s: invalid car audio stream %x", __func__, car_audio_stream);
             return -EINVAL;
         }
+    } else if (((flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) ||
+                     ((flags & AUDIO_OUTPUT_FLAG_DIRECT) != 0)) {
+        /* Using BUS00_MEDIA for compress offload usecase */
+        strncpy(address, "BUS00_MEDIA", AUDIO_DEVICE_MAX_ADDRESS_LEN);
+        /* extract car audio stream index */
+        car_audio_stream = out_get_car_audio_stream_from_address(address);
+        if (car_audio_stream < 0) {
+            ALOGE("%s: invalid car audio stream %x", __func__, car_audio_stream);
+            return -EINVAL;
+        }
+    } else {
+        ALOGD("Car audio stream is enabled only for Bus Device");
     }
     // FIXME: Bus address validation for uniqueness. Framework does not support
     //        multiple streams over same bus address.
@@ -3541,6 +3557,15 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
         strlcpy(out->address, address, AUDIO_DEVICE_MAX_ADDRESS_LEN);
         ALOGV("%s: address %s, car_audio_stream %x",
             __func__, out->address, out->car_audio_stream);
+    } else if (((flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) ||
+                 ((flags & AUDIO_OUTPUT_FLAG_DIRECT) != 0)) {
+        /* save car audio stream and address for bus device */
+        out->car_audio_stream = car_audio_stream;
+        strlcpy(out->address, address, AUDIO_DEVICE_MAX_ADDRESS_LEN);
+        ALOGV("%s: address %s, car_audio_stream %x",
+            __func__, out->address, out->car_audio_stream);
+    } else {
+        ALOGD("Car audio stream is enabled only for Bus Device");
     }
 #endif
 
