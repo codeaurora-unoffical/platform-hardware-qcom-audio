@@ -246,6 +246,11 @@ int32_t audio_extn_ext_hw_plugin_codec_enable(struct ext_hw_plugin_data *my_plug
     int ret = 0;
     struct str_parms *parms = str_parms_create();
 
+    if (NULL == parms) {
+        ALOGE("%s:str_parms_create() returned null",__func__);
+        ret = -EINVAL;
+        goto end;
+    }
     if (my_plugin == NULL || codec_enable == NULL) {
         ALOGE("%s: received null pointer", __func__);
         ret = -EINVAL;
@@ -296,6 +301,11 @@ int32_t audio_extn_ext_hw_plugin_codec_disable(struct ext_hw_plugin_data *my_plu
     int ret = 0;
     struct str_parms *parms = str_parms_create();
 
+    if (NULL == parms) {
+        ALOGE("%s: str_parms_create returned null",__func__);
+        ret = -EINVAL;
+        goto end;
+    }
     if (my_plugin == NULL || codec_disable == NULL) {
         ALOGE("%s: received null pointer", __func__);
         ret = -EINVAL;
@@ -345,6 +355,11 @@ int32_t audio_extn_ext_hw_plugin_codec_pp_mute(struct ext_hw_plugin_data *my_plu
     int ret = 0;
     struct str_parms *parms = str_parms_create();
 
+    if (NULL == parms) {
+        ALOGE("%s: str_parms_create returned null",__func__);
+        ret = -EINVAL;
+        goto end;
+    }
     if (my_plugin == NULL || codec_mute == NULL) {
         ALOGE("%s: received null pointer", __func__);
         ret = -EINVAL;
@@ -1254,7 +1269,7 @@ int audio_extn_ext_hw_plugin_get_parameters(void *plugin,
     const char *v_reply;
     char *a_query = NULL;
     int len = 0;
-    struct str_parms *rly = str_parms_create();
+    struct str_parms *rly = NULL;
     struct ext_hw_plugin_data *my_plugin = NULL;
 
     if (plugin == NULL || query == NULL || reply == NULL) {
@@ -1265,6 +1280,11 @@ int audio_extn_ext_hw_plugin_get_parameters(void *plugin,
 
     // FIXME: snd_dev should be translated from my_plugin table into key-value pair
     a_query = str_parms_to_str(query);
+    if (NULL == a_query) {
+        ALOGE("%s:str_parms_to_str returned null",__func__);
+        ret = -EINVAL;
+        goto end;
+    }
     len = strlen(a_query);
     ALOGD("%s: query = %s",__func__,a_query);
 
@@ -1287,7 +1307,9 @@ int audio_extn_ext_hw_plugin_get_parameters(void *plugin,
     }
     memset(reply,0,sizeof(len+1));
     rly = str_parms_create_str(v_reply);
-    memcpy(reply,rly,sizeof(len+1));
+    if (rly != NULL) {
+        memcpy(reply,rly,sizeof(len+1));
+    }
 
 end:
     if (a_query != NULL)

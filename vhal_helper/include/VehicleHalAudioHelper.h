@@ -44,20 +44,25 @@ using ::android::hardware::Void;
 using ::android::hardware::hidl_vec;
 using ::android::hardware::hidl_handle;
 using ::android::sp;
+using ::android::hardware::hidl_death_recipient;
 
 namespace android {
 
 // ----------------------------------------------------------------------------
 
+struct VehicleHalDeathRecipient : hidl_death_recipient {
+    public:
+        virtual void serviceDied(uint64_t cookie,
+                const wp<hidl::base::V1_0::IBase>& who);
+};
+
+// ----------------------------------------------------------------------------
+
 class VehicleHalAudioHelper : public IVehicleCallback {
 public:
+    static VehicleHalAudioHelper* getInstance();
+    static void destroy();
 
-    VehicleHalAudioHelper(int64_t timeoutNs = FOCUS_WAIT_DEFAULT_TIMEOUT_NS);
-    virtual ~VehicleHalAudioHelper();
-
-    status_t init();
-
-    void release();
     int32_t setParameters(const char* query);
     const char* getParameters(const char* query);
     void notifyStreamStarted(int32_t stream);
@@ -67,6 +72,10 @@ public:
 
     bool waitForStreamFocus(int32_t stream, nsecs_t waitTimeNs);
 
+    void setFocusTimeout(int64_t timeoutNs);
+
+    void handleVehicleHalDeath();
+
     // from IVehicleCallback
     Return<void> onPropertyEvent(const hidl_vec <VehiclePropValue> & propValues) override;
     Return<void> onPropertySet(const VehiclePropValue & propValue) override;
@@ -75,18 +84,28 @@ public:
                                     int32_t    areaId) override;
 
 private:
+    VehicleHalAudioHelper();
+    virtual ~VehicleHalAudioHelper();
+
+    status_t initLocked();
+    void releaseLocked();
+
     void updatePropertiesLocked();
 
     class StreamState {
     public:
         int64_t timeoutStartNs;
         bool started;
+        Mutex lock;
+        Condition focusWait;
         StreamState()
          : timeoutStartNs(0),
            started(false) { };
     };
 
-    StreamState& getStreamStateLocked(int32_t streamNumber);
+    StreamState* getStreamStateLocked(int32_t streamNumber);
+
+    StreamState* getStreamState(int32_t streamNumber);
 
     StatusCode invokeGetPropConfigs(hidl_vec<int32_t> requestedProp);
 
@@ -95,16 +114,20 @@ private:
     StatusCode invokeSet(VehiclePropValue *pRequestedPropValue);
 
 private:
-    const int64_t mTimeoutNs;
+
+    static VehicleHalAudioHelper* mVehicleHalAudioHelper;
+    static Mutex mLock;
+
+    int64_t mTimeoutNs;
     sp<IVehicle> mVehicle;
-    Mutex mLock;
-    Condition mFocusWait;
+    sp<VehicleHalDeathRecipient> mVehicleHalDeathRecipient;
     bool mHasFocusProperty;
     int32_t mAllowedStreams;
     VehiclePropValue mScratchValueFocus;
     VehiclePropValue mScratchValueStreamState;
     VehiclePropValue mAudioParams;
-    Vector<StreamState> mStreamStates;
+
+    StreamState mStreamStates[VEHICLE_HAL_AUDIO_HELPER_STREAMS_MAX];
 };
 
 }; // namespace android

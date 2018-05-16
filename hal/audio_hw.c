@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2016, 2018, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -377,6 +377,9 @@ static bool is_supported_format(audio_format_t format)
         || format == AUDIO_FORMAT_WMA ||
         format == AUDIO_FORMAT_WMA_PRO
 #endif
+#ifdef APTX_OFFLOAD_ENABLED
+        || format == AUDIO_FORMAT_APTX
+#endif
        )
            return true;
 
@@ -426,6 +429,11 @@ static int get_snd_codec_id(audio_format_t format)
         break;
     case AUDIO_FORMAT_WMA_PRO:
         id = SND_AUDIOCODEC_WMA_PRO;
+        break;
+#endif
+#ifdef APTX_OFFLOAD_ENABLED
+    case AUDIO_FORMAT_APTX:
+        id = SND_AUDIOCODEC_APTX;
         break;
 #endif
     default:
@@ -980,7 +988,11 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
             usecase->devices = usecase->stream.out->devices;
             in_snd_device = SND_DEVICE_NONE;
             if (out_snd_device == SND_DEVICE_NONE) {
-                out_snd_device = platform_get_output_snd_device(adev->platform,
+                if (is_offload_usecase(usecase->id))
+                    /* Using SND_DEVICE_OUT_BUS for compress offload usecase*/
+                    out_snd_device = SND_DEVICE_OUT_BUS;
+                else
+                    out_snd_device = platform_get_output_snd_device(adev->platform,
                                             usecase->stream.out);
                 if (usecase->stream.out == adev->primary_output &&
                         adev->active_input &&
@@ -3162,6 +3174,7 @@ static int32_t out_get_car_audio_stream_from_address(const char *address)
 {
     int32_t bus_num = -1;
     char *str = NULL;
+    char *last_r;
     char local_address[AUDIO_DEVICE_MAX_ADDRESS_LEN];
 
     /* bus device with null address error out */
@@ -3174,7 +3187,7 @@ static int32_t out_get_car_audio_stream_from_address(const char *address)
     strlcpy(local_address, address, AUDIO_DEVICE_MAX_ADDRESS_LEN);
 
     /* extract bus number from address */
-    str = strtok(local_address, "BUS_");
+    str = strtok_r(local_address, "BUS_",&last_r);
     if (str != NULL)
         bus_num = (int32_t)strtol(str, (char **)NULL, 10);
 
@@ -3218,6 +3231,18 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
             ALOGE("%s: invalid car audio stream %x", __func__, car_audio_stream);
             return -EINVAL;
         }
+    } else if (((flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) ||
+                     ((flags & AUDIO_OUTPUT_FLAG_DIRECT) != 0)) {
+        /* Using BUS00_MEDIA for compress offload usecase */
+        strncpy(address, "BUS00_MEDIA", AUDIO_DEVICE_MAX_ADDRESS_LEN);
+        /* extract car audio stream index */
+        car_audio_stream = out_get_car_audio_stream_from_address(address);
+        if (car_audio_stream < 0) {
+            ALOGE("%s: invalid car audio stream %x", __func__, car_audio_stream);
+            return -EINVAL;
+        }
+    } else {
+        ALOGD("Car audio stream is enabled only for Bus Device");
     }
     // FIXME: Bus address validation for uniqueness. Framework does not support
     //        multiple streams over same bus address.
@@ -3414,6 +3439,12 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
         if (config->offload_info.format == AUDIO_FORMAT_FLAC)
             out->compr_config.codec->options.flac_dec.sample_size = AUDIO_OUTPUT_BIT_WIDTH;
 #endif
+#ifdef APTX_OFFLOAD_ENABLED
+        if (config->offload_info.format == AUDIO_FORMAT_APTX) {
+            audio_extn_send_aptx_dec_bt_addr_to_dsp(out);
+        }
+#endif
+
         if (flags & AUDIO_OUTPUT_FLAG_NON_BLOCKING)
             out->non_blocking = 1;
 
@@ -3541,6 +3572,15 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
         strlcpy(out->address, address, AUDIO_DEVICE_MAX_ADDRESS_LEN);
         ALOGV("%s: address %s, car_audio_stream %x",
             __func__, out->address, out->car_audio_stream);
+    } else if (((flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) ||
+                 ((flags & AUDIO_OUTPUT_FLAG_DIRECT) != 0)) {
+        /* save car audio stream and address for bus device */
+        out->car_audio_stream = car_audio_stream;
+        strlcpy(out->address, address, AUDIO_DEVICE_MAX_ADDRESS_LEN);
+        ALOGV("%s: address %s, car_audio_stream %x",
+            __func__, out->address, out->car_audio_stream);
+    } else {
+        ALOGD("Car audio stream is enabled only for Bus Device");
     }
 #endif
 
@@ -4734,6 +4774,7 @@ static int adev_open(const hw_module_t *module, const char *name,
                                                         "visualizer_hal_stop_output");
         }
     }
+    audio_extn_init(adev);
     audio_extn_listen_init(adev, adev->snd_card);
     audio_extn_sound_trigger_init(adev);
 

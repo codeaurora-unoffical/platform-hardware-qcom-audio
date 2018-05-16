@@ -41,6 +41,10 @@ typedef struct vehicle_hal_audio_helper
 
 #define FOCUS_WAIT_DEFAULT_TIMEOUT_NS 1000000000
 
+#define VEHICLE_HAL_WAIT_TIMEOUT_MS 10000
+
+#define VEHICLE_HAL_AUDIO_HELPER_STREAMS_MAX 8
+
 /**
  * Create helper instance with default timeout. Timer is reset when
  * vehicle_hal_audio_helper_notify_stream_started is called, and subsequent call to

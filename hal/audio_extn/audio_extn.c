@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2016, 2018, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -63,6 +63,9 @@ struct audio_extn_module {
     uint32_t proxy_channel_num;
     bool hpx_enabled;
     bool vbat_enabled;
+#ifdef APTX_OFFLOAD_ENABLED
+    struct aptx_dec_bt_addr addr;
+#endif
 };
 
 static struct audio_extn_module aextnmod = {
@@ -72,6 +75,11 @@ static struct audio_extn_module aextnmod = {
     .proxy_channel_num = 2,
     .hpx_enabled = 0,
     .vbat_enabled = 0,
+#ifdef APTX_OFFLOAD_ENABLED
+    .addr.nap = 0,
+    .addr.uap = 0,
+    .addr.lap = 0,
+#endif
 };
 
 #define AUDIO_PARAMETER_KEY_ANC        "anc_enabled"
@@ -81,6 +89,7 @@ static struct audio_extn_module aextnmod = {
 /* Query offload playback instances count */
 #define AUDIO_PARAMETER_OFFLOAD_NUM_ACTIVE "offload_num_active"
 #define AUDIO_PARAMETER_HPX            "HPX"
+#define AUDIO_PARAMETER_APTX_DEC_BT_ADDR   "bt_addr"
 
 #ifndef FM_POWER_OPT
 #define audio_extn_fm_set_parameters(adev, parms) (0)
@@ -577,6 +586,11 @@ static int get_active_offload_usecases(const struct audio_device *adev,
     return ret;
 }
 
+void audio_extn_init(struct audio_device *adev)
+{
+    audio_extn_aptx_dec_set_license(adev);
+}
+
 int audio_extn_set_parameters(struct audio_device *adev,
                                struct str_parms *parms)
 {
@@ -602,6 +616,7 @@ int audio_extn_set_parameters(struct audio_device *adev,
    audio_extn_icc_set_parameters(adev, parms);
    audio_extn_anc_set_parameters(adev, parms);
    audio_extn_ext_hw_plugin_set_parameters(adev->ext_hw_plugin, parms);
+   audio_extn_set_aptx_dec_bt_addr(adev, parms);
    return ret;
 }
 
@@ -964,3 +979,69 @@ void audio_extn_perf_lock_release(void)
         ALOGE("%s: Perf lock release error \n", __func__);
 }
 #endif /* KPI_OPTIMIZE_ENABLED */
+
+#ifdef APTX_OFFLOAD_ENABLED
+static void audio_extn_aptx_dec_set_license(struct audio_device *adev)
+{
+    int ret, key = 0;
+    char value[128] = {0};
+    struct mixer_ctl *ctl;
+    const char *mixer_ctl_name = "APTX Dec License";
+
+    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+    if (!ctl) {
+        ALOGE("%s: Could not get ctl for mixer cmd - %s",
+                __func__, mixer_ctl_name);
+        return;
+    }
+    key = platform_get_meta_info_key_from_list(adev->platform, "aptx");
+
+    ALOGD("%s Setting APTX License with key:0x%x",__func__, key);
+    ret = mixer_ctl_set_value(ctl, 0, key);
+    if (ret)
+        ALOGE("%s: cannot set license, error:%d",__func__, ret);
+}
+
+static void audio_extn_set_aptx_dec_bt_addr(struct audio_device *adev, struct str_parms *parms)
+{
+    int ret = 0;
+    char value[256];
+
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_APTX_DEC_BT_ADDR, value,
+                            sizeof(value));
+    if (ret >= 0) {
+        audio_extn_parse_aptx_dec_bt_addr(value);
+    }
+}
+
+static void audio_extn_parse_aptx_dec_bt_addr(char *value)
+{
+    int ba[6];
+    char *str, *tok;
+    uint32_t addr[3];
+    int i = 0;
+
+    ALOGV("%s: value %s", __func__, value);
+    tok = strtok_r(value, ":", &str);
+    while (tok != NULL) {
+        ba[i] = strtol(tok, NULL, 16);
+        i++;
+        tok = strtok_r(NULL, ":", &str);
+    }
+    addr[0] = (ba[0] << 8) | ba[1];
+    addr[1] = ba[2];
+    addr[2] = (ba[3] << 16) | (ba[4] << 8) | ba[5];
+
+    aextnmod.addr.nap = addr[0];
+    aextnmod.addr.uap = addr[1];
+    aextnmod.addr.lap = addr[2];
+}
+
+void audio_extn_send_aptx_dec_bt_addr_to_dsp(struct stream_out *out)
+{
+    ALOGV("%s", __func__);
+    out->compr_config.codec->options.aptx_dec.nap = aextnmod.addr.nap;
+    out->compr_config.codec->options.aptx_dec.uap = aextnmod.addr.uap;
+    out->compr_config.codec->options.aptx_dec.lap = aextnmod.addr.lap;
+}
+#endif /* APTX_OFFLOAD_ENABLED */

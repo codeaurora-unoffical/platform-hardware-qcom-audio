@@ -26,26 +26,17 @@
 extern "C" {
 
 vehicle_hal_audio_helper_t* vehicle_hal_audio_helper_create(nsecs_t timeout) {
-    android::status_t r;
-    android::VehicleHalAudioHelper* helperObj = new android::VehicleHalAudioHelper(timeout);
+    android::VehicleHalAudioHelper* helperObj = android::VehicleHalAudioHelper::getInstance();
     if (helperObj == NULL) {
         return NULL;
     }
+    helperObj->setFocusTimeout(timeout);
     vehicle_hal_audio_helper_t *helper = new vehicle_hal_audio_helper_t();
     if (helper == NULL) {
-        goto error;
-    }
-    r = helperObj->init();
-    if (r != android::NO_ERROR) {
-        goto error;
+        return NULL;
     }
     helper->obj = helperObj;
     return helper;
-
-error:
-    delete helperObj;
-    delete helper;
-    return NULL;
 }
 
 vehicle_hal_audio_helper_t* vehicle_hal_audio_helper_create_with_default_timeout() {
@@ -56,10 +47,6 @@ void vehicle_hal_audio_helper_destroy(vehicle_hal_audio_helper_t* helper) {
     if (helper == NULL) {
         return;
     }
-    android::VehicleHalAudioHelper* helperObj =
-            (android::VehicleHalAudioHelper*) helper->obj;
-    helperObj->release();
-    delete helperObj;
     delete helper;
 }
 

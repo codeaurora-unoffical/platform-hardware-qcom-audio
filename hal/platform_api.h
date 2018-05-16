@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2016, 2018, The Linux Foundation. All rights reserved.
  * Not a contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -23,6 +23,7 @@
 
 #define CODEC_BACKEND_DEFAULT_BIT_WIDTH 16
 #define CODEC_BACKEND_DEFAULT_SAMPLE_RATE 48000
+#define ACDB_METAINFO_KEY_MODULE_NAME_LEN 100
 
 #define BE_DAI_NAME_MAX_LENGTH 24
 struct be_dai_name_struct {
@@ -45,6 +46,8 @@ int platform_set_snd_device_acdb_id(snd_device_t snd_device, unsigned int acdb_i
 int platform_get_snd_device_acdb_id(snd_device_t snd_device);
 int platform_set_snd_device_bit_width(snd_device_t snd_device, unsigned int bit_width);
 int platform_get_snd_device_bit_width(snd_device_t snd_device);
+int platform_set_acdb_metainfo_key(void *platform, char *name, int key);
+int platform_get_meta_info_key_from_list(void *platform, char *mod_name);
 int platform_set_native_support(bool codec_support);
 int platform_get_native_support();
 int platform_get_backend_index(snd_device_t snd_device);
