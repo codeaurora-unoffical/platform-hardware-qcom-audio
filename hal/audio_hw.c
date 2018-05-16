@@ -108,6 +108,8 @@ enum {
     CAR_AUDIO_STREAM_SYS_NOTIFICATION    = 0x2,
     /** Navigation guidance (driver side playback). */
     CAR_AUDIO_STREAM_NAV_GUIDANCE        = 0x4,
+    /** Phone playback. */
+    CAR_AUDIO_STREAM_PHONE               = 0x8,
 };
 #endif
 
@@ -250,6 +252,7 @@ const char * const use_case_table[AUDIO_USECASE_MAX] = {
 #ifdef BUS_ADDRESS_ENABLED
     [USECASE_AUDIO_PLAYBACK_MEDIA] = "media-playback",
     [USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION] = "sys-notification-playback",
+    [USECASE_AUDIO_PLAYBACK_PHONE] = "phone-playback",
 #endif
     [USECASE_AUDIO_LINE_IN_PASSTHROUGH] = "line-in-passthrough",
     [USECASE_AUDIO_HDMI_IN_PASSTHROUGH] = "hdmi-in-passthrough",
@@ -3573,6 +3576,12 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
             if (out->flags == AUDIO_OUTPUT_FLAG_NONE)
                 out->flags |=  AUDIO_OUTPUT_FLAG_DRIVER_SIDE;
 #endif
+            break;
+        case CAR_AUDIO_STREAM_PHONE:
+            format = AUDIO_FORMAT_PCM_16_BIT;
+            out->usecase = USECASE_AUDIO_PLAYBACK_PHONE;
+            out->config = pcm_config_low_latency;
+            out->sample_rate = out->config.rate;
             break;
         default:
             ALOGE("%s: car audio stream %x not supported", __func__, car_audio_stream);

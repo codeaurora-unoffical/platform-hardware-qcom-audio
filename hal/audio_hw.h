@@ -160,6 +160,7 @@ enum {
     /* bus address streams for car support */
     USECASE_AUDIO_PLAYBACK_MEDIA,
     USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION,
+    USECASE_AUDIO_PLAYBACK_PHONE,
 #endif
 
     /*HDMI in and AV Jack usecase */

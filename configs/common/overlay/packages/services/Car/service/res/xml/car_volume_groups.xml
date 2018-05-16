@@ -40,6 +40,8 @@
 <volumeGroups xmlns:car="http://schemas.android.com/apk/res-auto">
     <group>
         <context car:context="music"/>
+    </group>
+    <group>
         <context car:context="call"/>
     </group>
     <group>

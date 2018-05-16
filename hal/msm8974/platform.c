@@ -347,6 +347,8 @@ static int pcm_device_table[AUDIO_USECASE_MAX][2] = {
                                       MEDIA_PCM_DEVICE},
     [USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION] = {SYS_NOTIFICATION_PCM_DEVICE,
                                                  SYS_NOTIFICATION_PCM_DEVICE},
+    [USECASE_AUDIO_PLAYBACK_PHONE] = {PHONE_PCM_DEVICE,
+                                      PHONE_PCM_DEVICE},
 #endif
     [USECASE_AUDIO_LINE_IN_PASSTHROUGH] = {-1, -1},
     [USECASE_AUDIO_HDMI_IN_PASSTHROUGH] = {-1, -1},
@@ -736,6 +738,7 @@ static struct name_to_index usecase_name_index[AUDIO_USECASE_MAX] = {
 #ifdef BUS_ADDRESS_ENABLED
     {TO_NAME_INDEX(USECASE_AUDIO_PLAYBACK_MEDIA)},
     {TO_NAME_INDEX(USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION)},
+    {TO_NAME_INDEX(USECASE_AUDIO_PLAYBACK_PHONE)},
 #endif
 };
 
@@ -1198,6 +1201,7 @@ static void set_platform_defaults()
 #ifdef BUS_ADDRESS_ENABLED
     hw_interface_table[USECASE_AUDIO_PLAYBACK_MEDIA] = strdup("QUAT_TDM_RX_0");
     hw_interface_table[USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION] = strdup("QUAT_TDM_RX_0");
+    hw_interface_table[USECASE_AUDIO_PLAYBACK_PHONE] = strdup("QUAT_TDM_RX_2");
 #endif
 }
 
@@ -2467,6 +2471,11 @@ int platform_get_usecase_acdb_id(void *platform,
         case USECASE_AUDIO_PLAYBACK_DRIVER_SIDE:
             acdb_dev_id = 14;
             break;
+#ifdef BUS_ADDRESS_ENABLED
+        case USECASE_AUDIO_PLAYBACK_PHONE:
+            acdb_dev_id = 94;
+            break;
+#endif
         default:
             ALOGE("%s: no acdb id supported for usecase id (%d)",
                 __func__, usecase->id);
@@ -4076,14 +4085,13 @@ int64_t platform_render_latency(audio_usecase_t usecase)
         case USECASE_AUDIO_PLAYBACK_DEEP_BUFFER:
 #ifdef BUS_ADDRESS_ENABLED
         case USECASE_AUDIO_PLAYBACK_MEDIA:
-#ifdef DRIVER_SIDE_PLAYBACK_ENABLED
+#endif
         case USECASE_AUDIO_PLAYBACK_DRIVER_SIDE:
-#endif
-#endif
             return DEEP_BUFFER_PLATFORM_DELAY;
         case USECASE_AUDIO_PLAYBACK_LOW_LATENCY:
 #ifdef BUS_ADDRESS_ENABLED
         case USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION:
+        case USECASE_AUDIO_PLAYBACK_PHONE:
 #endif
             return LOW_LATENCY_PLATFORM_DELAY;
         case USECASE_AUDIO_PLAYBACK_OFFLOAD:
