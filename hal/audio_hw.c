@@ -302,6 +302,14 @@ static unsigned int audio_device_ref_count;
 
 static int set_voice_volume_l(struct audio_device *adev, float volume);
 
+#ifdef BUS_ADDRESS_ENABLED
+static int out_set_audio_gain_to_stream(struct stream_out *out,
+                                        const struct audio_gain_config *gain);
+static int out_set_audio_gain_to_device(struct audio_device *adev,
+                                        struct audio_usecase *uc_info,
+                                        const struct audio_gain_config *gain);
+#endif
+
 __attribute__ ((visibility ("default")))
 bool audio_hw_send_gain_dep_calibration(int level) {
     bool ret_val = false;
@@ -1699,7 +1707,7 @@ int start_output_stream(struct stream_out *out)
         goto error_config;
     }
 
-    ALOGD("%s: enter: stream(%p)usecase(%d: %s) devices(%#x)",
+    ALOGD("%s: enter: stream(%p) usecase(%d: %s) devices(%#x)",
           __func__, &out->stream, out->usecase, use_case_table[out->usecase],
           out->devices);
 
@@ -1901,6 +1909,11 @@ int start_output_stream(struct stream_out *out)
         }
     }
 
+#ifdef BUS_ADDRESS_ENABLED
+    if (out->devices & AUDIO_DEVICE_OUT_BUS)
+        if (out->set_gain_config)
+            ret = out_set_audio_gain_to_stream(out, &out->gain_config);
+#endif
 
     ALOGD("%s: exit", __func__);
 
@@ -3154,8 +3167,8 @@ static streams_output_ctxt_t *out_get_stream(struct audio_device *dev,
 }
 
 #ifdef BUS_ADDRESS_ENABLED
-static streams_output_ctxt_t *out_get_car_audio_stream(struct audio_device *dev,
-                                  int car_audio_stream)
+static streams_output_ctxt_t *out_get_stream_from_bus_address(struct audio_device *dev,
+                                  const char *address)
 {
     struct listnode *node;
 
@@ -3163,7 +3176,8 @@ static streams_output_ctxt_t *out_get_car_audio_stream(struct audio_device *dev,
         streams_output_ctxt_t *out_ctxt = node_to_item(node,
                                                      streams_output_ctxt_t,
                                                      list);
-        if (out_ctxt->output->car_audio_stream == car_audio_stream) {
+        if ((out_ctxt->output->devices & AUDIO_DEVICE_OUT_BUS) &&
+                strcmp(out_ctxt->output->address, address) == 0) {
             return out_ctxt;
         }
     }
@@ -3244,8 +3258,6 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
     } else {
         ALOGD("Car audio stream is enabled only for Bus Device");
     }
-    // FIXME: Bus address validation for uniqueness. Framework does not support
-    //        multiple streams over same bus address.
 #endif
 
     pthread_mutex_lock(&adev->lock);
@@ -3253,6 +3265,18 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
         ALOGW("%s: output stream already opened", __func__);
         ret = -EEXIST;
     }
+
+#ifdef BUS_ADDRESS_ENABLED
+#if 0 // allow offload and media streams to share bus 0
+    if (devices & AUDIO_DEVICE_OUT_BUS) {
+        if (out_get_stream_from_bus_address(adev, address) != NULL) {
+            ALOGW("%s: output stream already opened", __func__);
+            ret = -EEXIST;
+        }
+    }
+#endif
+#endif
+
     pthread_mutex_unlock(&adev->lock);
     if (ret)
         return ret;
@@ -3551,7 +3575,7 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
 #endif
             break;
         default:
-            ALOGE("%s: car audio stream (%d) not supported", __func__, car_audio_stream);
+            ALOGE("%s: car audio stream %x not supported", __func__, car_audio_stream);
             goto error_open;
         }
 #endif
@@ -4370,6 +4394,7 @@ static int adev_create_audio_patch(struct audio_hw_device *dev,
                 __func__, in_ctxt->input->source);
         }
         pthread_mutex_unlock(&in_ctxt->input->lock);
+        return ret;
     } else if ((sources->type == AUDIO_PORT_TYPE_MIX) &&
         (sinks->type == AUDIO_PORT_TYPE_DEVICE)) {
         /* set device for playback */
@@ -4530,6 +4555,11 @@ static int adev_create_audio_patch(struct audio_hw_device *dev,
     patch_record->usecase = usecase;
     patch_record->input_io_handle = input_io_handle;
     patch_record->output_io_handle = output_io_handle;
+    // FIXME: Cache multiple source and sink ports config.
+    memcpy((void *)&patch_record->source, (void *)sources,
+        sizeof(struct audio_port_config));
+    memcpy((void *)&patch_record->sink, (void *)sinks,
+        sizeof(struct audio_port_config));
     list_add_tail(&adev->audio_patch_record_list, &patch_record->list);
     pthread_mutex_unlock(&adev->lock);
 
@@ -4622,6 +4652,185 @@ exit:
     pthread_mutex_unlock(&adev->lock);
     ALOGV("adev_release_audio_patch exit");
     return ret;
+}
+
+static int adev_get_audio_port(struct audio_hw_device *dev __unused,
+                          struct audio_port *port __unused)
+{
+    return -ENOSYS;
+}
+
+#ifdef BUS_ADDRESS_ENABLED
+static int out_set_audio_gain_to_stream(struct stream_out *out,
+                                        const struct audio_gain_config *gain)
+{
+    char mixer_ctl_name[128];
+    struct audio_device *adev = out->dev;
+    struct mixer_ctl *ctl = NULL;
+    int pcm_device_id = platform_get_pcm_device_id(out->usecase,
+                                                   PCM_PLAYBACK);
+    int vol_mdb = gain->values[0];
+    /*
+     * millibel = 1/100 dB = 1/1000 bel
+     * q13 = (10^(mdb/100/20))*(2^13)
+     */
+    int vol_q13 = lrint(powf(10.0, ((float)vol_mdb / 2000)) * 8192);
+
+    ALOGD("%s: Setting stream volume to %d", __func__, vol_q13);
+
+    snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
+             "Playback %d Volume", pcm_device_id);
+    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+    if (!ctl) {
+        ALOGE("%s: Could not get ctl for mixer cmd - %s",
+              __func__, mixer_ctl_name);
+        return -EINVAL;
+    }
+
+    if (mixer_ctl_set_value(ctl, 0, vol_q13) < 0) {
+        ALOGE("%s: Couldn't set playback volume: %d", __func__, vol_q13);
+        return -EINVAL;
+    }
+    return 0;
+}
+
+/* Volume min/max defined by audio policy configuration in millibel.
+ * Support a range of -48dB to 12dB.
+ */
+#define MIN_VOLUME_VALUE_MB -4800
+#define MAX_VOLUME_VALUE_MB 1200
+
+static int out_set_audio_gain_to_device(struct audio_device *adev,
+                                        struct audio_usecase *uc_info,
+                                        const struct audio_gain_config *gain)
+{
+    int vol_mdb = gain->values[0];
+    /* linear interpolation from millibel to level */
+    int vol_level = lrint((((float)vol_mdb + (0 - MIN_VOLUME_VALUE_MB)) /
+                           (MAX_VOLUME_VALUE_MB - MIN_VOLUME_VALUE_MB)) * 40);
+
+    ALOGD("%s: Setting device volume to %d", __func__, vol_level);
+
+    return audio_extn_ext_hw_plugin_set_audio_gain(adev->ext_hw_plugin,
+            uc_info, vol_level);
+}
+#endif
+
+static int adev_set_audio_port_config(struct audio_hw_device *dev,
+                         const struct audio_port_config *config)
+{
+#ifdef BUS_ADDRESS_ENABLED
+    struct audio_device *adev = (struct audio_device *)dev;
+    int ret = 0;
+    struct listnode *node = NULL;
+
+    ALOGV("%s: enter", __func__);
+
+    if (!config) {
+        ALOGE("%s: invalid input parameters", __func__);
+        return -EINVAL;
+    }
+
+    /* For Android automotive, audio port config from car framework
+     * allows volume gain to be set to device at audio HAL level, where
+     * the gain can be applied in DSP mixer or CODEC amplifier.
+     *
+     * Following routing should be considered:
+     *     MIX -> DEVICE
+     *     DEVICE -> MIX
+     *     DEVICE -> DEVICE
+     *
+     * For BUS devices routed to/from mixer, gain will be applied to DSP
+     * mixer via kernel control since audio HAL stream is associated.
+     * FIXME: Consider switch to CODEC amplifier gain control.
+     *
+     * For external (source) device (FM TUNER/AUX), routing is typically
+     * done with AudioPatch to (sink) device, thus gain should be applied
+     * to CODEC amplifier via codec plugin extention as audio HAL stream
+     * may not be available and data is routed externally.
+     */
+    if (config->type == AUDIO_PORT_TYPE_DEVICE) {
+        ALOGI("%s: device port: type %x, address %s, gain %d", __func__,
+            config->ext.device.type,
+            config->ext.device.address,
+            config->gain.values[0]);
+        if (config->role == AUDIO_PORT_ROLE_SINK) {
+            /* handle output devices */
+            pthread_mutex_lock(&adev->lock);
+            list_for_each(node, &adev->active_outputs_list) {
+                streams_output_ctxt_t *out_ctxt = node_to_item(node,
+                                                    streams_output_ctxt_t,
+                                                    list);
+                /* limit audio gain support for bus device only */
+                if (out_ctxt->output->devices == AUDIO_DEVICE_OUT_BUS &&
+                    out_ctxt->output->devices == config->ext.device.type &&
+                    strcmp(out_ctxt->output->address,
+                        config->ext.device.address) == 0) {
+                    lock_output_stream(out_ctxt->output);
+                    /* cache gain per output stream */
+                    out_ctxt->output->gain_config = config->gain;
+                    out_ctxt->output->set_gain_config = true;
+                    ALOGV("%s: stream: %p, cached gain %d", __func__,
+                        &out_ctxt->output->stream,
+                        out_ctxt->output->gain_config.values[0]);
+
+                    /* set gain if output stream is active */
+                    if (!out_ctxt->output->standby)
+                        ret = out_set_audio_gain_to_stream(out_ctxt->output,
+                                &config->gain);
+                    pthread_mutex_unlock(&out_ctxt->output->lock);
+                }
+            }
+            /* NOTE: Ideally audio patch list is a superset of output stream list above.
+             *       However, audio HAL does not maintain patches for mix -> device or
+             *       device -> mix currently. Thus doing separate lookups for device ->
+             *       device in audio patch list.
+             * FIXME: Cannot cache the gain if audio patch is not created. Expected gain
+             *        to be part of port config upon audio patch creation. If not, need
+             *        to create a list of audio port configs in adev context.
+             */
+            list_for_each(node, &adev->audio_patch_record_list) {
+                struct audio_patch_record *patch_record = node_to_item(node,
+                                                    struct audio_patch_record,
+                                                    list);
+                /* limit audio gain support for bus device only */
+                if (patch_record->sink.type == AUDIO_PORT_TYPE_DEVICE &&
+                    patch_record->sink.role == AUDIO_PORT_ROLE_SINK &&
+                    patch_record->sink.ext.device.type == AUDIO_DEVICE_OUT_BUS &&
+                    patch_record->sink.ext.device.type == config->ext.device.type &&
+                    strcmp(patch_record->sink.ext.device.address,
+                        config->ext.device.address) == 0) {
+                    /* cache / update gain per audio patch sink */
+                    patch_record->sink.gain = config->gain;
+                    ALOGV("%s: device: %x, address: %s, cached gain %d", __func__,
+                        patch_record->sink.ext.device.type,
+                        patch_record->sink.ext.device.address,
+                        patch_record->sink.gain.values[0]);
+
+                    struct audio_usecase *uc_info = get_usecase_from_list(adev,
+                                                        patch_record->usecase);
+                    if (!uc_info) {
+                        ALOGE("%s: failed to find the usecase %d",
+                            __func__, patch_record->usecase);
+                        ret = -EINVAL;
+                    } else
+                        ret = out_set_audio_gain_to_device(adev,
+                                uc_info, &config->gain);
+                }
+            }
+            pthread_mutex_unlock(&adev->lock);
+        } else if (config->role == AUDIO_PORT_ROLE_SOURCE) {
+            // FIXME: handle input devices.
+        }
+    }
+
+    /* Only handle device port currently. */
+
+    ALOGV("%s: exit", __func__);
+    return ret;
+#else
+    return -ENOSYS;
+#endif
 }
 
 static int adev_close(hw_device_t *device)
@@ -4724,6 +4933,8 @@ static int adev_open(const hw_module_t *module, const char *name,
     adev->device.dump = adev_dump;
     adev->device.create_audio_patch = adev_create_audio_patch;
     adev->device.release_audio_patch = adev_release_audio_patch;
+    adev->device.get_audio_port = adev_get_audio_port;
+    adev->device.set_audio_port_config = adev_set_audio_port_config;
 
     /* Set the default route before the PCM stream is opened */
     adev->mode = AUDIO_MODE_NORMAL;

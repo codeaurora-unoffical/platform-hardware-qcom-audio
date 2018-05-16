@@ -32,9 +32,6 @@ AUDIO_FEATURE_ENABLED_AUDIOSPHERE := false
 AUDIO_FEATURE_ENABLED_VOICE_PRINT := false
 USE_LEGACY_AUDIO_DAEMON := false
 USE_LEGACY_AUDIO_MEASUREMENT := false
-AUDIO_FEATURE_ENABLED_DRIVER_SIDE_PLAYBACK := true
-AUDIO_FEATURE_ENABLED_BUS_ADDRESS := true
-AUDIO_FEATURE_ENABLED_VHAL_HELPER := true
 endif
 
 USE_XML_AUDIO_POLICY_CONF := 1
@@ -67,6 +64,8 @@ AUDIO_FEATURE_ENABLED_ANC := true
 AUDIO_FEATURE_ENABLED_ICC := true
 AUDIO_FEATURE_ENABLED_FM_CONCURRENCY := false
 AUDIO_FEATURE_ENABLED_VAD := true
+AUDIO_FEATURE_ENABLED_BUS_ADDRESS := true
+AUDIO_FEATURE_ENABLED_DRIVER_SIDE_PLAYBACK := true
 ##AUDIO_FEATURE_FLAGS
 
 AUDIO_FEATURE_ENABLED_AS_FLAGS := true
@@ -221,9 +220,14 @@ flac.sw.decoder.24bit.support=true
 PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.vehicle.focus.enabled=true
 
-# for HIDL related packages
+# for HIDL related audio packages
 PRODUCT_PACKAGES += \
     android.hardware.audio@2.0-service \
     android.hardware.audio@2.0-impl \
     android.hardware.audio.effect@2.0-impl \
     android.hardware.soundtrigger@2.0-impl
+
+# for HIDL related audiocontrol packages
+PRODUCT_PACKAGES += \
+    vendor.qti.hardware.automotive.audiocontrol@1.0-service \
+    android.hardware.automotive.audiocontrol@1.0

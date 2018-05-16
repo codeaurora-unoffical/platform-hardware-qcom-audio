@@ -251,6 +251,8 @@ struct stream_out {
 #ifdef BUS_ADDRESS_ENABLED
     char address[AUDIO_DEVICE_MAX_ADDRESS_LEN];
     int car_audio_stream;
+    bool set_gain_config;
+    struct audio_gain_config gain_config;
 #endif
 
 #ifdef VHAL_HELPER_ENABLED
@@ -432,6 +434,8 @@ struct audio_patch_record {
     audio_usecase_t usecase;
     audio_io_handle_t input_io_handle;
     audio_io_handle_t output_io_handle;
+    struct audio_port_config source;
+    struct audio_port_config sink;
 };
 
 int select_devices(struct audio_device *adev,

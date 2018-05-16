@@ -50,6 +50,9 @@
         <module name="primary" halVersion="3.0">
             <attachedDevices>
                 <item>Speaker</item>
+                <item>Media Bus</item>
+                <item>Sys Notification Bus</item>
+                <item>Nav Guidance Bus</item>
                 <item>Built-In Mic</item>
                 <item>Built-In Back Mic</item>
             </attachedDevices>
@@ -68,6 +71,18 @@
                 <mixPort name="voice_tx" role="source">
                     <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
                              samplingRates="8000,16000" channelMasks="AUDIO_CHANNEL_OUT_MONO"/>
+                </mixPort>
+                <mixPort name="media" role="source">
+                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+                             samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
+                </mixPort>
+                <mixPort name="sys_notification" role="source">
+                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+                             samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
+                </mixPort>
+                <mixPort name="driver_side" role="source">
+                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+                             samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
                 </mixPort>
                 <mixPort name="primary input" role="sink">
                     <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
@@ -113,6 +128,30 @@
                     <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
                              samplingRates="8000,16000" channelMasks="AUDIO_CHANNEL_OUT_MONO"/>
                 </devicePort>
+                <devicePort tagName="Media Bus" role="sink" type="AUDIO_DEVICE_OUT_BUS" address="BUS00_MEDIA">
+                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+                             samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
+                    <gains>
+                        <gain name="" mode="AUDIO_GAIN_MODE_JOINT"
+                                minValueMB="-4800" maxValueMB="1200" defaultValueMB="0" stepValueMB="50"/>
+                    </gains>
+                </devicePort>
+                <devicePort tagName="Sys Notification Bus" role="sink" type="AUDIO_DEVICE_OUT_BUS" address="BUS01_SYS_NOTIFICATION">
+                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+                             samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
+                    <gains>
+                        <gain name="" mode="AUDIO_GAIN_MODE_JOINT"
+                                minValueMB="-4800" maxValueMB="1200" defaultValueMB="0" stepValueMB="50"/>
+                    </gains>
+                </devicePort>
+                <devicePort tagName="Nav Guidance Bus" role="sink" type="AUDIO_DEVICE_OUT_BUS" address="BUS02_NAV_GUIDANCE">
+                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+                             samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
+                    <gains>
+                        <gain name="" mode="AUDIO_GAIN_MODE_JOINT"
+                                minValueMB="-4800" maxValueMB="1200" defaultValueMB="0" stepValueMB="50"/>
+                    </gains>
+                </devicePort>
                 <devicePort tagName="Built-In Mic" type="AUDIO_DEVICE_IN_BUILTIN_MIC" role="source">
                     <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
                              samplingRates="8000,11025,12000,16000,22050,24000,32000,44100,48000"
@@ -149,6 +188,12 @@
                        sources="primary output,deep_buffer,BT SCO Headset Mic,Telephony Rx"/>
                 <route type="mix" sink="Telephony Tx"
                        sources="voice_tx"/>
+                <route type="mix" sink="Media Bus"
+                       sources="media"/>
+                <route type="mix" sink="Sys Notification Bus"
+                       sources="sys_notification"/>
+                <route type="mix" sink="Nav Guidance Bus"
+                       sources="driver_side"/>
                 <route type="mix" sink="primary input"
                        sources="Built-In Mic,Built-In Back Mic,Wired Headset Mic,BT SCO Headset Mic"/>
                 <route type="mix" sink="voice_rx"
