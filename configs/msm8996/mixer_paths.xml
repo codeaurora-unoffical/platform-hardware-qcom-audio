@@ -895,7 +895,7 @@
 
     <!-- CPU DAI is set to four channels by default  -->
     <path name="audio-record">
-        <ctl name="QUAT_TDM_TX_0 Channels" value="Four" />
+        <ctl name="QUAT_TDM_TX_0 Channels" value="One" />
         <ctl name="MultiMedia1 Mixer QUAT_TDM_TX_0" value="1" />
     </path>
 
@@ -1208,6 +1208,7 @@
         <ctl name="QUAT_TDM_RX_2 Audio Mixer MultiMedia21" value="1" />
         <ctl name="MultiMedia21 Mixer AUX_PCM_UL_TX" value="1" />
         <ctl name="AUX_PCM_RX Audio Mixer MultiMedia6" value="1" />
+        <ctl name="QUAT_TDM_TX_0 Channels" value="One" />
         <ctl name="MultiMedia6 Mixer QUAT_TDM_TX_0" value="1" />
     </path>
 
