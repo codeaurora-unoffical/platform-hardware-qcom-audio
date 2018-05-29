@@ -1239,6 +1239,13 @@ static void query_platform(const char *snd_card_name,
         msm_device_to_be_id = msm_device_to_be_id_internal_codec;
         msm_be_id_array_len  =
             sizeof(msm_device_to_be_id_internal_codec) / sizeof(msm_device_to_be_id_internal_codec[0]);
+    } else if (!strncmp(snd_card_name, "sdm439-sku1-snd-card",
+                 sizeof("sdm439-sku1-snd-card"))) {
+        strlcpy(mixer_xml_path, MIXER_XML_PATH_SDM439_PM8953,
+                sizeof(MIXER_XML_PATH_SDM439_PM8953));
+        msm_device_to_be_id = msm_device_to_be_id_internal_codec;
+        msm_be_id_array_len  =
+            sizeof(msm_device_to_be_id_internal_codec) / sizeof(msm_device_to_be_id_internal_codec[0]);
     }  else if (!strncmp(snd_card_name, "msm8952-tomtom-snd-card",
                  sizeof("msm8952-tomtom-snd-card"))) {
         strlcpy(mixer_xml_path, MIXER_XML_PATH_WCD9330,
@@ -2060,6 +2067,10 @@ static bool check_and_get_wsa_info(char *snd_card_name, int *wsaCount,
                     sizeof("msm8953-snd-card-mtp")) ||
                 (!strncmp(snd_card_name, "msm8953-sku4-snd-card",
                     sizeof("msm8953-sku4-snd-card"))) ||
+                (!strncmp(snd_card_name, "sdm439-sku1-snd-card",
+                    sizeof("sdm439-sku1-snd-card"))) ||
+                (!strncmp(snd_card_name, "sdm439-snd-card-mtp",
+                    sizeof("sdm439-snd-card-mtp"))) ||
                 (!strncmp(snd_card_name, "msm8952-skum-snd-card",
                     sizeof("msm8952-skum-snd-card"))))) {
                 *is_wsa_combo_supported = true;
@@ -2204,7 +2215,7 @@ void *platform_init(struct audio_device *adev)
     const char *id_string = NULL;
     int cfg_value = -1;
 
-    snd_card_num = audio_extn_utils_get_snd_card_num();
+    snd_card_num = audio_extn_utils_open_snd_mixer(&adev->mixer);
     if(snd_card_num < 0) {
         ALOGE("%s: Unable to find correct sound card", __func__);
         return NULL;
@@ -2212,13 +2223,6 @@ void *platform_init(struct audio_device *adev)
 
     adev->snd_card = snd_card_num;
     ALOGD("%s: Opened sound card:%d", __func__, snd_card_num);
-
-    adev->mixer = mixer_open(snd_card_num);
-    if (!adev->mixer) {
-        ALOGE("%s: Unable to open the mixer card: %d", __func__,
-               snd_card_num);
-        return NULL;
-    }
 
     snd_card_name = mixer_get_name(adev->mixer);
     ALOGD("%s: snd_card_name: %s", __func__, snd_card_name);
@@ -2249,7 +2253,7 @@ void *platform_init(struct audio_device *adev)
         ALOGE("%s: Failed to init audio route controls, aborting.",
                __func__);
         free(my_data);
-        mixer_close(adev->mixer);
+        audio_extn_utils_close_snd_mixer(adev->mixer);
         return NULL;
     }
     update_codec_type(snd_card_name);
@@ -2471,7 +2475,7 @@ void *platform_init(struct audio_device *adev)
             goto acdb_init_fail;
         }
 
-        int result = acdb_init(adev->snd_card);
+        int result = acdb_init_v2(adev->mixer);
         if (!result) {
             my_data->is_acdb_initialized = true;
             ALOGD("ACDB initialized");
@@ -2722,6 +2726,17 @@ acdb_init_fail:
     return my_data;
 }
 
+void platform_release_acdb_metainfo_key(void *platform)
+{
+    struct platform_data *my_data = (struct platform_data *)platform;
+    struct listnode *node, *tempnode;
+
+    list_for_each_safe(node, tempnode, &my_data->acdb_meta_key_list) {
+        list_remove(node);
+        free(node_to_item(node, struct meta_key_list, list));
+    }
+}
+
 void platform_deinit(void *platform)
 {
     struct platform_data *my_data = (struct platform_data *)platform;
@@ -2766,9 +2781,31 @@ void platform_deinit(void *platform)
     }
 
     if (my_data->adev->mixer) {
-        mixer_close(my_data->adev->mixer);
+        audio_extn_utils_close_snd_mixer(my_data->adev->mixer);
         my_data->adev->mixer = NULL;
     }
+
+    int32_t idx;
+
+    for (idx = 0; idx < MAX_CODEC_BACKENDS; idx++) {
+         if (my_data->current_backend_cfg[idx].bitwidth_mixer_ctl) {
+             free(my_data->current_backend_cfg[idx].bitwidth_mixer_ctl);
+             my_data->current_backend_cfg[idx].bitwidth_mixer_ctl = NULL;
+         }
+
+         if (my_data->current_backend_cfg[idx].samplerate_mixer_ctl) {
+             free(my_data->current_backend_cfg[idx].samplerate_mixer_ctl);
+             my_data->current_backend_cfg[idx].samplerate_mixer_ctl = NULL;
+         }
+
+         if (my_data->current_backend_cfg[idx].channels_mixer_ctl) {
+             free(my_data->current_backend_cfg[idx].channels_mixer_ctl);
+             my_data->current_backend_cfg[idx].channels_mixer_ctl = NULL;
+         }
+    }
+
+    /* free acdb_meta_key_list */
+    platform_release_acdb_metainfo_key(platform);
 
     free(platform);
     /* deinit usb */

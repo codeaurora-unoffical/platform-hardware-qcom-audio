@@ -1123,13 +1123,10 @@ int qahw_unload_module(qahw_module_handle_t *hw_module)
             pthread_mutex_destroy(&list_lock);
             rc = qas->qahw_unload_module(hw_module);
             if (g_death_notifier != NULL) {
-                sp<IServiceManager> sm;
-                sp<IBinder> binder;
-                sm = defaultServiceManager();
-                binder = sm->getService(String16(QTI_AUDIO_SERVER));
-                binder->unlinkToDeath(g_death_notifier);
+                IInterface::asBinder(qas)->unlinkToDeath(g_death_notifier);
                 g_death_notifier.clear();
             }
+            g_qas = NULL;
             return rc;
         } else {
             return -ENODEV;
