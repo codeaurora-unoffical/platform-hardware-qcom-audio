@@ -772,9 +772,13 @@ int main(int argc, char* argv[]) {
     if (params[0].kvpairs[0] != 0) {
         size_t len;
         len = strcspn(params[0].kvpairs, ",");
+        while (len < strlen(params[0].kvpairs)) {
+            params[0].kvpairs[len] = ';';
+            len = strcspn(params[0].kvpairs, ",");
+        }
+        printf("param %s set to hal\n", params[0].kvpairs);
+        qahw_set_parameters(qahw_mod_handle, params[0].kvpairs);
     }
-    printf("param %s set to hal\n", params[0].kvpairs);
-    qahw_set_parameters(qahw_mod_handle, params[0].kvpairs);
 
     pthread_t tid[MAX_RECORD_SESSIONS];
     pthread_t sourcetrack_thread;
