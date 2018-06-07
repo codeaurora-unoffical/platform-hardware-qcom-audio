@@ -3234,7 +3234,7 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
     } else if (((flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) ||
                      ((flags & AUDIO_OUTPUT_FLAG_DIRECT) != 0)) {
         /* Using BUS00_MEDIA for compress offload usecase */
-        strncpy(address, "BUS00_MEDIA", AUDIO_DEVICE_MAX_ADDRESS_LEN);
+        strlcpy(address, "BUS00_MEDIA", AUDIO_DEVICE_MAX_ADDRESS_LEN);
         /* extract car audio stream index */
         car_audio_stream = out_get_car_audio_stream_from_address(address);
         if (car_audio_stream < 0) {
