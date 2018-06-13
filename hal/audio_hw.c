@@ -2018,6 +2018,10 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
     struct stream_out stream_out;
     audio_usecase_t hfp_ucid;
     int status = 0;
+    audio_devices_t audio_device;
+    audio_channel_mask_t channel_mask;
+    int sample_rate;
+    int acdb_id;
 
     ALOGD("%s for use case (%s)", __func__, use_case_table[uc_id]);
 
@@ -2258,14 +2262,11 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
             usecase->stream.out->app_type_cfg.sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
         }
 
-        /* Notify device change info to effect clients registered */
-        pthread_mutex_unlock(&adev->lock);
-        audio_extn_gef_notify_device_config(
-                usecase->stream.out->devices,
-                usecase->stream.out->channel_mask,
-                usecase->stream.out->app_type_cfg.sample_rate,
-                platform_get_snd_device_acdb_id(usecase->out_snd_device));
-        pthread_mutex_lock(&adev->lock);
+        /* Cache stream information to be notified to gef clients */
+        audio_device = usecase->stream.out->devices;
+        channel_mask = usecase->stream.out->channel_mask;
+        sample_rate = usecase->stream.out->app_type_cfg.sample_rate;
+        acdb_id = platform_get_snd_device_acdb_id(usecase->out_snd_device);
     }
     enable_audio_route(adev, usecase);
 
@@ -2320,6 +2321,16 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
                   out_standby_l(&usecase->stream.out->stream.common);
               }
          }
+    }
+
+    /* Notify device change info to effect clients registered
+     * NOTE: device lock has to be unlock temporarily here.
+     * To the worst case, we notify stale info to clients.
+     */
+    if (usecase->type == PCM_PLAYBACK) {
+        pthread_mutex_unlock(&adev->lock);
+        audio_extn_gef_notify_device_config(audio_device, channel_mask, sample_rate, acdb_id);
+        pthread_mutex_lock(&adev->lock);
     }
 
     ALOGD("%s: done",__func__);
@@ -2491,6 +2502,7 @@ int start_input_stream(struct stream_in *in)
                 ret = -EIO;
                 goto error_open;
             }
+
             if (in->pcm == NULL || !pcm_is_ready(in->pcm)) {
                 ALOGE("%s: %s", __func__, pcm_get_error(in->pcm));
                 if (in->pcm != NULL) {
@@ -3080,6 +3092,7 @@ int start_output_stream(struct stream_out *out)
                 ret = -EIO;
                 goto error_open;
             }
+
             if (out->pcm == NULL || !pcm_is_ready(out->pcm)) {
                 ALOGE("%s: %s", __func__, pcm_get_error(out->pcm));
                 if (out->pcm != NULL) {
@@ -3132,6 +3145,7 @@ int start_output_stream(struct stream_out *out)
                 ret = -EIO;
                 goto error_open;
         }
+
         if (out->compr && !is_compress_ready(out->compr)) {
             ALOGE("%s: failed /w error %s", __func__, compress_get_error(out->compr));
             compress_close(out->compr);
@@ -4892,6 +4906,7 @@ static int out_create_mmap_buffer(const struct audio_stream_out *stream,
     uint32_t mmap_size;
 
     ALOGV("%s", __func__);
+    lock_output_stream(out);
     pthread_mutex_lock(&adev->lock);
 
     if (CARD_STATUS_OFFLINE == out->card_status ||
@@ -4932,6 +4947,7 @@ static int out_create_mmap_buffer(const struct audio_stream_out *stream,
         ret = -EIO;
         goto exit;
     }
+
     if (out->pcm == NULL || !pcm_is_ready(out->pcm)) {
         step = "open";
         ret = -ENODEV;
@@ -4978,6 +4994,7 @@ exit:
         }
     }
     pthread_mutex_unlock(&adev->lock);
+    pthread_mutex_unlock(&out->lock);
     return ret;
 }
 
@@ -5552,6 +5569,7 @@ static int in_create_mmap_buffer(const struct audio_stream_in *stream,
         ret = -EIO;
         goto exit;
     }
+
     if (in->pcm == NULL || !pcm_is_ready(in->pcm)) {
         step = "open";
         ret = -ENODEV;
