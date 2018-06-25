@@ -1779,7 +1779,7 @@ int start_output_stream(struct stream_out *out)
          *       notification or touch tone. Wait for FOCUS during write will cause
          *       Audioflinger to drop the first touch tone.
          */
-        if (!property_get_bool("vendor.audio.vehicle.focus.enabled", true)) {
+        if (!property_get_bool("persist.vendor.audio.vehicle.focus.enabled", true)) {
             ALOGVV("%s: vhal audio focus disabled, continue", __func__);
         } else if (out->vhal_audio_helper == NULL) {
             ALOGE("%s: vhal audio helper not allocated, continue", __func__);
@@ -2427,7 +2427,7 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
 #ifdef BUS_ADDRESS_ENABLED
     if (out->car_audio_stream) {
 #ifdef VHAL_HELPER_ENABLED
-        if (!property_get_bool("vendor.audio.vehicle.focus.enabled", true)) {
+        if (!property_get_bool("persist.vendor.audio.vehicle.focus.enabled", true)) {
             ALOGVV("%s: vhal audio focus disabled, continue", __func__);
         } else if (out->vhal_audio_helper == NULL) {
             ALOGE("%s: vhal audio helper not allocated, continue", __func__);
