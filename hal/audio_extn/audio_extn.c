@@ -1016,7 +1016,7 @@ static void audio_extn_set_aptx_dec_bt_addr(struct audio_device *adev, struct st
 
 static void audio_extn_parse_aptx_dec_bt_addr(char *value)
 {
-    int ba[6];
+    int ba[6] = {0};
     char *str, *tok;
     uint32_t addr[3];
     int i = 0;
