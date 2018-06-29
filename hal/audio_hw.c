@@ -1779,7 +1779,7 @@ int start_output_stream(struct stream_out *out)
          *       notification or touch tone. Wait for FOCUS during write will cause
          *       Audioflinger to drop the first touch tone.
          */
-        if (!property_get_bool("vendor.audio.vehicle.focus.enabled", true)) {
+        if (!property_get_bool("persist.vendor.audio.vehicle.focus.enabled", true)) {
             ALOGVV("%s: vhal audio focus disabled, continue", __func__);
         } else if (out->vhal_audio_helper == NULL) {
             ALOGE("%s: vhal audio helper not allocated, continue", __func__);
@@ -2427,7 +2427,7 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
 #ifdef BUS_ADDRESS_ENABLED
     if (out->car_audio_stream) {
 #ifdef VHAL_HELPER_ENABLED
-        if (!property_get_bool("vendor.audio.vehicle.focus.enabled", true)) {
+        if (!property_get_bool("persist.vendor.audio.vehicle.focus.enabled", true)) {
             ALOGVV("%s: vhal audio focus disabled, continue", __func__);
         } else if (out->vhal_audio_helper == NULL) {
             ALOGE("%s: vhal audio helper not allocated, continue", __func__);
@@ -3234,7 +3234,7 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
     } else if (((flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) ||
                      ((flags & AUDIO_OUTPUT_FLAG_DIRECT) != 0)) {
         /* Using BUS00_MEDIA for compress offload usecase */
-        strncpy(address, "BUS00_MEDIA", AUDIO_DEVICE_MAX_ADDRESS_LEN);
+        strlcpy(address, "BUS00_MEDIA", AUDIO_DEVICE_MAX_ADDRESS_LEN);
         /* extract car audio stream index */
         car_audio_stream = out_get_car_audio_stream_from_address(address);
         if (car_audio_stream < 0) {
@@ -4647,6 +4647,9 @@ static int adev_close(hw_device_t *device)
         if(adev->ext_hw_plugin)
             audio_extn_ext_hw_plugin_deinit(adev->ext_hw_plugin);
 
+        if(adev->ext_audio_anc)
+            audio_extn_ext_audio_anc_deinit(adev->ext_audio_anc);
+
         free(device);
         adev = NULL;
     }
@@ -4757,6 +4760,8 @@ static int adev_open(const hw_module_t *module, const char *name,
     }
 
     adev->ext_hw_plugin = audio_extn_ext_hw_plugin_init(adev);
+
+    adev->ext_audio_anc = audio_extn_ext_audio_anc_init(adev);
 
     adev->snd_card_status.state = SND_CARD_STATE_ONLINE;
 
