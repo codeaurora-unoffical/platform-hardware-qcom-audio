@@ -441,53 +441,6 @@ int audio_extn_ext_audio_anc_set_parameters(void *handle,
           ret = ext_anc_stop(my_handle);
           break;
        }
-       case ANC_EXT_CMD_BYPASS_MODE:
-       {
-          int32_t bypass_mode = 0;
-          struct audio_anc_bypass_mode_ext my_bypass_mode;
-
-          err = str_parms_get_int(parms, AUDIO_PARAMETER_KEY_EXT_AUDIO_ANC_EXT_BYPASS_MODE,
-                &bypass_mode);
-          if (err < 0) {
-               ALOGE("%s: Invalid or missing usecase param for audio-ext-anc", __func__);
-               ret = -EINVAL;
-               goto done;
-          }
-          str_parms_del(parms, AUDIO_PARAMETER_KEY_EXT_AUDIO_ANC_EXT_BYPASS_MODE);
-          ALOGD("%s: received audio_anc_ext bypass_mode (%d)", __func__, bypass_mode);
-
-          my_bypass_mode.mode = bypass_mode;
-          ret = my_handle->audio_anc_ext_send_param(ANC_EXT_CMD_BYPASS_MODE, (void*)&my_bypass_mode);
-          if (ret) {
-              ALOGE("%s: ANC_EXT_CMD_BYPASS_MODE failed ret %d\n", __func__, ret);
-              return ret;
-          }
-          break;
-       }
-       case ANC_EXT_CMD_RPM:
-       {
-          int32_t rpm = 0;
-          struct audio_anc_rpm_info_ext my_rpm;
-
-          err = str_parms_get_int(parms, AUDIO_PARAMETER_KEY_EXT_AUDIO_ANC_EXT_RPM,
-                &rpm);
-          if (err < 0) {
-              ALOGE("%s: Invalid or missing usecase param for audio-ext-anc", __func__);
-              ret = -EINVAL;
-              goto done;
-          }
-          str_parms_del(parms, AUDIO_PARAMETER_KEY_EXT_AUDIO_ANC_EXT_RPM);
-          ALOGD("%s: received audio_anc_ext rpm (%d)", __func__, rpm);
-
-          my_rpm.rpm = rpm;
-
-          ret = my_handle->audio_anc_ext_send_param(ANC_EXT_CMD_RPM, (void*)&my_rpm);
-          if (ret) {
-              ALOGE("%s: ANC_EXT_CMD_RPM failed ret %d\n", __func__, ret);
-              return ret;
-          }
-          break;
-       }
        case ANC_EXT_CMD_ALGO_MODULE:
        {
           int32_t algo_module_id = 0;
