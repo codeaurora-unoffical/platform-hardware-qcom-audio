@@ -62,6 +62,12 @@ int32_t anc_extn_ext_hw_plugin_codec_enable(vehicle_hal_audio_helper_t  *vhal_au
         goto end;
     }
 
+    if (parms == NULL) {
+        ALOGE("%s:parms is NULL",__func__);
+        ret = -ENOMEM;
+        goto end;
+    }
+
     str_parms_add_int(parms, AUDIO_PARAMETER_KEY_EXT_HW_PLUGIN_MSG_TYPE, AUDIO_HAL_PLUGIN_MSG_CODEC_ENABLE);
     str_parms_add_int(parms, AUDIO_PARAMETER_KEY_EXT_HW_PLUGIN_UC, codec_enable->usecase);
     str_parms_add_int(parms, AUDIO_PARAMETER_KEY_EXT_HW_PLUGIN_SND_DEVICE, codec_enable->snd_dev);
@@ -100,6 +106,12 @@ int32_t anc_extn_ext_hw_plugin_codec_disable(vehicle_hal_audio_helper_t  *vhal_a
     if (vhal_audio_helper == NULL || codec_disable == NULL) {
         ALOGE("%s: received null pointer", __func__);
         ret = -EINVAL;
+        goto end;
+    }
+
+    if (parms == NULL) {
+        ALOGE("%s:parms is NULL",__func__);
+        ret = -ENOMEM;
         goto end;
     }
 
