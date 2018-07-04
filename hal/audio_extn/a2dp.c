@@ -76,6 +76,7 @@
 #define MIXER_SCRAMBLER_MODE       "AFE Scrambler Mode"
 #define MIXER_SAMPLE_RATE_RX       "BT SampleRate RX"
 #define MIXER_SAMPLE_RATE_TX       "BT SampleRate TX"
+#define MIXER_SAMPLE_RATE_DEFAULT  "BT SampleRate"
 #define MIXER_AFE_IN_CHANNELS      "AFE Input Channels"
 #define MIXER_ABR_TX_FEEDBACK_PATH "A2DP_SLIM7_UL_HL Switch"
 #define MIXER_SET_FEEDBACK_CHANNEL "BT set feedback channel"
@@ -787,30 +788,43 @@ static int a2dp_set_backend_cfg()
     ALOGD("%s: set backend rx sample rate = %s", __func__, rate_str);
     ctl_sample_rate = mixer_get_ctl_by_name(a2dp.adev->mixer,
                                         MIXER_SAMPLE_RATE_RX);
-    if (!ctl_sample_rate) {
-        ALOGE("%s: ERROR backend sample rate mixer control not identifed", __func__);
-        return -ENOSYS;
-    }
-    if (mixer_ctl_set_enum_by_string(ctl_sample_rate, rate_str) != 0) {
-        ALOGE("%s: Failed to set backend sample rate = %s", __func__, rate_str);
-        return -ENOSYS;
-    }
+    if (ctl_sample_rate) {
 
-    // Set Tx backend sample rate
-    if (a2dp.abr_config.is_abr_enabled)
+        if (mixer_ctl_set_enum_by_string(ctl_sample_rate, rate_str) != 0) {
+            ALOGE("%s: Failed to set backend sample rate = %s", __func__, rate_str);
+            return -ENOSYS;
+        }
+
+        /* Set Tx backend sample rate */
+        if (a2dp.abr_config.is_abr_enabled)
         rate_str = ABR_TX_SAMPLE_RATE;
 
-    ALOGD("%s: set backend tx sample rate = %s", __func__, rate_str);
-    ctl_sample_rate = mixer_get_ctl_by_name(a2dp.adev->mixer,
-                                        MIXER_SAMPLE_RATE_TX);
-    if (!ctl_sample_rate) {
-        ALOGE("%s: ERROR backend sample rate mixer control not identifed", __func__);
-        return -ENOSYS;
-    }
-    if (mixer_ctl_set_enum_by_string(ctl_sample_rate, rate_str) != 0) {
-        ALOGE("%s: Failed to set backend sample rate = %s",
-                                    __func__, rate_str);
-        return -ENOSYS;
+        ALOGD("%s: set backend tx sample rate = %s", __func__, rate_str);
+        ctl_sample_rate = mixer_get_ctl_by_name(a2dp.adev->mixer,
+                                            MIXER_SAMPLE_RATE_TX);
+        if (!ctl_sample_rate) {
+                ALOGE("%s: ERROR backend sample rate mixer control not identifed", __func__);
+                return -ENOSYS;
+        }
+
+        if (mixer_ctl_set_enum_by_string(ctl_sample_rate, rate_str) != 0) {
+            ALOGE("%s: Failed to set backend sample rate = %s", __func__, rate_str);
+            return -ENOSYS;
+        }
+    } else {
+        /* Fallback to legacy approch if MIXER_SAMPLE_RATE_RX and
+        MIXER_SAMPLE_RATE_TX is not supported */
+        ctl_sample_rate = mixer_get_ctl_by_name(a2dp.adev->mixer,
+                                        MIXER_SAMPLE_RATE_DEFAULT);
+        if (!ctl_sample_rate) {
+            ALOGE("%s: ERROR backend sample rate mixer control not identifed", __func__);
+            return -ENOSYS;
+        }
+
+        if (mixer_ctl_set_enum_by_string(ctl_sample_rate, rate_str) != 0) {
+            ALOGE("%s: Failed to set backend sample rate = %s", __func__, rate_str);
+            return -ENOSYS;
+        }
     }
 
     //Configure AFE input channels
@@ -849,24 +863,37 @@ static int a2dp_reset_backend_cfg()
     ALOGD("%s: reset backend sample rate = %s", __func__, rate_str);
     ctl_sample_rate_rx = mixer_get_ctl_by_name(a2dp.adev->mixer,
                                         MIXER_SAMPLE_RATE_RX);
-    if (!ctl_sample_rate_rx) {
-        ALOGE("%s: ERROR Rx backend sample rate mixer control not identifed", __func__);
-        return -ENOSYS;
-    }
-    if (mixer_ctl_set_enum_by_string(ctl_sample_rate_rx, rate_str) != 0) {
-        ALOGE("%s: Failed to reset Rx backend sample rate = %s", __func__, rate_str);
-        return -ENOSYS;
-    }
+    if (ctl_sample_rate_rx) {
 
-    ctl_sample_rate_tx = mixer_get_ctl_by_name(a2dp.adev->mixer,
+        if (mixer_ctl_set_enum_by_string(ctl_sample_rate_rx, rate_str) != 0) {
+            ALOGE("%s: Failed to reset Rx backend sample rate = %s", __func__, rate_str);
+            return -ENOSYS;
+        }
+
+        ctl_sample_rate_tx = mixer_get_ctl_by_name(a2dp.adev->mixer,
                                         MIXER_SAMPLE_RATE_TX);
-    if (!ctl_sample_rate_tx) {
-        ALOGE("%s: ERROR Tx backend sample rate mixer control not identifed", __func__);
-        return -ENOSYS;
-    }
-    if (mixer_ctl_set_enum_by_string(ctl_sample_rate_tx, rate_str) != 0) {
-        ALOGE("%s: Failed to reset Tx backend sample rate = %s", __func__, rate_str);
-        return -ENOSYS;
+        if (!ctl_sample_rate_tx) {
+                ALOGE("%s: ERROR Tx backend sample rate mixer control not identifed", __func__);
+                return -ENOSYS;
+        }
+
+        if (mixer_ctl_set_enum_by_string(ctl_sample_rate_tx, rate_str) != 0) {
+            ALOGE("%s: Failed to reset Tx backend sample rate = %s", __func__, rate_str);
+            return -ENOSYS;
+        }
+    } else {
+
+        ctl_sample_rate_rx = mixer_get_ctl_by_name(a2dp.adev->mixer,
+                                        MIXER_SAMPLE_RATE_DEFAULT);
+        if (!ctl_sample_rate_rx) {
+            ALOGE("%s: ERROR backend sample rate mixer control not identifed", __func__);
+            return -ENOSYS;
+        }
+
+        if (mixer_ctl_set_enum_by_string(ctl_sample_rate_rx, rate_str) != 0) {
+            ALOGE("%s: Failed to reset backend sample rate = %s", __func__, rate_str);
+            return -ENOSYS;
+        }
     }
 
     // Reset AFE input channels
@@ -1581,6 +1608,30 @@ static void reset_a2dp_enc_config_params()
     }
 }
 
+static int reset_a2dp_dec_config_params()
+{
+    struct mixer_ctl *ctl_dec_data = NULL;
+    struct abr_dec_cfg_t dummy_reset_cfg;
+    int ret = 0;
+
+    if (a2dp.abr_config.is_abr_enabled) {
+        ctl_dec_data = mixer_get_ctl_by_name(a2dp.adev->mixer, MIXER_DEC_CONFIG_BLOCK);
+        if (!ctl_dec_data) {
+            ALOGE("%s: ERROR A2DP decoder config mixer control not identifed", __func__);
+            return -EINVAL;
+        }
+        memset(&dummy_reset_cfg, 0x0, sizeof(dummy_reset_cfg));
+        ret = mixer_ctl_set_array(ctl_dec_data, (void *)&dummy_reset_cfg,
+                                  sizeof(dummy_reset_cfg));
+        if (ret != 0) {
+            ALOGE("%s: Failed to set dummy decoder config", __func__);
+            return ret;
+        }
+    }
+
+    return ret;
+}
+
 int audio_extn_a2dp_stop_playback()
 {
     int ret =0;
@@ -1602,6 +1653,7 @@ int audio_extn_a2dp_stop_playback()
         else
             ALOGV("stop steam to BT IPC lib successful");
         reset_a2dp_enc_config_params();
+        reset_a2dp_dec_config_params();
         a2dp_reset_backend_cfg();
         if (a2dp.abr_config.is_abr_enabled && a2dp.abr_config.abr_started)
             stop_abr();
@@ -1647,6 +1699,7 @@ void audio_extn_a2dp_set_parameters(struct str_parms *parms)
              ALOGV("Received device dis- connect request");
              close_a2dp_output();
              reset_a2dp_enc_config_params();
+             reset_a2dp_dec_config_params();
              a2dp_reset_backend_cfg();
          }
          goto param_handled;
@@ -1668,6 +1721,7 @@ void audio_extn_a2dp_set_parameters(struct str_parms *parms)
                     }
                 }
                 reset_a2dp_enc_config_params();
+                reset_a2dp_dec_config_params();
                 if(a2dp.audio_suspend_stream)
                    a2dp.audio_suspend_stream();
             } else if (a2dp.a2dp_suspended == true) {
@@ -1770,6 +1824,7 @@ void audio_extn_a2dp_init (void *adev)
   a2dp.abr_config.imc_instance = 0;
   a2dp.abr_config.abr_tx_handle = NULL;
   reset_a2dp_enc_config_params();
+  reset_a2dp_dec_config_params();
   update_offload_codec_capabilities();
 }
 

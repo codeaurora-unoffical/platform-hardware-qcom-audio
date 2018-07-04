@@ -51,6 +51,12 @@ struct amp_db_and_gain_table {
     uint32_t level;
 };
 
+struct mic_info {
+    char device_id[AUDIO_MICROPHONE_ID_MAX_LEN];
+    size_t channel_count;
+    audio_microphone_channel_mapping_t channel_mapping[AUDIO_CHANNEL_COUNT_MAX];
+};
+
 enum {
     NATIVE_AUDIO_MODE_SRC = 1,
     NATIVE_AUDIO_MODE_TRUE_44_1,
@@ -213,7 +219,7 @@ int platform_set_stream_downmix_params(void *platform,
                                        int snd_id,
                                        snd_device_t snd_device,
                                        struct mix_matrix_params mm_params);
-int platform_set_edid_channels_configuration(void *platform, int channels);
+int platform_set_edid_channels_configuration(void *platform, int channels, int backend_idx);
 unsigned char platform_map_to_edid_format(int format);
 bool platform_is_edid_supported_format(void *platform, int format);
 bool platform_is_edid_supported_sample_rate(void *platform, int sample_rate);
@@ -285,4 +291,16 @@ int platform_get_mmap_data_fd(void *platform, int dev, int dir,
                                int *fd, uint32_t *size);
 int platform_get_ec_ref_loopback_snd_device(int channel_count);
 const char * platform_get_snd_card_name_for_acdb_loader(const char *snd_card_name);
+
+bool platform_set_microphone_characteristic(void *platform,
+                                            struct audio_microphone_characteristic_t mic);
+bool platform_set_microphone_map(void *platform, snd_device_t in_snd_device,
+                                 const struct mic_info *info);
+int platform_get_microphones(void *platform,
+                             struct audio_microphone_characteristic_t *mic_array,
+                             size_t *mic_count);
+int platform_get_active_microphones(void *platform, unsigned int channels,
+                                    audio_usecase_t usecase,
+                                    struct audio_microphone_characteristic_t *mic_array,
+                                    size_t *mic_count);
 #endif // AUDIO_PLATFORM_API_H
