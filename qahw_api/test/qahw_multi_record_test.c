@@ -843,6 +843,10 @@ int main(int argc, char* argv[]) {
     if (signal(SIGINT, stop_signal_handler) == SIG_ERR)
         fprintf(log_file, "Failed to register SIGINT:%d\n",errno);
 
+    /* Register the SIGTERM to close the App properly */
+    if (signal(SIGTERM, stop_signal_handler) == SIG_ERR)
+        fprintf(log_file, "Failed to register SIGTERM:%d\n",errno);
+
     for (i = 0; i < MAX_RECORD_SESSIONS; i++) {
         if (thread_active[i] == 1) {
             fprintf(log_file, "\n Create %s record thread \n", recording_session[i]);

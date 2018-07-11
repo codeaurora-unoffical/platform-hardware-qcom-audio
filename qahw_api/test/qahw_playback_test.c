@@ -2407,6 +2407,12 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "Failed to register SIGINT:%d\n",errno);
     }
 
+    /* Register the SIGTERM to close the App properly */
+    if (signal(SIGTERM, stop_signal_handler) == SIG_ERR) {
+        fprintf(log_file, "Failed to register SIGTERM:%d\n",errno);
+        fprintf(stderr, "Failed to register SIGTERM:%d\n",errno);
+    }
+
     /* Check for Dual main content */
     if (num_of_streams >= 2) {
          is_dual_main = true;
