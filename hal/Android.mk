@@ -350,6 +350,10 @@ ifeq ($(strip $(AUDIO_FEATURE_ENABLED_VHAL_HELPER)),true)
     LOCAL_SHARED_LIBRARIES += libvehiclehalaudiohelper
 endif
 
+ifeq ($(strip $(ENABLE_HYP)),true)
+    LOCAL_CFLAGS += -DGVM_ENABLED
+endif
+
 LOCAL_MODULE := audio.primary.$(TARGET_BOARD_PLATFORM)
 
 LOCAL_MODULE_RELATIVE_PATH := hw
