@@ -1924,14 +1924,18 @@ static int check_input_parameters(uint32_t sample_rate,
 
     if ((format != AUDIO_FORMAT_PCM_16_BIT) && (format != AUDIO_FORMAT_PCM_FLOAT) &&
         !voice_extn_compress_voip_is_format_supported(format) &&
-            !audio_extn_compr_cap_format_supported(format))  ret = -EINVAL;
-
+            !audio_extn_compr_cap_format_supported(format))
+    {
+        ALOGE("%s: Unsupported format : %d",__func__,format);
+        ret = -EINVAL;
+    }
     switch (channel_count) {
     case 1:
     case 2:
     case 6:
         break;
     default:
+        ALOGE("%s: Unsupported channel count: %d",__func__,channel_count);
         ret = -EINVAL;
     }
 
@@ -1947,6 +1951,7 @@ static int check_input_parameters(uint32_t sample_rate,
     case 48000:
         break;
     default:
+        ALOGE("%s: Unsupported SampleRate : %d",__func__,sample_rate);
         ret = -EINVAL;
     }
 
