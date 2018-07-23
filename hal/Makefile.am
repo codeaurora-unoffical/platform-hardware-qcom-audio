@@ -44,6 +44,11 @@ AM_CFLAGS += -DMULTI_VOICE_SESSION_ENABLED
 c_sources += voice_extn/voice_extn.c
 endif
 
+if DTMF_ENABLED
+AM_CFLAGS += -DDTMF_ENABLED
+c_sources += voice_extn/dtmf.c
+endif
+
 if COMPRESS_VOIP
 AM_CFLAGS += -DCOMPRESS_VOIP_ENABLED
 c_sources += voice_extn/compress_voip.c
