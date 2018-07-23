@@ -334,7 +334,7 @@ endif
 
 ifeq ($(TARGET_COMPILE_WITH_MSM_KERNEL),true)
         LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/techpack/audio/include
-        LOCAL_ADDITIONAL_DEPENDENCIES := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
+        LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
 endif
 
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXT_HDMI)),true)
@@ -403,6 +403,10 @@ ifeq ($(strip $(AUDIO_FEATURE_ENABLED_FFV)), true)
     LOCAL_CFLAGS += -DFFV_ENABLED
     LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio-noship/include/ffv
     LOCAL_SRC_FILES += audio_extn/ffv.c
+endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_INSTANCE_ID)), true)
+    LOCAL_CFLAGS += -DINSTANCE_ID_ENABLED
 endif
 
 LOCAL_CFLAGS += -Wall -Werror
