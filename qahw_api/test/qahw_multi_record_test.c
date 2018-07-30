@@ -432,7 +432,7 @@ void *start_input(void *thread_param)
       bytes_read = qahw_in_read(in_handle, &in_buf);
 
       if (params->timestamp_mode)
-          fprintf(fd_in_ts, "timestamp:%lu\n", timestamp);
+          fprintf(fd_in_ts, "timestamp:%lld\n", timestamp);
       if (kpi_mode) {
           if (count == 0) {
               ret = clock_gettime(CLOCK_REALTIME, &tsColdF);
@@ -846,7 +846,11 @@ int main(int argc, char* argv[]) {
 
     /* Register the SIGINT to close the App properly */
     if (signal(SIGINT, stop_signal_handler) == SIG_ERR)
-        fprintf(log_file, "Failed to register SIGINT:%d\n",errno);
+        fprintf(log_file, "Failed to register SIGINT:%d\n", errno);
+
+    /* Register the SIGTERM to close the App properly */
+    if (signal(SIGTERM, stop_signal_handler) == SIG_ERR)
+        fprintf(log_file, "Failed to register SIGTERM:%d\n", errno);
 
     for (i = 0; i < MAX_RECORD_SESSIONS; i++) {
         if (thread_active[i] == 1) {
