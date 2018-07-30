@@ -42,7 +42,7 @@
 
 /*-------------------- Begin: AHAL-STHAL Interface ---------------------------*/
 /*
- * Maintain the proprietary interface between AHAL and STHAL locally to avoid
+ * Maintain the interface between AHAL and STHAL locally to avoid
  * the compilation dependency of interface header file from STHAL.
  */
 
@@ -50,7 +50,7 @@
 #define MAJOR_VERSION(ver) (((ver) & 0xff00) >> 8)
 #define MINOR_VERSION(ver) ((ver) & 0x00ff)
 
-/* Proprietary interface version used for compatibility with STHAL */
+/* Interface version used for compatibility with STHAL */
 #define STHAL_PROP_API_VERSION_1_0 MAKE_HAL_VERSION(1, 0)
 #define STHAL_PROP_API_CURRENT_VERSION STHAL_PROP_API_VERSION_1_0
 
@@ -166,7 +166,7 @@ do {\
 #endif
 
 /*
- * Current proprietary API version used by AHAL. Queried by STHAL
+ * Current API version used by AHAL. Queried by STHAL
  * for compatibility check with AHAL
  */
 const unsigned int sthal_prop_api_version = STHAL_PROP_API_CURRENT_VERSION;
@@ -637,7 +637,7 @@ int audio_extn_sound_trigger_init(struct audio_device *adev)
                   st_dev->sthal_prop_api_version);
             goto cleanup;
         }
-        ALOGD("%s: sthal is using proprietary API version 0x%04x", __func__,
+        ALOGD("%s: sthal is using API version 0x%04x", __func__,
               st_dev->sthal_prop_api_version);
     }
 
