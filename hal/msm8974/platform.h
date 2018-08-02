@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2014, 2018, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -234,6 +234,12 @@ enum {
 #define VOLTE_CALL_PCM_DEVICE 15
 #define QCHAT_CALL_PCM_DEVICE 14
 #define VOWLAN_CALL_PCM_DEVICE -1
+#elif PLATFORM_MSM8996
+#define VOICE_CALL_PCM_DEVICE 40
+#define VOICE2_CALL_PCM_DEVICE 41
+#define VOLTE_CALL_PCM_DEVICE 14
+#define QCHAT_CALL_PCM_DEVICE 20
+#define VOWLAN_CALL_PCM_DEVICE 33
 #else
 #define VOICE_CALL_PCM_DEVICE 2
 #define VOICE2_CALL_PCM_DEVICE 22
@@ -248,6 +254,14 @@ enum {
 #else
 #define HFP_SCO_RX 23
 #define HFP_ASM_RX_TX 24
+#endif
+
+#ifdef PLATFORM_MSM8996
+#define VOICEMMODE1_CALL_PCM_DEVICE 2
+#define VOICEMMODE2_CALL_PCM_DEVICE 22
+#else
+#define VOICEMMODE1_CALL_PCM_DEVICE 44
+#define VOICEMMODE2_CALL_PCM_DEVICE 45
 #endif
 
 #define LIB_CSD_CLIENT "libcsd-client.so"

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013, 2018, The Linux Foundation. All rights reserved.
  * Not a contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -86,6 +86,8 @@ typedef enum {
     USECASE_VOLTE_CALL,
     USECASE_QCHAT_CALL,
     USECASE_VOWLAN_CALL,
+    USECASE_VOICEMMODE1_CALL,
+    USECASE_VOICEMMODE2_CALL,
     USECASE_COMPRESS_VOIP_CALL,
 
     USECASE_INCALL_REC_UPLINK,
