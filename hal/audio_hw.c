@@ -1773,26 +1773,6 @@ int start_output_stream(struct stream_out *out)
         if (out->vhal_audio_helper != NULL)
             vehicle_hal_audio_helper_notify_stream_started(out->vhal_audio_helper,
                                                            out->car_audio_stream);
-
-        /* TODO: Workaround to delay 100 ms before writing data to H/W to compensate
-         *       for the FOCUS request delay by framework. Specifically for system
-         *       notification or touch tone. Wait for FOCUS during write will cause
-         *       Audioflinger to drop the first touch tone.
-         */
-        if (!property_get_bool("persist.vendor.audio.vehicle.focus.enabled", true)) {
-            ALOGVV("%s: vhal audio focus disabled, continue", __func__);
-        } else if (out->vhal_audio_helper == NULL) {
-            ALOGE("%s: vhal audio helper not allocated, continue", __func__);
-        } else {
-            int focus_state =
-                vehicle_hal_audio_helper_get_stream_focus_state(out->vhal_audio_helper,
-                                                                out->car_audio_stream);
-            if ((focus_state == VEHICLE_HAL_AUDIO_HELPER_FOCUS_STATE_NO_FOCUS) ||
-                (focus_state == VEHICLE_HAL_AUDIO_HELPER_FOCUS_STATE_TIMEOUT)) {
-                ALOGI("%s: FOCUS not ready, wait", __func__);
-                usleep(100000);
-            }
-        }
     } else { // legacy stream will enable codec via vhal helper
         if (uc_info->out_snd_device != SND_DEVICE_NONE) {
             if (audio_extn_ext_hw_plugin_usecase_start(adev->ext_hw_plugin, uc_info))
