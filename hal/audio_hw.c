@@ -3302,6 +3302,8 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
     out->handle = handle;
     out->bit_width = CODEC_BACKEND_DEFAULT_BIT_WIDTH;
     out->non_blocking = 0;
+    out->usecase = USECASE_AUDIO_PLAYBACK_PRIMARY;
+    out->config = PCM_CONFIG_AUDIO_PLAYBACK_PRIMARY;
 
     /* Init use case and pcm_config */
     if ((out->flags & AUDIO_OUTPUT_FLAG_DIRECT) &&
