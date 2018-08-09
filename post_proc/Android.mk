@@ -10,13 +10,13 @@ ifeq ($(strip $(AUDIO_FEATURE_ENABLED_PROXY_DEVICE)),true)
 endif
 
 LOCAL_SRC_FILES:= \
-	bundle.c \
-	equalizer.c \
-	bass_boost.c \
-	virtualizer.c \
-	reverb.c \
-	effect_api.c \
-	effect_util.c
+    bundle.c \
+    equalizer.c \
+    bass_boost.c \
+    virtualizer.c \
+    reverb.c \
+    effect_api.c \
+    effect_util.c
 
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_HW_ACCELERATED_EFFECTS)),true)
     LOCAL_CFLAGS += -DHW_ACCELERATED_EFFECTS
@@ -36,10 +36,10 @@ ifneq ($(strip $(AUDIO_FEATURE_DISABLED_DTS_EAGLE)),true)
 endif
 
 LOCAL_SHARED_LIBRARIES := \
-	libcutils \
-	liblog \
-	libtinyalsa \
-	libdl
+    libcutils \
+    liblog \
+    libtinyalsa \
+    libdl
 
 LOCAL_MODULE_TAGS := optional
 
@@ -50,9 +50,9 @@ LOCAL_VENDOR_MODULE := true
 LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
 
 LOCAL_C_INCLUDES := \
-	external/tinyalsa/include \
+    external/tinyalsa/include \
         $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include \
-	$(call include-path-for, audio-effects)
+    $(call include-path-for, audio-effects)
 
 include $(BUILD_SHARED_LIBRARY)
 
@@ -112,4 +112,55 @@ LOCAL_C_INCLUDES := \
 
 include $(BUILD_SHARED_LIBRARY)
 
+endif
+
+################################################################################
+ifeq  ($(strip $(ENABLE_HYP)),true)
+ifneq ($(filter msm8992 msm8994 msm8996 msm8996_gvmq msm8952,$(TARGET_BOARD_PLATFORM)),)
+
+include $(CLEAR_VARS)
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_MULTIPLE_TUNNEL)), true)
+    LOCAL_CFLAGS += -DMULTIPLE_OFFLOAD_ENABLED
+endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_BUS_ADDRESS)),true)
+    LOCAL_CFLAGS += -DBUS_ADDRESS_ENABLED
+endif
+#LOCAL_CFLAGS += -DAUTOEFFECTS_DBG
+LOCAL_SRC_FILES:= \
+    auto_bundle.c \
+    auto_effect_util.c \
+    auto_bmt.c \
+    auto_volume.c \
+    auto_fnb.c \
+    auto_delay.c
+
+LOCAL_CFLAGS+= -O2 -fvisibility=hidden
+
+LOCAL_SHARED_LIBRARIES := \
+        libcutils \
+        liblog \
+        libdl
+
+LOCAL_MODULE_RELATIVE_PATH := soundfx
+LOCAL_MODULE:= libautoeffectsbundle
+LOCAL_VENDOR_MODULE := true
+
+LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
+
+LOCAL_C_INCLUDES := \
+    $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include \
+    external/tinyalsa/include \
+    external/tinycompress/include \
+    $(call include-path-for, audio-route) \
+    $(call include-path-for, audio-effects)
+
+LOCAL_C_INCLUDES += hardware/qcom/audio/hal
+LOCAL_C_INCLUDES += hardware/qcom/audio/hal/audio_extn
+LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio/audio-cal-param/inc
+
+include $(BUILD_SHARED_LIBRARY)
+
+endif
 endif
