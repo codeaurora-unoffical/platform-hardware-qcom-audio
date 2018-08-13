@@ -1246,6 +1246,11 @@ case 7
 
   resolution: no need to switch
 
+case 8
+  uc->dev d1 (a1)                B1
+  new_uc->dev d11 (a1), d2 (a2)  B1, B2
+  resolution: compared to case 1, for this case, d1 and d11 are related
+  then need to do the same as case 2 to siwtch to new uc
 */
 static snd_device_t derive_playback_snd_device(void * platform,
                                                struct audio_usecase *uc,
@@ -1293,7 +1298,11 @@ static snd_device_t derive_playback_snd_device(void * platform,
         if (platform_check_backends_match(d3[0], d3[1])) {
             return d2; // case 5
         } else {
-            return d1; // case 1
+            // check if d1 and d3[1] are related
+            if (d1 == d3[1])
+                return d1; // case 1
+            else
+                return d3[1]; // case 8
         }
     } else {
         if (platform_check_backends_match(d1, d2)) {
@@ -2275,7 +2284,8 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
 
     /* If input stream is already running then effect needs to be
        applied on the new input device that's being enabled here.  */
-    if ((in_snd_device != SND_DEVICE_NONE) && (!adev->active_input->standby))
+    if ((in_snd_device != SND_DEVICE_NONE) && (adev->active_input != NULL) &&
+        (!adev->active_input->standby))
         check_and_enable_effect(adev);
 
     if (usecase->type == VOICE_CALL || usecase->type == VOIP_CALL) {
@@ -5066,7 +5076,7 @@ static int out_get_mmap_position(const struct audio_stream_out *stream,
         ALOGE("%s: %s", __func__, pcm_get_error(out->pcm));
         return ret;
     }
-    position->time_nanoseconds = ts.tv_sec*1000000000L + ts.tv_nsec;
+    position->time_nanoseconds = ts.tv_sec*1000000000LL + ts.tv_nsec;
     return 0;
 }
 
@@ -5717,6 +5727,13 @@ int adev_open_output_stream(struct audio_hw_device *dev,
     bool is_usb_dev = audio_is_usb_out_device(devices) &&
                       (devices != AUDIO_DEVICE_OUT_USB_ACCESSORY);
     bool direct_dev = is_hdmi || is_usb_dev;
+
+    if (is_usb_dev && (audio_extn_usb_connected(NULL))) {
+        is_usb_dev = false;
+        devices = AUDIO_DEVICE_OUT_SPEAKER;
+        ALOGW("%s: ignore set device to non existing USB card, use output device(%#x)",
+              __func__, devices);
+    }
 
     *stream_out = NULL;
 
@@ -6841,6 +6858,13 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
                                                             flags,
                                                             source);
 
+    if (is_usb_dev && (audio_extn_usb_connected(NULL))) {
+        is_usb_dev = false;
+        devices = AUDIO_DEVICE_IN_BUILTIN_MIC;
+        ALOGW("%s: ignore set device to non existing USB card, use input device(%#x)",
+              __func__, devices);
+    }
+
     *stream_in = NULL;
 
     if (!(is_usb_dev && may_use_hifi_record)) {
@@ -7371,6 +7395,15 @@ int check_a2dp_restore(struct audio_device *adev, struct stream_out *out, bool r
     return ret;
 }
 
+void adev_on_battery_status_changed(bool charging)
+{
+    pthread_mutex_lock(&adev->lock);
+    ALOGI("%s: battery status changed to %scharging", __func__, charging ? "" : "not ");
+    adev->is_charging = charging;
+    audio_extn_sound_trigger_update_battery_status(charging);
+    pthread_mutex_unlock(&adev->lock);
+}
+
 static int adev_open(const hw_module_t *module, const char *name,
                      hw_device_t **device)
 {
@@ -7616,8 +7649,16 @@ static int adev_open(const hw_module_t *module, const char *name,
     pthread_mutex_lock(&adev->lock);
     audio_extn_snd_mon_register_listener(adev, adev_snd_mon_cb);
     adev->card_status = CARD_STATUS_ONLINE;
-    pthread_mutex_unlock(&adev->lock);
+    audio_extn_battery_properties_listener_init(adev_on_battery_status_changed);
+    /*
+     * if the battery state callback happens before charging can be queried,
+     * it will be guarded with the adev->lock held in the cb function and so
+     * the callback value will reflect the latest state
+     */
+    adev->is_charging = audio_extn_battery_properties_is_charging();
     audio_extn_sound_trigger_init(adev); /* dependent on snd_mon_init() */
+    audio_extn_sound_trigger_update_battery_status(adev->is_charging);
+    pthread_mutex_unlock(&adev->lock);
     /* Allocate memory for Device config params */
     adev->device_cfg_params = (struct audio_device_config_param*)
                                   calloc(platform_get_max_codec_backend(),
