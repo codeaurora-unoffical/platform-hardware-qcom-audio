@@ -2618,13 +2618,14 @@ exit:
     deinit_streams();
     rc = unload_hals();
 
-    if ((log_file != stdout) && (log_file != nullptr))
-        fclose(log_file);
-
     wakelock_acquired = request_wake_lock(wakelock_acquired, false);
     /* Caution: Below ADL log shouldnt be altered without notifying automation APT since it used
      * for automation testing
      */
     fprintf(log_file, "\nADL: BYE BYE\n");
+
+    if ((log_file != stdout) && (log_file != nullptr))
+        fclose(log_file);
+
     return 0;
 }
