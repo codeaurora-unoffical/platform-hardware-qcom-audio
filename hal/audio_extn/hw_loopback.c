@@ -878,8 +878,6 @@ loopback_done:
         }
     } else {
         pthread_mutex_unlock(&audio_loopback_mod->lock);
-        free(audio_loopback_mod);
-        audio_loopback_mod = NULL;
     }
     ALOGV("%s Audio loopback extension initialized", __func__);
     return ret;
