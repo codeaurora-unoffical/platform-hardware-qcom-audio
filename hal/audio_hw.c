@@ -1922,7 +1922,7 @@ static int check_input_parameters(uint32_t sample_rate,
 {
     int ret = 0;
 
-    if ((format != AUDIO_FORMAT_PCM_16_BIT) && (format != AUDIO_FORMAT_PCM_FLOAT) &&
+    if ((format != AUDIO_FORMAT_PCM_16_BIT) &&
         !voice_extn_compress_voip_is_format_supported(format) &&
             !audio_extn_compr_cap_format_supported(format))
     {
