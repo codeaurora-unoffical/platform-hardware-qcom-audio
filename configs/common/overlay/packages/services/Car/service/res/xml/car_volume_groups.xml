@@ -43,9 +43,9 @@
     </group>
     <group>
         <context car:context="call"/>
+        <context car:context="call_ring"/>
     </group>
     <group>
-        <context car:context="call_ring"/>
         <context car:context="alarm"/>
         <context car:context="notification"/>
         <context car:context="system_sound"/>
