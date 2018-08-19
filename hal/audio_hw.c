@@ -1784,26 +1784,6 @@ int start_output_stream(struct stream_out *out)
         if (out->vhal_audio_helper != NULL)
             vehicle_hal_audio_helper_notify_stream_started(out->vhal_audio_helper,
                                                            out->car_audio_stream);
-
-        /* TODO: Workaround to delay 100 ms before writing data to H/W to compensate
-         *       for the FOCUS request delay by framework. Specifically for system
-         *       notification or touch tone. Wait for FOCUS during write will cause
-         *       Audioflinger to drop the first touch tone.
-         */
-        if (!property_get_bool("vendor.audio.vehicle.focus.enabled", true)) {
-            ALOGVV("%s: vhal audio focus disabled, continue", __func__);
-        } else if (out->vhal_audio_helper == NULL) {
-            ALOGE("%s: vhal audio helper not allocated, continue", __func__);
-        } else {
-            int focus_state =
-                vehicle_hal_audio_helper_get_stream_focus_state(out->vhal_audio_helper,
-                                                                out->car_audio_stream);
-            if ((focus_state == VEHICLE_HAL_AUDIO_HELPER_FOCUS_STATE_NO_FOCUS) ||
-                (focus_state == VEHICLE_HAL_AUDIO_HELPER_FOCUS_STATE_TIMEOUT)) {
-                ALOGI("%s: FOCUS not ready, wait", __func__);
-                usleep(100000);
-            }
-        }
     } else { // legacy stream will enable codec via vhal helper
         if (uc_info->out_snd_device != SND_DEVICE_NONE) {
             if (audio_extn_ext_hw_plugin_usecase_start(adev->ext_hw_plugin, uc_info))
@@ -1940,14 +1920,18 @@ static int check_input_parameters(uint32_t sample_rate,
 
     if ((format != AUDIO_FORMAT_PCM_16_BIT) && (format != AUDIO_FORMAT_PCM_FLOAT) &&
         !voice_extn_compress_voip_is_format_supported(format) &&
-            !audio_extn_compr_cap_format_supported(format))  ret = -EINVAL;
-
+            !audio_extn_compr_cap_format_supported(format))
+    {
+        ALOGE("%s: Unsupported format : %d",__func__,format);
+        ret = -EINVAL;
+    }
     switch (channel_count) {
     case 1:
     case 2:
     case 6:
         break;
     default:
+        ALOGE("%s: Unsupported channel count: %d",__func__,channel_count);
         ret = -EINVAL;
     }
 
@@ -1963,6 +1947,7 @@ static int check_input_parameters(uint32_t sample_rate,
     case 48000:
         break;
     default:
+        ALOGE("%s: Unsupported SampleRate : %d",__func__,sample_rate);
         ret = -EINVAL;
     }
 
@@ -2443,7 +2428,7 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
 #ifdef BUS_ADDRESS_ENABLED
     if (out->car_audio_stream) {
 #ifdef VHAL_HELPER_ENABLED
-        if (!property_get_bool("vendor.audio.vehicle.focus.enabled", true)) {
+        if (!property_get_bool("persist.vendor.audio.vehicle.focus.enabled", true)) {
             ALOGVV("%s: vhal audio focus disabled, continue", __func__);
         } else if (out->vhal_audio_helper == NULL) {
             ALOGE("%s: vhal audio helper not allocated, continue", __func__);
@@ -3251,7 +3236,7 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
     } else if (((flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) ||
                      ((flags & AUDIO_OUTPUT_FLAG_DIRECT) != 0)) {
         /* Using BUS00_MEDIA for compress offload usecase */
-        strncpy(address, "BUS00_MEDIA", AUDIO_DEVICE_MAX_ADDRESS_LEN);
+        strlcpy(address, "BUS00_MEDIA", AUDIO_DEVICE_MAX_ADDRESS_LEN);
         /* extract car audio stream index */
         car_audio_stream = out_get_car_audio_stream_from_address(address);
         if (car_audio_stream < 0) {
@@ -4865,6 +4850,9 @@ static int adev_close(hw_device_t *device)
         if(adev->ext_hw_plugin)
             audio_extn_ext_hw_plugin_deinit(adev->ext_hw_plugin);
 
+        if(adev->ext_audio_anc)
+            audio_extn_ext_audio_anc_deinit(adev->ext_audio_anc);
+
         free(device);
         adev = NULL;
     }
@@ -4977,6 +4965,8 @@ static int adev_open(const hw_module_t *module, const char *name,
     }
 
     adev->ext_hw_plugin = audio_extn_ext_hw_plugin_init(adev);
+
+    adev->ext_audio_anc = audio_extn_ext_audio_anc_init(adev);
 
     adev->snd_card_status.state = SND_CARD_STATE_ONLINE;
 

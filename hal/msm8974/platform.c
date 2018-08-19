@@ -2466,7 +2466,11 @@ int platform_get_usecase_acdb_id(void *platform,
             if (snd_device == SND_DEVICE_OUT_HDMI)
                 acdb_dev_id = 18;
             else
+#ifdef GVM_ENABLED
                 acdb_dev_id = 60;
+#else
+                acdb_dev_id = 41;
+#endif
             break;
         case USECASE_AUDIO_PLAYBACK_DRIVER_SIDE:
             acdb_dev_id = 14;
@@ -4546,7 +4550,7 @@ int platform_set_stream_channel_map(void *platform, audio_channel_mask_t channel
     switch (channels) {
         case 1:
             /* AUDIO_CHANNEL_OUT_MONO */
-            channel_map[0] = PCM_CHANNEL_FC;
+            channel_map[0] = PCM_CHANNEL_FL;
             break;
         case 2:
             /* AUDIO_CHANNEL_OUT_STEREO */
