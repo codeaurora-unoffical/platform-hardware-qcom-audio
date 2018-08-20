@@ -220,7 +220,7 @@ flac.sw.decoder.24bit.support=true
 
 #enable vehicle hal audio focus
 PRODUCT_PROPERTY_OVERRIDES += \
-persist.vendor.audio.vehicle.focus.enabled=true
+persist.vendor.audio.vehicle.focus.enabled=false
 
 # for HIDL related audio packages
 PRODUCT_PACKAGES += \
