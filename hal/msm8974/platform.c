@@ -6141,6 +6141,7 @@ static bool platform_check_codec_backend_cfg(struct audio_device* adev,
     // is not same as current backend comfiguration
     if ((bit_width != my_data->current_backend_cfg[backend_idx].bit_width) ||
         (sample_rate != my_data->current_backend_cfg[backend_idx].sample_rate) ||
+        (sample_rate != backend_cfg->sample_rate) ||
          passthrough_enabled || channels_updated) {
         backend_cfg->bit_width = bit_width;
         backend_cfg->sample_rate = sample_rate;
