@@ -2414,7 +2414,7 @@ acdb_init_fail:
 
     if (!my_data->is_slimbus_interface) {
         //TODO:: make generic interfaceface to check Slimbus/I2S/CDC_DMA
-        if (!strncmp(snd_card_name, "sdm660", strlen("sm6150" ))) {
+        if (!strncmp(snd_card_name, "sm6150", strlen("sm6150"))) {
             my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].bitwidth_mixer_ctl =
                 strdup("WSA_CDC_DMA_RX_0 Format");
             my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].samplerate_mixer_ctl =
