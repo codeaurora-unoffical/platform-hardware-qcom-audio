@@ -1658,7 +1658,13 @@ static int stop_output_stream(struct stream_out *out)
         if (adev->offload_effects_stop_output != NULL)
             adev->offload_effects_stop_output(out->handle, out->pcm_device_id);
     }
-
+#if defined(AUTOEFFECTS_ENABLE)
+    // stop AUTO effects
+    if (adev->auto_effects_stop_output != NULL){
+        adev->auto_effects_stop_output(out->handle, out->usecase);
+        ALOGD("%s: Stop AUTO effects", __func__);
+    }
+#endif
     /* 1. Get and set stream specific mixer controls */
     disable_audio_route(adev, uc_info);
 
@@ -2366,7 +2372,7 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
     struct audio_device *adev = out->dev;
     int snd_scard_state = get_snd_card_state(adev);
     ssize_t ret = 0;
-
+    int apply_autoeff;
     lock_output_stream(out);
 
     if (SND_CARD_STATE_OFFLINE == snd_scard_state) {
@@ -2386,14 +2392,17 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
             return -ENETRESET;
         }
     }
-
+    apply_autoeff=0;
     if (out->standby) {
         out->standby = false;
         pthread_mutex_lock(&adev->lock);
         if (out->usecase == USECASE_COMPRESS_VOIP_CALL)
             ret = voice_extn_compress_voip_start_output_stream(out);
-        else
+        else {
             ret = start_output_stream(out);
+            apply_autoeff=1;
+        }
+
         pthread_mutex_unlock(&adev->lock);
         /* ToDo: If use case is compress offload should return 0 */
         if (ret != 0) {
@@ -2544,6 +2553,18 @@ exit:
                         out_get_sample_rate(&out->stream.common));
 
     }
+#if defined(AUTOEFFECTS_ENABLE)
+    else {
+        if (apply_autoeff){
+            ALOGD("%s: Start AUTO effects", __func__);
+            if (adev->auto_effects_start_output != NULL){
+                pthread_mutex_lock(&adev->lock);
+                adev->auto_effects_start_output(out->handle, out->usecase);
+                pthread_mutex_unlock(&adev->lock);
+            }
+        }
+    }
+#endif
     return bytes;
 }
 
@@ -4794,7 +4815,24 @@ static int adev_open(const hw_module_t *module, const char *name,
                                          "offload_effects_bundle_set_parameters");
         }
     }
-
+#if defined(AUTOEFFECTS_ENABLE)
+    if (access(AUTO_EFFECTS_BUNDLE_LIBRARY_PATH, R_OK) == 0) {
+         adev->auto_effects_lib = dlopen(AUTO_EFFECTS_BUNDLE_LIBRARY_PATH, RTLD_NOW);
+        if (adev->auto_effects_lib == NULL) {
+            ALOGE("%s: DLOPEN failed for %s", __func__,
+                  AUTO_EFFECTS_BUNDLE_LIBRARY_PATH);
+        } else {
+            ALOGV("%s: DLOPEN successful for %s", __func__,
+                  AUTO_EFFECTS_BUNDLE_LIBRARY_PATH);
+            adev->auto_effects_start_output =
+                    (int (*)(audio_io_handle_t, int))dlsym(adev->auto_effects_lib,
+                                     "auto_effects_bundle_hal_start_output");
+            adev->auto_effects_stop_output =
+                    (int (*)(audio_io_handle_t, int))dlsym(adev->auto_effects_lib,
+                                     "auto_effects_bundle_hal_stop_output");
+        }
+    }
+#endif
     if (access(ADM_LIBRARY_PATH, R_OK) == 0) {
         adev->adm_lib = dlopen(ADM_LIBRARY_PATH, RTLD_NOW);
         if (adev->adm_lib == NULL) {

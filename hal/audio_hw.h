@@ -54,11 +54,12 @@
 
 #define VISUALIZER_LIBRARY_PATH "/vendor/lib/soundfx/libqcomvisualizer.so"
 #define OFFLOAD_EFFECTS_BUNDLE_LIBRARY_PATH "/vendor/lib/soundfx/libqcompostprocbundle.so"
+#define AUTO_EFFECTS_BUNDLE_LIBRARY_PATH "/vendor/lib/soundfx/libautoeffectsbundle.so"
 #define ADM_LIBRARY_PATH "/vendor/lib/libadm.so"
 
 /* Flags used to initialize acdb_settings variable that goes to ACDB library */
 #define NONE_FLAG            0x00000000
-#define ANC_FLAG	     0x00000001
+#define ANC_FLAG             0x00000001
 #define DMIC_FLAG            0x00000002
 #define QMIC_FLAG            0x00000004
 #define TTY_MODE_OFF         0x00000010
@@ -405,7 +406,11 @@ struct audio_device {
 
     struct sound_card_status snd_card_status;
     int (*offload_effects_set_hpx_state)(bool);
-
+#if defined(AUTOEFFECTS_ENABLE)
+    void *auto_effects_lib;
+    int (*auto_effects_start_output)(audio_io_handle_t, int);
+    int (*auto_effects_stop_output)(audio_io_handle_t, int);
+#endif
     void *adm_data;
     void *adm_lib;
     adm_init_t adm_init;
