@@ -45,10 +45,10 @@ endif
 endif
 
 LOCAL_SRC_FILES := \
-	audio_hw.c \
-	voice.c \
-	platform_info.c \
-	$(AUDIO_PLATFORM)/platform.c
+    audio_hw.c \
+    voice.c \
+    platform_info.c \
+    $(AUDIO_PLATFORM)/platform.c
 
 LOCAL_SRC_FILES += audio_extn/audio_extn.c \
                    audio_extn/utils.c
@@ -268,23 +268,23 @@ ifeq ($(strip $(AUDIO_FEATURE_ENABLED_HDMI_IN_PASSTHROUGH)),true)
 endif
 
 LOCAL_SHARED_LIBRARIES := \
-	liblog \
-	libcutils \
-	libtinyalsa \
-	libtinycompress \
-	libaudioroute \
-	libdl \
-	libexpat
+    liblog \
+    libcutils \
+    libtinyalsa \
+    libtinycompress \
+    libaudioroute \
+    libdl \
+    libexpat
 
 LOCAL_C_INCLUDES += \
-	external/tinyalsa/include \
-	external/tinycompress/include \
-	external/expat/lib \
-	$(call include-path-for, audio-route) \
-	$(call include-path-for, audio-effects) \
-	$(LOCAL_PATH)/$(AUDIO_PLATFORM) \
-	$(LOCAL_PATH)/audio_extn \
-	$(LOCAL_PATH)/voice_extn
+    external/tinyalsa/include \
+    external/tinycompress/include \
+    external/expat/lib \
+    $(call include-path-for, audio-route) \
+    $(call include-path-for, audio-effects) \
+    $(LOCAL_PATH)/$(AUDIO_PLATFORM) \
+    $(LOCAL_PATH)/audio_extn \
+    $(LOCAL_PATH)/voice_extn
 
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_LISTEN)),true)
     LOCAL_CFLAGS += -DAUDIO_LISTEN_ENABLED
@@ -343,6 +343,7 @@ endif
 
 ifeq ($(strip $(ENABLE_HYP)),true)
     LOCAL_CFLAGS += -DGVM_ENABLED
+    LOCAL_CFLAGS += -DAUTOEFFECTS_ENABLE
 endif
 
 LOCAL_MODULE := audio.primary.$(TARGET_BOARD_PLATFORM)
