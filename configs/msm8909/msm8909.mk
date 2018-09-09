@@ -44,6 +44,7 @@ BOARD_SUPPORTS_QAHW := true
 BOARD_SUPPORTS_QSTHW_API := true
 AUDIO_FEATURE_DISABLED_SOUND_TRIGGER_LEGACY_HAL := true
 AUDIO_FEATURE_ENABLED_COMPRESS_INPUT := true
+AUDIO_FEATURE_ENABLED_CUSTOMSTEREO := true
 
 ##AUDIO_FEATURE_FLAGS
 
@@ -107,7 +108,16 @@ PRODUCT_PROPERTY_OVERRIDES += \
 ro.vendor.audio.sdk.fluencetype=none\
 persist.vendor.audio.fluence.voicecall=true\
 persist.vendor.audio.fluence.voicerec=false\
-persist.vendor.audio.fluence.speaker=true
+persist.vendor.audio.fluence.speaker=true\
+persist.vendor.audio.fluence.audiorec=false
+
+#enable generic handset mic
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.apptype.multirec.enabled=false
+
+#enable multi record
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.record.multiple.enabled=true
 
 #disable tunnel encoding
 PRODUCT_PROPERTY_OVERRIDES += \
@@ -150,6 +160,9 @@ vendor.audio.sys.init=false
 #Enable DS2 feature for Dolby
 PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.dolby.ds2.enabled=true
+
+PRODUCT_PROPERTY_OVERRIDES += \
+persist.vendor.audio.hw.binder.size_kbyte=1024
 
 PRODUCT_PACKAGES += \
     android.hardware.audio@2.0-service \
