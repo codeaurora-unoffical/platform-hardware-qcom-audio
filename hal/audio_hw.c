@@ -1362,9 +1362,7 @@ static void check_usecases_codec_backend(struct audio_device *adev,
               platform_get_snd_device_name(snd_device),
               platform_get_snd_device_name(usecase->out_snd_device),
               platform_check_backends_match(snd_device, usecase->out_snd_device));
-        if ((usecase->type != PCM_CAPTURE) &&
-            (usecase->type != VOICE_CALL) &&
-            (usecase != uc_info)) {
+        if ((usecase->type != PCM_CAPTURE) && (usecase != uc_info)) {
             uc_derive_snd_device = derive_playback_snd_device(adev->platform,
                                                usecase, uc_info, snd_device);
             if (((uc_derive_snd_device != usecase->out_snd_device) || force_routing) &&
@@ -5687,6 +5685,13 @@ int adev_open_output_stream(struct audio_hw_device *dev,
                       (devices != AUDIO_DEVICE_OUT_USB_ACCESSORY);
     bool direct_dev = is_hdmi || is_usb_dev;
 
+    if (is_usb_dev && (!audio_extn_usb_connected(NULL))) {
+        is_usb_dev = false;
+        devices = AUDIO_DEVICE_OUT_SPEAKER;
+        ALOGW("%s: ignore set device to non existing USB card, use output device(%#x)",
+              __func__, devices);
+    }
+
     *stream_out = NULL;
 
     out = (struct stream_out *)calloc(1, sizeof(struct stream_out));
@@ -6787,6 +6792,13 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
                                                             devices,
                                                             flags,
                                                             source);
+
+    if (is_usb_dev && (!audio_extn_usb_connected(NULL))) {
+        is_usb_dev = false;
+        devices = AUDIO_DEVICE_IN_BUILTIN_MIC;
+        ALOGW("%s: ignore set device to non existing USB card, use input device(%#x)",
+              __func__, devices);
+    }
 
     *stream_in = NULL;
 
