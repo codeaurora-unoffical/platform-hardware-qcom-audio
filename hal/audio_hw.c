@@ -1362,9 +1362,7 @@ static void check_usecases_codec_backend(struct audio_device *adev,
               platform_get_snd_device_name(snd_device),
               platform_get_snd_device_name(usecase->out_snd_device),
               platform_check_backends_match(snd_device, usecase->out_snd_device));
-        if ((usecase->type != PCM_CAPTURE) &&
-            (usecase->type != VOICE_CALL) &&
-            (usecase != uc_info)) {
+        if ((usecase->type != PCM_CAPTURE) && (usecase != uc_info)) {
             uc_derive_snd_device = derive_playback_snd_device(adev->platform,
                                                usecase, uc_info, snd_device);
             if (((uc_derive_snd_device != usecase->out_snd_device) || force_routing) &&
@@ -2498,7 +2496,7 @@ int start_input_stream(struct stream_in *in)
             in->pcm = pcm_open(adev->snd_card, in->pcm_device_id,
                                flags, &config);
             ATRACE_END();
-            if (errno == ENETRESET) {
+            if (errno == ENETRESET && !pcm_is_ready(in->pcm)) {
                 ALOGE("%s: pcm_open failed errno:%d\n", __func__, errno);
                 adev->card_status = CARD_STATUS_OFFLINE;
                 in->card_status = CARD_STATUS_OFFLINE;
@@ -3092,7 +3090,7 @@ int start_output_stream(struct stream_out *out)
             out->pcm = pcm_open(adev->snd_card, out->pcm_device_id,
                                flags, &out->config);
             ATRACE_END();
-            if (errno == ENETRESET) {
+            if (errno == ENETRESET && !pcm_is_ready(out->pcm)) {
                 ALOGE("%s: pcm_open failed errno:%d\n", __func__, errno);
                 out->card_status = CARD_STATUS_OFFLINE;
                 adev->card_status = CARD_STATUS_OFFLINE;
@@ -3146,7 +3144,7 @@ int start_output_stream(struct stream_out *out)
                                    out->pcm_device_id,
                                    COMPRESS_IN, &out->compr_config);
         ATRACE_END();
-        if (errno == ENETRESET) {
+        if (errno == ENETRESET && !is_compress_ready(out->compr)) {
                 ALOGE("%s: compress_open failed errno:%d\n", __func__, errno);
                 adev->card_status = CARD_STATUS_OFFLINE;
                 out->card_status = CARD_STATUS_OFFLINE;
@@ -4970,7 +4968,7 @@ static int out_create_mmap_buffer(const struct audio_stream_out *stream,
           __func__, adev->snd_card, out->pcm_device_id, out->config.channels);
     out->pcm = pcm_open(adev->snd_card, out->pcm_device_id,
                         (PCM_OUT | PCM_MMAP | PCM_NOIRQ | PCM_MONOTONIC), &out->config);
-    if (errno == ENETRESET) {
+    if (errno == ENETRESET && !pcm_is_ready(out->pcm)) {
         ALOGE("%s: pcm_open failed errno:%d\n", __func__, errno);
         out->card_status = CARD_STATUS_OFFLINE;
         adev->card_status = CARD_STATUS_OFFLINE;
@@ -5592,7 +5590,7 @@ static int in_create_mmap_buffer(const struct audio_stream_in *stream,
           __func__, adev->snd_card, in->pcm_device_id, in->config.channels);
     in->pcm = pcm_open(adev->snd_card, in->pcm_device_id,
                         (PCM_IN | PCM_MMAP | PCM_NOIRQ | PCM_MONOTONIC), &in->config);
-    if (errno == ENETRESET) {
+    if (errno == ENETRESET && !pcm_is_ready(in->pcm)) {
         ALOGE("%s: pcm_open failed errno:%d\n", __func__, errno);
         in->card_status = CARD_STATUS_OFFLINE;
         adev->card_status = CARD_STATUS_OFFLINE;
@@ -5686,6 +5684,13 @@ int adev_open_output_stream(struct audio_hw_device *dev,
     bool is_usb_dev = audio_is_usb_out_device(devices) &&
                       (devices != AUDIO_DEVICE_OUT_USB_ACCESSORY);
     bool direct_dev = is_hdmi || is_usb_dev;
+
+    if (is_usb_dev && (!audio_extn_usb_connected(NULL))) {
+        is_usb_dev = false;
+        devices = AUDIO_DEVICE_OUT_SPEAKER;
+        ALOGW("%s: ignore set device to non existing USB card, use output device(%#x)",
+              __func__, devices);
+    }
 
     *stream_out = NULL;
 
@@ -6787,6 +6792,13 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
                                                             devices,
                                                             flags,
                                                             source);
+
+    if (is_usb_dev && (!audio_extn_usb_connected(NULL))) {
+        is_usb_dev = false;
+        devices = AUDIO_DEVICE_IN_BUILTIN_MIC;
+        ALOGW("%s: ignore set device to non existing USB card, use input device(%#x)",
+              __func__, devices);
+    }
 
     *stream_in = NULL;
 
