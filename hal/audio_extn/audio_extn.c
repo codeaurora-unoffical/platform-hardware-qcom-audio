@@ -1298,6 +1298,12 @@ static int audio_extn_set_multichannel_mask(struct audio_device *adev,
         (in->format == AUDIO_FORMAT_PCM_16_BIT)) {
 
         switch (max_mic_count) {
+            case 8:
+                config->channel_mask = AUDIO_CHANNEL_INDEX_MASK_8;
+                return ret;
+            case 6:
+                config->channel_mask = AUDIO_CHANNEL_INDEX_MASK_6;
+                return ret;
             case 4:
                 config->channel_mask = AUDIO_CHANNEL_INDEX_MASK_4;
                 break;

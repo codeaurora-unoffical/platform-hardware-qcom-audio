@@ -1504,6 +1504,8 @@ static void set_platform_defaults(struct platform_data * my_data)
     hw_interface_table[SND_DEVICE_IN_HEADSET_MIC_FLUENCE] = strdup("SLIMBUS_0_TX");
     hw_interface_table[SND_DEVICE_IN_VOICE_SPEAKER_MIC] = strdup("SLIMBUS_0_TX");
     hw_interface_table[SND_DEVICE_IN_VOICE_HEADSET_MIC] = strdup("SLIMBUS_0_TX");
+    hw_interface_table[SND_DEVICE_IN_HANDSET_6MIC] = strdup("SLIMBUS_0_TX");
+    hw_interface_table[SND_DEVICE_IN_HANDSET_8MIC] = strdup("SLIMBUS_0_TX");
     hw_interface_table[SND_DEVICE_IN_SPDIF] = strdup("PRI_SPDIF_TX");
     hw_interface_table[SND_DEVICE_IN_HDMI_MIC] = strdup("SEC_MI2S_TX");
     hw_interface_table[SND_DEVICE_IN_HDMI_ARC] = strdup("SEC_SPDIF_TX");
@@ -4569,8 +4571,19 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
             else if ((my_data->fluence_type & (FLUENCE_DUAL_MIC | FLUENCE_QUAD_MIC)) &&
                     (channel_count == 2) && (my_data->source_mic_type & SOURCE_DUAL_MIC))
                 snd_device = SND_DEVICE_IN_HANDSET_STEREO_DMIC;
-            else
-                snd_device = SND_DEVICE_IN_HANDSET_MIC;
+            else {
+                switch (channel_mask) {
+                case AUDIO_CHANNEL_INDEX_MASK_8:
+                    snd_device = SND_DEVICE_IN_HANDSET_8MIC;
+                    break;
+                case AUDIO_CHANNEL_INDEX_MASK_6:
+                    snd_device = SND_DEVICE_IN_HANDSET_6MIC;
+                    break;
+                case AUDIO_CHANNEL_IN_STEREO:
+                default:
+                    snd_device = SND_DEVICE_IN_HANDSET_MIC;
+                }
+            }
         } else if (in_device & AUDIO_DEVICE_IN_BACK_MIC) {
             snd_device = SND_DEVICE_IN_SPEAKER_MIC;
         } else if (in_device & AUDIO_DEVICE_IN_LINE) {
