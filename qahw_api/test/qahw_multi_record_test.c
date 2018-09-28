@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2015 The Android Open Source Project *
@@ -279,6 +279,9 @@ void *start_input(void *thread_param)
   case 4:
       params->config.channel_mask = AUDIO_CHANNEL_INDEX_MASK_4;
       break;
+  case 8:
+      params->config.channel_mask = AUDIO_CHANNEL_INDEX_MASK_8;
+      break;
   default:
       fprintf(log_file, "ERROR :::: channle count %d not supported, handle(%d)", params->channels, params->handle);
       if (log_file != stdout)
@@ -351,7 +354,11 @@ void *start_input(void *thread_param)
   if (log_file != stdout)
       fprintf(stdout, "\n ADL: Please speak into the microphone for %lf seconds, handle(%d)\n", params->record_length, params->handle);
 
-  snprintf(file_name + name_len, sizeof(file_name) - name_len, "%d.wav", (0x99A - params->handle));
+  if (audio_is_linear_pcm(params->config.format))
+      snprintf(file_name + name_len, sizeof(file_name) - name_len, "%d.wav", (0x99A - params->handle));
+  else
+      snprintf(file_name + name_len, sizeof(file_name) - name_len, "%d.raw", (0x99A - params->handle));
+
   FILE *fd = fopen(file_name,"w");
   if (fd == NULL) {
       fprintf(log_file, "File open failed \n");
@@ -362,7 +369,7 @@ void *start_input(void *thread_param)
       pthread_exit(0);
   }
 
-  FILE *fd_in_ts;
+  FILE *fd_in_ts = NULL;
   if (params->timestamp_mode) {
       if (*(params->timestamp_file_in))
           fd_in_ts = fopen(params->timestamp_file_in, "w+");
@@ -403,7 +410,8 @@ void *start_input(void *thread_param)
   hdr.bits_per_sample = bps;
   hdr.data_id = ID_DATA;
   hdr.data_sz = 0;
-  fwrite(&hdr, 1, sizeof(hdr), fd);
+  if (audio_is_linear_pcm(params->config.format))
+      fwrite(&hdr, 1, sizeof(hdr), fd);
 
   memset(&in_buf,0, sizeof(qahw_in_buffer_t));
   start_time = time(0);
@@ -432,7 +440,7 @@ void *start_input(void *thread_param)
       bytes_read = qahw_in_read(in_handle, &in_buf);
 
       if (params->timestamp_mode)
-          fprintf(fd_in_ts, "timestamp:%lu\n", timestamp);
+          fprintf(fd_in_ts, "timestamp:%lld\n", timestamp);
       if (kpi_mode) {
           if (count == 0) {
               ret = clock_gettime(CLOCK_REALTIME, &tsColdF);
@@ -450,35 +458,42 @@ void *start_input(void *thread_param)
       }
 
       time_elapsed = difftime(time(0), start_time);
-      written_size = fwrite(in_buf.buffer, 1, buffer_size, fd);
-      if (written_size < buffer_size) {
+      written_size = fwrite(in_buf.buffer, 1, bytes_read, fd);
+      if (written_size < bytes_read) {
          printf("Error in fwrite(%d)=%s\n",ferror(fd), strerror(ferror(fd)));
          break;
       }
-      data_sz += buffer_size;
+      data_sz += bytes_read;
   }
-  if (params->timestamp_mode)
+  if  ((params->timestamp_mode) && fd_in_ts) {
       fclose(fd_in_ts);
+      fd_in_ts = NULL;
+  }
 
   /*Stopping sourcetracking thread*/
   sourcetrack_done = 1;
 
-  /* update lengths in header */
-  hdr.data_sz = data_sz;
-  hdr.riff_sz = data_sz + 44 - 8;
-  fseek(fd, 0, SEEK_SET);
-  fwrite(&hdr, 1, sizeof(hdr), fd);
+  if (audio_is_linear_pcm(params->config.format)) {
+      /* update lengths in header */
+      hdr.data_sz = data_sz;
+      hdr.riff_sz = data_sz + 44 - 8;
+      fseek(fd, 0, SEEK_SET);
+      fwrite(&hdr, 1, sizeof(hdr), fd);
+  }
   free(buffer);
   fclose(fd);
+  fd = NULL;
 
   /* capture latency kpis if required */
   if (kpi_mode) {
       tCold = tsColdF.tv_sec*1000 - tsColdI.tv_sec*1000 +
               tsColdF.tv_nsec/1000000 - tsColdI.tv_nsec/1000000;
 
-      fread((void *) latencyBuf, 100, 1, fdLatencyNode);
-      if (fdLatencyNode)
+      if (fdLatencyNode) {
+          fread((void *) latencyBuf, 100, 1, fdLatencyNode);
           fclose(fdLatencyNode);
+          fdLatencyNode = NULL;
+      }
       sscanf(latencyBuf, " %llu,%llu", &tsec, &tusec);
       tCont = ((uint64_t)tsCont.tv_sec)*1000 - tsec*1000 + ((uint64_t)tsCont.tv_nsec)/1000000 - tusec/1000;
       if (log_file != stdout) {
@@ -841,7 +856,11 @@ int main(int argc, char* argv[]) {
 
     /* Register the SIGINT to close the App properly */
     if (signal(SIGINT, stop_signal_handler) == SIG_ERR)
-        fprintf(log_file, "Failed to register SIGINT:%d\n",errno);
+        fprintf(log_file, "Failed to register SIGINT:%d\n", errno);
+
+    /* Register the SIGTERM to close the App properly */
+    if (signal(SIGTERM, stop_signal_handler) == SIG_ERR)
+        fprintf(log_file, "Failed to register SIGTERM:%d\n", errno);
 
     /* Register the SIGTERM to close the App properly */
     if (signal(SIGTERM, stop_signal_handler) == SIG_ERR)
@@ -914,7 +933,10 @@ sourcetrack_error:
     fprintf(log_file, "\n ADL: Done with hal record test \n");
     if (log_file != stdout) {
         fprintf(stdout, "\n ADL: Done with hal record test \n");
-        fclose(log_file);
+        if (log_file) {
+          fclose(log_file);
+          log_file = NULL;
+        }
     }
     wakelock_acquired = request_wake_lock(wakelock_acquired, false);
     return 0;

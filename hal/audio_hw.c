@@ -1099,7 +1099,8 @@ int enable_snd_device(struct audio_device *adev,
                                               "true-native-mode");
             adev->native_playback_enabled = true;
         }
-        if ((snd_device == SND_DEVICE_IN_HANDSET_6MIC) &&
+        if (((snd_device == SND_DEVICE_IN_HANDSET_6MIC) ||
+            (snd_device == SND_DEVICE_IN_HANDSET_QMIC)) &&
             (audio_extn_ffv_get_stream() == adev->active_input)) {
             ALOGD("%s: init ec ref loopback", __func__);
             audio_extn_ffv_init_ec_ref_loopback(adev, snd_device);
@@ -2497,6 +2498,14 @@ int start_input_stream(struct stream_in *in)
             in->pcm = pcm_open(adev->snd_card, in->pcm_device_id,
                                flags, &config);
             ATRACE_END();
+            if (errno == ENETRESET) {
+                ALOGE("%s: pcm_open failed errno:%d\n", __func__, errno);
+                adev->card_status = CARD_STATUS_OFFLINE;
+                in->card_status = CARD_STATUS_OFFLINE;
+                ret = -EIO;
+                goto error_open;
+            }
+
             if (in->pcm == NULL || !pcm_is_ready(in->pcm)) {
                 ALOGE("%s: %s", __func__, pcm_get_error(in->pcm));
                 if (in->pcm != NULL) {
@@ -3074,11 +3083,23 @@ int start_output_stream(struct stream_out *out)
             }
         }
 
+        if (out->realtime)
+            platform_set_stream_channel_map(adev->platform, out->channel_mask,
+                   out->pcm_device_id, &out->channel_map_param.channel_map[0]);
+
         while (1) {
             ATRACE_BEGIN("pcm_open");
             out->pcm = pcm_open(adev->snd_card, out->pcm_device_id,
                                flags, &out->config);
             ATRACE_END();
+            if (errno == ENETRESET) {
+                ALOGE("%s: pcm_open failed errno:%d\n", __func__, errno);
+                out->card_status = CARD_STATUS_OFFLINE;
+                adev->card_status = CARD_STATUS_OFFLINE;
+                ret = -EIO;
+                goto error_open;
+            }
+
             if (out->pcm == NULL || !pcm_is_ready(out->pcm)) {
                 ALOGE("%s: %s", __func__, pcm_get_error(out->pcm));
                 if (out->pcm != NULL) {
@@ -3094,7 +3115,8 @@ int start_output_stream(struct stream_out *out)
             }
             break;
         }
-        platform_set_stream_channel_map(adev->platform, out->channel_mask,
+        if (!out->realtime)
+            platform_set_stream_channel_map(adev->platform, out->channel_mask,
                    out->pcm_device_id, &out->channel_map_param.channel_map[0]);
 
         ALOGV("%s: pcm_prepare", __func__);
@@ -3124,6 +3146,14 @@ int start_output_stream(struct stream_out *out)
                                    out->pcm_device_id,
                                    COMPRESS_IN, &out->compr_config);
         ATRACE_END();
+        if (errno == ENETRESET) {
+                ALOGE("%s: compress_open failed errno:%d\n", __func__, errno);
+                adev->card_status = CARD_STATUS_OFFLINE;
+                out->card_status = CARD_STATUS_OFFLINE;
+                ret = -EIO;
+                goto error_open;
+        }
+
         if (out->compr && !is_compress_ready(out->compr)) {
             ALOGE("%s: failed /w error %s", __func__, compress_get_error(out->compr));
             compress_close(out->compr);
@@ -3223,7 +3253,8 @@ static int check_input_parameters(uint32_t sample_rate,
         (format != AUDIO_FORMAT_PCM_24_BIT_PACKED) && (format != AUDIO_FORMAT_PCM_32_BIT) &&
         (format != AUDIO_FORMAT_PCM_FLOAT)) &&
         !voice_extn_compress_voip_is_format_supported(format) &&
-        !audio_extn_compr_cap_format_supported(format))
+        !audio_extn_compr_cap_format_supported(format) &&
+        !audio_extn_cin_format_supported(format))
             ret = -EINVAL;
 
     switch (channel_count) {
@@ -3232,6 +3263,7 @@ static int check_input_parameters(uint32_t sample_rate,
     case 3:
     case 4:
     case 6:
+    case 8:
         break;
     default:
         ret = -EINVAL;
@@ -4905,8 +4937,15 @@ static int out_create_mmap_buffer(const struct audio_stream_out *stream,
     uint32_t mmap_size;
 
     ALOGV("%s", __func__);
+    lock_output_stream(out);
     pthread_mutex_lock(&adev->lock);
 
+    if (CARD_STATUS_OFFLINE == out->card_status ||
+        CARD_STATUS_OFFLINE == adev->card_status) {
+        ALOGW("out->card_status or adev->card_status offline, try again");
+        ret = -EIO;
+        goto exit;
+    }
     if (info == NULL || min_size_frames == 0) {
         ALOGE("%s: info = %p, min_size_frames = %d", __func__, info, min_size_frames);
         ret = -EINVAL;
@@ -4931,6 +4970,14 @@ static int out_create_mmap_buffer(const struct audio_stream_out *stream,
           __func__, adev->snd_card, out->pcm_device_id, out->config.channels);
     out->pcm = pcm_open(adev->snd_card, out->pcm_device_id,
                         (PCM_OUT | PCM_MMAP | PCM_NOIRQ | PCM_MONOTONIC), &out->config);
+    if (errno == ENETRESET) {
+        ALOGE("%s: pcm_open failed errno:%d\n", __func__, errno);
+        out->card_status = CARD_STATUS_OFFLINE;
+        adev->card_status = CARD_STATUS_OFFLINE;
+        ret = -EIO;
+        goto exit;
+    }
+
     if (out->pcm == NULL || !pcm_is_ready(out->pcm)) {
         step = "open";
         ret = -ENODEV;
@@ -4977,6 +5024,7 @@ exit:
         }
     }
     pthread_mutex_unlock(&adev->lock);
+    pthread_mutex_unlock(&out->lock);
     return ret;
 }
 
@@ -5512,6 +5560,13 @@ static int in_create_mmap_buffer(const struct audio_stream_in *stream,
     pthread_mutex_lock(&adev->lock);
     ALOGV("%s in %p", __func__, in);
 
+    if (CARD_STATUS_OFFLINE == in->card_status||
+        CARD_STATUS_OFFLINE == adev->card_status) {
+        ALOGW("in->card_status or adev->card_status offline, try again");
+        ret = -EIO;
+        goto exit;
+    }
+
     if (info == NULL || min_size_frames == 0) {
         ALOGE("%s invalid argument info %p min_size_frames %d", __func__, info, min_size_frames);
         ret = -EINVAL;
@@ -5537,6 +5592,14 @@ static int in_create_mmap_buffer(const struct audio_stream_in *stream,
           __func__, adev->snd_card, in->pcm_device_id, in->config.channels);
     in->pcm = pcm_open(adev->snd_card, in->pcm_device_id,
                         (PCM_IN | PCM_MMAP | PCM_NOIRQ | PCM_MONOTONIC), &in->config);
+    if (errno == ENETRESET) {
+        ALOGE("%s: pcm_open failed errno:%d\n", __func__, errno);
+        in->card_status = CARD_STATUS_OFFLINE;
+        adev->card_status = CARD_STATUS_OFFLINE;
+        ret = -EIO;
+        goto exit;
+    }
+
     if (in->pcm == NULL || !pcm_is_ready(in->pcm)) {
         step = "open";
         ret = -ENODEV;

@@ -79,6 +79,8 @@ typedef enum {
     AUDIO_EVENT_SVA_EXEC_MODE_STATUS,
     AUDIO_EVENT_CAPTURE_STREAM_INACTIVE,
     AUDIO_EVENT_CAPTURE_STREAM_ACTIVE,
+    AUDIO_EVENT_BATTERY_STATUS_CHANGED,
+    AUDIO_EVENT_GET_PARAM
 } audio_event_type_t;
 
 typedef enum {
@@ -121,6 +123,12 @@ struct sound_trigger_device_info {
     int device;
 };
 
+struct sound_trigger_get_param_data {
+    char *param;
+    int sm_handle;
+    struct str_parms *reply;
+};
+
 struct audio_event_info {
     union {
         ssr_event_status_t status;
@@ -129,6 +137,7 @@ struct audio_event_info {
         struct audio_read_samples_info aud_info;
         char str_value[ST_EVENT_CONFIG_MAX_STR_VALUE];
         struct audio_hal_usecase usecase;
+        struct sound_trigger_get_param_data st_get_param_data;
     } u;
     struct sound_trigger_device_info device_info;
 };
@@ -165,6 +174,8 @@ do {\
 #define SOUND_TRIGGER_LIBRARY_PATH "/vendor/lib/hw/sound_trigger.primary.%s.so"
 #endif
 
+#define SVA_PARAM_DIRECTION_OF_ARRIVAL "st_direction_of_arrival"
+#define SVA_PARAM_CHANNEL_INDEX "st_channel_index"
 /*
  * Current proprietary API version used by AHAL. Queried by STHAL
  * for compatibility check with AHAL
@@ -436,9 +447,6 @@ void audio_extn_sound_trigger_update_device_status(snd_device_t snd_device,
     if (!st_dev)
        return;
 
-    if (st_dev->sthal_prop_api_version >= STHAL_PROP_API_VERSION_1_0)
-        return;
-
     if (snd_device >= SND_DEVICE_OUT_BEGIN &&
         snd_device < SND_DEVICE_OUT_END)
         device_type = PCM_PLAYBACK;
@@ -481,13 +489,14 @@ void audio_extn_sound_trigger_update_stream_status(struct audio_usecase *uc_info
     if (!st_dev)
        return;
 
-    if (st_dev->sthal_prop_api_version < STHAL_PROP_API_VERSION_1_0)
-        return;
-
     if (uc_info == NULL) {
         ALOGE("%s: usecase is NULL!!!", __func__);
         return;
     }
+
+    if ((st_dev->sthal_prop_api_version < STHAL_PROP_API_VERSION_1_0) &&
+        (uc_info->type != PCM_PLAYBACK))
+        return;
 
     if ((uc_info->in_snd_device >= SND_DEVICE_IN_BEGIN &&
         uc_info->in_snd_device < SND_DEVICE_IN_END)) {
@@ -575,13 +584,15 @@ void audio_extn_sound_trigger_set_parameters(struct audio_device *adev __unused,
     }
 
     ret = str_parms_get_int(params, AUDIO_PARAMETER_DEVICE_CONNECT, &val);
-    if ((ret >= 0) && audio_is_input_device(val)) {
+    if ((ret >= 0) && (audio_is_input_device(val) ||
+           (val == AUDIO_DEVICE_OUT_LINE))) {
         event.u.value = val;
         st_dev->st_callback(AUDIO_EVENT_DEVICE_CONNECT, &event);
     }
 
     ret = str_parms_get_int(params, AUDIO_PARAMETER_DEVICE_DISCONNECT, &val);
-    if ((ret >= 0) && audio_is_input_device(val)) {
+    if ((ret >= 0) && (audio_is_input_device(val) ||
+            (val == AUDIO_DEVICE_OUT_LINE))) {
         event.u.value = val;
         st_dev->st_callback(AUDIO_EVENT_DEVICE_DISCONNECT, &event);
     }
@@ -597,7 +608,7 @@ void audio_extn_sound_trigger_get_parameters(const struct audio_device *adev __u
                        struct str_parms *query, struct str_parms *reply)
 {
     audio_event_info_t event;
-    int ret;
+    int ret, val;
     char value[32];
 
     ret = str_parms_get_str(query, "SVA_EXEC_MODE_STATUS", value,
@@ -605,6 +616,22 @@ void audio_extn_sound_trigger_get_parameters(const struct audio_device *adev __u
     if (ret >= 0) {
         st_dev->st_callback(AUDIO_EVENT_SVA_EXEC_MODE_STATUS, &event);
         str_parms_add_int(reply, "SVA_EXEC_MODE_STATUS", event.u.value);
+    }
+
+    ret = str_parms_get_int(query, SVA_PARAM_DIRECTION_OF_ARRIVAL, &val);
+    if (ret >= 0) {
+        event.u.st_get_param_data.sm_handle = val;
+        event.u.st_get_param_data.param = SVA_PARAM_DIRECTION_OF_ARRIVAL;
+        event.u.st_get_param_data.reply = reply;
+        st_dev->st_callback(AUDIO_EVENT_GET_PARAM, &event);
+    }
+
+    ret = str_parms_get_int(query, SVA_PARAM_CHANNEL_INDEX, &val);
+    if (ret >= 0) {
+        event.u.st_get_param_data.sm_handle = val;
+        event.u.st_get_param_data.param = SVA_PARAM_CHANNEL_INDEX;
+        event.u.st_get_param_data.reply = reply;
+        st_dev->st_callback(AUDIO_EVENT_GET_PARAM, &event);
     }
 }
 
