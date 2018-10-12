@@ -2116,9 +2116,15 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
             if (out_snd_device == SND_DEVICE_NONE) {
                 out_snd_device = platform_get_output_snd_device(adev->platform,
                                             usecase->stream.out);
-                if (usecase->stream.out == adev->primary_output &&
-                        adev->active_input &&
-                        out_snd_device != usecase->out_snd_device) {
+                voip_usecase = get_usecase_from_list(adev, USECASE_AUDIO_PLAYBACK_VOIP);
+                if (voip_usecase == NULL)
+                    voip_usecase = get_usecase_from_list(adev, adev->primary_output->usecase);
+
+                if ((usecase->stream.out != NULL &&
+                     voip_usecase != NULL &&
+                     usecase->stream.out->usecase == voip_usecase->id) &&
+                    adev->active_input &&
+                    out_snd_device != usecase->out_snd_device) {
                     select_devices(adev, adev->active_input->usecase);
                 }
             }
@@ -2134,9 +2140,12 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
                 if (adev->active_input &&
                     (adev->active_input->source == AUDIO_SOURCE_VOICE_COMMUNICATION ||
                     (adev->mode == AUDIO_MODE_IN_COMMUNICATION &&
-                     adev->active_input->source == AUDIO_SOURCE_MIC)) &&
-                     adev->primary_output && !adev->primary_output->standby) {
-                    out_device = adev->primary_output->devices;
+                     adev->active_input->source == AUDIO_SOURCE_MIC))) {
+                    voip_usecase = get_usecase_from_list(adev, USECASE_AUDIO_PLAYBACK_VOIP);
+                    if (voip_usecase != NULL && voip_usecase->stream.out != NULL)
+                        out_device = voip_usecase->stream.out->devices;
+                    else if (adev->primary_output && !adev->primary_output->standby)
+                        out_device = adev->primary_output->devices;
                     platform_set_echo_reference(adev, false, AUDIO_DEVICE_NONE);
                 } else if (usecase->id == USECASE_AUDIO_RECORD_AFE_PROXY) {
                     out_device = AUDIO_DEVICE_OUT_TELEPHONY_TX;
@@ -5670,6 +5679,13 @@ int adev_open_output_stream(struct audio_hw_device *dev,
                       (devices != AUDIO_DEVICE_OUT_USB_ACCESSORY);
     bool direct_dev = is_hdmi || is_usb_dev;
 
+    if (is_usb_dev && (!audio_extn_usb_connected(NULL))) {
+        is_usb_dev = false;
+        devices = AUDIO_DEVICE_OUT_SPEAKER;
+        ALOGW("%s: ignore set device to non existing USB card, use output device(%#x)",
+              __func__, devices);
+    }
+
     *stream_out = NULL;
 
     out = (struct stream_out *)calloc(1, sizeof(struct stream_out));
@@ -6769,6 +6785,13 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
                                                             devices,
                                                             flags,
                                                             source);
+
+    if (is_usb_dev && (!audio_extn_usb_connected(NULL))) {
+        is_usb_dev = false;
+        devices = AUDIO_DEVICE_IN_BUILTIN_MIC;
+        ALOGW("%s: ignore set device to non existing USB card, use input device(%#x)",
+              __func__, devices);
+    }
 
     *stream_in = NULL;
 
