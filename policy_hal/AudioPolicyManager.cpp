@@ -47,9 +47,6 @@
 #include "AudioPolicyManager.h"
 #include <policy.h>
 
-#ifdef DRIVER_SIDE_PLAYBACK_ENABLED
-#define AUDIO_OUTPUT_FLAG_DRIVER_SIDE 0x100000
-#endif
 
 #ifndef AUDIO_OUTPUT_FLAG_VOIP_RX
 #define AUDIO_OUTPUT_FLAG_VOIP_RX 0x800
@@ -1319,14 +1316,6 @@ status_t AudioPolicyManagerCustom::getOutputForAttr(const audio_attributes_t *at
             ALOGI("%s:: attribute is NULL .. no usage set", __func__);
         }
     }
-
-#ifdef DRIVER_SIDE_PLAYBACK_ENABLED
-    if (attr != NULL) {
-        if (attr->usage == AUDIO_USAGE_ASSISTANCE_NAVIGATION_GUIDANCE) {
-            *flags = (audio_output_flags_t)(AUDIO_OUTPUT_FLAG_DRIVER_SIDE);
-        }
-    }
-#endif
 
     return AudioPolicyManager::getOutputForAttr(attr, output, session, stream,
                                                 (uid_t)uid, &tConfig,
