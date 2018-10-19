@@ -221,6 +221,10 @@ flac.sw.decoder.24bit.support=true
 PRODUCT_PROPERTY_OVERRIDES += \
 persist.vendor.audio.vehicle.focus.enabled=false
 
+#enable automotive audio offload by default
+PRODUCT_PROPERTY_OVERRIDES += \
+audio.automotive.offload.support=true
+
 # for HIDL related audio packages
 PRODUCT_PACKAGES += \
     android.hardware.audio@2.0-service \
