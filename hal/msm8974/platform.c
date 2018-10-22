@@ -4045,7 +4045,7 @@ static snd_device_t get_snd_device_for_voice_comm(struct platform_data *my_data,
                 snd_device = SND_DEVICE_IN_HANDSET_MIC_AEC_NS;
         } else if (in_device & AUDIO_DEVICE_IN_WIRED_HEADSET) {
             snd_device = SND_DEVICE_IN_HEADSET_MIC_FLUENCE;
-        } else if (audio_is_usb_in_device(in_device | AUDIO_DEVICE_BIT_IN)) {
+        } else if (audio_extn_usb_connected(NULL) && audio_is_usb_in_device(in_device | AUDIO_DEVICE_BIT_IN)) {
             snd_device = SND_DEVICE_IN_USB_HEADSET_MIC_AEC;
         }
         platform_set_echo_reference(adev, true, out_device);
@@ -4079,7 +4079,7 @@ static snd_device_t get_snd_device_for_voice_comm(struct platform_data *my_data,
                 snd_device = SND_DEVICE_IN_HANDSET_MIC_AEC;
         } else if (in_device & AUDIO_DEVICE_IN_WIRED_HEADSET) {
             snd_device = SND_DEVICE_IN_HEADSET_MIC_FLUENCE;
-       } else if (audio_is_usb_in_device(in_device | AUDIO_DEVICE_BIT_IN)) {
+        } else if (audio_extn_usb_connected(NULL) && audio_is_usb_in_device(in_device | AUDIO_DEVICE_BIT_IN)) {
             snd_device = SND_DEVICE_IN_USB_HEADSET_MIC_AEC;
         }
         platform_set_echo_reference(adev, true, out_device);
@@ -4419,6 +4419,16 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
               (mode == AUDIO_MODE_IN_COMMUNICATION)) {
         if (out_device & AUDIO_DEVICE_OUT_SPEAKER)
             in_device = AUDIO_DEVICE_IN_BACK_MIC;
+        else if (out_device & AUDIO_DEVICE_OUT_EARPIECE)
+            in_device = AUDIO_DEVICE_IN_BUILTIN_MIC;
+        else if (out_device & AUDIO_DEVICE_OUT_WIRED_HEADSET)
+            in_device = AUDIO_DEVICE_IN_WIRED_HEADSET;
+        else if (out_device & AUDIO_DEVICE_OUT_USB_DEVICE)
+            in_device = AUDIO_DEVICE_IN_USB_DEVICE;
+
+        in_device = ((out_device == AUDIO_DEVICE_NONE) ?
+                      AUDIO_DEVICE_IN_BUILTIN_MIC : in_device) & ~AUDIO_DEVICE_BIT_IN;
+
         if (adev->active_input) {
             snd_device = get_snd_device_for_voice_comm(my_data, out_device, in_device);
         }
@@ -4490,7 +4500,7 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
             snd_device = SND_DEVICE_IN_USB_HEADSET_MIC;
         } else if (in_device & AUDIO_DEVICE_IN_FM_TUNER) {
             snd_device = SND_DEVICE_IN_CAPTURE_FM;
-        } else if (audio_is_usb_in_device(in_device | AUDIO_DEVICE_BIT_IN)) {
+        } else if (audio_extn_usb_connected(NULL) && audio_is_usb_in_device(in_device | AUDIO_DEVICE_BIT_IN)) {
             snd_device = SND_DEVICE_IN_USB_HEADSET_MIC;
         } else {
             ALOGE("%s: Unknown input device(s) %#x", __func__, in_device);
@@ -4538,7 +4548,7 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
         } else if (out_device &
                     (AUDIO_DEVICE_OUT_USB_DEVICE |
                      AUDIO_DEVICE_OUT_USB_HEADSET)) {
-            if (audio_extn_usb_is_capture_supported())
+            if (audio_extn_usb_is_capture_supported() && audio_extn_usb_connected(NULL))
               snd_device = SND_DEVICE_IN_USB_HEADSET_MIC;
             else
               snd_device = SND_DEVICE_IN_HANDSET_MIC;
@@ -6081,6 +6091,11 @@ static bool platform_check_codec_backend_cfg(struct audio_device* adev,
             ALOGD("%s:becf: afe: napb not active - set non fractional rate",
                        __func__);
         }
+        /*ensure AFE set to 48khz when sample rate less than 44.1khz*/
+        if (sample_rate < OUTPUT_SAMPLING_RATE_44100) {
+            sample_rate = CODEC_BACKEND_DEFAULT_SAMPLE_RATE;
+            ALOGD("%s:becf: afe: napb set sample rate to default Sample Rate(48k)",__func__);
+        }
     }
 
     /*
@@ -6237,7 +6252,8 @@ bool platform_check_and_set_codec_backend_cfg(struct audio_device* adev,
         ALOGI("%s: new_snd_devices[%d] is %d", __func__, i, new_snd_devices[i]);
         if ((platform_check_codec_backend_cfg(adev, usecase, new_snd_devices[i],
                                              &backend_cfg)) ||
-             (!platform_check_backends_match(usecase->out_snd_device, snd_device))) {
+            ((usecase->out_snd_device != SND_DEVICE_NONE) &&
+             !platform_check_backends_match(usecase->out_snd_device, snd_device))) {
             ret = platform_set_codec_backend_cfg(adev, new_snd_devices[i],
                                            backend_cfg);
             if (!ret) {
