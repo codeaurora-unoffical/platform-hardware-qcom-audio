@@ -90,6 +90,7 @@
 #define DIRECT_PCM_NUM_FRAGMENTS 2
 #define COMPRESS_PLAYBACK_VOLUME_MAX 0x2000
 #define VOIP_PLAYBACK_VOLUME_MAX 0x2000
+#define PCM_PLAYBACK_VOLUME_MAX 0x2000
 #define DSD_VOLUME_MIN_DB (-110)
 
 #define PROXY_OPEN_RETRY_COUNT           100
@@ -337,7 +338,8 @@ const char * const use_case_table[AUDIO_USECASE_MAX] = {
     [USECASE_AUDIO_PLAYBACK_SILENCE] = "silence-playback",
 
     /* Transcode loopback cases */
-    [USECASE_AUDIO_TRANSCODE_LOOPBACK] = "audio-transcode-loopback",
+    [USECASE_AUDIO_TRANSCODE_LOOPBACK_RX] = "audio-transcode-loopback-rx",
+    [USECASE_AUDIO_TRANSCODE_LOOPBACK_TX] = "audio-transcode-loopback-tx",
 
     [USECASE_AUDIO_PLAYBACK_VOIP] = "audio-playback-voip",
     [USECASE_AUDIO_RECORD_VOIP] = "audio-record-voip",
@@ -443,6 +445,7 @@ static int last_known_cal_step = -1 ;
 static int check_a2dp_restore_l(struct audio_device *adev, struct stream_out *out, bool restore);
 static int out_set_compr_volume(struct audio_stream_out *stream, float left, float right);
 static int out_set_voip_volume(struct audio_stream_out *stream, float left, float right);
+static int out_set_pcm_volume(struct audio_stream_out *stream, float left, float right);
 
 static bool may_use_noirq_mode(struct audio_device *adev, audio_usecase_t uc_id,
                                int flags __unused)
@@ -963,7 +966,7 @@ int enable_audio_route(struct audio_device *adev,
 
     ALOGV("%s: enter: usecase(%d)", __func__, usecase->id);
 
-    if (usecase->type == PCM_CAPTURE)
+    if (usecase->type == PCM_CAPTURE || usecase->type == TRANSCODE_LOOPBACK_TX)
         snd_device = usecase->in_snd_device;
     else
         snd_device = usecase->out_snd_device;
@@ -1001,7 +1004,7 @@ int disable_audio_route(struct audio_device *adev,
         return -EINVAL;
 
     ALOGV("%s: enter: usecase(%d)", __func__, usecase->id);
-    if (usecase->type == PCM_CAPTURE)
+    if (usecase->type == PCM_CAPTURE || usecase->type == TRANSCODE_LOOPBACK_TX)
         snd_device = usecase->in_snd_device;
     else
         snd_device = usecase->out_snd_device;
@@ -1257,7 +1260,7 @@ static snd_device_t derive_playback_snd_device(void * platform,
     snd_device_t d2 = new_snd_device;
 
     switch (uc->type) {
-        case TRANSCODE_LOOPBACK :
+        case TRANSCODE_LOOPBACK_RX :
             a1 = uc->stream.inout->out_config.devices;
             a2 = new_uc->stream.inout->out_config.devices;
             break;
@@ -1929,7 +1932,8 @@ static bool force_device_switch(struct audio_usecase *usecase)
     bool is_it_true_mode = false;
 
     if (usecase->type == PCM_CAPTURE ||
-        usecase->type == TRANSCODE_LOOPBACK) {
+        usecase->type == TRANSCODE_LOOPBACK_RX ||
+        usecase->type == TRANSCODE_LOOPBACK_TX) {
         return false;
     }
 
@@ -2019,10 +2023,10 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
     struct stream_out stream_out;
     audio_usecase_t hfp_ucid;
     int status = 0;
-    audio_devices_t audio_device;
-    audio_channel_mask_t channel_mask;
-    int sample_rate;
-    int acdb_id;
+    audio_devices_t audio_device = AUDIO_DEVICE_NONE;
+    audio_channel_mask_t channel_mask = AUDIO_CHANNEL_NONE;
+    int sample_rate = 0;
+    int acdb_id = 0;
 
     ALOGD("%s for use case (%s)", __func__, use_case_table[uc_id]);
 
@@ -2043,7 +2047,7 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
                                                         usecase->stream.out);
         in_snd_device = platform_get_input_snd_device(adev->platform, usecase->stream.out->devices);
         usecase->devices = usecase->stream.out->devices;
-    } else if (usecase->type == TRANSCODE_LOOPBACK ) {
+    } else if (usecase->type == TRANSCODE_LOOPBACK_RX) {
         if (usecase->stream.inout == NULL) {
             ALOGE("%s: stream.inout is NULL", __func__);
             return -EINVAL;
@@ -2054,8 +2058,14 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
         stream_out.channel_mask = usecase->stream.inout->out_config.channel_mask;
         out_snd_device = platform_get_output_snd_device(adev->platform,
                                                         &stream_out);
+        usecase->devices = out_snd_device;
+    } else if (usecase->type == TRANSCODE_LOOPBACK_TX ) {
+        if (usecase->stream.inout == NULL) {
+            ALOGE("%s: stream.inout is NULL", __func__);
+            return -EINVAL;
+        }
         in_snd_device = platform_get_input_snd_device(adev->platform, AUDIO_DEVICE_NONE);
-        usecase->devices = (out_snd_device | in_snd_device);
+        usecase->devices = in_snd_device;
     } else {
         /*
          * If the voice call is active, use the sound devices of voice call usecase
@@ -3132,6 +3142,11 @@ int start_output_stream(struct stream_out *out)
         // apply volume for voip playback after path is set up
         if (out->usecase == USECASE_AUDIO_PLAYBACK_VOIP)
             out_set_voip_volume(&out->stream, out->volume_l, out->volume_r);
+        else if ((out->usecase == USECASE_AUDIO_PLAYBACK_LOW_LATENCY || out->usecase == USECASE_AUDIO_PLAYBACK_DEEP_BUFFER) &&
+             (out->apply_volume)) {
+                 out_set_pcm_volume(&out->stream, out->volume_l, out->volume_r);
+                 out->apply_volume = false;
+        }
     } else {
         platform_set_stream_channel_map(adev->platform, out->channel_mask,
                    out->pcm_device_id, &out->channel_map_param.channel_map[0]);
@@ -3294,6 +3309,8 @@ static size_t get_input_buffer_size(uint32_t sample_rate,
                                     int channel_count,
                                     bool is_low_latency)
 {
+    int i = 0;
+    size_t frame_size = 0;
     size_t size = 0;
 
     if (check_input_parameters(sample_rate, format, channel_count) != 0)
@@ -3303,15 +3320,23 @@ static size_t get_input_buffer_size(uint32_t sample_rate,
     if (is_low_latency)
         size = configured_low_latency_capture_period_size;
 
-    size *= audio_bytes_per_sample(format) * channel_count;
+    frame_size = audio_bytes_per_sample(format) * channel_count;
+    size *= frame_size;
 
-    /* make sure the size is multiple of 32 bytes
+    /* make sure the size is multiple of 32 bytes and additionally multiple of
+     * the frame_size (required for 24bit samples and non-power-of-2 channel counts)
      * At 48 kHz mono 16-bit PCM:
      *  5.000 ms = 240 frames = 15*16*1*2 = 480, a whole multiple of 32 (15)
      *  3.333 ms = 160 frames = 10*16*1*2 = 320, a whole multiple of 32 (10)
+     *
+     *  The loop reaches result within 32 iterations, as initial size is
+     *  already a multiple of frame_size
      */
-    size += 0x1f;
-    size &= ~0x1f;
+    for (i=0; i<32; i++) {
+        if ((size & 0x1f) == 0)
+            break;
+        size += frame_size;
+    }
 
     return size;
 }
@@ -4217,6 +4242,38 @@ static int out_set_voip_volume(struct audio_stream_out *stream, float left,
     return 0;
 }
 
+static int out_set_pcm_volume(struct audio_stream_out *stream, float left,
+                              float right)
+{
+    struct stream_out *out = (struct stream_out *)stream;
+    /* Volume control for pcm playback */
+    if (left != right) {
+        return -EINVAL;
+    } else {
+        char mixer_ctl_name[128];
+        struct audio_device *adev = out->dev;
+        struct mixer_ctl *ctl;
+        int pcm_device_id = platform_get_pcm_device_id(out->usecase, PCM_PLAYBACK);
+        snprintf(mixer_ctl_name, sizeof(mixer_ctl_name), "Playback %d Volume", pcm_device_id);
+        ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+        if (!ctl) {
+            ALOGE("%s : Could not get ctl for mixer cmd - %s", __func__, mixer_ctl_name);
+            return -EINVAL;
+        }
+
+        int volume = (int) (left * PCM_PLAYBACK_VOLUME_MAX);
+        int ret = mixer_ctl_set_value(ctl, 0, volume);
+        if (ret < 0) {
+            ALOGE("%s: Could not set ctl, error:%d ", __func__, ret);
+            return -EINVAL;
+        }
+
+        ALOGV("%s : Pcm set volume value %d left %f", __func__, volume, left);
+
+        return 0;
+    }
+}
+
 static int out_set_volume(struct audio_stream_out *stream, float left,
                           float right)
 {
@@ -4263,6 +4320,17 @@ static int out_set_volume(struct audio_stream_out *stream, float left,
     } else if (out->usecase == USECASE_AUDIO_PLAYBACK_VOIP) {
         if (!out->standby)
             ret = out_set_voip_volume(stream, left, right);
+        out->volume_l = left;
+        out->volume_r = right;
+        return ret;
+    } else if (out->usecase == USECASE_AUDIO_PLAYBACK_LOW_LATENCY ||
+               out->usecase == USECASE_AUDIO_PLAYBACK_DEEP_BUFFER) {
+        /* Volume control for pcm playback */
+        if (!out->standby)
+            ret = out_set_pcm_volume(stream, left, right);
+        else
+            out->apply_volume = true;
+
         out->volume_l = left;
         out->volume_r = right;
         return ret;
@@ -4444,6 +4512,15 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
                 audio_format_t dst_format = out->hal_op_format;
                 audio_format_t src_format = out->hal_ip_format;
 
+                /* prevent division-by-zero */
+                uint32_t bitwidth_src = format_to_bitwidth_table[src_format];
+                uint32_t bitwidth_dst = format_to_bitwidth_table[dst_format];
+                if ((bitwidth_src == 0) || (bitwidth_dst == 0)) {
+                    ALOGE("%s: Error bitwidth == 0", __func__);
+                    ATRACE_END();
+                    return -EINVAL;
+                }
+
                 uint32_t frames = bytes / format_to_bitwidth_table[src_format];
                 uint32_t bytes_to_write = frames * format_to_bitwidth_table[dst_format];
 
@@ -4584,10 +4661,18 @@ exit:
             out->standby = true;
         }
         out_on_error(&out->stream.common);
-        if (!(out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD))
-            usleep((uint64_t)bytes * 1000000 / audio_stream_out_frame_size(stream) /
-                            out_get_sample_rate(&out->stream.common));
+        if (!(out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)) {
+            /* prevent division-by-zero */
+            uint32_t stream_size = audio_stream_out_frame_size(stream);
+            uint32_t srate = out_get_sample_rate(&out->stream.common);
 
+            if ((stream_size == 0) || (srate == 0)) {
+                ALOGE("%s: stream_size= %d, srate = %d", __func__, stream_size, srate);
+                ATRACE_END();
+                return -EINVAL;
+             }
+             usleep((uint64_t)bytes * 1000000 / stream_size / srate);
+        }
         if (audio_extn_passthru_is_passthrough_stream(out)) {
                 ALOGE("%s: write error, ret = %zd", __func__, ret);
                 ATRACE_END();
@@ -7021,6 +7106,13 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
                                             config->format,
                                             channel_count,
                                             is_low_latency);
+            /* prevent division-by-zero */
+            if (frame_size == 0) {
+                ALOGE("%s: Error frame_size==0", __func__);
+                ret = -EINVAL;
+                goto err_open;
+            }
+
             in->config.period_size = buffer_size / frame_size;
 
             if (in->source == AUDIO_SOURCE_VOICE_COMMUNICATION) {
