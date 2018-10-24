@@ -195,7 +195,8 @@ enum {
 
     USECASE_AUDIO_PLAYBACK_SILENCE,
 
-    USECASE_AUDIO_TRANSCODE_LOOPBACK,
+    USECASE_AUDIO_TRANSCODE_LOOPBACK_RX,
+    USECASE_AUDIO_TRANSCODE_LOOPBACK_TX,
 
     USECASE_AUDIO_PLAYBACK_INTERACTIVE_STREAM1,
     USECASE_AUDIO_PLAYBACK_INTERACTIVE_STREAM2,
@@ -350,6 +351,7 @@ struct stream_out {
     bool a2dp_compress_mute;
     float volume_l;
     float volume_r;
+    bool apply_volume;
 
     char pm_qos_mixer_path[MAX_MIXER_PATH_LEN];
     int hal_output_suspend_supported;
@@ -404,7 +406,8 @@ typedef enum {
     VOICE_CALL,
     VOIP_CALL,
     PCM_HFP_CALL,
-    TRANSCODE_LOOPBACK
+    TRANSCODE_LOOPBACK_RX,
+    TRANSCODE_LOOPBACK_TX
 } usecase_type_t;
 
 union stream_ptr {
