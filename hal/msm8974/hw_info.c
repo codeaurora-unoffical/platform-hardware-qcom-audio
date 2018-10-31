@@ -225,6 +225,7 @@ static const snd_device_t tavil_qrd_msmnile_variant_devices[] = {
     SND_DEVICE_OUT_HANDSET,
     SND_DEVICE_OUT_VOICE_HANDSET,
     SND_DEVICE_OUT_VOICE_TTY_HCO_HANDSET,
+    SND_DEVICE_IN_VOICE_HEADSET_MIC,
     SND_DEVICE_IN_HANDSET_MIC,
     SND_DEVICE_IN_HANDSET_MIC_AEC,
     SND_DEVICE_IN_HANDSET_MIC_NS,
@@ -617,6 +618,9 @@ static void update_hardware_info_bear(struct hardware_info *hw_info, const char 
         strlcpy(hw_info->dev_extn, "-hdk", sizeof(hw_info->dev_extn));
     } else if (!strncmp(snd_card_name, "sm6150-idp-snd-card",
                  sizeof("sm6150-idp-snd-card"))) {
+        strlcpy(hw_info->name, "sm6150", sizeof(hw_info->name));
+    } else if (!strncmp(snd_card_name, "sm6150-wcd9375-snd-card",
+                 sizeof("sm6150-wcd9375-snd-card"))) {
         strlcpy(hw_info->name, "sm6150", sizeof(hw_info->name));
     } else if (!strncmp(snd_card_name, "sm6150-qrd-snd-card",
                  sizeof("sm6150-qrd-snd-card"))) {
