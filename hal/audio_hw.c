@@ -390,7 +390,8 @@ static bool is_supported_format(audio_format_t format)
         format == AUDIO_FORMAT_WMA_PRO
 #endif
 #ifdef APTX_OFFLOAD_ENABLED
-        || format == AUDIO_FORMAT_APTX
+        || format == AUDIO_FORMAT_APTX ||
+        format == AUDIO_FORMAT_APTX_HD
 #endif
        )
            return true;
@@ -446,6 +447,9 @@ static int get_snd_codec_id(audio_format_t format)
 #ifdef APTX_OFFLOAD_ENABLED
     case AUDIO_FORMAT_APTX:
         id = SND_AUDIOCODEC_APTX;
+        break;
+    case AUDIO_FORMAT_APTX_HD:
+        id = SND_AUDIOCODEC_APTXHD;
         break;
 #endif
     default:
@@ -3453,7 +3457,7 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
             out->compr_config.codec->options.flac_dec.sample_size = AUDIO_OUTPUT_BIT_WIDTH;
 #endif
 #ifdef APTX_OFFLOAD_ENABLED
-        if (config->offload_info.format == AUDIO_FORMAT_APTX) {
+        if (config->offload_info.format == AUDIO_FORMAT_APTX || config->offload_info.format == AUDIO_FORMAT_APTX_HD) {
             audio_extn_send_aptx_dec_bt_addr_to_dsp(out);
         }
 #endif
