@@ -4549,6 +4549,16 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
               (mode == AUDIO_MODE_IN_COMMUNICATION)) {
         if (out_device & AUDIO_DEVICE_OUT_SPEAKER)
             in_device = AUDIO_DEVICE_IN_BACK_MIC;
+        else if (out_device & AUDIO_DEVICE_OUT_EARPIECE)
+            in_device = AUDIO_DEVICE_IN_BUILTIN_MIC;
+        else if (out_device & AUDIO_DEVICE_OUT_WIRED_HEADSET)
+            in_device = AUDIO_DEVICE_IN_WIRED_HEADSET;
+        else if (out_device & AUDIO_DEVICE_OUT_USB_DEVICE)
+            in_device = AUDIO_DEVICE_IN_USB_DEVICE;
+
+        in_device = ((out_device == AUDIO_DEVICE_NONE) ?
+                      AUDIO_DEVICE_IN_BUILTIN_MIC : in_device) & ~AUDIO_DEVICE_BIT_IN;
+
         if (adev->active_input) {
             snd_device = get_snd_device_for_voice_comm(my_data, out_device, in_device);
         }
@@ -5074,7 +5084,15 @@ static void platform_spkr_device_set_params(struct platform_data *platform,
             platform->spkr_ch_map->num_ch = num_ch;
             for (i = 0; i < num_ch; i++) {
                 opts = strtok_r(NULL, ", ", &test_r);
-                platform->spkr_ch_map->chmap[i] = strtoul(opts, NULL, 16);
+                if (opts == NULL) {
+                    ALOGE("%s: incorrect ch_map\n", __func__);
+                    free(platform->spkr_ch_map);
+                    platform->spkr_ch_map = NULL;
+                    str_parms_del(parms, AUDIO_PARAMETER_KEY_SPKR_DEVICE_CHMAP);
+                    return;
+                } else {
+                    platform->spkr_ch_map->chmap[i] = strtoul(opts, NULL, 16);
+                }
             }
         }
         str_parms_del(parms, AUDIO_PARAMETER_KEY_SPKR_DEVICE_CHMAP);
