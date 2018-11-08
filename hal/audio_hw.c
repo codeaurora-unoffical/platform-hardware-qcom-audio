@@ -3528,14 +3528,12 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
             break;
         case CAR_AUDIO_STREAM_NAV_GUIDANCE:
             /* nav guidance bus will fall into legacy driver-side */
-#ifdef DRIVER_SIDE_PLAYBACK_ENABLED
             format = AUDIO_FORMAT_PCM_16_BIT;
             out->usecase = USECASE_AUDIO_PLAYBACK_DRIVER_SIDE;
             out->config = pcm_config_driver_side;
             out->sample_rate = out->config.rate;
             if (out->flags == AUDIO_OUTPUT_FLAG_NONE)
                 out->flags |=  AUDIO_OUTPUT_FLAG_DRIVER_SIDE;
-#endif
             break;
         default:
             ALOGE("%s: car audio stream (%d) not supported", __func__, car_audio_stream);

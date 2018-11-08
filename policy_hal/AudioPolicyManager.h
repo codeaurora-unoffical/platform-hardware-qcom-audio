@@ -158,11 +158,6 @@ private:
         bool mIsInputRequestOnProgress;
 #endif
 
-#ifdef DRIVER_SIDE_PLAYBACK_ENABLED
-        sp<SwAudioOutputDescriptor> mDriverSideOutput;
-        sp<IOProfile> mDriverSideProfile;
-#endif
-
 #ifdef FM_POWER_OPT
         float mPrevFMVolumeDb;
         bool mFMIsActive;

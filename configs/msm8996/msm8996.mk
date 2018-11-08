@@ -32,7 +32,6 @@ AUDIO_FEATURE_ENABLED_AUDIOSPHERE := false
 AUDIO_FEATURE_ENABLED_VOICE_PRINT := false
 USE_LEGACY_AUDIO_DAEMON := false
 USE_LEGACY_AUDIO_MEASUREMENT := false
-AUDIO_FEATURE_ENABLED_DRIVER_SIDE_PLAYBACK := true
 AUDIO_FEATURE_ENABLED_BUS_ADDRESS := true
 AUDIO_FEATURE_ENABLED_VHAL_HELPER := true
 endif
@@ -221,6 +220,10 @@ flac.sw.decoder.24bit.support=true
 #enable vehicle hal audio focus
 PRODUCT_PROPERTY_OVERRIDES += \
 persist.vendor.audio.vehicle.focus.enabled=false
+
+#enable automotive audio offload by default
+PRODUCT_PROPERTY_OVERRIDES += \
+audio.automotive.offload.support=true
 
 # for HIDL related packages
 PRODUCT_PACKAGES += \
