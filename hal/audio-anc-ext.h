@@ -1,4 +1,4 @@
-/* Copyright (c) 2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -31,12 +31,6 @@
 
 #define AUDIO_PARAMETER_KEY_EXT_AUDIO_ANC_EXT_CMD_TYPE     "ext_audio_anc_cmd_type"
 
-//bypass_mode = 0   MODE_NO
-//            = 1   REFS_TO_ANC_SPKR
-//            = 2   ANC_MIC_TO_ANC_SPKR
-//            = 3   REFS_MIXED_ANC_MIC_TO_ANC_SPKR
-#define AUDIO_PARAMETER_KEY_EXT_AUDIO_ANC_EXT_BYPASS_MODE  "ext_audio_anc_bypass_mode"
-#define AUDIO_PARAMETER_KEY_EXT_AUDIO_ANC_EXT_RPM  "ext_audio_anc_rpm"
 #define AUDIO_PARAMETER_KEY_EXT_AUDIO_ANC_EXT_ALGO_MODULE_ID  "ext_audio_anc_algo_module_id"
 
 enum {
@@ -46,6 +40,7 @@ enum {
    ANC_EXT_CMD_RPM,                       //3
    ANC_EXT_CMD_BYPASS_MODE,               //4
    ANC_EXT_CMD_ALGO_MODULE,               //5
+   ANC_EXT_CMD_ALGO_CALIBRATION,          //6
    ANC_EXT_CMD_MAX,
 };
 
@@ -57,9 +52,16 @@ struct audio_anc_rpm_info_ext {
 struct audio_anc_bypass_mode_ext {
    int32_t     mode;
 };
-
 struct audio_anc_algo_module_info_ext {
    int32_t     module_id;
+};
+
+struct audio_anc_algo_calibration_info_ext {
+   uint32_t module_id;
+   uint32_t param_id;
+   uint32_t payload_size;
+   /* bytes of payload specificed in payload_size followed  */
+   /* The payload should be in align of 32 bit             */
 };
 
 int audio_anc_ext_init(void);
