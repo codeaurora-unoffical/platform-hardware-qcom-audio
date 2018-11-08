@@ -123,7 +123,6 @@
 /* Mixer path names */
 #define AFE_SIDETONE_MIXER_PATH "afe-sidetone"
 
-#define AUDIO_PARAMETER_KEY_FLUENCE_TYPE  "fluence"
 #define AUDIO_PARAMETER_KEY_SLOWTALK      "st_enable"
 #define AUDIO_PARAMETER_KEY_HD_VOICE      "hd_voice"
 #define AUDIO_PARAMETER_KEY_VOLUME_BOOST  "volume_boost"
@@ -131,6 +130,15 @@
 #define AUDIO_PARAMETER_KEY_AUD_CALRESULT "cal_result"
 
 #define AUDIO_PARAMETER_KEY_MONO_SPEAKER "mono_speaker"
+
+#define AUDIO_PARAMETER_KEY_FLUENCE_TYPE        "fluence_type"
+#define AUDIO_PARAMETER_KEY_FLUENCE_VOICE_CALL  "fluence_voice"
+#define AUDIO_PARAMETER_KEY_FLUENCE_VOICE_REC   "fluence_voice_rec"
+#define AUDIO_PARAMETER_KEY_FLUENCE_AUDIO_REC   "fluence_audio_rec"
+#define AUDIO_PARAMETER_KEY_FLUENCE_SPEAKER     "fluence_speaker"
+#define AUDIO_PARAMETER_KEY_FLUENCE_MODE        "fluence_mode"
+#define AUDIO_PARAMETER_KEY_FLUENCE_HFPCALL     "fluence_hfp"
+#define AUDIO_PARAMETER_KEY_FLUENCE_TRI_MIC     "fluence_tri_mic"
 
 #define AUDIO_PARAMETER_KEY_PERF_LOCK_OPTS "perf_lock_opts"
 
@@ -4549,6 +4557,16 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
               (mode == AUDIO_MODE_IN_COMMUNICATION)) {
         if (out_device & AUDIO_DEVICE_OUT_SPEAKER)
             in_device = AUDIO_DEVICE_IN_BACK_MIC;
+        else if (out_device & AUDIO_DEVICE_OUT_EARPIECE)
+            in_device = AUDIO_DEVICE_IN_BUILTIN_MIC;
+        else if (out_device & AUDIO_DEVICE_OUT_WIRED_HEADSET)
+            in_device = AUDIO_DEVICE_IN_WIRED_HEADSET;
+        else if (out_device & AUDIO_DEVICE_OUT_USB_DEVICE)
+            in_device = AUDIO_DEVICE_IN_USB_DEVICE;
+
+        in_device = ((out_device == AUDIO_DEVICE_NONE) ?
+                      AUDIO_DEVICE_IN_BUILTIN_MIC : in_device) & ~AUDIO_DEVICE_BIT_IN;
+
         if (adev->active_input) {
             snd_device = get_snd_device_for_voice_comm(my_data, out_device, in_device);
         }
@@ -5074,10 +5092,103 @@ static void platform_spkr_device_set_params(struct platform_data *platform,
             platform->spkr_ch_map->num_ch = num_ch;
             for (i = 0; i < num_ch; i++) {
                 opts = strtok_r(NULL, ", ", &test_r);
-                platform->spkr_ch_map->chmap[i] = strtoul(opts, NULL, 16);
+                if (opts == NULL) {
+                    ALOGE("%s: incorrect ch_map\n", __func__);
+                    free(platform->spkr_ch_map);
+                    platform->spkr_ch_map = NULL;
+                    str_parms_del(parms, AUDIO_PARAMETER_KEY_SPKR_DEVICE_CHMAP);
+                    return;
+                } else {
+                    platform->spkr_ch_map->chmap[i] = strtoul(opts, NULL, 16);
+                }
             }
         }
         str_parms_del(parms, AUDIO_PARAMETER_KEY_SPKR_DEVICE_CHMAP);
+    }
+}
+
+static void platform_set_fluence_params(void *platform, struct str_parms *parms, char *value, int len)
+{
+    struct platform_data *my_data = (struct platform_data *)platform;
+    int err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_FLUENCE_TYPE, value, len);
+
+    if (err >= 0) {
+        if (!strncmp("fluence", value, sizeof("fluence")))
+            my_data->fluence_type = FLUENCE_DUAL_MIC;
+        else if (!strncmp("fluencepro", value, sizeof("fluencepro")))
+                 my_data->fluence_type = FLUENCE_QUAD_MIC | FLUENCE_DUAL_MIC;
+        else if (!strncmp("none", value, sizeof("none")))
+                 my_data->fluence_type = FLUENCE_NONE;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_FLUENCE_TYPE);
+    }
+
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_FLUENCE_TRI_MIC, value, len);
+    if (err >= 0) {
+        if (!strncmp("true", value, sizeof("true")))
+            my_data->fluence_type |= FLUENCE_TRI_MIC;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_FLUENCE_TRI_MIC);
+    }
+
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_FLUENCE_VOICE_CALL, value, len);
+    if (err >= 0) {
+        if (!strncmp("true", value, sizeof("true")))
+            my_data->fluence_in_voice_call = true;
+        else
+            my_data->fluence_in_voice_call = false;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_FLUENCE_VOICE_CALL);
+    }
+
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_FLUENCE_VOICE_REC, value, len);
+    if (err >= 0) {
+        if (!strncmp("true", value, sizeof("true")))
+            my_data->fluence_in_voice_rec = true;
+        else
+            my_data->fluence_in_voice_rec = false;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_FLUENCE_VOICE_REC);
+    }
+
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_FLUENCE_AUDIO_REC, value, len);
+    if (err >= 0) {
+        if (!strncmp("true", value, sizeof("true")))
+            my_data->fluence_in_audio_rec = true;
+        else
+            my_data->fluence_in_audio_rec = false;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_FLUENCE_AUDIO_REC);
+    }
+
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_FLUENCE_SPEAKER, value, len);
+    if (err >= 0) {
+        if (!strncmp("true", value, sizeof("true")))
+            my_data->fluence_in_spkr_mode = true;
+        else
+            my_data->fluence_in_spkr_mode = false;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_FLUENCE_SPEAKER);
+    }
+
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_FLUENCE_MODE, value, len);
+    if (err >= 0) {
+        if (!strncmp("broadside", value, sizeof("broadside")))
+            my_data->fluence_mode = FLUENCE_BROADSIDE;
+        else if (!strncmp("endfire", value, sizeof("endfire")))
+            my_data->fluence_mode = FLUENCE_ENDFIRE;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_FLUENCE_MODE);
+    }
+
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_FLUENCE_HFPCALL, value, len);
+    if (err >= 0) {
+        if (!strncmp("true", value, sizeof("true")))
+            my_data->fluence_in_hfp_call = true;
+        else
+            my_data->fluence_in_hfp_call = false;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_FLUENCE_HFPCALL);
     }
 }
 
@@ -5213,6 +5324,8 @@ int platform_set_parameters(void *platform, struct str_parms *parms)
         my_data->max_mic_count = atoi(value);
         ALOGV("%s: max_mic_count %d", __func__, my_data->max_mic_count);
     }
+
+    platform_set_fluence_params(platform, parms, value, len);
 
     /* handle audio calibration parameters */
     set_audiocal(platform, parms, value, len);
