@@ -1135,8 +1135,10 @@ int audio_extn_ext_hw_plugin_set_audio_gain(void *plugin,
             struct audio_usecase *usecase, uint32_t gain);
 #endif
 #ifndef CUSTOM_STEREO_ENABLED
-#define audio_extn_send_dual_mono_mixing_coefficients(out) (0)
+#define audio_extn_send_matrix_mixing_coefficients(out) (0)
+#define audio_extn_up_down_matrix_mixing_needed(out) (0)
 #else
-void audio_extn_send_dual_mono_mixing_coefficients(struct stream_out *out);
+void audio_extn_send_matrix_mixing_coefficients(struct stream_out *out);
+bool audio_extn_up_down_matrix_mixing_needed(struct stream_out *out);
 #endif
 #endif /* AUDIO_EXTN_H */

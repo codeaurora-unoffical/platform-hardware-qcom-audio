@@ -2067,6 +2067,7 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
     struct audio_usecase *vc_usecase = NULL;
     struct audio_usecase *voip_usecase = NULL;
     struct audio_usecase *hfp_usecase = NULL;
+    struct audio_usecase *pb_usecase = NULL;
     struct stream_out stream_out;
     audio_usecase_t hfp_ucid;
     int status = 0;
@@ -2155,6 +2156,18 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
                    in_snd_device = hfp_usecase->in_snd_device;
                    out_snd_device = hfp_usecase->out_snd_device;
             }
+        } else if (platform_check_is_quad_spkr_enabled(adev->platform) &&
+                    (usecase->type == PCM_PLAYBACK)) {
+            /*
+             * If quad speaker is enabled and deep buffer playback is going on
+             * quad speaker (stereo spkr and lineout) and if touch tones comes that
+             * will result in device switch where both LL and music are routed to
+             * spkr instead of quad spkr. To avoid switching devices for music playback
+             * choose playback device only for the other usecases also.
+             */
+            pb_usecase = get_usecase_from_list(adev, USECASE_AUDIO_PLAYBACK_DEEP_BUFFER);
+            if ((pb_usecase) && (pb_usecase->devices & AUDIO_DEVICE_OUT_ALL_CODEC_BACKEND))
+               out_snd_device = pb_usecase->out_snd_device;
         }
         if (usecase->type == PCM_PLAYBACK) {
             if (usecase->stream.out == NULL) {
@@ -4027,7 +4040,7 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
                             sizeof(value));
     if (err >= 0) {
         if (!strncmp("true", value, sizeof("true")) || atoi(value))
-            audio_extn_send_dual_mono_mixing_coefficients(out);
+            audio_extn_send_matrix_mixing_coefficients(out);
     }
 
     err = str_parms_get_str(parms, AUDIO_PARAMETER_STREAM_PROFILE, value, sizeof(value));
@@ -4640,8 +4653,8 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
             ret = -EINVAL;
             goto exit;
         }
-        if (out->set_dual_mono)
-            audio_extn_send_dual_mono_mixing_coefficients(out);
+        if (audio_extn_up_down_matrix_mixing_needed(out))
+            audio_extn_send_matrix_mixing_coefficients(out);
     }
 
     if (adev->is_channel_status_set == false && (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL)){

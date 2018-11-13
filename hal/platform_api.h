@@ -304,4 +304,5 @@ int platform_get_active_microphones(void *platform, unsigned int channels,
                                     audio_usecase_t usecase,
                                     struct audio_microphone_characteristic_t *mic_array,
                                     size_t *mic_count);
+bool platform_check_is_quad_spkr_enabled (void *platform);
 #endif // AUDIO_PLATFORM_API_H
