@@ -123,7 +123,6 @@
 /* Mixer path names */
 #define AFE_SIDETONE_MIXER_PATH "afe-sidetone"
 
-#define AUDIO_PARAMETER_KEY_FLUENCE_TYPE  "fluence"
 #define AUDIO_PARAMETER_KEY_SLOWTALK      "st_enable"
 #define AUDIO_PARAMETER_KEY_HD_VOICE      "hd_voice"
 #define AUDIO_PARAMETER_KEY_VOLUME_BOOST  "volume_boost"
@@ -131,6 +130,15 @@
 #define AUDIO_PARAMETER_KEY_AUD_CALRESULT "cal_result"
 
 #define AUDIO_PARAMETER_KEY_MONO_SPEAKER "mono_speaker"
+
+#define AUDIO_PARAMETER_KEY_FLUENCE_TYPE        "fluence_type"
+#define AUDIO_PARAMETER_KEY_FLUENCE_VOICE_CALL  "fluence_voice"
+#define AUDIO_PARAMETER_KEY_FLUENCE_VOICE_REC   "fluence_voice_rec"
+#define AUDIO_PARAMETER_KEY_FLUENCE_AUDIO_REC   "fluence_audio_rec"
+#define AUDIO_PARAMETER_KEY_FLUENCE_SPEAKER     "fluence_speaker"
+#define AUDIO_PARAMETER_KEY_FLUENCE_MODE        "fluence_mode"
+#define AUDIO_PARAMETER_KEY_FLUENCE_HFPCALL     "fluence_hfp"
+#define AUDIO_PARAMETER_KEY_FLUENCE_TRI_MIC     "fluence_tri_mic"
 
 #define AUDIO_PARAMETER_KEY_PERF_LOCK_OPTS "perf_lock_opts"
 
@@ -491,6 +499,7 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_BT_SCO_MIC_NREC] = "bt-sco-mic",
     [SND_DEVICE_IN_BT_SCO_MIC_WB] = "bt-sco-mic-wb",
     [SND_DEVICE_IN_BT_SCO_MIC_WB_NREC] = "bt-sco-mic-wb",
+    [SND_DEVICE_IN_BT_A2DP] = "bt-a2dp-cap",
     [SND_DEVICE_IN_CAMCORDER_MIC] = "camcorder-mic",
     [SND_DEVICE_IN_VOICE_DMIC] = "voice-dmic-ef",
     [SND_DEVICE_IN_VOICE_SPEAKER_DMIC] = "voice-speaker-dmic-ef",
@@ -660,6 +669,7 @@ static int acdb_device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_BT_SCO_MIC_NREC] = 122,
     [SND_DEVICE_IN_BT_SCO_MIC_WB] = 38,
     [SND_DEVICE_IN_BT_SCO_MIC_WB_NREC] = 123,
+    [SND_DEVICE_IN_BT_A2DP] = 21,
     [SND_DEVICE_IN_CAMCORDER_MIC] = 4,
     [SND_DEVICE_IN_VOICE_DMIC] = 41,
     [SND_DEVICE_IN_VOICE_SPEAKER_DMIC] = 43,
@@ -811,6 +821,7 @@ static struct name_to_index snd_device_name_index[SND_DEVICE_MAX] = {
     {TO_NAME_INDEX(SND_DEVICE_IN_BT_SCO_MIC_NREC)},
     {TO_NAME_INDEX(SND_DEVICE_IN_BT_SCO_MIC_WB)},
     {TO_NAME_INDEX(SND_DEVICE_IN_BT_SCO_MIC_WB_NREC)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_BT_A2DP)},
     {TO_NAME_INDEX(SND_DEVICE_IN_CAMCORDER_MIC)},
     {TO_NAME_INDEX(SND_DEVICE_IN_VOICE_DMIC)},
     {TO_NAME_INDEX(SND_DEVICE_IN_VOICE_SPEAKER_DMIC)},
@@ -1423,6 +1434,7 @@ static void set_platform_defaults(struct platform_data * my_data)
     backend_tag_table[SND_DEVICE_OUT_VOICE_SPEAKER_VBAT] = strdup("voice-speaker-vbat");
     backend_tag_table[SND_DEVICE_OUT_VOICE_SPEAKER_2_VBAT] = strdup("voice-speaker-2-vbat");
     backend_tag_table[SND_DEVICE_OUT_BT_A2DP] = strdup("bt-a2dp");
+    backend_tag_table[SND_DEVICE_IN_BT_A2DP] = strdup("bt-a2dp-cap");
     backend_tag_table[SND_DEVICE_OUT_SPEAKER_AND_BT_A2DP] = strdup("speaker-and-bt-a2dp");
     backend_tag_table[SND_DEVICE_OUT_VOICE_SPEAKER_AND_VOICE_HEADPHONES] = strdup("speaker-and-headphones");
     backend_tag_table[SND_DEVICE_OUT_VOICE_SPEAKER_AND_VOICE_ANC_HEADSET] = strdup("speaker-and-headphones");
@@ -1517,6 +1529,7 @@ static void set_platform_defaults(struct platform_data * my_data)
     hw_interface_table[SND_DEVICE_IN_BT_SCO_MIC_NREC] = strdup("SLIMBUS_7_TX");
     hw_interface_table[SND_DEVICE_IN_BT_SCO_MIC_WB] = strdup("SLIMBUS_7_TX");
     hw_interface_table[SND_DEVICE_IN_BT_SCO_MIC_WB_NREC] = strdup("SLIMBUS_7_TX");
+    hw_interface_table[SND_DEVICE_IN_BT_A2DP] = strdup("SLIMBUS_7_TX");
     hw_interface_table[SND_DEVICE_IN_CAMCORDER_MIC] = strdup("SLIMBUS_0_TX");
     hw_interface_table[SND_DEVICE_IN_VOICE_DMIC] = strdup("SLIMBUS_0_TX");
     hw_interface_table[SND_DEVICE_IN_VOICE_SPEAKER_DMIC] = strdup("SLIMBUS_0_TX");
@@ -4627,6 +4640,8 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
             }
         } else if (in_device & AUDIO_DEVICE_IN_SPDIF) {
             snd_device = SND_DEVICE_IN_SPDIF;
+        } else if (in_device & AUDIO_DEVICE_IN_BLUETOOTH_A2DP) {
+            snd_device = SND_DEVICE_IN_BT_A2DP;
         } else if (in_device & AUDIO_DEVICE_IN_AUX_DIGITAL) {
             snd_device = SND_DEVICE_IN_HDMI_MIC;
         } else if (in_device & AUDIO_DEVICE_IN_HDMI_ARC) {
@@ -5099,6 +5114,91 @@ static void platform_spkr_device_set_params(struct platform_data *platform,
     }
 }
 
+static void platform_set_fluence_params(void *platform, struct str_parms *parms, char *value, int len)
+{
+    struct platform_data *my_data = (struct platform_data *)platform;
+    int err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_FLUENCE_TYPE, value, len);
+
+    if (err >= 0) {
+        if (!strncmp("fluence", value, sizeof("fluence")))
+            my_data->fluence_type = FLUENCE_DUAL_MIC;
+        else if (!strncmp("fluencepro", value, sizeof("fluencepro")))
+                 my_data->fluence_type = FLUENCE_QUAD_MIC | FLUENCE_DUAL_MIC;
+        else if (!strncmp("none", value, sizeof("none")))
+                 my_data->fluence_type = FLUENCE_NONE;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_FLUENCE_TYPE);
+    }
+
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_FLUENCE_TRI_MIC, value, len);
+    if (err >= 0) {
+        if (!strncmp("true", value, sizeof("true")))
+            my_data->fluence_type |= FLUENCE_TRI_MIC;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_FLUENCE_TRI_MIC);
+    }
+
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_FLUENCE_VOICE_CALL, value, len);
+    if (err >= 0) {
+        if (!strncmp("true", value, sizeof("true")))
+            my_data->fluence_in_voice_call = true;
+        else
+            my_data->fluence_in_voice_call = false;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_FLUENCE_VOICE_CALL);
+    }
+
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_FLUENCE_VOICE_REC, value, len);
+    if (err >= 0) {
+        if (!strncmp("true", value, sizeof("true")))
+            my_data->fluence_in_voice_rec = true;
+        else
+            my_data->fluence_in_voice_rec = false;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_FLUENCE_VOICE_REC);
+    }
+
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_FLUENCE_AUDIO_REC, value, len);
+    if (err >= 0) {
+        if (!strncmp("true", value, sizeof("true")))
+            my_data->fluence_in_audio_rec = true;
+        else
+            my_data->fluence_in_audio_rec = false;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_FLUENCE_AUDIO_REC);
+    }
+
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_FLUENCE_SPEAKER, value, len);
+    if (err >= 0) {
+        if (!strncmp("true", value, sizeof("true")))
+            my_data->fluence_in_spkr_mode = true;
+        else
+            my_data->fluence_in_spkr_mode = false;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_FLUENCE_SPEAKER);
+    }
+
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_FLUENCE_MODE, value, len);
+    if (err >= 0) {
+        if (!strncmp("broadside", value, sizeof("broadside")))
+            my_data->fluence_mode = FLUENCE_BROADSIDE;
+        else if (!strncmp("endfire", value, sizeof("endfire")))
+            my_data->fluence_mode = FLUENCE_ENDFIRE;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_FLUENCE_MODE);
+    }
+
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_FLUENCE_HFPCALL, value, len);
+    if (err >= 0) {
+        if (!strncmp("true", value, sizeof("true")))
+            my_data->fluence_in_hfp_call = true;
+        else
+            my_data->fluence_in_hfp_call = false;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_FLUENCE_HFPCALL);
+    }
+}
+
 int platform_set_parameters(void *platform, struct str_parms *parms)
 {
     struct platform_data *my_data = (struct platform_data *)platform;
@@ -5231,6 +5331,8 @@ int platform_set_parameters(void *platform, struct str_parms *parms)
         my_data->max_mic_count = atoi(value);
         ALOGV("%s: max_mic_count %d", __func__, my_data->max_mic_count);
     }
+
+    platform_set_fluence_params(platform, parms, value, len);
 
     /* handle audio calibration parameters */
     set_audiocal(platform, parms, value, len);
@@ -6181,6 +6283,7 @@ static bool platform_check_codec_backend_cfg(struct audio_device* adev,
     if (snd_device == SND_DEVICE_OUT_BT_A2DP ||
         snd_device == SND_DEVICE_OUT_BT_SCO ||
         snd_device == SND_DEVICE_OUT_BT_SCO_WB ||
+        snd_device == SND_DEVICE_IN_BT_A2DP ||
         snd_device == SND_DEVICE_OUT_AFE_PROXY) {
         backend_change = false;
         return backend_change;
