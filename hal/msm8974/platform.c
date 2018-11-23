@@ -1883,11 +1883,11 @@ static int platform_is_acdb_initialized(void *platform)
     return my_data->is_acdb_initialized;
 }
 
-void platform_snd_card_update(void *platform, int snd_scard_state)
+void platform_snd_card_update(void *platform, card_status_t card_status)
 {
     struct platform_data *my_data = (struct platform_data *)platform;
 
-    if (snd_scard_state == SND_CARD_STATE_ONLINE) {
+    if (card_status == CARD_STATUS_ONLINE) {
         if (!platform_is_acdb_initialized(my_data)) {
             if(platform_acdb_init(my_data))
                 ALOGE("%s: acdb initialization is failed", __func__);
