@@ -76,9 +76,6 @@
 #define MAX_SUPPORTED_FORMATS 3
 #define DEFAULT_HDMI_OUT_CHANNELS   2
 
-#define SND_CARD_STATE_OFFLINE 0
-#define SND_CARD_STATE_ONLINE 1
-
 #define MAX_PERF_LOCK_OPTS 20
 
 typedef enum card_status_t {
@@ -267,8 +264,8 @@ struct stream_out {
 #ifdef VHAL_HELPER_ENABLED
     vehicle_hal_audio_helper_t *vhal_audio_helper;
 #endif
-
     struct audio_device *dev;
+    card_status_t card_status;
 };
 
 struct stream_in {
@@ -295,6 +292,7 @@ struct stream_in {
     unsigned int bit_width;
 
     struct audio_device *dev;
+    card_status_t card_status;
 };
 
 typedef enum {
@@ -323,11 +321,6 @@ struct audio_usecase {
     struct stream_app_type_cfg out_app_type_cfg;
     struct stream_app_type_cfg in_app_type_cfg;
     union stream_ptr stream;
-};
-
-struct sound_card_status {
-    pthread_mutex_t lock;
-    int state;
 };
 
 struct stream_format {
@@ -402,6 +395,7 @@ struct audio_device {
     struct stream_in *vad_stream;
 
     int snd_card;
+    card_status_t card_status;
     unsigned int cur_codec_backend_samplerate;
     unsigned int cur_codec_backend_bit_width;
     bool is_channel_status_set;
@@ -414,7 +408,6 @@ struct audio_device {
     int (*offload_effects_start_output)(audio_io_handle_t, int, struct mixer *);
     int (*offload_effects_stop_output)(audio_io_handle_t, int);
 
-    struct sound_card_status snd_card_status;
     int (*offload_effects_set_hpx_state)(bool);
 
     void *adm_data;
@@ -467,7 +460,6 @@ bool is_offload_usecase(audio_usecase_t uc_id);
 
 int pcm_ioctl(struct pcm *pcm, int request, ...);
 
-int get_snd_card_state(struct audio_device *adev);
 audio_usecase_t get_usecase_id_from_usecase_type(struct audio_device *adev,
                                                  usecase_type_t type);
 
