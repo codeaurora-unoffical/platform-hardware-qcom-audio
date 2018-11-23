@@ -349,6 +349,10 @@ endif
 ifeq ($(strip $(ENABLE_HYP)),true)
     LOCAL_CFLAGS += -DGVM_ENABLED
 endif
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_SND_MONITOR)), true)
+    LOCAL_CFLAGS += -DSND_MONITOR_ENABLED
+    LOCAL_SRC_FILES += audio_extn/sndmonitor.c
+endif
 
 LOCAL_MODULE := audio.primary.$(TARGET_BOARD_PLATFORM)
 

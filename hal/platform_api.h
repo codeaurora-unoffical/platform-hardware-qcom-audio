@@ -30,6 +30,9 @@ struct be_dai_name_struct {
     unsigned int be_id;
     char be_name[BE_DAI_NAME_MAX_LENGTH];
 };
+
+enum card_status_t;
+
 void *platform_init(struct audio_device *adev);
 void platform_deinit(void *platform);
 const char *platform_get_snd_device_name(snd_device_t snd_device);
