@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -1016,6 +1016,9 @@ int audio_extn_hw_loopback_set_param_data(audio_patch_handle_t handle,
 
 int audio_extn_hw_loopback_set_render_window(audio_patch_handle_t handle,
                                              struct audio_out_render_window_param *render_window);
+
+int audio_extn_hw_loopback_set_callback(audio_patch_handle_t handle,
+                                        audio_extn_loopback_param_payload *payload);
 
 int audio_extn_hw_loopback_init(struct audio_device *adev);
 void audio_extn_hw_loopback_deinit(struct audio_device *adev);

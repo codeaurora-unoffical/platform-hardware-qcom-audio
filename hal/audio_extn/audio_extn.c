@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -1494,6 +1494,9 @@ int audio_extn_hw_loopback_set_param_data(audio_patch_handle_t handle,
     switch(param_id) {
         case AUDIO_EXTN_PARAM_LOOPBACK_RENDER_WINDOW:
             ret = audio_extn_hw_loopback_set_render_window(handle, payload);
+            break;
+        case AUDIO_EXTN_PARAM_LOOPBACK_SET_CALLBACK:
+            ret = audio_extn_hw_loopback_set_callback(handle, payload);
             break;
         default:
             ALOGE("%s: unsupported param id %d", __func__, param_id);
