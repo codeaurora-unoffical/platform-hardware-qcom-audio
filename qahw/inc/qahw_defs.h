@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2011 The Android Open Source Project *
@@ -233,6 +233,11 @@ typedef int qahw_stream_callback_t(qahw_stream_callback_event_t event,
                                    void *param,
                                    void *cookie);
 
+struct qahw_stream_callback_param {
+    qahw_stream_callback_t *cb;    /* callback function */
+    void *cookie;                  /* callback context */
+};
+
 /* type of drain requested to audio_stream_out->drain(). Mutually exclusive */
 typedef enum {
     QAHW_DRAIN_ALL,            /* drain() returns when all data has been played */
@@ -337,6 +342,7 @@ struct qahw_out_correct_drift {
 typedef enum {
     QAHW_STREAM_PP_EVENT = 0,
     QAHW_STREAM_ENCDEC_EVENT = 1,
+    QAHW_STREAM_IEC_61937_FMT_UPDATE_EVENT = 2,
 } qahw_event_id;
 
 /* payload format for HAL parameter
@@ -419,10 +425,12 @@ typedef enum {
 
 typedef union {
     struct qahw_out_render_window_param render_window_params;
+    struct qahw_stream_callback_param stream_callback_params;
 } qahw_loopback_param_payload;
 
 typedef enum {
-    QAHW_PARAM_LOOPBACK_RENDER_WINDOW /* PARAM to set render window */
+    QAHW_PARAM_LOOPBACK_RENDER_WINDOW, /* PARAM to set render window */
+    QAHW_PARAM_LOOPBACK_SET_CALLBACK
 } qahw_loopback_param_id;
 
 __END_DECLS
