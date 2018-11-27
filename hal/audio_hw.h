@@ -208,6 +208,9 @@ enum {
     USECASE_AUDIO_PLAYBACK_INTERACTIVE_STREAM8,
 
     USECASE_AUDIO_EC_REF_LOOPBACK,
+
+    USECASE_AUDIO_A2DP_ABR_FEEDBACK,
+
     AUDIO_USECASE_MAX
 };
 
@@ -351,6 +354,7 @@ struct stream_out {
     bool a2dp_compress_mute;
     float volume_l;
     float volume_r;
+    bool apply_volume;
 
     char pm_qos_mixer_path[MAX_MIXER_PATH_LEN];
     int hal_output_suspend_supported;
@@ -492,6 +496,8 @@ struct audio_device {
     unsigned int cur_wfd_channels;
     bool bt_wb_speech_enabled;
     bool allow_afe_proxy_usage;
+    bool is_charging; // from battery listener
+    bool mic_break_enabled;
 
     int snd_card;
     card_status_t card_status;

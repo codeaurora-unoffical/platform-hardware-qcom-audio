@@ -45,6 +45,7 @@ BOARD_SUPPORTS_QSTHW_API := true
 AUDIO_FEATURE_DISABLED_SOUND_TRIGGER_LEGACY_HAL := true
 AUDIO_FEATURE_ENABLED_COMPRESS_INPUT := true
 AUDIO_FEATURE_ENABLED_CUSTOMSTEREO := true
+COMPILE_HAL_TEST_APPS_IN_VENDOR_IMAGE := true
 
 ##AUDIO_FEATURE_FLAGS
 
@@ -62,6 +63,7 @@ PRODUCT_COPY_FILES += \
 endif
 PRODUCT_COPY_FILES += \
     hardware/qcom/audio/configs/msm8909/audio_effects.conf:$(TARGET_COPY_OUT_VENDOR)/etc/audio_effects.conf \
+    hardware/qcom/audio/configs/msm8909/audio_effects.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_effects.xml \
     hardware/qcom/audio/configs/msm8909/mixer_paths_qrd_skuh.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_qrd_skuh.xml \
     hardware/qcom/audio/configs/msm8909/mixer_paths_qrd_skui.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_qrd_skui.xml \
     hardware/qcom/audio/configs/msm8909/mixer_paths.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths.xml \
@@ -160,6 +162,9 @@ vendor.audio.sys.init=false
 PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.dolby.ds2.enabled=true
 
+PRODUCT_PROPERTY_OVERRIDES += \
+persist.vendor.audio.hw.binder.size_kbyte=1024
+
 #Disable split a2dp
 PRODUCT_PROPERTY_OVERRIDES += \
 persist.vendor.bt.enable.splita2dp=false
@@ -168,4 +173,10 @@ PRODUCT_PACKAGES += \
     android.hardware.audio@2.0-service \
     android.hardware.audio@2.0-impl \
     android.hardware.audio.effect@2.0-impl \
-    android.hardware.soundtrigger@2.0-impl
+    android.hardware.soundtrigger@2.1-impl \
+    android.hardware.audio@4.0 \
+    android.hardware.audio.common@4.0 \
+    android.hardware.audio.common@4.0-util \
+    android.hardware.audio@4.0-impl \
+    android.hardware.audio.effect@4.0 \
+    android.hardware.audio.effect@4.0-impl

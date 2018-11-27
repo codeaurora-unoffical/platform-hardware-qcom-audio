@@ -34,7 +34,6 @@
 #define PLATFORM_INFO_XML_PATH "/vendor/etc/audio_platform_info.xml"
 #endif
 
-struct mixer;
 enum {
         ACDB_LOADER_INIT_V1 = 1,
         ACDB_LOADER_INIT_V2,
@@ -42,6 +41,7 @@ enum {
         ACDB_LOADER_INIT_V4,
 };
 
+struct mixer;
 /* Audio calibration related functions */
 typedef void (*acdb_deallocate_t)();
 typedef int  (*acdb_init_t)();

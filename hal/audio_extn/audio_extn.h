@@ -41,6 +41,7 @@
 #include <cutils/str_parms.h>
 #include "adsp_hdlr.h"
 #include "ip_hdlr_intf.h"
+#include "battery_listener.h"
 
 #define AUDIO_PARAMETER_DUAL_MONO  "dual_mono"
 
@@ -50,6 +51,10 @@
 
 #ifndef AUDIO_DEVICE_IN_PROXY
 #define AUDIO_DEVICE_IN_PROXY (AUDIO_DEVICE_BIT_IN | 0x1000000)
+#endif
+
+#ifndef AUDIO_DEVICE_IN_HDMI_ARC
+#define AUDIO_DEVICE_IN_HDMI_ARC (AUDIO_DEVICE_BIT_IN | 0x8000000)
 #endif
 
 #ifndef INCALL_MUSIC_ENABLED
@@ -158,18 +163,25 @@ void audio_extn_get_parameters(const struct audio_device *adev,
 #define audio_extn_get_anc_enabled()                     (0)
 #define audio_extn_should_use_fb_anc()                   (0)
 #define audio_extn_should_use_handset_anc(in_channels)   (0)
+#define audio_extn_set_aanc_noise_level(adev, parms)     (0)
 #else
 bool audio_extn_get_anc_enabled(void);
 bool audio_extn_should_use_fb_anc(void);
 bool audio_extn_should_use_handset_anc(int in_channels);
+void audio_extn_set_aanc_noise_level(struct audio_device *adev,
+                                     struct str_parms *parms);
 #endif
 
 #ifndef VBAT_MONITOR_ENABLED
 #define audio_extn_is_vbat_enabled()                     (0)
 #define audio_extn_can_use_vbat()                        (0)
+#define audio_extn_is_bcl_enabled()                     (0)
+#define audio_extn_can_use_bcl()                        (0)
 #else
 bool audio_extn_is_vbat_enabled(void);
 bool audio_extn_can_use_vbat(void);
+bool audio_extn_is_bcl_enabled(void);
+bool audio_extn_can_use_bcl(void);
 #endif
 
 #ifndef RAS_ENABLED
@@ -215,7 +227,8 @@ int32_t audio_extn_get_afe_proxy_channel_count();
 #define audio_extn_usb_deinit()                                        (0)
 #define audio_extn_usb_add_device(device, card)                        (0)
 #define audio_extn_usb_remove_device(device, card)                     (0)
-#define audio_extn_usb_is_config_supported(bit_width, sample_rate, ch, pb) (0)
+#define audio_extn_usb_is_config_supported(bit_width, sample_rate, ch, pb) \
+                        (*bit_width=0, *sample_rate=0, *ch=0, 0)
 #define audio_extn_usb_enable_sidetone(device, enable)                 (0)
 #define audio_extn_usb_set_sidetone_gain(parms, value, len)            (0)
 #define audio_extn_usb_is_capture_supported()                          (0)
@@ -225,6 +238,7 @@ int32_t audio_extn_get_afe_proxy_channel_count();
 #define audio_extn_usb_is_tunnel_supported()                           (0)
 #define audio_extn_usb_alive(adev)                                     (false)
 #define audio_extn_usb_connected(parms)                                (0)
+#undef USB_BURST_MODE_ENABLED
 #else
 void audio_extn_usb_init(void *adev);
 void audio_extn_usb_deinit();
@@ -244,6 +258,32 @@ int audio_extn_usb_get_sup_sample_rates(int type, uint32_t *sr, uint32_t l);
 bool audio_extn_usb_is_tunnel_supported();
 bool audio_extn_usb_alive(int card);
 bool audio_extn_usb_connected(struct str_parms *parms);
+#endif
+
+#ifndef USB_BURST_MODE_ENABLED
+#define audio_extn_usb_find_service_interval(m, p)                     (0)
+#define audio_extn_usb_altset_for_service_interval(p, si, bw, sr, ch)  (-1)
+#define audio_extn_usb_set_service_interval(p, si, recfg)              (-1)
+#define audio_extn_usb_get_service_interval(p, si)                     (-1)
+#define audio_extn_usb_check_and_set_svc_int(uc,ss)                    (0)
+#define audio_extn_usb_is_reconfig_req()                               (0)
+#define audio_extn_usb_set_reconfig(isreq)                             (0)
+#else
+unsigned long audio_extn_usb_find_service_interval(bool min, bool playback);
+int audio_extn_usb_altset_for_service_interval(bool is_playback,
+                                               unsigned long service_interval,
+                                               uint32_t *bit_width,
+                                               uint32_t *sample_rate,
+                                               uint32_t *channel_count);
+int audio_extn_usb_set_service_interval(bool playback,
+                                        unsigned long service_interval,
+                                        bool *reconfig);
+int audio_extn_usb_get_service_interval(bool playback,
+                                        unsigned long *service_interval);
+int audio_extn_usb_check_and_set_svc_int(struct audio_usecase *uc_info,
+                                         bool starting_output_stream);
+bool audio_extn_usb_is_reconfig_req();
+void audio_extn_usb_set_reconfig(bool is_required);
 #endif
 
 #ifndef SPLIT_A2DP_ENABLED
@@ -353,6 +393,7 @@ void audio_extn_listen_set_parameters(struct audio_device *adev,
 #define audio_extn_sound_trigger_deinit(adev)                          (0)
 #define audio_extn_sound_trigger_update_device_status(snd_dev, event)  (0)
 #define audio_extn_sound_trigger_update_stream_status(uc_info, event)  (0)
+#define audio_extn_sound_trigger_update_battery_status(charging)       (0)
 #define audio_extn_sound_trigger_set_parameters(adev, parms)           (0)
 #define audio_extn_sound_trigger_get_parameters(adev, query, reply)    (0)
 #define audio_extn_sound_trigger_check_and_get_session(in)             (0)
@@ -374,6 +415,7 @@ void audio_extn_sound_trigger_update_device_status(snd_device_t snd_device,
                                      st_event_type_t event);
 void audio_extn_sound_trigger_update_stream_status(struct audio_usecase *uc_info,
                                      st_event_type_t event);
+void audio_extn_sound_trigger_update_battery_status(bool charging);
 void audio_extn_sound_trigger_set_parameters(struct audio_device *adev,
                                              struct str_parms *parms);
 void audio_extn_sound_trigger_check_and_get_session(struct stream_in *in);

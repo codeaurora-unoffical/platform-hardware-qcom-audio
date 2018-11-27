@@ -219,6 +219,55 @@ static const snd_device_t tavil_qrd_variant_devices[] = {
     SND_DEVICE_OUT_VOICE_TTY_HCO_HANDSET,
 };
 
+static const snd_device_t tavil_qrd_msmnile_variant_devices[] = {
+    SND_DEVICE_OUT_SPEAKER,
+    SND_DEVICE_OUT_VOICE_SPEAKER,
+    SND_DEVICE_OUT_HANDSET,
+    SND_DEVICE_OUT_VOICE_HANDSET,
+    SND_DEVICE_OUT_VOICE_TTY_HCO_HANDSET,
+    SND_DEVICE_IN_HANDSET_MIC,
+    SND_DEVICE_IN_HANDSET_MIC_AEC,
+    SND_DEVICE_IN_HANDSET_MIC_NS,
+    SND_DEVICE_IN_HANDSET_MIC_AEC_NS,
+    SND_DEVICE_IN_SPEAKER_MIC,
+    SND_DEVICE_IN_VOICE_SPEAKER_MIC,
+    SND_DEVICE_IN_SPEAKER_MIC_AEC,
+    SND_DEVICE_IN_SPEAKER_MIC_NS,
+    SND_DEVICE_IN_SPEAKER_MIC_AEC_NS,
+    SND_DEVICE_IN_VOICE_DMIC,
+    SND_DEVICE_IN_HANDSET_DMIC,
+    SND_DEVICE_IN_HANDSET_STEREO_DMIC,
+    SND_DEVICE_IN_SPEAKER_STEREO_DMIC,
+    SND_DEVICE_IN_VOICE_SPEAKER_DMIC,
+    SND_DEVICE_IN_VOICE_SPEAKER_DMIC_BROADSIDE,
+    SND_DEVICE_IN_SPEAKER_DMIC_AEC_BROADSIDE,
+    SND_DEVICE_IN_SPEAKER_DMIC_NS_BROADSIDE,
+    SND_DEVICE_IN_SPEAKER_DMIC_AEC_NS_BROADSIDE,
+    SND_DEVICE_IN_THREE_MIC,
+    SND_DEVICE_IN_HANDSET_TMIC,
+    SND_DEVICE_IN_HANDSET_TMIC_FLUENCE_PRO,
+    SND_DEVICE_IN_HANDSET_TMIC_AEC,
+    SND_DEVICE_IN_HANDSET_TMIC_NS,
+    SND_DEVICE_IN_HANDSET_TMIC_AEC_NS,
+    SND_DEVICE_IN_VOICE_SPEAKER_TMIC,
+    SND_DEVICE_IN_SPEAKER_TMIC_AEC,
+    SND_DEVICE_IN_SPEAKER_TMIC_NS,
+    SND_DEVICE_IN_SPEAKER_TMIC_AEC_NS,
+    SND_DEVICE_IN_QUAD_MIC,
+    SND_DEVICE_IN_HANDSET_QMIC,
+    SND_DEVICE_IN_SPEAKER_QMIC_AEC,
+    SND_DEVICE_IN_SPEAKER_QMIC_NS,
+    SND_DEVICE_IN_SPEAKER_QMIC_AEC_NS,
+    SND_DEVICE_IN_VOICE_SPEAKER_QMIC,
+    SND_DEVICE_IN_AANC_HANDSET_MIC,
+    SND_DEVICE_OUT_VOICE_TTY_HCO_HANDSET,
+    SND_DEVICE_IN_VOICE_FLUENCE_DMIC_AANC,
+    SND_DEVICE_OUT_SPEAKER_PROTECTED,
+    SND_DEVICE_OUT_VOICE_SPEAKER_PROTECTED,
+    SND_DEVICE_OUT_VOICE_SPEAKER_2_PROTECTED,
+};
+
+
 static const snd_device_t auto_variant_devices[] = {
     SND_DEVICE_OUT_SPEAKER
 };
@@ -420,9 +469,33 @@ static void  update_hardware_info_sdm845(struct hardware_info *hw_info, const ch
     }
 }
 
-static void  update_hardware_info_msmnile(struct hardware_info *hw_info __unused, const char *snd_card_name __unused)
+static void  update_hardware_info_msmnile(struct hardware_info *hw_info, const char *snd_card_name)
 {
-    ALOGW("%s: Not a msmnile device", __func__);
+    if (strstr(snd_card_name, "qrd")) {
+        strlcpy(hw_info->type, " qrd", sizeof(hw_info->type));
+        strlcpy(hw_info->name, "msmnile", sizeof(hw_info->name));
+        hw_info->snd_devices = (snd_device_t *)tavil_qrd_msmnile_variant_devices;
+        hw_info->num_snd_devices = ARRAY_SIZE(tavil_qrd_msmnile_variant_devices);
+        hw_info->is_stereo_spkr = false;
+        strlcpy(hw_info->dev_extn, "-qrd", sizeof(hw_info->dev_extn));
+    } else if (strstr(snd_card_name, "pahu")) {
+        strlcpy(hw_info->name, "msmnile", sizeof(hw_info->name));
+        hw_info->is_stereo_spkr = false;
+    } else if (strstr(snd_card_name, "adp")) {
+        strlcpy(hw_info->type, "adp", sizeof(hw_info->type));
+        strlcpy(hw_info->name, "msmnile", sizeof(hw_info->name));
+        hw_info->snd_devices = (snd_device_t *)auto_variant_devices;
+        hw_info->num_snd_devices = ARRAY_SIZE(auto_variant_devices);
+        strlcpy(hw_info->dev_extn, "-adp", sizeof(hw_info->dev_extn));
+    } else if (strstr(snd_card_name, "custom")) {
+        strlcpy(hw_info->type, "custom", sizeof(hw_info->type));
+        strlcpy(hw_info->name, "msmnile", sizeof(hw_info->name));
+        hw_info->snd_devices = (snd_device_t *)auto_variant_devices;
+        hw_info->num_snd_devices = ARRAY_SIZE(auto_variant_devices);
+        strlcpy(hw_info->dev_extn, "-custom", sizeof(hw_info->dev_extn));
+    } else {
+        ALOGW("%s: Not a msmnile device", __func__);
+    }
 }
 
 static void  update_hardware_info_sda845(struct hardware_info *hw_info, const char *snd_card_name)
@@ -565,6 +638,25 @@ static void update_hardware_info_bear(struct hardware_info *hw_info, const char 
         hw_info->num_snd_devices = ARRAY_SIZE(tavil_qrd_variant_devices);
         hw_info->is_stereo_spkr = false;
         strlcpy(hw_info->dev_extn, "-hdk", sizeof(hw_info->dev_extn));
+    } else if (!strncmp(snd_card_name, "sm6150-idp-snd-card",
+                 sizeof("sm6150-idp-snd-card"))) {
+        strlcpy(hw_info->name, "sm6150", sizeof(hw_info->name));
+    } else if (!strncmp(snd_card_name, "sm6150-qrd-snd-card",
+                 sizeof("sm6150-qrd-snd-card"))) {
+        hw_info->is_stereo_spkr = false;
+        strlcpy(hw_info->name, "sm6150", sizeof(hw_info->name));
+    } else if (!strncmp(snd_card_name, "sm6150-tavil-snd-card",
+                 sizeof("sm6150-tavil-snd-card"))) {
+        strlcpy(hw_info->name, "sm6150", sizeof(hw_info->name));
+        hw_info->is_stereo_spkr = false;
+    } else if ( !strncmp(snd_card_name, "sdm670-tavil-hdk-snd-card",
+                      sizeof("sdm670-tavil-hdk-snd-card"))) {
+        strlcpy(hw_info->type, " hdk", sizeof(hw_info->type));
+        strlcpy(hw_info->name, "sdm670", sizeof(hw_info->name));
+        hw_info->snd_devices = (snd_device_t *)tavil_qrd_variant_devices;
+        hw_info->num_snd_devices = ARRAY_SIZE(tavil_qrd_variant_devices);
+        hw_info->is_stereo_spkr = false;
+        strlcpy(hw_info->dev_extn, "-hdk", sizeof(hw_info->dev_extn));
     } else {
         ALOGW("%s: Not an SDM device", __func__);
     }
@@ -615,15 +707,16 @@ void *hw_info_init(const char *snd_card_name)
     } else if(strstr(snd_card_name, "sdm845")) {
         ALOGV("SDM845 - variant soundcard");
         update_hardware_info_sdm845(hw_info, snd_card_name);
-    } else if (strstr(snd_card_name, "sdm660") || strstr(snd_card_name, "sdm670") ||
-        strstr(snd_card_name, "qcs605-lc") || strstr(snd_card_name, "qcs405") ||
-        strstr(snd_card_name, "qcs605-ipc")) {
+    } else if (strstr(snd_card_name, "sdm660") || strstr(snd_card_name, "sdm670")
+               || strstr(snd_card_name, "sm6150") || strstr(snd_card_name, "qcs605-lc")
+               || strstr(snd_card_name, "qcs405")) {
         ALOGV("Bear - variant soundcard");
         update_hardware_info_bear(hw_info, snd_card_name);
     } else if (strstr(snd_card_name, "sdx")) {
         ALOGV("SDX - variant soundcard");
         update_hardware_info_sdx(hw_info, snd_card_name);
-    } else if (strstr(snd_card_name, "pahu")) {
+    } else if (strstr(snd_card_name, "pahu") || strstr(snd_card_name, "tavil") ||
+            strstr(snd_card_name, "sa8155")) {
         ALOGV("MSMNILE - variant soundcard");
         update_hardware_info_msmnile(hw_info, snd_card_name);
     } else if (strstr(snd_card_name, "sda845")) {

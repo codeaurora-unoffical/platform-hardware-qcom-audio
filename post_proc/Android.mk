@@ -39,11 +39,19 @@ ifeq ($(strip $(AUDIO_FEATURE_ENABLED_AUDIOSPHERE)),true)
     LOCAL_SRC_FILES += asphere.c
 endif
 
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_INSTANCE_ID)), true)
+    LOCAL_CFLAGS += -DINSTANCE_ID_ENABLED
+endif
+
 LOCAL_CFLAGS+= -O2 -fvisibility=hidden
 
 ifneq ($(strip $(AUDIO_FEATURE_DISABLED_DTS_EAGLE)),true)
     LOCAL_CFLAGS += -DDTS_EAGLE
 endif
+
+LOCAL_HEADER_LIBRARIES := libhardware_headers \
+                          libsystem_headers \
+                          libutils_headers
 
 LOCAL_SHARED_LIBRARIES := \
         libcutils \
@@ -66,7 +74,7 @@ LOCAL_C_INCLUDES := \
         $(call include-path-for, audio-effects)
 
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_DLKM)),true)
-  LOCAL_HEADER_LIBRARIES := audio_kernel_headers
+  LOCAL_HEADER_LIBRARIES += audio_kernel_headers
   LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/vendor/qcom/opensource/audio-kernel/include
   LOCAL_ADDITIONAL_DEPENDENCIES += $(BOARD_VENDOR_KERNEL_MODULES)
 endif
@@ -98,6 +106,10 @@ LOCAL_SRC_FILES := EffectsHwAcc.cpp
 LOCAL_C_INCLUDES := \
     $(call include-path-for, audio-effects)
 
+LOCAL_HEADER_LIBRARIES := libhardware_headers \
+                          libsystem_headers \
+                          libutils_headers
+
 LOCAL_SHARED_LIBRARIES := \
     liblog \
     libeffects
@@ -124,7 +136,7 @@ endif
 
 ################################################################################
 
-ifneq ($(filter msm8992 msm8994 msm8996 msm8998 sdm660 sdm845 apq8098_latv sdm670 msm8953 msm8937 qcs605 msmnile,$(TARGET_BOARD_PLATFORM)),)
+ifneq ($(filter msm8992 msm8994 msm8996 msm8998 sdm660 sdm845 apq8098_latv sdm710 msm8953 msm8937 qcs605 msmnile $(MSMSTEPPE),$(TARGET_BOARD_PLATFORM)),)
 
 include $(CLEAR_VARS)
 
@@ -145,6 +157,10 @@ LOCAL_SRC_FILES:= \
         volume_listener.c
 
 LOCAL_CFLAGS+= -O2 -fvisibility=hidden
+
+LOCAL_HEADER_LIBRARIES := libhardware_headers \
+                          libsystem_headers \
+                          libutils_headers
 
 LOCAL_SHARED_LIBRARIES := \
         libcutils \
@@ -168,7 +184,7 @@ LOCAL_C_INCLUDES := \
         external/tinycompress/include
 
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_DLKM)),true)
-  LOCAL_HEADER_LIBRARIES := audio_kernel_headers
+  LOCAL_HEADER_LIBRARIES += audio_kernel_headers
   LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/vendor/qcom/opensource/audio-kernel/include
   LOCAL_ADDITIONAL_DEPENDENCIES += $(BOARD_VENDOR_KERNEL_MODULES)
 endif

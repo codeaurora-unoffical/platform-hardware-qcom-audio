@@ -428,7 +428,7 @@ void *start_input(void *thread_param)
       }
 
       if (kpi_mode && count == 0) {
-          ret = clock_gettime(CLOCK_REALTIME, &tsColdI);
+          ret = clock_gettime(CLOCK_MONOTONIC, &tsColdI);
           if (ret)
               fprintf(log_file, "error(%d) getting current time before first read!, handle(%d)", ret, params->handle);
       }
@@ -443,14 +443,14 @@ void *start_input(void *thread_param)
           fprintf(fd_in_ts, "timestamp:%lld\n", timestamp);
       if (kpi_mode) {
           if (count == 0) {
-              ret = clock_gettime(CLOCK_REALTIME, &tsColdF);
+              ret = clock_gettime(CLOCK_MONOTONIC, &tsColdF);
               if (ret)
                   fprintf(log_file, "error(%d) getting current time after first read!, handle(%d)", ret, params->handle);
           } else if (count == 8) {
           /* 8th read done time is captured in kernel which would have trigger 9th read in DSP
            * 9th read is received by usersace at this time
            */
-              ret = clock_gettime(CLOCK_REALTIME, &tsCont);
+              ret = clock_gettime(CLOCK_MONOTONIC, &tsCont);
               if (ret)
                   fprintf(log_file, "error(%d) getting current time after 8th read!, handle(%d)", ret, params->handle);
           }
@@ -926,10 +926,10 @@ sourcetrack_error:
     /* Caution: Below ADL log shouldnt be altered without notifying automation APT since it used
      * for automation testing
      */
-    fprintf(log_file, "\n ADL: Done with hal record test \n");
-    if (log_file != stdout) {
-        fprintf(stdout, "\n ADL: Done with hal record test \n");
-        if (log_file) {
+    if (log_file != NULL) {
+        fprintf(log_file, "\n ADL: Done with hal record test \n");
+        if (log_file != stdout) {
+          fprintf(stdout, "\n ADL: Done with hal record test \n");
           fclose(log_file);
           log_file = NULL;
         }

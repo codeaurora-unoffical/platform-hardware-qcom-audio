@@ -45,6 +45,7 @@
 #include <fcntl.h>
 #include <cutils/properties.h>
 #include <cutils/log.h>
+#include <unistd.h>
 
 #include "audio_hw.h"
 #include "audio_extn.h"
@@ -73,6 +74,7 @@ struct audio_extn_module {
     uint32_t proxy_channel_num;
     bool hpx_enabled;
     bool vbat_enabled;
+    bool bcl_enabled;
     bool hifi_audio_enabled;
     bool ras_enabled;
     struct aptx_dec_bt_addr addr;
@@ -81,6 +83,7 @@ struct audio_extn_module {
 
 static struct audio_extn_module aextnmod;
 
+#define AUDIO_PARAMETER_KEY_AANC_NOISE_LEVEL "aanc_noise_level"
 #define AUDIO_PARAMETER_KEY_ANC        "anc_enabled"
 #define AUDIO_PARAMETER_KEY_WFD        "wfd_channel_cap"
 #define AUDIO_PARAMETER_CAN_OPEN_PROXY "can_open_proxy"
@@ -482,6 +485,25 @@ bool audio_extn_can_use_vbat(void)
     ALOGD("%s: vbat.enabled property is set to %s", __func__, prop_vbat_enabled);
     return (aextnmod.vbat_enabled ? true: false);
 }
+
+bool audio_extn_is_bcl_enabled(void)
+{
+    ALOGD("%s: status: %d", __func__, aextnmod.bcl_enabled);
+    return (aextnmod.bcl_enabled ? true: false);
+}
+
+bool audio_extn_can_use_bcl(void)
+{
+    char prop_bcl_enabled[PROPERTY_VALUE_MAX] = "false";
+
+    property_get("persist.vendor.audio.bcl.enabled", prop_bcl_enabled, "0");
+    if (!strncmp("true", prop_bcl_enabled, 4)) {
+        aextnmod.bcl_enabled = 1;
+    }
+
+    ALOGD("%s: bcl.enabled property is set to %s", __func__, prop_bcl_enabled);
+    return (aextnmod.bcl_enabled ? true: false);
+}
 #endif
 
 #ifdef RAS_ENABLED
@@ -534,6 +556,26 @@ bool audio_extn_should_use_fb_anc(void)
     return true;
   }
   return false;
+}
+
+void audio_extn_set_aanc_noise_level(struct audio_device *adev,
+                                     struct str_parms *parms)
+{
+    int ret;
+    char value[32] = {0};
+    struct mixer_ctl *ctl = NULL;
+    const char *mixer_ctl_name = "AANC Noise Level";
+
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_AANC_NOISE_LEVEL, value,
+                            sizeof(value));
+    if (ret >= 0) {
+        ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+        if (ctl)
+            mixer_ctl_set_value(ctl, 0, atoi(value));
+        else
+            ALOGW("%s: Not able to get mixer ctl: %s",
+                  __func__, mixer_ctl_name);
+    }
 }
 
 void audio_extn_set_anc_parameters(struct audio_device *adev,
@@ -872,6 +914,7 @@ void audio_extn_init(struct audio_device *adev)
     aextnmod.proxy_channel_num = 2;
     aextnmod.hpx_enabled = 0;
     aextnmod.vbat_enabled = 0;
+    aextnmod.bcl_enabled = 0;
     aextnmod.hifi_audio_enabled = 0;
     aextnmod.addr.nap = 0;
     aextnmod.addr.uap = 0;
@@ -885,6 +928,7 @@ void audio_extn_init(struct audio_device *adev)
 void audio_extn_set_parameters(struct audio_device *adev,
                                struct str_parms *parms)
 {
+   audio_extn_set_aanc_noise_level(adev, parms);
    audio_extn_set_anc_parameters(adev, parms);
    audio_extn_set_fluence_parameters(adev, parms);
    audio_extn_set_afe_proxy_parameters(adev, parms);

@@ -35,6 +35,7 @@
 #include <stdlib.h>
 #include <dlfcn.h>
 #include <cutils/log.h>
+#include <unistd.h>
 #include "audio_hw.h"
 #include "audio_extn.h"
 #include "platform.h"
@@ -160,10 +161,9 @@ typedef int (*sound_trigger_hw_call_back_t)(audio_event_type_t,
 
 #define DLSYM(handle, ptr, symbol, err) \
 do {\
-    const char* error; \
-    *(void**)&ptr = dlsym(handle, #symbol); \
-    if ((error = dlerror())) {\
-        ALOGE("%s: ERROR. %s", __func__, error);\
+    ptr = dlsym(handle, #symbol); \
+    if (ptr == NULL) {\
+        ALOGW("%s: %s not found. %s", __func__, #symbol, dlerror());\
         err = -ENODEV;\
     }\
 } while(0)
@@ -515,7 +515,6 @@ void audio_extn_sound_trigger_update_stream_status(struct audio_usecase *uc_info
                 ev_info.device_info.device = uc_info->stream.out->devices;
             else
                 ev_info.device_info.device = AUDIO_DEVICE_OUT_SPEAKER;
-
             switch(event) {
             case ST_EVENT_STREAM_FREE:
                 st_dev->st_callback(AUDIO_EVENT_PLAYBACK_STREAM_INACTIVE, &ev_info);
@@ -540,6 +539,18 @@ void audio_extn_sound_trigger_update_stream_status(struct audio_usecase *uc_info
         }
     }
 }
+
+void audio_extn_sound_trigger_update_battery_status(bool charging)
+{
+    struct audio_event_info ev_info;
+
+    if (!st_dev || st_dev->sthal_prop_api_version < STHAL_PROP_API_VERSION_1_0)
+        return;
+
+    ev_info.u.value = charging;
+    st_dev->st_callback(AUDIO_EVENT_BATTERY_STATUS_CHANGED, &ev_info);
+}
+
 
 void audio_extn_sound_trigger_set_parameters(struct audio_device *adev __unused,
                                struct str_parms *params)
@@ -665,7 +676,6 @@ int audio_extn_sound_trigger_init(struct audio_device *adev)
     }
     ALOGI("%s: DLOPEN successful for %s", __func__, sound_trigger_lib);
 
-    dlerror();
     DLSYM(st_dev->lib_handle, st_dev->st_callback, sound_trigger_hw_call_back,
           status);
     if (status)
@@ -677,7 +687,9 @@ int audio_extn_sound_trigger_init(struct audio_device *adev)
         st_dev->sthal_prop_api_version = 0;
         status  = 0; /* passthru for backward compability */
     } else {
-        st_dev->sthal_prop_api_version = *(int*)sthal_prop_api_version;
+        if (sthal_prop_api_version != NULL) {
+            st_dev->sthal_prop_api_version = *(int*)sthal_prop_api_version;
+        }
         if (MAJOR_VERSION(st_dev->sthal_prop_api_version) !=
             MAJOR_VERSION(STHAL_PROP_API_CURRENT_VERSION)) {
             ALOGE("%s: Incompatible API versions ahal:0x%x != sthal:0x%x",

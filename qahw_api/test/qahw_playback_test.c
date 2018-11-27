@@ -1194,7 +1194,7 @@ int measure_kpi_values(qahw_stream_handle_t* out_handle, bool is_offload) {
             bytes_remaining = write_length = bytes_wanted;
         }
         if (count == 0) {
-            ret = clock_gettime(CLOCK_REALTIME, &ts_cold);
+            ret = clock_gettime(CLOCK_MONOTONIC, &ts_cold);
             if (ret) {
                 fprintf(log_file, "error(%d) fetching start time for cold latency", ret);
                 fprintf(stderr, "error(%d) fetching start time for cold latency", ret);
@@ -1204,7 +1204,7 @@ int measure_kpi_values(qahw_stream_handle_t* out_handle, bool is_offload) {
         } else if (count == 16) {
             int *d = (int *)data;
             d[0] = 0x01010000;
-            ret = clock_gettime(CLOCK_REALTIME, &ts_cont);
+            ret = clock_gettime(CLOCK_MONOTONIC, &ts_cont);
             if (ret) {
                 fprintf(log_file, "error(%d) fetching start time for continuous latency", ret);
                 fprintf(stderr, "error(%d) fetching start time for continuous latency", ret);
@@ -1228,7 +1228,6 @@ int measure_kpi_values(qahw_stream_handle_t* out_handle, bool is_offload) {
 
     char latency_buf[200] = {0};
     fread((void *) latency_buf, 100, 1, fd_latency_node);
-    fclose(fd_latency_node);
     sscanf(latency_buf, " %llu,%llu,%*llu,%*llu,%llu,%llu", &scold, &uscold, &scont, &uscont);
     tcold = scold*1000 - ((uint64_t)ts_cold.tv_sec)*1000 + uscold/1000 - ((uint64_t)ts_cold.tv_nsec)/1000000;
     tcont = scont*1000 - ((uint64_t)ts_cont.tv_sec)*1000 + uscont/1000 - ((uint64_t)ts_cont.tv_nsec)/1000000;
@@ -2330,6 +2329,8 @@ int main(int argc, char* argv[]) {
             fprintf(log_file, " In Device config \n");
             fprintf(stderr, " In Device config \n");
             send_device_config = true;
+
+            memset(&device_cfg_params, 0, sizeof(struct qahw_device_cfg_param));
 
             //Read Sample Rate
             if (optind < argc && *argv[optind] != '-') {

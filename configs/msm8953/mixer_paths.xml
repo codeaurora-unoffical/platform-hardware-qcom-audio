@@ -527,7 +527,7 @@
     </path>
 
     <path name="compress-offload-playback3 speaker-and-headphones">
-        <path name="compress-offload-playback4" />
+        <path name="compress-offload-playback3" />
     </path>
 
     <path name="compress-offload-playback4">
@@ -666,7 +666,7 @@
         <path name="compress-offload-playback7 speaker-and-bt-sco-wb" />
     </path>
 
-   <path name="compress-offload-playback7 speaker-and-headphones">
+    <path name="compress-offload-playback7 speaker-and-headphones">
         <path name="compress-offload-playback7" />
     </path>
 
