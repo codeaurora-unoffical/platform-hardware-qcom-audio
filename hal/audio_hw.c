@@ -363,6 +363,7 @@ static int check_and_set_gapless_mode(struct audio_device *adev, bool enable_gap
 static bool is_supported_format(audio_format_t format)
 {
     if (format == AUDIO_FORMAT_MP3 ||
+        format == AUDIO_FORMAT_AAC ||
         format == AUDIO_FORMAT_AAC_LC ||
         format == AUDIO_FORMAT_AAC_HE_V1 ||
         format == AUDIO_FORMAT_AAC_HE_V2 ||
