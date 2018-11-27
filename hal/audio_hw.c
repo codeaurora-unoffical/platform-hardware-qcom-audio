@@ -4672,8 +4672,13 @@ static int out_set_audio_gain_to_stream(struct stream_out *out,
 
     ALOGD("%s: Setting stream volume to %d", __func__, vol_q13);
 
-    snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
-             "Playback %d Volume", pcm_device_id);
+    if(out->usecase == USECASE_AUDIO_PLAYBACK_OFFLOAD)
+        snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
+                             "Compress Playback %d Volume", pcm_device_id);
+    else
+        snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
+                            "Playback %d Volume", pcm_device_id);
+
     ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
     if (!ctl) {
         ALOGE("%s: Could not get ctl for mixer cmd - %s",
@@ -4756,10 +4761,13 @@ static int adev_set_audio_port_config(struct audio_hw_device *dev,
                                                     streams_output_ctxt_t,
                                                     list);
                 /* limit audio gain support for bus device only */
-                if (out_ctxt->output->devices == AUDIO_DEVICE_OUT_BUS &&
+                if ((out_ctxt->output->devices == AUDIO_DEVICE_OUT_BUS &&
                     out_ctxt->output->devices == config->ext.device.type &&
                     strcmp(out_ctxt->output->address,
-                        config->ext.device.address) == 0) {
+                        config->ext.device.address) == 0) ||
+                    (((out_ctxt->output->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) ||
+                    ((out_ctxt->output->flags & AUDIO_OUTPUT_FLAG_DIRECT) != 0))) {
+
                     lock_output_stream(out_ctxt->output);
                     /* cache gain per output stream */
                     out_ctxt->output->gain_config = config->gain;
