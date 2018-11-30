@@ -4663,6 +4663,8 @@ static int out_set_audio_gain_to_stream(struct stream_out *out,
     int pcm_device_id = platform_get_pcm_device_id(out->usecase,
                                                    PCM_PLAYBACK);
     int vol_mdb = gain->values[0];
+    int volume[2];
+
     /*
      * millibel = 1/100 dB = 1/1000 bel
      * q13 = (10^(mdb/100/20))*(2^13)
@@ -4671,25 +4673,40 @@ static int out_set_audio_gain_to_stream(struct stream_out *out,
 
     ALOGD("%s: Setting stream volume to %d", __func__, vol_q13);
 
-    if(out->usecase == USECASE_AUDIO_PLAYBACK_OFFLOAD)
+    if(is_offload_usecase(out->usecase))
+    {
         snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
-                             "Compress Playback %d Volume", pcm_device_id);
-    else
-        snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
-                            "Playback %d Volume", pcm_device_id);
-
-    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
-    if (!ctl) {
-        ALOGE("%s: Could not get ctl for mixer cmd - %s",
+                              "Compress Playback %d Volume", pcm_device_id);
+        ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+        if (!ctl) {
+            ALOGE("%s: Could not get ctl for mixer cmd - %s",
               __func__, mixer_ctl_name);
-        return -EINVAL;
-    }
+            return -EINVAL;
+        }
 
-    if (mixer_ctl_set_value(ctl, 0, vol_q13) < 0) {
-        ALOGE("%s: Couldn't set playback volume: %d", __func__, vol_q13);
-        return -EINVAL;
+        volume[0] = vol_q13;
+        volume[1] = vol_q13;
+        mixer_ctl_set_array(ctl, volume, sizeof(volume)/sizeof(volume[0]));
     }
-    return 0;
+    else
+    {
+         snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
+                             "Playback %d Volume", pcm_device_id);
+
+         ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+         if (!ctl) {
+            ALOGE("%s: Could not get ctl for mixer cmd - %s",
+              __func__, mixer_ctl_name);
+             return -EINVAL;
+         }
+
+         if (mixer_ctl_set_value(ctl, 0, vol_q13) < 0) {
+            ALOGE("%s: Couldn't set playback volume: %d", __func__, vol_q13);
+            return -EINVAL;
+         }
+     }
+
+     return 0;
 }
 
 /* Volume min/max defined by audio policy configuration in millibel.
