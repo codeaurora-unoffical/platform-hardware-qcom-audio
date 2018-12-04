@@ -252,7 +252,7 @@
                              samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
                     <gains>
                         <gain name="" mode="AUDIO_GAIN_MODE_JOINT"
-                                minValueMB="-4800" maxValueMB="1200" defaultValueMB="0" stepValueMB="50"/>
+                                minValueMB="-8400" maxValueMB="1200" defaultValueMB="0" stepValueMB="80"/>
                     </gains>
                 </devicePort>
                 <devicePort tagName="Sys Notification Bus" role="sink" type="AUDIO_DEVICE_OUT_BUS" address="BUS01_SYS_NOTIFICATION">
@@ -260,7 +260,7 @@
                              samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
                     <gains>
                         <gain name="" mode="AUDIO_GAIN_MODE_JOINT"
-                                minValueMB="-4800" maxValueMB="1200" defaultValueMB="0" stepValueMB="50"/>
+                                minValueMB="-8400" maxValueMB="1200" defaultValueMB="0" stepValueMB="80"/>
                     </gains>
                 </devicePort>
                 <devicePort tagName="Nav Guidance Bus" role="sink" type="AUDIO_DEVICE_OUT_BUS" address="BUS02_NAV_GUIDANCE">
@@ -268,7 +268,7 @@
                              samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
                     <gains>
                         <gain name="" mode="AUDIO_GAIN_MODE_JOINT"
-                                minValueMB="-4800" maxValueMB="1200" defaultValueMB="0" stepValueMB="50"/>
+                                minValueMB="-8400" maxValueMB="1200" defaultValueMB="0" stepValueMB="80"/>
                     </gains>
                 </devicePort>
                 <devicePort tagName="Phone Bus" role="sink" type="AUDIO_DEVICE_OUT_BUS" address="BUS03_PHONE">
@@ -276,7 +276,7 @@
                              samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
                     <gains>
                         <gain name="" mode="AUDIO_GAIN_MODE_JOINT"
-                                minValueMB="-4800" maxValueMB="1200" defaultValueMB="0" stepValueMB="50"/>
+                                minValueMB="-8400" maxValueMB="1200" defaultValueMB="0" stepValueMB="80"/>
                     </gains>
                 </devicePort>
                 <devicePort tagName="Built-In Mic" type="AUDIO_DEVICE_IN_BUILTIN_MIC" role="source">
