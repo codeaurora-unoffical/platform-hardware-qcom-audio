@@ -116,6 +116,9 @@
         <!-- In the below value string, the value indicates sidetone gain in dB -->
         <param key="usb_sidetone_gain" value="35"/>
         <param key="hfp_pcm_dev_id" value="36"/>
+        <!-- Below flag indicates that speaker output is fixed at 4 channels -->
+        <!-- irrespective of the number of input channels -->
+        <param key="quad_speaker" value="true"/>
     </config_params>
     <gain_db_to_level_mapping>
         <gain_level_map db="-59" level="5"/>
