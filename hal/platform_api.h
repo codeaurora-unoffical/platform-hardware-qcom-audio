@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
  * Not a contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -89,6 +89,21 @@ typedef struct acdb_audio_cal_cfg {
 #endif
     uint32_t             param_id;
 } acdb_audio_cal_cfg_t;
+
+
+struct audio_custom_mtmx_params_info {
+    uint32_t id;
+    uint32_t ip_channels;
+    uint32_t op_channels;
+    uint32_t usecase_id;
+    uint32_t snd_device;
+};
+
+struct audio_custom_mtmx_params {
+    struct listnode list;
+    struct audio_custom_mtmx_params_info info;
+    uint32_t coeffs[0];
+};
 
 enum card_status_t;
 
@@ -291,4 +306,9 @@ int platform_get_mmap_data_fd(void *platform, int dev, int dir,
 int platform_get_ec_ref_loopback_snd_device(int channel_count);
 const char * platform_get_snd_card_name_for_acdb_loader(const char *snd_card_name);
 int platform_get_license_by_product(void *platform, const char* product_name, int *product_id, char* product_license);
+struct audio_custom_mtmx_params *
+    platform_get_custom_mtmx_params(void *platform,
+                                    struct audio_custom_mtmx_params_info *info);
+int platform_add_custom_mtmx_params(void *platform,
+                                    struct audio_custom_mtmx_params_info *info);
 #endif // AUDIO_PLATFORM_API_H
