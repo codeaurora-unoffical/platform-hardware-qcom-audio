@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -5111,7 +5111,7 @@ static void platform_spkr_device_set_params(struct platform_data *platform,
                     str_parms_del(parms, AUDIO_PARAMETER_KEY_SPKR_DEVICE_CHMAP);
                     return;
                 } else {
-                    platform->spkr_ch_map->chmap[i] = strtoul(opts, NULL, 16);
+                    platform->spkr_ch_map->chmap[i] = strtoul(opts, NULL, 0);
                 }
             }
         }
