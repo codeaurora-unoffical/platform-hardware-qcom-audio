@@ -5465,7 +5465,7 @@ static void platform_spkr_device_set_params(struct platform_data *platform,
                     str_parms_del(parms, AUDIO_PARAMETER_KEY_SPKR_DEVICE_CHMAP);
                     return;
                 } else {
-                    platform->spkr_ch_map->chmap[i] = strtoul(opts, NULL, 16);
+                    platform->spkr_ch_map->chmap[i] = strtoul(opts, NULL, 0);
                 }
             }
         }
