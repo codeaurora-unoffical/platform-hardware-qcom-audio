@@ -215,7 +215,9 @@ __BEGIN_DECLS
 #define QAHW_PCM_CHANNEL_BFR  30  /* Bottom front right channel.                   */
 #define QAHW_PCM_CHANNEL_LW   31  /* Left wide channel.                            */
 #define QAHW_PCM_CHANNEL_RW   32  /* Right wide channel.                           */
+#define QAHW_PCM_CHANNEL_LSD  33  /* Left side direct channel.                     */
 #define QAHW_PCM_CHANNEL_RSD  34  /* Right side direct channel.                    */
+#define QAHW_PCM_CHANNEL_UNUSED  47  /* Mark unused channel.                       */
 
 /* type of asynchronous write callback events. Mutually exclusive */
 typedef enum {
