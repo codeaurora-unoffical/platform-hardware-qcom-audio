@@ -2466,7 +2466,7 @@ int platform_get_usecase_acdb_id(void *platform,
             if (snd_device == SND_DEVICE_OUT_HDMI)
                 acdb_dev_id = 18;
             else
-#ifdef GVM_ENABLED
+#if defined(GVM_ENABLED)
                 acdb_dev_id = 60;
 #else
                 acdb_dev_id = 41;
