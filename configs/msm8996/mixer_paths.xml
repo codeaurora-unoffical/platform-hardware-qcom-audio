@@ -398,7 +398,7 @@
 
     <!-- These are audio route (FE to BE) specific mixer settings -->
     <path name="deep-buffer-playback">
-        <ctl name="QUAT_TDM_RX_0 Channels" value="Six" />
+        <ctl name="QUAT_TDM_RX_0 Channels" value="Two" />
         <ctl name="QUAT_TDM_RX_0 Audio Mixer MultiMedia1" value="1" />
     </path>
 
@@ -455,7 +455,7 @@
     </path>
 
     <path name="low-latency-playback">
-        <ctl name="QUAT_TDM_RX_0 Channels" value="Six" />
+        <ctl name="QUAT_TDM_RX_0 Channels" value="Two" />
         <ctl name="QUAT_TDM_RX_0 Audio Mixer MultiMedia5" value="1" />
     </path>
 
@@ -495,7 +495,7 @@
     </path>
 
     <path name="audio-ull-playback">
-        <ctl name="QUAT_TDM_RX_0 Channels" value="Six" />
+        <ctl name="QUAT_TDM_RX_0 Channels" value="Two" />
         <ctl name="QUAT_TDM_RX_0 Audio Mixer MultiMedia3" value="1" />
     </path>
 
@@ -543,7 +543,7 @@
     </path>
 
     <path name="compress-offload-playback">
-        <ctl name="QUAT_TDM_RX_0 Channels" value="Six" />
+        <ctl name="QUAT_TDM_RX_0 Channels" value="Two" />
         <ctl name="QUAT_TDM_RX_0 Audio Mixer MultiMedia4" value="1" />
     </path>
 
@@ -583,7 +583,7 @@
     </path>
 
     <path name="compress-offload-playback2">
-        <ctl name="QUAT_TDM_RX_0 Channels" value="Six" />
+        <ctl name="QUAT_TDM_RX_0 Channels" value="Two" />
         <ctl name="QUAT_TDM_RX_0 Audio Mixer MultiMedia7" value="1" />
     </path>
 
@@ -619,7 +619,7 @@
     </path>
 
     <path name="compress-offload-playback3">
-        <ctl name="QUAT_TDM_RX_0 Channels" value="Six" />
+        <ctl name="QUAT_TDM_RX_0 Channels" value="Two" />
         <ctl name="QUAT_TDM_RX_0 Audio Mixer MultiMedia10" value="1" />
     </path>
 
@@ -655,7 +655,7 @@
     </path>
 
     <path name="compress-offload-playback4">
-        <ctl name="QUAT_TDM_RX_0 Channels" value="Six" />
+        <ctl name="QUAT_TDM_RX_0 Channels" value="Two" />
         <ctl name="QUAT_TDM_RX_0 Audio Mixer MultiMedia11" value="1" />
     </path>
 
@@ -691,7 +691,7 @@
     </path>
 
     <path name="compress-offload-playback5">
-        <ctl name="QUAT_TDM_RX_0 Channels" value="Six" />
+        <ctl name="QUAT_TDM_RX_0 Channels" value="Two" />
         <ctl name="QUAT_TDM_RX_0 Audio Mixer MultiMedia12" value="1" />
     </path>
 
@@ -727,7 +727,7 @@
     </path>
 
     <path name="compress-offload-playback6">
-        <ctl name="QUAT_TDM_RX_0 Channels" value="Six" />
+        <ctl name="QUAT_TDM_RX_0 Channels" value="Two" />
         <ctl name="QUAT_TDM_RX_0 Audio Mixer MultiMedia13" value="1" />
     </path>
 
@@ -763,7 +763,7 @@
     </path>
 
     <path name="compress-offload-playback7">
-        <ctl name="QUAT_TDM_RX_0 Channels" value="Six" />
+        <ctl name="QUAT_TDM_RX_0 Channels" value="Two" />
         <ctl name="QUAT_TDM_RX_0 Audio Mixer MultiMedia14" value="1" />
     </path>
 
@@ -799,7 +799,7 @@
     </path>
 
     <path name="compress-offload-playback8">
-        <ctl name="QUAT_TDM_RX_0 Channels" value="Six" />
+        <ctl name="QUAT_TDM_RX_0 Channels" value="Two" />
         <ctl name="QUAT_TDM_RX_0 Audio Mixer MultiMedia15" value="1" />
     </path>
 
@@ -835,7 +835,7 @@
     </path>
 
     <path name="compress-offload-playback9">
-        <ctl name="QUAT_TDM_RX_0 Channels" value="Six" />
+        <ctl name="QUAT_TDM_RX_0 Channels" value="Two" />
         <ctl name="QUAT_TDM_RX_0 Audio Mixer MultiMedia16" value="1" />
     </path>
 
@@ -872,12 +872,12 @@
 
     <!-- The following use cases are used for bus streams  -->
     <path name="media-playback">
-        <ctl name="QUAT_TDM_RX_0 Channels" value="Six" />
+        <ctl name="QUAT_TDM_RX_0 Channels" value="Two" />
         <ctl name="QUAT_TDM_RX_0 Audio Mixer MultiMedia1" value="1" />
     </path>
 
     <path name="sys-notification-playback">
-        <ctl name="QUAT_TDM_RX_0 Channels" value="Six" />
+        <ctl name="QUAT_TDM_RX_0 Channels" value="Two" />
         <ctl name="QUAT_TDM_RX_0 Audio Mixer MultiMedia5" value="1" />
     </path>
 
