@@ -2514,7 +2514,7 @@ int start_output_stream(struct stream_out *out)
           __func__, adev->snd_card, out->pcm_device_id, out->config.format);
     if (!is_offload_usecase(out->usecase)) {
         unsigned int flags = PCM_OUT;
-        unsigned int pcm_open_retry_count = 0;
+        unsigned int pcm_open_retry_count = 20;
         if (out->usecase == USECASE_AUDIO_PLAYBACK_AFE_PROXY) {
             flags |= PCM_MMAP | PCM_NOIRQ;
             pcm_open_retry_count = PROXY_OPEN_RETRY_COUNT;
