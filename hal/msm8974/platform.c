@@ -1883,11 +1883,11 @@ static int platform_is_acdb_initialized(void *platform)
     return my_data->is_acdb_initialized;
 }
 
-void platform_snd_card_update(void *platform, int snd_scard_state)
+void platform_snd_card_update(void *platform, card_status_t card_status)
 {
     struct platform_data *my_data = (struct platform_data *)platform;
 
-    if (snd_scard_state == SND_CARD_STATE_ONLINE) {
+    if (card_status == CARD_STATUS_ONLINE) {
         if (!platform_is_acdb_initialized(my_data)) {
             if(platform_acdb_init(my_data))
                 ALOGE("%s: acdb initialization is failed", __func__);
@@ -2462,7 +2462,7 @@ int platform_get_usecase_acdb_id(void *platform,
             if (snd_device == SND_DEVICE_OUT_HDMI)
                 acdb_dev_id = 18;
             else
-#ifdef GVM_ENABLED
+#if defined(GVM_ENABLED)
                 acdb_dev_id = 60;
 #else
                 acdb_dev_id = 41;

@@ -30,6 +30,9 @@ struct be_dai_name_struct {
     unsigned int be_id;
     char be_name[BE_DAI_NAME_MAX_LENGTH];
 };
+
+enum card_status_t;
+
 void *platform_init(struct audio_device *adev);
 void platform_deinit(void *platform);
 const char *platform_get_snd_device_name(snd_device_t snd_device);
@@ -109,7 +112,7 @@ int platform_get_usecase_backend_index(int usecase_id);
 /* From platform_info.c */
 int platform_info_init(const char *filename, void *);
 
-void platform_snd_card_update(void *platform, int snd_scard_state);
+void platform_snd_card_update(void *platform, card_status_t scard_status);
 
 struct audio_offload_info_t;
 uint32_t platform_get_compress_offload_buffer_size(audio_offload_info_t* info);
