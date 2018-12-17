@@ -4550,7 +4550,7 @@ int platform_set_stream_channel_map(void *platform, audio_channel_mask_t channel
     switch (channels) {
         case 1:
             /* AUDIO_CHANNEL_OUT_MONO */
-            channel_map[0] = PCM_CHANNEL_FL;
+            channel_map[0] = PCM_CHANNEL_FC;
             break;
         case 2:
             /* AUDIO_CHANNEL_OUT_STEREO */
