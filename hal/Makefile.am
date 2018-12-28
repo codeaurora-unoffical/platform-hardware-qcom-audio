@@ -175,6 +175,11 @@ AM_CFLAGS += -DSPLIT_A2DP_ENABLED
 c_sources += audio_extn/a2dp.c
 endif
 
+if SPLIT_A2DP_SINK
+AM_CFLAGS += -DSPLIT_A2DP_SINK_ENABLED
+c_sources += audio_extn/a2dp_sink.c
+endif
+
 if AUDIO_IP_HDLR
 AM_CFLAGS += -DAUDIO_EXTN_IP_HDLR_ENABLED
 c_sources += audio_extn/ip_hdlr_intf.c

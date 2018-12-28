@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -2603,6 +2603,7 @@ acdb_init_fail:
 
     /*init a2dp*/
     audio_extn_a2dp_init(adev);
+    audio_extn_a2dp_sink_init(adev);
 
     /* Read one time ssr property */
     audio_extn_ssr_update_enabled();

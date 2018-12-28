@@ -2512,6 +2512,7 @@ acdb_init_fail:
 
     /*init a2dp*/
     audio_extn_a2dp_init(adev);
+    audio_extn_a2dp_sink_init(adev);
 
     /* init dap hal */
     audio_extn_dap_hal_init(adev->snd_card);
