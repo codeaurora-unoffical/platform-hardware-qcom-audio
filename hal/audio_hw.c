@@ -1906,9 +1906,8 @@ int start_output_stream(struct stream_out *out)
     }
 
 #ifdef BUS_ADDRESS_ENABLED
-    if (out->devices & AUDIO_DEVICE_OUT_BUS)
-        if (out->set_gain_config)
-            ret = out_set_audio_gain_to_stream(out, &out->gain_config);
+    if (out->set_gain_config)
+        ret = out_set_audio_gain_to_stream(out, &out->gain_config);
 #endif
 
     ALOGD("%s: exit", __func__);
@@ -2425,6 +2424,10 @@ static int out_set_volume(struct audio_stream_out *stream, float left,
              * Mute is 0 and unmute 1
              */
             audio_extn_dolby_set_passt_volume(out, (left == 0.0f));
+        } else if (strcmp(out->address, "BUS00_MEDIA") == 0 &&
+                   out->car_audio_stream == CAR_AUDIO_STREAM_MEDIA) {
+            ALOGD("%s: Ignore offload set volume for media bus stream", __func__);
+            return 0;
         } else {
             char mixer_ctl_name[128];
             struct audio_device *adev = out->dev;
@@ -3706,8 +3709,25 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
         /* save car audio stream and address for bus device */
         out->car_audio_stream = car_audio_stream;
         strlcpy(out->address, address, AUDIO_DEVICE_MAX_ADDRESS_LEN);
-        ALOGV("%s: address %s, car_audio_stream %x",
+        ALOGV("%s: offload/direct address %s, car_audio_stream %x",
             __func__, out->address, out->car_audio_stream);
+        /* Update cached volume from media to offload/direct stream */
+        pthread_mutex_lock(&adev->lock);
+        struct listnode *node = NULL;
+        list_for_each(node, &adev->active_outputs_list) {
+            streams_output_ctxt_t *out_ctxt = node_to_item(node,
+                                                streams_output_ctxt_t,
+                                                list);
+            if (out_ctxt->output->devices == AUDIO_DEVICE_OUT_BUS &&
+                    strcmp(out_ctxt->output->address, "BUS00_MEDIA") == 0 &&
+                    out_ctxt->output->car_audio_stream == CAR_AUDIO_STREAM_MEDIA) {
+                out->gain_config = out_ctxt->output->gain_config;
+                out->set_gain_config = out_ctxt->output->set_gain_config;
+                ALOGD("%s: offload/direct stream: %p, cached gain %d", __func__,
+                        &out->stream, out->gain_config.values[0]);
+            }
+        }
+        pthread_mutex_unlock(&adev->lock);
     } else {
         ALOGD("Car audio stream is enabled only for Bus Device");
     }
@@ -4776,9 +4796,7 @@ static int out_set_audio_gain_to_stream(struct stream_out *out,
         volume[0] = vol_q13;
         volume[1] = vol_q13;
         mixer_ctl_set_array(ctl, volume, sizeof(volume)/sizeof(volume[0]));
-    }
-    else
-    {
+    } else {
          snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
                              "Playback %d Volume", pcm_device_id);
 
@@ -4866,12 +4884,11 @@ static int adev_set_audio_port_config(struct audio_hw_device *dev,
                                                     streams_output_ctxt_t,
                                                     list);
                 /* limit audio gain support for bus device only */
-                if ((out_ctxt->output->devices == AUDIO_DEVICE_OUT_BUS &&
-                    out_ctxt->output->devices == config->ext.device.type &&
+                if (((out_ctxt->output->devices == AUDIO_DEVICE_OUT_BUS &&
+                      out_ctxt->output->devices == config->ext.device.type) ||
+                     is_offload_usecase(out_ctxt->output->usecase)) &&
                     strcmp(out_ctxt->output->address,
-                        config->ext.device.address) == 0) ||
-                    (((out_ctxt->output->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) ||
-                    ((out_ctxt->output->flags & AUDIO_OUTPUT_FLAG_DIRECT) != 0))) {
+                        config->ext.device.address) == 0) {
 
                     lock_output_stream(out_ctxt->output);
                     /* cache gain per output stream */
