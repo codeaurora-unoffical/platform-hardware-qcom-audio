@@ -906,6 +906,11 @@ end:
     if(val == AUDIO_HAL_PLUGIN_MSG_CODEC_TUNNEL_CMD ||
         val == AUDIO_HAL_PLUGIN_MSG_CODEC_SET_PP_EQ) {
         kv_pairs = str_parms_to_str(parms);
+        if (kv_pairs == NULL)
+        {
+          ALOGE("[%s] received NULL pointer",__func__);
+          return -EINVAL;
+        }
         len = strlen(kv_pairs);
         value = (char*)calloc(len, sizeof(char));
         if (value == NULL) {
@@ -1411,6 +1416,11 @@ end:
 
     if(val == AUDIO_HAL_PLUGIN_MSG_CODEC_TUNNEL_GET_CMD) {
         kv_pairs = str_parms_to_str(query);
+        if(kv_pairs == NULL)
+        {
+          ALOGE("%s received NULL pointer",__func__);
+          return -EINVAL;
+        }
         len = strlen(kv_pairs);
         value = (char*)calloc(len, sizeof(char));
         if (value == NULL) {
