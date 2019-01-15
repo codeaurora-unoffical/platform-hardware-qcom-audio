@@ -45,8 +45,13 @@
 
 /*
  * The current HAL API version.
+ * version 1.0 has support for voice only in new stream based APIS
  */
+#ifdef QAHW_MODULE_API_VERSION_1_0
+#define QAHW_MODULE_API_VERSION_CURRENT QAHW_MODULE_API_VERSION_1_0
+#else
 #define QAHW_MODULE_API_VERSION_CURRENT QAHW_MODULE_API_VERSION_0_0
+#endif
 
 
 typedef uint64_t (*qahwi_out_write_v2_t)(audio_stream_out_t *out, const void* buffer,
@@ -1825,6 +1830,7 @@ int qahw_open_input_stream_l(qahw_module_handle_t *hw_module,
     /* dlsym qahwi_in_read_v2 if timestamp flag is used */
     if (!rc && ((flags & QAHW_INPUT_FLAG_TIMESTAMP) ||
                 (flags & QAHW_INPUT_FLAG_PASSTHROUGH))) {
+        const char *error;
 
         /* clear any existing errors */
         dlerror();
