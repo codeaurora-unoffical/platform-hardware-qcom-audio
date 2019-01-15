@@ -26,3 +26,7 @@ if QTI_AUDIO_SERVER_ENABLED
 AM_CPPFLAGS += -DQTI_AUDIO_SERVER_ENABLED
 libqahw_la_LDFLAGS +=  -lqtiaudioserver -lbinder
 endif
+if QAHW_V1
+AM_CPPFLAGS += -DQAHW_V1
+endif
+
