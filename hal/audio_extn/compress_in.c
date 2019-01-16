@@ -180,7 +180,7 @@ size_t audio_extn_cin_get_buffer_size(struct stream_in *in)
     return sz;
 }
 
-int audio_extn_cin_start_input_stream(struct stream_in *in)
+int audio_extn_cin_open_input_stream(struct stream_in *in)
 {
     int ret = -EINVAL;
     struct audio_device *adev = in->dev;
@@ -209,12 +209,23 @@ void audio_extn_cin_stop_input_stream(struct stream_in *in)
 
     ALOGV("%s: in %p, cin_data %p", __func__, in, cin_data);
     if (cin_data->compr) {
+        compress_stop(cin_data->compr);
+    }
+}
+
+
+void audio_extn_cin_close_input_stream(struct stream_in *in)
+{
+    cin_private_data_t *cin_data = (cin_private_data_t *) in->cin_extn;
+
+    ALOGV("%s: in %p, cin_data %p", __func__, in, cin_data);
+    if (cin_data->compr) {
         compress_close(cin_data->compr);
         cin_data->compr = NULL;
     }
 }
 
-void audio_extn_cin_close_input_stream(struct stream_in *in)
+void audio_extn_cin_free_input_stream_resources(struct stream_in *in)
 {
     cin_private_data_t *cin_data = (cin_private_data_t *) in->cin_extn;
 
@@ -333,7 +344,7 @@ int audio_extn_cin_configure_input_stream(struct stream_in *in)
     return ret;
 
 err_config:
-    audio_extn_cin_close_input_stream(in);
+    audio_extn_cin_free_input_stream_resources(in);
     return ret;
 }
 #endif /* COMPRESS_INPUT_ENABLED end */
