@@ -2622,6 +2622,8 @@ acdb_init_fail:
                    strdup("PRIM_MI2S_RX Format");
                my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].samplerate_mixer_ctl =
                    strdup("PRIM_MI2S_RX SampleRate");
+               my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].channels_mixer_ctl =
+                   strdup("PRIM_MI2S_RX Channels");
             } else {
                my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].bitwidth_mixer_ctl =
                    strdup("WSA_CDC_DMA_RX_0 Format");
@@ -6674,6 +6676,8 @@ static bool platform_check_codec_backend_cfg(struct audio_device* adev,
             ALOGD("%s:becf: afe: playback on codec device not supporting native playback set "
             "default Sample Rate(48k)", __func__);
         }
+        /* Reset channels for speaker as its fixed and independent of active streams */
+        channels = my_data->current_backend_cfg[backend_idx].channels;
     }
 
     if (backend_idx == USB_AUDIO_RX_BACKEND) {
