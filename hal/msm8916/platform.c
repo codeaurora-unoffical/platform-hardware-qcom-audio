@@ -65,6 +65,7 @@
 #define MIXER_XML_PATH_QRD_SKUT "/vendor/etc/mixer_paths_qrd_skut.xml"
 #define MIXER_XML_PATH_SKUM "/vendor/etc/mixer_paths_qrd_skum.xml"
 #define MIXER_XML_PATH_SKU1 "/vendor/etc/mixer_paths_qrd_sku1.xml"
+#define MIXER_XML_PATH_WTP "/vendor/etc/mixer_paths_wtp.xml"
 #define MIXER_XML_PATH_SKUN_CAJON "/vendor/etc/mixer_paths_qrd_skun_cajon.xml"
 #define MIXER_XML_PATH_SKU3 "/vendor/etc/mixer_paths_qrd_sku3.xml"
 #define MIXER_XML_PATH_AUXPCM "/vendor/etc/mixer_paths_auxpcm.xml"
@@ -1310,7 +1311,13 @@ static void query_platform(const char *snd_card_name,
         msm_device_to_be_id = msm_device_to_be_id_internal_codec;
         msm_be_id_array_len  =
             sizeof(msm_device_to_be_id_internal_codec) / sizeof(msm_device_to_be_id_internal_codec[0]);
-
+    } else if (!strncmp(snd_card_name, "msm8937_32go-wtp-snd-card",
+                sizeof("msm8937_32go-wtp-snd-card"))) {
+        strlcpy(mixer_xml_path, MIXER_XML_PATH_WTP,
+                sizeof(MIXER_XML_PATH_WTP));
+        msm_device_to_be_id = msm_device_to_be_id_internal_codec;
+        msm_be_id_array_len  =
+               sizeof(msm_device_to_be_id_internal_codec) / sizeof(msm_device_to_be_id_internal_codec[0]);
     } else if (!strncmp(snd_card_name, "msm8937-snd-card-mtp",
                  sizeof("msm8937-snd-card-mtp"))) {
         strlcpy(mixer_xml_path, MIXER_XML_PATH_MTP,
@@ -1568,6 +1575,7 @@ static void set_platform_defaults(struct platform_data * my_data)
     backend_tag_table[SND_DEVICE_OUT_VOICE_USB_HEADPHONES] = strdup("usb-headphones");
     backend_tag_table[SND_DEVICE_OUT_SPEAKER_AND_USB_HEADSET] =
         strdup("speaker-and-usb-headphones");
+    backend_tag_table[SND_DEVICE_OUT_SPEAKER] = strdup("speaker");
     backend_tag_table[SND_DEVICE_IN_USB_HEADSET_MIC] = strdup("usb-headset-mic");
     backend_tag_table[SND_DEVICE_IN_VOICE_USB_HEADSET_MIC] = strdup("usb-headset-mic");
     backend_tag_table[SND_DEVICE_IN_UNPROCESSED_USB_HEADSET_MIC] = strdup("usb-headset-mic");

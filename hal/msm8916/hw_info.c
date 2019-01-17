@@ -151,6 +151,9 @@ static void update_hardware_info_8x16(struct hardware_info *hw_info, const char 
         strlcpy(hw_info->name, "msm8953", sizeof(hw_info->name));
     } else if (!strcmp(snd_card_name, "msm8952-sku3-tasha-snd-card")) {
        strlcpy(hw_info->name, "msm8952", sizeof(hw_info->name));
+    } else if (!strcmp(snd_card_name, "msm8937_32go-wtp-snd-card")) {
+       strlcpy(hw_info->type, "wtp", sizeof(hw_info->type));
+       strlcpy(hw_info->name, "msm8937", sizeof(hw_info->name));
     } else if (!strcmp(snd_card_name, "msm8937-snd-card-mtp")) {
         strlcpy(hw_info->name, "msm8937", sizeof(hw_info->name));
     } else if (!strcmp(snd_card_name, "msm8937-tasha-snd-card")) {
