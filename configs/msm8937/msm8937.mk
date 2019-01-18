@@ -151,6 +151,10 @@ audio.offload.min.duration.secs=30
 PRODUCT_PROPERTY_OVERRIDES += \
 audio.offload.video=true
 
+#offload pausetime out duration to 3 secs to inline with other outputs
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.offload.pstimeout.secs=3
+
 #Enable audio track offload by default
 PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.offload.track.enable=true
