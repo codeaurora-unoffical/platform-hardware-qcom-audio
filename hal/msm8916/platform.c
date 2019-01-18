@@ -6350,9 +6350,9 @@ static bool platform_check_codec_backend_cfg(struct audio_device* adev,
     }
 
     /* Native playback is preferred for Headphone/HS device over 192Khz */
-    if (!voice_call_active && codec_device_supports_native_playback(usecase->devices)) {
+    if (!voice_call_active && codec_device_supports_native_playback(snd_device)) {
         if (audio_is_true_native_stream_active(adev)) {
-            if (check_hdset_combo_device(snd_device)) {
+            if (check_hdset_combo_device(usecase->devices)) {
                 /*
                  * In true native mode Tasha has a limitation that one port at 44.1 khz
                  * cannot drive both spkr and hdset, to simiplify the solution lets
