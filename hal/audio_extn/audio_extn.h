@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -70,8 +70,8 @@
 #endif
 
 #ifndef WMA_OFFLOAD_ENABLED
-#define AUDIO_FORMAT_WMA 0x12000000UL
-#define AUDIO_FORMAT_WMA_PRO 0x13000000UL
+#define AUDIO_FORMAT_WMA 0x15000000UL
+#define AUDIO_FORMAT_WMA_PRO 0x16000000UL
 #endif
 
 #ifndef ALAC_OFFLOAD_ENABLED
