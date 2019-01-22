@@ -260,7 +260,7 @@ void *start_input(void *thread_param)
   double time_elapsed = 0;
   ssize_t bytes_read = -1;
   char param[100] = "audio_stream_profile=";
-  char file_name[256] = "/data/rec";
+  char file_name[256] = "/data/audio/rec";
   int data_sz = 0, name_len = strlen(file_name);
   qahw_in_buffer_t in_buf;
   static int64_t timestamp = 1;
