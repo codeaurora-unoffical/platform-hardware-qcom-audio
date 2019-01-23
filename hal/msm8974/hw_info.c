@@ -679,6 +679,10 @@ static void update_hardware_info_bear(struct hardware_info *hw_info, const char 
         hw_info->num_snd_devices = ARRAY_SIZE(tavil_qrd_variant_devices);
         hw_info->is_stereo_spkr = false;
         strlcpy(hw_info->dev_extn, "-hdk", sizeof(hw_info->dev_extn));
+    } else if (!strncmp(snd_card_name, "trinket-qrd-snd-card",
+                 sizeof("trinket-qrd-snd-card"))) {
+        hw_info->is_stereo_spkr = false;
+        strlcpy(hw_info->name, "trinket", sizeof(hw_info->name));
     } else if (!strncmp(snd_card_name, "trinket-idp-snd-card",
                  sizeof("trinket-idp-snd-card"))) {
         hw_info->is_stereo_spkr = false;
