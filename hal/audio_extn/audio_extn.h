@@ -294,13 +294,9 @@ void audio_extn_usb_set_reconfig(bool is_required);
 #define audio_extn_a2dp_is_force_device_switch()         (0)
 #define audio_extn_a2dp_set_handoff_mode(is_on)          (0)
 #define audio_extn_a2dp_get_enc_sample_rate(sample_rate) (0)
-#define audio_extn_a2dp_get_dec_sample_rate(sample_rate) (0)
 #define audio_extn_a2dp_get_encoder_latency()            (0)
-#define audio_extn_a2dp_sink_is_ready()                  (0)
 #define audio_extn_a2dp_source_is_ready()                (0)
 #define audio_extn_a2dp_source_is_suspended()            (0)
-#define audio_extn_a2dp_start_capture()                  (0)
-#define audio_extn_a2dp_stop_capture()                   (0)
 #else
 void audio_extn_a2dp_init(void *adev);
 int audio_extn_a2dp_start_playback();
@@ -309,13 +305,25 @@ void audio_extn_a2dp_set_parameters(struct str_parms *parms);
 bool audio_extn_a2dp_is_force_device_switch();
 void audio_extn_a2dp_set_handoff_mode(bool is_on);
 void audio_extn_a2dp_get_enc_sample_rate(int *sample_rate);
-void audio_extn_a2dp_get_dec_sample_rate(int *sample_rate);
 uint32_t audio_extn_a2dp_get_encoder_latency();
-bool audio_extn_a2dp_sink_is_ready();
 bool audio_extn_a2dp_source_is_ready();
 bool audio_extn_a2dp_source_is_suspended();
+#endif
+
+#ifndef SPLIT_A2DP_SINK_ENABLED
+#define audio_extn_a2dp_sink_init(adev)                  (0)
+#define audio_extn_a2dp_sink_set_parameters(parms)       (0)
+#define audio_extn_a2dp_get_dec_sample_rate(sample_rate) (0)
+#define audio_extn_a2dp_sink_is_ready()                  (0)
+#define audio_extn_a2dp_start_capture()                  (0)
+#define audio_extn_a2dp_stop_capture()                   (0)
+#else
+void audio_extn_a2dp_sink_init(void *adev);
+void audio_extn_a2dp_get_dec_sample_rate(int *sample_rate);
+bool audio_extn_a2dp_sink_is_ready();
 int audio_extn_a2dp_start_capture();
 int audio_extn_a2dp_stop_capture();
+void audio_extn_a2dp_sink_set_parameters(struct str_parms *parms);
 #endif
 
 #ifndef SSR_ENABLED
