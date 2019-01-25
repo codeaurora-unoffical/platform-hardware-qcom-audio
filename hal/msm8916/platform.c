@@ -7949,15 +7949,19 @@ int platform_get_vi_feedback_snd_device(snd_device_t snd_device)
 
 int platform_get_ec_ref_loopback_snd_device(int channel_count)
 {
-    snd_device_t snd_device;
+    snd_device_t snd_device = SND_DEVICE_NONE;
 
-    if (channel_count == 1)
-        snd_device = SND_DEVICE_IN_EC_REF_LOOPBACK_MONO;
-    else if (channel_count == 2)
-        snd_device = SND_DEVICE_IN_EC_REF_LOOPBACK_STEREO;
-    else
-        snd_device = SND_DEVICE_NONE;
-
+    switch(channel_count) {
+        case 1:
+            snd_device = SND_DEVICE_IN_EC_REF_LOOPBACK_MONO;
+            break;
+        case 2:
+            snd_device = SND_DEVICE_IN_EC_REF_LOOPBACK_STEREO;
+            break;
+        default:
+            snd_device = SND_DEVICE_NONE;
+            break;
+    }
     return snd_device;
 }
 
