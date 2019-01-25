@@ -66,6 +66,12 @@ int pthread_cancel(pthread_t thread);
 //START OF TRUMPET TEST
 #ifdef TRUMPET_CERTIFICATION
 #include <dlfcn.h>
+#ifndef QAHW_PCM_CHANNEL_SL
+#define QAHW_PCM_CHANNEL_SL 18
+#endif /*QAHW_PCM_CHANNEL_SL */
+#ifndef QAHW_PCM_CHANNEL_SR
+#define QAHW_PCM_CHANNEL_SR 19
+#endif /*QAHW_PCM_CHANNEL_SR */
 #endif
 //END OF TRUMPET TEST
 
@@ -714,9 +720,9 @@ void *start_stream_playback (void* stream_data)
         fprintf(log_file, "stream %d: set callback for offload stream for playback usecase\n", params->stream_index);
         qahw_out_set_callback(params->out_handle, async_callback, params);
     }
-
+#ifdef TRUMPET_CERTIFICATION
     /* Mapping for 10 channels*/
-    struct qahw_out_channel_map_param chmap_param ={0};
+    struct qahw_out_channel_map_param chmap_param;
     chmap_param.channels = params->channels;
     if (chmap_param.channels == 10) {
         chmap_param.channel_map[0] = QAHW_PCM_CHANNEL_FL ;
@@ -725,13 +731,13 @@ void *start_stream_playback (void* stream_data)
         chmap_param.channel_map[3] = QAHW_PCM_CHANNEL_LFE ;
         chmap_param.channel_map[4] = QAHW_PCM_CHANNEL_LB ;
         chmap_param.channel_map[5] = QAHW_PCM_CHANNEL_RB;
-        chmap_param.channel_map[6] = 18 ;
-        chmap_param.channel_map[7] = 19 ;
+        chmap_param.channel_map[6] = QAHW_PCM_CHANNEL_SL;
+        chmap_param.channel_map[7] = QAHW_PCM_CHANNEL_SR;
         chmap_param.channel_map[8] = QAHW_PCM_CHANNEL_FLC ;
         chmap_param.channel_map[9] = QAHW_PCM_CHANNEL_FRC ;
         qahw_out_set_param_data(params->out_handle, QAHW_PARAM_OUT_CHANNEL_MAP, (qahw_param_payload *) &chmap_param);
     }
-
+#endif
     // create effect thread, use thread_data to transfer command
     if (params->ethread_func &&
             (params->flags & (AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD|AUDIO_OUTPUT_FLAG_DIRECT))) {
