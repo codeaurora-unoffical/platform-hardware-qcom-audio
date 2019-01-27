@@ -407,6 +407,7 @@ struct stream_out {
 #ifndef LINUX_ENABLED
     error_log_t *error_log;
 #endif
+    bool pspd_coeff_sent;
 };
 
 struct stream_in {
@@ -618,7 +619,7 @@ struct audio_device {
     void *ext_hw_plugin;
     struct listnode active_inputs_list;
     struct listnode active_outputs_list;
-
+    bool use_old_pspd_mix_ctrl;
     /* logging */
     snd_device_t last_logged_snd_device[AUDIO_USECASE_MAX][2]; /* [out, in] */
 
