@@ -498,6 +498,7 @@ struct audio_device {
     bool allow_afe_proxy_usage;
     bool is_charging; // from battery listener
     bool mic_break_enabled;
+    unsigned int num_va_sessions;
 
     int snd_card;
     card_status_t card_status;
