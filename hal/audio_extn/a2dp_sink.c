@@ -58,7 +58,6 @@
 #define MEDIA_FMT_CELT                                     0x00013221
 #define MEDIA_FMT_LDAC                                     0x00013224
 #define MEDIA_FMT_MP3                                      0x00010BE9
-#define MEDIA_FMT_APTX_ADAPTIVE                            0x00013204
 #define MEDIA_FMT_AAC_AOT_LC                               2
 #define MEDIA_FMT_AAC_AOT_SBR                              5
 #define MEDIA_FMT_AAC_AOT_PS                               29
@@ -68,6 +67,11 @@
 #define MEDIA_FMT_SBC_CHANNEL_MODE_JOINT_STEREO            9
 #define MEDIA_FMT_SBC_ALLOCATION_METHOD_LOUDNESS           0
 #define MEDIA_FMT_SBC_ALLOCATION_METHOD_SNR                1
+#define MEDIA_FMT_APTX_AD_CHANNELS_MONO                    1
+#define MEDIA_FMT_APTX_AD_CHANNELS_TWS_STEREO              4
+#define MEDIA_FMT_APTX_AD_CHANNELS_JOINT_STEREO            0
+#define MEDIA_FMT_APTX_AD_CHANNELS_TWS_MONO                2
+
 #define MIXER_SINK_DEC_CONFIG_BLOCK       "SLIM_9_TX Decoder Config"
 #define MIXER_DEC_BIT_FORMAT       "AFE Output Bit Format"
 #define MIXER_SINK_SAMPLE_RATE     "BT_TX SampleRate"
@@ -75,6 +79,7 @@
 #define DEFAULT_SINK_LATENCY_SBC       140
 #define DEFAULT_SINK_LATENCY_APTX      160
 #define DEFAULT_SINK_LATENCY_APTX_HD   180
+#define DEFAULT_SINK_LATENCY_APTX_AD   180
 #define DEFAULT_SINK_LATENCY_AAC       180
 //To Do: Fine Tune Default CELT/LDAC Latency.
 #define DEFAULT_SINK_LATENCY_CELT      180
@@ -97,6 +102,11 @@ typedef enum {
     CODEC_TYPE_CELT = 603979776u, // 0x24000000UL
     CODEC_TYPE_APTX_AD = 620756992u, // 0x25000000UL
 } codec_t;
+
+typedef enum {
+    APTX_AD_48 = 0x0,  // 48 KHz default
+    APTX_AD_44_1 = 0x1, // 44.1kHz
+} enc_aptx_ad_s_rate;
 
 typedef int (*audio_sink_start_t)(void);
 typedef int (*audio_sink_stop_t)(void);
@@ -142,6 +152,11 @@ struct audio_sbc_decoder_config_t {
                                   44.1k, 48k, 64k, 88.2k, 96k */
 } __attribute__ ((packed));
 
+typedef struct audio_aptx_ad_decoder_config_t audio_aptx_ad_decoder_config_t;
+struct audio_aptx_ad_decoder_config_t {
+    uint32_t      sampling_rate; /* 0x0(48k), 0x1(44.1k) */
+} __attribute__ ((packed));
+
 /* AAC decoder configuration structure. */
 typedef struct aac_dec_cfg_t aac_dec_cfg_t;
 struct aac_dec_cfg_t {
@@ -154,6 +169,13 @@ typedef struct sbc_dec_cfg_t sbc_dec_cfg_t;
 struct sbc_dec_cfg_t {
     uint32_t dec_format;
     audio_sbc_decoder_config_t data;
+} __attribute__ ((packed));
+
+/* Aptx Adavptive decoder configuration structure. */
+typedef struct aptx_ad_dec_cfg_t aptx_ad_dec_cfg_t;
+struct aptx_ad_dec_cfg_t {
+    uint32_t dec_format;
+    audio_aptx_ad_decoder_config_t data;
 } __attribute__ ((packed));
 
 /* Information about BT AAC decoder configuration
@@ -177,7 +199,12 @@ typedef struct {
     uint16_t      channels; /* Mono, Stereo */
     uint32_t      sampling_rate; /* 8k, 11.025k, 12k, 16k, 22.05k, 24k, 32k,
                                   44.1k, 48k, 64k, 88.2k, 96k */
-}audio_sbc_dec_config_t;
+} audio_sbc_dec_config_t;
+
+typedef struct {
+    uint32_t sampling_rate; /* 0x0(48k), 0x1(44.1k) */
+    uint8_t channel_mode; /* Mono, Stereo */
+} audio_aptx_ad_dec_config_t;
 
 /*********** END of DSP configurable structures ********************/
 
@@ -234,7 +261,8 @@ static bool a2dp_set_backend_cfg()
     //For SBC and AAC decoder open slimbus port at
     //96Khz for 48Khz input and 88.2Khz for 44.1Khz input.
     if (((a2dp.bt_decoder_format == CODEC_TYPE_SBC) ||
-         (a2dp.bt_decoder_format == AUDIO_FORMAT_AAC)) &&
+         (a2dp.bt_decoder_format == CODEC_TYPE_AAC) ||
+         (a2dp.bt_decoder_format == CODEC_TYPE_APTX_AD)) &&
         (sampling_rate == 48000 || sampling_rate == 44100 )) {
         sampling_rate = sampling_rate *2;
     }
@@ -450,25 +478,82 @@ fail:
     return is_configured;
 }
 
+static bool configure_aptx_ad_dec_format(audio_aptx_ad_dec_config_t *aptx_ad_bt_cfg)
+{
+    struct mixer_ctl *ctl_dec_data = NULL, *ctrl_bit_format = NULL;
+    struct aptx_ad_dec_cfg_t aptx_ad_dsp_cfg;
+    bool is_configured = false;
+    int ret = 0;
+
+    if (aptx_ad_bt_cfg == NULL)
+        goto fail;
+
+    ctl_dec_data = mixer_get_ctl_by_name(a2dp.adev->mixer, MIXER_SINK_DEC_CONFIG_BLOCK);
+    if (!ctl_dec_data) {
+        ALOGE(" ERROR  a2dp decoder CONFIG data mixer control not identified");
+        is_configured = false;
+        goto fail;
+    }
+
+    memset(&aptx_ad_dsp_cfg, 0x0, sizeof(struct aptx_ad_dec_cfg_t));
+    aptx_ad_dsp_cfg.dec_format = MEDIA_FMT_APTX_AD;
+    aptx_ad_dsp_cfg.data.sampling_rate = aptx_ad_bt_cfg->sampling_rate;
+    ret = mixer_ctl_set_array(ctl_dec_data, (void *)&aptx_ad_dsp_cfg,
+                              sizeof(struct aptx_ad_dec_cfg_t));
+    if (ret != 0) {
+        ALOGE("%s: failed to set Aptx ad decoder config", __func__);
+        is_configured = false;
+        goto fail;
+    }
+
+    ctrl_bit_format = mixer_get_ctl_by_name(a2dp.adev->mixer,
+                                            MIXER_DEC_BIT_FORMAT);
+    if (!ctrl_bit_format) {
+        ALOGE(" ERROR Dec bit format mixer control not identified");
+        is_configured = false;
+        goto fail;
+    }
+
+    ret = mixer_ctl_set_enum_by_string(ctrl_bit_format, "S24_LE");
+    if (ret != 0) {
+        ALOGE("%s: Failed to set bit format to decoder", __func__);
+        is_configured = false;
+        goto fail;
+    }
+
+    is_configured = true;
+    a2dp.bt_decoder_format = CODEC_TYPE_APTX_AD;
+    switch(aptx_ad_bt_cfg->sampling_rate) {
+        case APTX_AD_44_1:
+            a2dp.dec_sampling_rate = 44100;
+            break;
+        case APTX_AD_48:
+        default:
+            a2dp.dec_sampling_rate = 48000;
+            break;
+    }
+    if (aptx_ad_bt_cfg->channel_mode == MEDIA_FMT_APTX_AD_CHANNELS_MONO)
+        a2dp.dec_channels = 1;
+    else
+        a2dp.dec_channels = 2;
+
+    ALOGV("Successfully updated Aptx ad dec format");
+fail:
+    return is_configured;
+}
+
 /* API to configure AFE decoder in DSP */
 static bool configure_a2dp_sink_decoder_format()
 {
     void *codec_info = NULL;
     codec_t codec_type = CODEC_TYPE_INVALID;
     bool is_configured = false;
-    struct mixer_ctl *ctl_dec_data = NULL;
 
     if (!a2dp.audio_get_dec_config) {
         ALOGE(" a2dp handle is not identified, ignoring a2dp decoder config");
         return false;
     }
 
-    ctl_dec_data = mixer_get_ctl_by_name(a2dp.adev->mixer, MIXER_SINK_DEC_CONFIG_BLOCK);
-    if (!ctl_dec_data) {
-        ALOGE(" ERROR  a2dp decoder CONFIG data mixer control not identified");
-        is_configured = false;
-        return false;
-    }
     codec_info = a2dp.audio_get_dec_config(&codec_type);
     switch(codec_type) {
         case CODEC_TYPE_SBC:
@@ -479,6 +564,11 @@ static bool configure_a2dp_sink_decoder_format()
             ALOGD(" AAC decoder supported BT device");
             is_configured =
               configure_aac_dec_format((audio_aac_dec_config_t *)codec_info);
+            break;
+        case CODEC_TYPE_APTX_AD:
+            ALOGD(" Aptx Adaptive decoder supported BT device");
+            is_configured =
+              configure_aptx_ad_dec_format((audio_aptx_ad_dec_config_t *)codec_info);
             break;
         default:
             ALOGD(" Received Unsupported decoder format");
@@ -498,6 +588,9 @@ uint64_t audio_extn_a2dp_get_decoder_latency()
             break;
         case CODEC_TYPE_AAC:
             latency = DEFAULT_SINK_LATENCY_AAC;
+            break;
+        case CODEC_TYPE_APTX_AD:
+            latency = DEFAULT_SINK_LATENCY_APTX_AD;
             break;
         default:
             latency = 200;
