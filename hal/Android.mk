@@ -321,11 +321,16 @@ LOCAL_SHARED_LIBRARIES := \
 	liblog \
 	libcutils \
 	libtinyalsa \
-	libtinycompress_vendor \
 	libaudioroute \
 	libdl \
 	libaudioutils \
 	libexpat
+
+ifneq ($(strip $(TARGET_USES_AOSP_FOR_AUDIO)),true)
+    LOCAL_SHARED_LIBRARIES += libtinycompress_vendor
+else
+    LOCAL_SHARED_LIBRARIES += libtinycompress
+endif
 
 LOCAL_C_INCLUDES += \
 	external/tinyalsa/include \
@@ -422,6 +427,16 @@ ifeq ($(strip $(AUDIO_FEATURE_ENABLED_BATTERY_LISTENER)), true)
                               libhidltransport libbase libhidlbase libhwbinder \
                               libutils android.hardware.power@1.2
     LOCAL_STATIC_LIBRARIES := libhealthhalutils
+endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_KEEP_ALIVE_ARM_FFV)), true)
+    LOCAL_CFLAGS += -DRUN_KEEP_ALIVE_IN_ARM_FFV
+endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_FFV)), true)
+    LOCAL_CFLAGS += -DFFV_ENABLED
+    LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio-noship/include/ffv
+    LOCAL_SRC_FILES += audio_extn/ffv.c
 endif
 
 LOCAL_CFLAGS += -Wall -Werror
