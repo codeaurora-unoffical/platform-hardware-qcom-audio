@@ -3842,6 +3842,29 @@ static int get_alive_usb_card(struct str_parms* parms) {
     return -ENODEV;
 }
 
+static int out_set_callback(struct audio_stream_out *stream,
+            stream_callback_t callback, void *cookie)
+{
+    struct stream_out *out = (struct stream_out *)stream;
+    int ret;
+
+    ALOGV("%s", __func__);
+    lock_output_stream(out);
+    out->client_callback = callback;
+    out->client_cookie = cookie;
+    if (out->adsp_hdlr_stream_handle) {
+        ret = audio_extn_adsp_hdlr_stream_set_callback(
+                                out->adsp_hdlr_stream_handle,
+                                callback,
+                                cookie);
+        if (ret)
+            ALOGE("%s:adsp hdlr callback registration failed %d",
+                   __func__, ret);
+    }
+    pthread_mutex_unlock(&out->lock);
+    return 0;
+}
+
 static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
 {
     struct stream_out *out = (struct stream_out *)stream;
@@ -4024,9 +4047,13 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
     routing_fail:
 
     if (out == adev->primary_output) {
+        lock_output_stream(out);
         pthread_mutex_lock(&adev->lock);
         audio_extn_set_parameters(adev, parms);
+        if (voice_is_call_state_active(adev))
+            voice_extn_out_set_parameters(out, parms);
         pthread_mutex_unlock(&adev->lock);
+        pthread_mutex_unlock(&out->lock);
     }
     if (is_offload_usecase(out->usecase)) {
         lock_output_stream(out);
@@ -5047,29 +5074,6 @@ static int out_get_presentation_position(const struct audio_stream_out *stream,
     return ret;
 }
 
-static int out_set_callback(struct audio_stream_out *stream,
-            stream_callback_t callback, void *cookie)
-{
-    struct stream_out *out = (struct stream_out *)stream;
-    int ret;
-
-    ALOGV("%s", __func__);
-    lock_output_stream(out);
-    out->client_callback = callback;
-    out->client_cookie = cookie;
-    if (out->adsp_hdlr_stream_handle) {
-        ret = audio_extn_adsp_hdlr_stream_set_callback(
-                                out->adsp_hdlr_stream_handle,
-                                callback,
-                                cookie);
-        if (ret)
-            ALOGW("%s:adsp hdlr callback registration failed %d",
-                   __func__, ret);
-    }
-    pthread_mutex_unlock(&out->lock);
-    return 0;
-}
-
 static int out_pause(struct audio_stream_out* stream)
 {
     struct stream_out *out = (struct stream_out *)stream;
@@ -6058,6 +6062,7 @@ int adev_open_output_stream(struct audio_hw_device *dev,
     out->hal_output_suspend_supported = 0;
     out->dynamic_pm_qos_config_supported = 0;
     out->set_dual_mono = false;
+    out->rx_dtmf_tone_gain = 0;
 
     if ((flags & AUDIO_OUTPUT_FLAG_BD) &&
         (property_get_bool("vendor.audio.matrix.limiter.enable", false)))

@@ -363,6 +363,7 @@ struct stream_out {
     mix_matrix_params_t pan_scale_params;
     mix_matrix_params_t downmix_params;
     bool set_dual_mono;
+    int rx_dtmf_tone_gain;
 };
 
 struct stream_in {

@@ -1302,7 +1302,11 @@ uint32_t get_alsa_fragment_size(uint32_t bytes_per_sample,
                                   uint32_t noOfChannels)
 {
     uint32_t fragment_size = 0;
+    char value[PROPERTY_VALUE_MAX] = {0};
     uint32_t pcm_offload_time = PCM_OFFLOAD_BUFFER_DURATION;
+
+    if (property_get("vendor.audio.pcm.offload.buffer.duration.ms", value, NULL))
+        pcm_offload_time = atoi(value);
 
     fragment_size = (pcm_offload_time
                      * sample_rate
