@@ -1649,6 +1649,9 @@ int audio_extn_hw_loopback_set_param_data(audio_patch_handle_t handle,
         case AUDIO_EXTN_PARAM_LOOPBACK_RENDER_WINDOW:
             ret = audio_extn_hw_loopback_set_render_window(handle, payload);
             break;
+        case AUDIO_EXTN_PARAM_LOOPBACK_SET_CALLBACK:
+            ret = audio_extn_hw_loopback_set_callback(handle, payload);
+            break;
         default:
             ALOGE("%s: unsupported param id %d", __func__, param_id);
             break;

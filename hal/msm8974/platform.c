@@ -153,6 +153,7 @@
  */
 #define AUDIO_PARAMETER_KEY_DP_FOR_VOICE_USECASE "dp_for_voice"
 #define AUDIO_PARAMETER_KEY_SPKR_DEVICE_CHMAP "spkr_device_chmap"
+#define AUDIO_PARAMETER_KEY_CAPTURE_DEVICE_CHMAP "capture_device_chmap"
 
 #define EVENT_EXTERNAL_SPK_1 "qc_ext_spk_1"
 #define EVENT_EXTERNAL_SPK_2 "qc_ext_spk_2"
@@ -286,6 +287,7 @@ struct platform_data {
     struct acdb_init_data_v4 acdb_init_data;
     bool use_generic_handset;
     struct  spkr_device_chmap *spkr_ch_map;
+    struct  spkr_device_chmap *capture_ch_map;
     bool use_sprk_default_sample_rate;
     struct listnode custom_mtmx_params_list;
 };
@@ -2113,6 +2115,7 @@ void *platform_init(struct audio_device *adev)
     my_data->mono_speaker = SPKR_1;
     my_data->speaker_lr_swap = false;
     my_data->spkr_ch_map = NULL;
+    my_data->capture_ch_map = NULL;
     my_data->use_sprk_default_sample_rate = true;
     be_dai_name_table = NULL;
 
@@ -2756,6 +2759,11 @@ void platform_deinit(void *platform)
     if (my_data->spkr_ch_map) {
         free(my_data->spkr_ch_map);
         my_data->spkr_ch_map = NULL;
+    }
+
+    if (my_data->capture_ch_map) {
+        free(my_data->capture_ch_map);
+        my_data->capture_ch_map = NULL;
     }
 
     int32_t idx;
@@ -5185,11 +5193,59 @@ static void platform_spkr_device_set_params(struct platform_data *platform,
                     str_parms_del(parms, AUDIO_PARAMETER_KEY_SPKR_DEVICE_CHMAP);
                     return;
                 } else {
-                    platform->spkr_ch_map->chmap[i] = strtoul(opts, NULL, 16);
+                    platform->spkr_ch_map->chmap[i] = strtoul(opts, NULL, 0);
                 }
             }
         }
         str_parms_del(parms, AUDIO_PARAMETER_KEY_SPKR_DEVICE_CHMAP);
+    }
+}
+
+static void platform_capture_device_set_params(struct platform_data *platform,
+                                               struct str_parms *parms,
+                                               char *value, int len)
+{
+    int err = 0, i = 0, num_ch = 0;
+    char *test_r = NULL;
+    char *opts = NULL;
+    char *ch_count = NULL;
+
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_CAPTURE_DEVICE_CHMAP,
+                            value, len);
+    if (err >= 0) {
+        platform->capture_ch_map = calloc(1, sizeof(struct spkr_device_chmap));
+        if (!platform->capture_ch_map) {
+            ALOGE("%s: failed to allocate mem for adm channel map\n", __func__);
+            str_parms_del(parms, AUDIO_PARAMETER_KEY_CAPTURE_DEVICE_CHMAP);
+            return;
+        }
+
+        ch_count = strtok_r(value, ", ", &test_r);
+        if (ch_count == NULL) {
+            ALOGE("%s: incorrect ch_map\n", __func__);
+            free(platform->capture_ch_map);
+            platform->capture_ch_map = NULL;
+            str_parms_del(parms, AUDIO_PARAMETER_KEY_CAPTURE_DEVICE_CHMAP);
+            return;
+        }
+
+        num_ch = atoi(ch_count);
+        if ((num_ch > 0) && (num_ch <= AUDIO_CHANNEL_COUNT_MAX)) {
+            platform->capture_ch_map->num_ch = num_ch;
+            for (i = 0; i < num_ch; i++) {
+                opts = strtok_r(NULL, ", ", &test_r);
+                if (opts == NULL) {
+                    ALOGE("%s: incorrect ch_map\n", __func__);
+                    free(platform->capture_ch_map);
+                    platform->capture_ch_map = NULL;
+                    str_parms_del(parms, AUDIO_PARAMETER_KEY_CAPTURE_DEVICE_CHMAP);
+                    return;
+                } else {
+                    platform->capture_ch_map->chmap[i] = strtoul(opts, NULL, 0);
+                }
+            }
+        }
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_CAPTURE_DEVICE_CHMAP);
     }
 }
 
@@ -5422,6 +5478,7 @@ int platform_set_parameters(void *platform, struct str_parms *parms)
     perf_lock_set_params(platform, parms, value, len);
     true_32_bit_set_params(parms, value, len);
     platform_spkr_device_set_params(platform, parms, value, len);
+    platform_capture_device_set_params(platform, parms, value, len);
 done:
     ALOGV("%s: exit with code(%d)", __func__, ret);
     if(kv_pairs != NULL)
@@ -6759,6 +6816,7 @@ bool platform_check_and_set_capture_codec_backend_cfg(struct audio_device* adev,
 {
     int backend_idx = platform_get_backend_index(snd_device);
     int ret = 0;
+    struct platform_data *my_data = (struct platform_data *)adev->platform;
     struct audio_backend_cfg backend_cfg;
 
     backend_cfg.passthrough_enabled = false;
@@ -6780,6 +6838,11 @@ bool platform_check_and_set_capture_codec_backend_cfg(struct audio_device* adev,
         backend_cfg.format = AUDIO_FORMAT_PCM_16_BIT;
         backend_cfg.channels = 1;
     }
+
+    if ((my_data->capture_ch_map != NULL) &&
+        (platform_get_backend_index(snd_device) == HDMI_TX_BACKEND))
+        platform_set_channel_map(my_data, my_data->capture_ch_map->num_ch,
+                                 my_data->capture_ch_map->chmap, -2);
 
     ALOGI("%s:txbecf: afe: bitwidth %d, samplerate %d, channel %d format %d"
           ", backend_idx %d usecase = %d device (%s)", __func__,
@@ -7363,10 +7426,13 @@ int platform_set_channel_map(void *platform, int ch_count, char *ch_map, int snd
 
     /*
      * If snd_id is greater than 0, stream channel mapping
-     * If snd_id is below 0, typically -1, device channel mapping
+     * If snd_id is -2, capture device channel mapping
+     * If snd_id is other value below 0, typically -1, playback device channel mapping
      */
     if (snd_id >= 0) {
         snprintf(mixer_ctl_name, sizeof(mixer_ctl_name), "Playback Channel Map%d", snd_id);
+    } else if (snd_id == -2) {
+        strlcpy(mixer_ctl_name, "Capture Device Channel Map", sizeof(mixer_ctl_name));
     } else {
         strlcpy(mixer_ctl_name, "Playback Device Channel Map", sizeof(mixer_ctl_name));
     }
