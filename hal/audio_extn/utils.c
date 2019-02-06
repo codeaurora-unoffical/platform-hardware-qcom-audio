@@ -2634,6 +2634,15 @@ struct audio_license_params *license_params
     return platform_get_license_by_product(adev->platform, (const char*)license_params->product, &license_params->key, license_params->license);
 }
 
+int audio_extn_utils_get_perf_mode_flag(void)
+{
+#ifdef COMPRESSED_PERF_MODE_FLAG
+    return COMPRESSED_PERF_MODE_FLAG;
+#else
+    return 0;
+#endif
+}
+
 size_t audio_extn_utils_get_input_buffer_size(uint32_t sample_rate,
                                             audio_format_t format,
                                             int channel_count,
