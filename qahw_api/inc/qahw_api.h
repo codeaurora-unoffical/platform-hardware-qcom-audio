@@ -459,6 +459,13 @@ int qahw_create_audio_patch(qahw_module_handle_t *hw_module,
 /* Release an audio patch */
 int qahw_release_audio_patch(qahw_module_handle_t *hw_module,
                         audio_patch_handle_t handle);
+
+/* API to set loopback stream specific config parameters */
+int qahw_loopback_set_param_data(qahw_module_handle_t *hw_module,
+                                 audio_patch_handle_t handle,
+                                 qahw_loopback_param_id param_id,
+                                 qahw_loopback_param_payload *payload);
+
 /* Fills the list of supported attributes for a given audio port.
  * As input, "port" contains the information (type, role, address etc...)
  * needed by the HAL to identify the port.

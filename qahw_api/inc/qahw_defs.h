@@ -367,6 +367,15 @@ typedef struct qahw_mix_matrix_params {
     float mixer_coeffs[AUDIO_CHANNEL_COUNT_MAX][AUDIO_CHANNEL_COUNT_MAX];
 } qahw_mix_matrix_params_t;
 
+
+#define QAHW_LICENCE_STR_MAX_LENGTH (64)
+#define QAHW_PRODUCT_STR_MAX_LENGTH (64)
+typedef struct qahw_license_params {
+    char product[QAHW_PRODUCT_STR_MAX_LENGTH + 1];
+    int key;
+    char license[QAHW_LICENCE_STR_MAX_LENGTH + 1];
+} qahw_license_params_t;
+
 typedef struct qahw_dtmf_gen_params {
    bool enable;
    uint16_t low_freq;
@@ -416,6 +425,7 @@ typedef union {
     struct qahw_out_channel_map_param channel_map_params;
     struct qahw_device_cfg_param device_cfg_params;
     struct qahw_mix_matrix_params mix_matrix_params;
+    struct qahw_license_params license_params;
     struct qahw_dtmf_gen_params dtmf_gen_params;
     struct qahw_tty_params tty_mode_params;
     struct qahw_hpcm_params hpcm_params;
@@ -437,10 +447,19 @@ typedef enum {
     QAHW_PARAM_DEVICE_CONFIG,      /* PARAM to set device config */
     QAHW_PARAM_OUT_MIX_MATRIX_PARAMS,
     QAHW_PARAM_CH_MIX_MATRIX_PARAMS,
+    QAHW_PARAM_LICENSE_PARAMS,
     QAHW_PARAM_DTMF_GEN,
     QAHW_PARAM_TTY_MODE,
     QAHW_PARAM_HPCM,
 } qahw_param_id;
+
+typedef union {
+    struct qahw_out_render_window_param render_window_params;
+} qahw_loopback_param_payload;
+
+typedef enum {
+    QAHW_PARAM_LOOPBACK_RENDER_WINDOW /* PARAM to set render window */
+} qahw_loopback_param_id;
 
 /** stream direction enumeration */
 typedef enum {

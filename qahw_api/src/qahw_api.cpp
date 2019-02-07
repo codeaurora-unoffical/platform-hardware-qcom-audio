@@ -37,12 +37,18 @@
 #include <stdlib.h>
 #include <cutils/list.h>
 #include <assert.h>
+#include <string.h>
 
 #include <hardware/audio.h>
 #include <cutils/properties.h>
 #include "qahw_api.h"
 #include "qahw.h"
 #include <errno.h>
+
+#ifndef ANDROID
+#define strlcpy g_strlcpy
+#define strlcat g_strlcat
+#endif
 
 #if QAHW_V1
 #define QAHW_DEV_ROUTE_LENGTH 15
@@ -67,6 +73,7 @@ typedef struct {
     struct qahw_volume_data vol;
     struct qahw_mute_data out_mute;
     struct qahw_mute_data in_mute;
+    char sess_id_call_state[QAHW_KV_PAIR_LENGTH];
 } qahw_api_stream_t;
 
 /* Array to store sound devices */
@@ -997,6 +1004,15 @@ int qahw_release_audio_patch(qahw_module_handle_t *hw_module,
     }
 }
 
+int qahw_loopback_set_param_data(qahw_module_handle_t *hw_module __unused,
+                                 audio_patch_handle_t handle __unused,
+                                 qahw_loopback_param_id param_id __unused,
+                                 qahw_loopback_param_payload *payload __unused)
+{
+    ALOGD("%d:%s", __LINE__, __func__);
+    return -ENOSYS;
+}
+
 int qahw_get_audio_port(qahw_module_handle_t *hw_module,
                       struct audio_port *port)
 {
@@ -1774,6 +1790,15 @@ int qahw_release_audio_patch(qahw_module_handle_t *hw_module,
     return qahw_release_audio_patch_l(hw_module, handle);
 }
 
+int qahw_loopback_set_param_data(qahw_module_handle_t *hw_module,
+                                 audio_patch_handle_t handle,
+                                 qahw_loopback_param_id param_id,
+                                 qahw_loopback_param_payload *payload)
+{
+    ALOGV("%d:%s\n", __LINE__, __func__);
+    return qahw_loopback_set_param_data_l(hw_module, handle, param_id, payload);
+}
+
 int qahw_get_audio_port(qahw_module_handle_t *hw_module,
                       struct audio_port *port)
 {
@@ -2081,14 +2106,11 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
     /*set the stream type as the handle add to list*/
     *stream_handle = (qahw_stream_handle_t *)stream;
 
-    /*if voice call set vsid and call state/mode*/
+    /*if voice call get vsid and call state/mode cache it and use during stream start*/
     if (attr.type == QAHW_VOICE_CALL) {
         session_id = qahw_get_session_id(attr.attr.voice.vsid);
-
-        rc = qahw_set_parameters(hw_module, session_id);
-        if (rc) {
-            ALOGE("%s: setting vsid failed %d \n", __func__, rc);
-        }
+        strlcpy(stream->sess_id_call_state, session_id, QAHW_KV_PAIR_LENGTH);
+        ALOGV("%s: sess_id_call_state %s\n", __func__, stream->sess_id_call_state);
     }
 
     if(no_of_modifiers){
@@ -2138,17 +2160,26 @@ int qahw_stream_start(qahw_stream_handle_t *stream_handle) {
     int rc = -EINVAL;
     qahw_audio_stream_type type;
     qahw_api_stream_t *stream = (qahw_api_stream_t *)stream_handle;
+    audio_devices_t devices[MAX_NUM_DEVICES];
 
     if (!stream) {
         ALOGE("%d:%s invalid stream handle", __LINE__, __func__);
         return rc;
     }
+
     /*set call state and call mode for voice */
     if (stream->type == QAHW_VOICE_CALL) {
+        rc = qahw_set_parameters(stream->hw_module, stream->sess_id_call_state);
+        if (rc) {
+            ALOGE("%s: setting vsid/call state failed %d \n", __func__, rc);
+            return rc;
+        }
         rc = qahw_set_mode(stream->hw_module, AUDIO_MODE_IN_CALL);
     }
 
-    qahw_stream_set_device(stream, stream->num_of_devices, stream->devices);
+    memset(&devices[0], 0, sizeof(devices));
+    memcpy(&devices[0], &stream->devices[0], stream->num_of_devices);
+    qahw_stream_set_device(stream, stream->num_of_devices, &devices[0]);
     return rc;
 }
 
@@ -2174,7 +2205,7 @@ int qahw_stream_set_device(qahw_stream_handle_t *stream_handle,
     qahw_api_stream_t *stream = (qahw_api_stream_t *)stream_handle;
     bool is_voice = false;
 
-    strncpy(device_route, "routing=", QAHW_MAX_INT_STRING);
+    strlcpy(device_route, "routing=", QAHW_MAX_INT_STRING);
 
     if (stream && num_of_devices && devices) {
         if (stream->type == QAHW_VOICE_CALL)
@@ -2188,7 +2219,7 @@ int qahw_stream_set_device(qahw_stream_handle_t *stream_handle,
             }
 
             snprintf(dev_s, QAHW_MAX_INT_STRING, "%d", devices[0]);
-            strncat(device_route, dev_s, QAHW_MAX_INT_STRING);
+            strlcat(device_route, dev_s, QAHW_MAX_INT_STRING);
             rc = qahw_out_set_parameters(stream->out_stream,
                                          device_route);
             break;
@@ -2199,7 +2230,7 @@ int qahw_stream_set_device(qahw_stream_handle_t *stream_handle,
             }
 
             snprintf(dev_s, QAHW_MAX_INT_STRING, "%d", devices[0]);
-            strncat(device_route, dev_s, QAHW_MAX_INT_STRING);
+            strlcat(device_route, dev_s, QAHW_MAX_INT_STRING);
             rc = qahw_in_set_parameters(stream->in_stream,
                                         device_route);
             break;
@@ -2209,16 +2240,16 @@ int qahw_stream_set_device(qahw_stream_handle_t *stream_handle,
                 return rc;
             }
             snprintf(dev_s, QAHW_MAX_INT_STRING, "%d", devices[0]);
-            strncat(device_route, dev_s, QAHW_MAX_INT_STRING);
+            strlcat(device_route, dev_s, QAHW_MAX_INT_STRING);
             rc = qahw_out_set_parameters(stream->out_stream,
                                          device_route);
             if (rc)
                 ALOGE("%s: failed to set out device\n", __func__);
             /*if not voice set input stream*/
             if (!is_voice) {
-                strncpy(device_route, "routing=", QAHW_MAX_INT_STRING);
+                strlcpy(device_route, "routing=", QAHW_MAX_INT_STRING);
                 snprintf(dev_s, QAHW_MAX_INT_STRING, "%d", devices[1]);
-                strncat(device_route, dev_s, QAHW_MAX_INT_STRING);
+                strlcat(device_route, dev_s, QAHW_MAX_INT_STRING);
                 rc = qahw_in_set_parameters(stream->in_stream,
                                             device_route);
                 if (rc)
@@ -2770,6 +2801,7 @@ int32_t qahw_stream_set_parameters(qahw_stream_handle_t *stream_handle,
     } else
         ALOGE("%d:%s invalid stream handle, cannot set param"
               , __LINE__, __func__);
+    return rc;
 }
 
 int32_t qahw_stream_get_parameters(qahw_stream_handle_t *stream_handle,
