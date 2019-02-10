@@ -892,7 +892,6 @@ void audio_extn_ffv_set_parameters(struct audio_device *adev __unused,
         }
         else if (str_parms_get_int(parms, AUDIO_PARAMETER_DEVICE_CONNECT, &val) >= 0){
             ret = 1;
-            str_parms_del(parms, AUDIO_PARAMETER_FFV_EC_REF_DEVICE);
         }
         if(ret == 1 ){
             str_parms_del(parms, AUDIO_PARAMETER_FFV_EC_REF_DEVICE);
