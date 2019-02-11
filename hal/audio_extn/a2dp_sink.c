@@ -77,6 +77,8 @@
 #define MIXER_SINK_SAMPLE_RATE     "BT_TX SampleRate"
 #define MIXER_AFE_SINK_CHANNELS    "AFE Output Channels"
 #define MIXER_ADM_CHANNELS    "SLIM9_TX ADM Channels"
+#define MIXER_TTP_GEN_ENABLE       "TTP Enable"
+#define MIXER_TTP_GEN_CONFIG       "AFE TTP config"
 #define DEFAULT_SINK_LATENCY_SBC       140
 #define DEFAULT_SINK_LATENCY_APTX      160
 #define DEFAULT_SINK_LATENCY_APTX_HD   180
@@ -85,7 +87,10 @@
 //To Do: Fine Tune Default CELT/LDAC Latency.
 #define DEFAULT_SINK_LATENCY_CELT      180
 #define DEFAULT_SINK_LATENCY_LDAC      180
+#define MAX_TTP_OFFSET_PAIRS 4
 
+#define ENABLE_TTP_GENERATOR 0x01
+#define TTP_GEN_CONFIG_PARAM 0x00030D40
 /*
  * Below enum values are extended from audio_base.h to
  * to keep encoder and decoder type local to bthost_ipc
@@ -132,6 +137,7 @@ struct a2dp_sink_data {
     uint32_t dec_channels;
     bool a2dp_sink_started;
     int  a2dp_sink_total_active_session_requests;
+    bool enable_ttp;
 };
 
 struct a2dp_sink_data a2dp_sink;
@@ -240,6 +246,38 @@ typedef struct {
     uint32_t      sampling_rate; /* 0x0(48k), 0x1(44.1k) */
     uint8_t       channel_mode; /* Stereo */
 } audio_aptx_hd_dec_config_t;
+
+/* structure to enable TTP generator in AFE */
+struct afe_ttp_gen_enable {
+    uint16_t enable;
+    uint16_t reserved;
+} __attribute__ ((packed));
+
+/* structure to set SSRC offset in TTP */
+struct afe_ttp_ssrc_offset_pair {
+    uint32_t ssrc;
+    uint32_t offset;
+} __attribute__ ((packed));
+
+static struct afe_ttp_ssrc_offset_pair ssrc_ttp[MAX_TTP_OFFSET_PAIRS] = {
+    {0xa1, 0x30D40},
+    {0xa2, 0x30D40},
+    {0xa3, 0x30D40},
+    {0xa4, 0x30D40},
+};
+
+/* structure to set TTP generator config*/
+struct afe_ttp_gen_cfg_num_offset
+{
+    uint32_t ttp_offset_default;   /* TTP offset uses for all other cases
+                                      where no valid SSRC is received */
+    uint32_t settling_time;        /* If settling_mode==0x00: time in [us]
+                                      after first received packet until
+                                      packets are no longer dropped */
+    uint16_t settling_mode;        /* 0x00(Drop), 0x01(Settle) */
+    uint16_t num_ssrc_offsets;     /* Number of SSRC/TTPOFFSET pairs to follow */
+    struct afe_ttp_ssrc_offset_pair ssrc_ttp_offset[MAX_TTP_OFFSET_PAIRS]; /* Array of ssrc/offset pairs */
+} __attribute__ ((packed));
 
 /*********** END of DSP configurable structures ********************/
 
@@ -784,9 +822,91 @@ bool a2dp_send_sink_setup_complete(void) {
     return is_complete;
 }
 
+static void disable_ttp_generator()
+{
+    struct afe_ttp_gen_enable ttp_gen_enable;
+    struct mixer_ctl *enable_ttp = NULL;
+    int ret = 0;
+
+    ALOGV("%s: setting TTP configuration", __func__);
+
+    memset(&ttp_gen_enable, 0x0, sizeof(struct afe_ttp_gen_enable));
+
+    /* disable TTP generator */
+    ttp_gen_enable.enable = 0x00;
+
+    enable_ttp = mixer_get_ctl_by_name(a2dp_sink.adev->mixer, MIXER_TTP_GEN_ENABLE);
+    if (!enable_ttp) {
+        ALOGE("%s: ERROR ttp enable mixer control not identified", __func__);
+        return;
+    }
+
+    ret = mixer_ctl_set_array(enable_ttp, (void *)&ttp_gen_enable,
+                              sizeof(struct afe_ttp_gen_enable));
+    if (ret != 0) {
+        ALOGE("%s: Failed to disable ttp generator", __func__);
+    }
+    return;
+}
+
+static int enable_ttp_generator()
+{
+    struct afe_ttp_gen_enable ttp_gen_enable;
+    struct afe_ttp_gen_cfg_num_offset ttp_gen_cfg_num_offset;
+    struct mixer_ctl *enable_ttp = NULL, *set_ttp_config = NULL;
+
+    ALOGV("%s: setting TTP configuration", __func__);
+
+    memset(&ttp_gen_enable, 0x0, sizeof(struct afe_ttp_gen_enable));
+    memset(&ttp_gen_cfg_num_offset, 0x0, sizeof(struct afe_ttp_gen_cfg_num_offset));
+
+    /* enable TTP generator*/
+    ttp_gen_enable.enable = ENABLE_TTP_GENERATOR;
+
+    enable_ttp = mixer_get_ctl_by_name(a2dp_sink.adev->mixer, MIXER_TTP_GEN_ENABLE);
+    if (!enable_ttp) {
+        ALOGE("%s: ERROR ttp enable mixer control not identified", __func__);
+        return -EINVAL;
+    }
+
+    if (mixer_ctl_set_array(enable_ttp, (void *)&ttp_gen_enable,
+                              sizeof(struct afe_ttp_gen_enable))) {
+        ALOGE("%s: Failed to enable ttp generator", __func__);
+        return -EINVAL;
+    }
+
+    /* configure TTP generator parameters */
+    ttp_gen_cfg_num_offset.ttp_offset_default = 0x00;
+    ttp_gen_cfg_num_offset.settling_time = TTP_GEN_CONFIG_PARAM;
+    ttp_gen_cfg_num_offset.settling_mode = 0x00;
+    ttp_gen_cfg_num_offset.num_ssrc_offsets = MAX_TTP_OFFSET_PAIRS;
+    memcpy(ttp_gen_cfg_num_offset.ssrc_ttp_offset, ssrc_ttp,
+           MAX_TTP_OFFSET_PAIRS * sizeof(struct afe_ttp_ssrc_offset_pair));
+
+    set_ttp_config = mixer_get_ctl_by_name(a2dp_sink.adev->mixer, MIXER_TTP_GEN_CONFIG);
+    if (!set_ttp_config) {
+        ALOGE("%s: ERROR ttp config mixer control not identified", __func__);
+        goto err;
+    }
+
+    if (mixer_ctl_set_array(set_ttp_config, (void *)&ttp_gen_cfg_num_offset,
+                              sizeof(struct afe_ttp_gen_cfg_num_offset))) {
+        ALOGE("%s: Failed to set ttp configuration", __func__);
+        goto err;
+    }
+
+    return 0;
+
+err:
+    disable_ttp_generator();
+    return -EINVAL;
+}
+
 int audio_extn_a2dp_start_capture()
 {
     int ret = 0;
+    struct audio_usecase *uc_info;
+    struct listnode *node;
 
     ALOGD("audio_extn_a2dp_start_capture start");
 
@@ -794,6 +914,20 @@ int audio_extn_a2dp_start_capture()
        && a2dp_sink.audio_get_dec_config && a2dp_sink.audio_sink_stop)) {
         ALOGE("a2dp handle is not identified, Ignoring start capture request");
         return -ENOSYS;
+    }
+
+    /*
+     * Enable TTP generator for capture/loopback usecase
+     * with AUDIO_DEVICE_IN_BLUETOOTH_A2DP as device and
+     * with AUDIO_INPUT_FLAG_TIMESTAMP flags
+     */
+    list_for_each(node, &a2dp_sink.adev->usecase_list) {
+        uc_info = node_to_item(node, struct audio_usecase, list);
+        if ((uc_info->type == PCM_CAPTURE) &&
+            (uc_info->devices & AUDIO_DEVICE_IN_BLUETOOTH_A2DP) &&
+            (uc_info->stream.in->flags & AUDIO_INPUT_FLAG_TIMESTAMP)){
+            a2dp_sink.enable_ttp = true;
+        }
     }
 
     if (!a2dp_sink.a2dp_sink_started && !a2dp_sink.a2dp_sink_total_active_session_requests) {
@@ -819,6 +953,14 @@ int audio_extn_a2dp_start_capture()
                 ALOGE(" unable to configure DSP decoder");
                 ret = -ETIMEDOUT;
                 goto fail;
+           }
+
+           if (a2dp_sink.enable_ttp) {
+                ret = enable_ttp_generator();
+                if (ret < 0) {
+                    ALOGE("Failed to enable TTP generator");
+                    a2dp_sink.enable_ttp = false;
+                }
            }
 
            if (!a2dp_send_sink_setup_complete()) {
@@ -897,6 +1039,10 @@ int audio_extn_a2dp_stop_capture()
             ALOGV("stop steam to BT IPC lib successful");
         reset_a2dp_sink_dec_config_params();
         a2dp_reset_backend_cfg();
+        if (a2dp_sink.enable_ttp) {
+            disable_ttp_generator();
+            a2dp_sink.enable_ttp = false;
+        }
     }
     if (!a2dp_sink.a2dp_sink_total_active_session_requests)
        a2dp_sink.a2dp_sink_started = false;
@@ -948,6 +1094,7 @@ void audio_extn_a2dp_sink_init (void *adev)
   a2dp_sink.bt_lib_sink_handle = NULL;
   a2dp_sink.a2dp_sink_started = false;
   a2dp_sink.a2dp_sink_total_active_session_requests = 0;
+  a2dp_sink.enable_ttp = false;
   reset_a2dp_sink_dec_config_params();
   open_a2dp_sink();
 }

@@ -2290,14 +2290,12 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
         stream_out.channel_mask = usecase->stream.inout->out_config.channel_mask;
         out_snd_device = platform_get_output_snd_device(adev->platform,
                                                         &stream_out);
-        usecase->devices = out_snd_device;
     } else if (usecase->type == TRANSCODE_LOOPBACK_TX ) {
         if (usecase->stream.inout == NULL) {
             ALOGE("%s: stream.inout is NULL", __func__);
             return -EINVAL;
         }
         in_snd_device = platform_get_input_snd_device(adev->platform, AUDIO_DEVICE_NONE);
-        usecase->devices = in_snd_device;
     } else if (usecase->type == AFE_LOOPBACK) {
         if (usecase->stream.inout == NULL) {
             ALOGE("%s: stream.inout is NULL", __func__);
