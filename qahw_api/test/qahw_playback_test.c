@@ -62,7 +62,7 @@
 static ssize_t get_bytes_to_read(FILE* file, int filetype);
 static void init_streams(void);
 int pthread_cancel(pthread_t thread);
-
+void get_file_format(stream_config *stream_info);
 //START OF TRUMPET TEST
 #ifdef TRUMPET_CERTIFICATION
 #include <dlfcn.h>
@@ -601,7 +601,15 @@ int write_to_hal(qahw_stream_handle_t* out_handle, char *data, size_t bytes, voi
     } else if ((ret != bytes) && (!stop_playback)) {
         fprintf(log_file, "stream %d: provided bytes %zd, written bytes %d\n",stream_params->stream_index, bytes, ret);
         fprintf(log_file, "stream %d: waiting for event write ready\n", stream_params->stream_index);
+#ifndef TRUMPET_CERTIFICATION
+        /* Back to back execution of gapless playback,sometimes pends here forever after playing final
+            stream of gapless playlist.
+           This issue is observed only when multilpe testcases of gapless playback are executed.
+           Only in Trumpet Certification tetscases,this regression tests are performed, hence igorning
+            this wait only for trumpet certification binary.
+          */
         pthread_cond_wait(&stream_params->write_cond, &stream_params->write_lock);
+#endif
         fprintf(log_file, "stream %d: out of wait for event write ready\n", stream_params->stream_index);
     }
 
@@ -892,60 +900,108 @@ void *start_stream_playback (void* stream_data)
             fprintf(stderr, "stream %s: failed to set kvpairs\n", params->set_params);
         }
     }
-    unsigned int total_bytes_read = 0;
-    while (!exit && !stop_playback) {
-        if (!bytes_remaining) {
-            fprintf(log_file, "\nstream %d: reading bytes %zd\n", params->stream_index, bytes_wanted);
-            bytes_read = read_bytes(params, data_ptr, bytes_wanted, &total_bytes_read);
-            fprintf(log_file, "stream %d: read bytes %zd\n", params->stream_index, bytes_read);
-            if ((!read_complete_file && (bytes_to_read <= 0)) || (bytes_read <= 0)) {
-                fprintf(log_file, "stream %d: end of file\n", params->stream_index);
-                if (is_offload) {
-                    params->drain_received = false;
-                    qahw_out_drain(params->out_handle, QAHW_DRAIN_ALL);
-                    if(!params->drain_received) {
-                        pthread_mutex_lock(&params->drain_lock);
-                        pthread_cond_wait(&params->drain_cond, &params->drain_lock);
-                        pthread_mutex_unlock(&params->drain_lock);
+
+    /* check whether this is gapless playback*/
+    int files_in_playlist = 1;
+    int current_file_indx = 0;
+    if (params->gapless_playlist_handle.is_gapless_playback)
+        files_in_playlist = params->gapless_playlist_handle.files_in_playlist;
+    /* In case of gapless playback scenario, multiple times data has to be written
+        to hal.
+       In general the files_in_playlist=1, if -f option is not used in command line args
+        and files_in_playlist will be updated based on numbr of files if -g option is selected
+    */
+    while(current_file_indx < files_in_playlist) {
+        unsigned int total_bytes_read = 0;
+
+        while (!exit && !stop_playback) {
+
+            if (!bytes_remaining) {
+                fprintf(log_file, "\nstream %d: reading bytes %zd\n", params->stream_index, bytes_wanted);
+                bytes_read = read_bytes(params, data_ptr, bytes_wanted, &total_bytes_read);
+                fprintf(log_file, "stream %d: read bytes %zd\n", params->stream_index, bytes_read);
+
+                if ((!read_complete_file && (bytes_to_read <= 0)) || (bytes_read <= 0)) {
+                    fprintf(log_file, "stream %d: end of file\n", params->stream_index);
+
+                    if (is_offload) {
+                        params->drain_received = false;
+
+                        if(params->gapless_playlist_handle.is_gapless_playback)
+                            qahw_out_drain(params->out_handle, QAHW_DRAIN_EARLY_NOTIFY);
+                        else
+                            qahw_out_drain(params->out_handle, QAHW_DRAIN_ALL);
+
+                        if(!params->drain_received) {
+                            pthread_mutex_lock(&params->drain_lock);
+                            pthread_cond_wait(&params->drain_cond, &params->drain_lock);
+                            pthread_mutex_unlock(&params->drain_lock);
+                        }
+                        fprintf(log_file, "stream %d: out of compress drain\n", params->stream_index);
                     }
-                    fprintf(log_file, "stream %d: out of compress drain\n", params->stream_index);
+                    /*
+                     * Caution: Below ADL log shouldnt be altered without notifying
+                     * automation APT since it used for automation testing
+                     */
+                    fprintf(log_file, "ADL: stream %d: playback completed successfully\n", params->stream_index);
+                    exit = true;
+                    continue;
+                } else {
+
+                    if (!read_complete_file) {
+                        bytes_to_read -= bytes_read;
+
+                        if ((bytes_to_read > 0) && (bytes_to_read < bytes_wanted))
+                            bytes_wanted = bytes_to_read;
+                    }
                 }
-                /*
-                 * Caution: Below ADL log shouldnt be altered without notifying
-                 * automation APT since it used for automation testing
-                 */
-                fprintf(log_file, "ADL: stream %d: playback completed successfully\n", params->stream_index);
+                bytes_remaining = write_length = bytes_read;
+            }
+
+            offset = write_length - bytes_remaining;
+            fprintf(log_file, "stream %d: writing to hal %zd bytes, offset %d, write length %zd\n",
+                    params->stream_index, bytes_remaining, offset, write_length);
+
+            bytes_written = bytes_remaining;
+            bytes_written = write_to_hal(params->out_handle, data_ptr+offset, bytes_remaining, params);
+
+            if (bytes_written < 0) {
+                fprintf(stderr, "write failed %d", bytes_written);
                 exit = true;
                 continue;
-            } else {
-                if (!read_complete_file) {
-                    bytes_to_read -= bytes_read;
-                    if ((bytes_to_read > 0) && (bytes_to_read < bytes_wanted))
-                        bytes_wanted = bytes_to_read;
-                }
             }
-            bytes_remaining = write_length = bytes_read;
+            bytes_remaining -= bytes_written;
+
+            latency = qahw_out_get_latency(params->out_handle);
+            fprintf(log_file, "stream %d: bytes_written %zd, bytes_remaining %zd latency %d\n",
+                    params->stream_index, bytes_written, bytes_remaining, latency);
         }
 
-        offset = write_length - bytes_remaining;
-        fprintf(log_file, "stream %d: writing to hal %zd bytes, offset %d, write length %zd\n",
-                params->stream_index, bytes_remaining, offset, write_length);
+        current_file_indx++;
 
+        if (current_file_indx < files_in_playlist) {
 
-        bytes_written = bytes_remaining;
-        bytes_written = write_to_hal(params->out_handle, data_ptr+offset, bytes_remaining, params);
-        if (bytes_written < 0) {
-            fprintf(stderr, "write failed %d", bytes_written);
-            exit = true;
-            continue;
+            fclose(params->file_stream);
+            params->file_stream = fopen(params->gapless_playlist_handle.file_names[current_file_indx], "r");
+
+            if (params->file_stream == NULL) {
+                fprintf(stderr, "Not able to '%s' open file, gapless playback ending \n", params->file_stream);
+                break;
+            }
+            get_file_format(params);
+
+            /* Reset the states and set parameters of next track song*/
+            bytes_remaining = 0;
+            exit = false;
+            stop_playback = false;
+
+            /* update the number of channels in this playback */
+            char ch_kvpair[100];
+            snprintf(ch_kvpair, 100, "%s=%d;", QAHW_OFFLOAD_CODEC_NUM_CHANNEL, params->channels);
+            qahw_out_set_parameters(params->out_handle,ch_kvpair);
+
         }
-        bytes_remaining -= bytes_written;
-
-        latency = qahw_out_get_latency(params->out_handle);
-        fprintf(log_file, "stream %d: bytes_written %zd, bytes_remaining %zd latency %d\n",
-                params->stream_index, bytes_written, bytes_remaining, latency);
     }
-
 
     if (params->ethread_data != nullptr) {
         fprintf(log_file, "stream %d: un-loading effects\n", params->stream_index);
@@ -2261,6 +2317,7 @@ int main(int argc, char* argv[]) {
         switch (opt) {
         case 'f':
             stream_param[i].filename = optarg;
+            stream_param[i].gapless_playlist_handle.is_gapless_playback = 0;
             break;
         case 'r':
             stream_param[i].config.offload_info.sample_rate = atoi(optarg);
@@ -2516,6 +2573,33 @@ int main(int argc, char* argv[]) {
             }
             break;
         case 'g':
+            /*using this for gapless playback*/
+            stream_param[i].gapless_playlist_handle.is_gapless_playback = 1;
+            FILE *playlist_file = fopen(optarg,"r");
+
+            if(playlist_file == NULL)
+                return 0;
+
+            int *playlist_len = &(stream_param[i].gapless_playlist_handle.files_in_playlist);
+            char *save_ptr;
+            stream_param[i].gapless_playlist_handle.files_in_playlist = 0;
+
+            while(!feof(playlist_file)) {
+
+                if ( *playlist_len > MAX_SUPPORTED_PLAYBACKS_FOR_GAPLESS) {
+                    fprintf(stderr, "Error: Gapless support upto 7 files in playlist \n");
+                    fclose(playlist_file);
+                    return 0;
+                }
+                fgets(stream_param[i].gapless_playlist_handle.file_names[*playlist_len] \
+                      , MAX_FILE_NAME_LEN,playlist_file);
+                strtok_r(stream_param[i].gapless_playlist_handle.file_names[*playlist_len], "\n", &save_ptr);
+                (*playlist_len)++;
+            }
+            fclose(playlist_file);
+            //Assign the firts name of file
+            stream_param[i].filename = stream_param[i].gapless_playlist_handle.file_names[0];
+            fprintf(stderr, "Gapless playback selected and %s is (1,%d) \n", stream_param[i].filename, *playlist_len);
             break;
         case 'h':
             usage();
