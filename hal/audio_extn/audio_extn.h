@@ -1082,22 +1082,22 @@ static int __unused audio_extn_hw_loopback_create_audio_patch(struct audio_hw_de
                                      const struct audio_port_config *sinks __unused,
                                      audio_patch_handle_t *handle __unused)
 {
-    return -ENOSYS;
+    return 0;
 }
 static int __unused audio_extn_hw_loopback_release_audio_patch(struct audio_hw_device *dev __unused,
                                              audio_patch_handle_t handle __unused)
 {
-    return -ENOSYS;
+    return 0;
 }
 static int __unused audio_extn_hw_loopback_set_audio_port_config(struct audio_hw_device *dev __unused,
                                     const struct audio_port_config *config __unused)
 {
-    return -ENOSYS;
+    return 0;
 }
 static int __unused audio_extn_hw_loopback_get_audio_port(struct audio_hw_device *dev __unused,
                                     struct audio_port *port_in __unused)
 {
-    return -ENOSYS;
+    return 0;
 }
 static int __unused audio_extn_hw_loopback_set_param_data(audio_patch_handle_t handle __unused,
                                                audio_extn_loopback_param_id param_id __unused,
@@ -1168,6 +1168,43 @@ void audio_extn_ffv_append_ec_ref_dev_name(char *device_name);
 void audio_extn_send_dual_mono_mixing_coefficients(struct stream_out *out);
 #endif
 int audio_extn_utils_get_license_params(const struct audio_device *adev,  struct audio_license_params *lic_params);
+
+#ifndef AUDIO_EXTN_AUTO_HAL_ENABLED
+#define audio_extn_auto_hal_init(adev)                (0)
+#define audio_extn_auto_hal_deinit()                  (0)
+#define audio_extn_auto_hal_enable_hostless()         (0)
+#define audio_extn_auto_hal_disable_hostless()        (0)
+#define audio_extn_auto_hal_create_audio_patch(dev, num_sources,\
+    sources, num_sinks, sinks, handle) (0)
+#define audio_extn_auto_hal_release_audio_patch(dev, handle) (0)
+#define audio_extn_auto_hal_get_car_audio_stream_from_address(address) (-1)
+#define audio_extn_auto_hal_open_output_stream(out) (0)
+#define audio_extn_auto_hal_is_bus_device_usecase(uc_id) (0)
+#define audio_extn_auto_hal_get_snd_device_for_car_audio_stream(out) (0)
+#define audio_extn_auto_hal_get_audio_port(dev, config) (0)
+#define audio_extn_auto_hal_set_audio_port_config(dev, config) (0)
+#else
+int32_t audio_extn_auto_hal_init(struct audio_device *adev);
+void audio_extn_auto_hal_deinit(void);
+int32_t audio_extn_auto_hal_enable_hostless(void);
+void audio_extn_auto_hal_disable_hostless(void);
+int audio_extn_auto_hal_create_audio_patch(struct audio_hw_device *dev,
+                                unsigned int num_sources,
+                                const struct audio_port_config *sources,
+                                unsigned int num_sinks,
+                                const struct audio_port_config *sinks,
+                                audio_patch_handle_t *handle);
+int audio_extn_auto_hal_release_audio_patch(struct audio_hw_device *dev,
+                                audio_patch_handle_t handle);
+int32_t audio_extn_auto_hal_get_car_audio_stream_from_address(const char *address);
+int32_t audio_extn_auto_hal_open_output_stream(struct stream_out *out);
+bool audio_extn_auto_hal_is_bus_device_usecase(audio_usecase_t uc_id);
+snd_device_t audio_extn_auto_hal_get_snd_device_for_car_audio_stream(struct stream_out *out);
+int audio_extn_auto_hal_get_audio_port(struct audio_hw_device *dev,
+                                struct audio_port *config);
+int audio_extn_auto_hal_set_audio_port_config(struct audio_hw_device *dev,
+                                const struct audio_port_config *config);
+#endif
 
 #ifndef EXT_HW_PLUGIN_ENABLED
 #define audio_extn_ext_hw_plugin_init(adev)                (0)

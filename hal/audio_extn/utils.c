@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2019, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2014 The Android Open Source Project
@@ -929,7 +929,8 @@ static int send_app_type_cfg_for_device(struct audio_device *adev,
         (usecase->id != USECASE_AUDIO_TRANSCODE_LOOPBACK_RX) &&
         (!is_interactive_usecase(usecase->id)) &&
         (!is_offload_usecase(usecase->id)) &&
-        (usecase->type != PCM_CAPTURE)) {
+        (usecase->type != PCM_CAPTURE) &&
+        (!audio_extn_auto_hal_is_bus_device_usecase(usecase->id))) {
         ALOGV("%s: a rx/tx/loopback path where app type cfg is not required %d", __func__, usecase->id);
         rc = 0;
         goto exit_send_app_type_cfg;

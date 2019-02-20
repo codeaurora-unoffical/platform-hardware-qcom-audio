@@ -355,7 +355,12 @@ const char * const use_case_table[AUDIO_USECASE_MAX] = {
 
     [USECASE_AUDIO_EC_REF_LOOPBACK] = "ec-ref-audio-capture",
 
-    [USECASE_AUDIO_A2DP_ABR_FEEDBACK] = "a2dp-abr-feedback"
+    [USECASE_AUDIO_A2DP_ABR_FEEDBACK] = "a2dp-abr-feedback",
+
+    [USECASE_AUDIO_PLAYBACK_MEDIA] = "media-playback",
+    [USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION] = "sys-notification-playback",
+    [USECASE_AUDIO_PLAYBACK_NAV_GUIDANCE] = "nav-guidance-playback",
+    [USECASE_AUDIO_PLAYBACK_PHONE] = "phone-playback",
 };
 
 static const audio_usecase_t offload_usecases[] = {
@@ -3235,6 +3240,8 @@ int start_output_stream(struct stream_out *out)
                   out->usecase == USECASE_AUDIO_PLAYBACK_ULL) && (out->apply_volume)) {
                  out_set_pcm_volume(&out->stream, out->volume_l, out->volume_r);
                  out->apply_volume = false;
+        } else if (audio_extn_auto_hal_is_bus_device_usecase(out->usecase)) {
+            out_set_pcm_volume(&out->stream, out->volume_l, out->volume_r);
         }
     } else {
         platform_set_stream_channel_map(adev->platform, out->channel_mask,
@@ -3296,6 +3303,22 @@ int start_output_stream(struct stream_out *out)
             if (adev->offload_effects_start_output != NULL)
                 adev->offload_effects_start_output(out->handle, out->pcm_device_id, adev->mixer);
             audio_extn_check_and_set_dts_hpx_state(adev);
+        }
+
+        if (out->devices & AUDIO_DEVICE_OUT_BUS) {
+            /* Update cached volume from media to offload/direct stream */
+            struct listnode *node = NULL;
+            list_for_each(node, &adev->active_outputs_list) {
+                streams_output_ctxt_t *out_ctxt = node_to_item(node,
+                                                    streams_output_ctxt_t,
+                                                    list);
+                if (out_ctxt->output->usecase == USECASE_AUDIO_PLAYBACK_MEDIA) {
+                    out->volume_l = out_ctxt->output->volume_l;
+                    out->volume_r = out_ctxt->output->volume_r;
+                }
+            }
+            out_set_compr_volume(&out->stream,
+                                 out->volume_l, out->volume_r);
         }
     }
 
@@ -3504,10 +3527,10 @@ static size_t get_input_buffer_size(uint32_t sample_rate,
     return size;
 }
 
-static size_t get_output_period_size(uint32_t sample_rate,
-                                    audio_format_t format,
-                                    int channel_count,
-                                    int duration /*in millisecs*/)
+size_t get_output_period_size(uint32_t sample_rate,
+                            audio_format_t format,
+                            int channel_count,
+                            int duration /*in millisecs*/)
 {
     size_t size = 0;
     uint32_t bytes_per_sample = audio_bytes_per_sample(format);
@@ -4539,6 +4562,13 @@ static int out_set_volume(struct audio_stream_out *stream, float left,
         else
             out->apply_volume = true;
 
+        out->volume_l = left;
+        out->volume_r = right;
+        return ret;
+    } else if (audio_extn_auto_hal_is_bus_device_usecase(out->usecase)) {
+        ALOGV("%s: bus device set volume called", __func__);
+        if (!out->standby)
+            ret = out_set_pcm_volume(stream, left, right);
         out->volume_l = left;
         out->volume_r = right;
         return ret;
@@ -5822,6 +5852,38 @@ static int in_remove_audio_effect(const struct audio_stream *stream,
     return add_remove_audio_effect(stream, effect, false);
 }
 
+streams_input_ctxt_t *in_get_stream(struct audio_device *dev,
+                                  audio_io_handle_t input)
+{
+    struct listnode *node;
+
+    list_for_each(node, &dev->active_inputs_list) {
+        streams_input_ctxt_t *in_ctxt = node_to_item(node,
+                                                     streams_input_ctxt_t,
+                                                     list);
+        if (in_ctxt->input->capture_handle == input) {
+            return in_ctxt;
+        }
+    }
+    return NULL;
+}
+
+streams_output_ctxt_t *out_get_stream(struct audio_device *dev,
+                                  audio_io_handle_t output)
+{
+    struct listnode *node;
+
+    list_for_each(node, &dev->active_outputs_list) {
+        streams_output_ctxt_t *out_ctxt = node_to_item(node,
+                                                     streams_output_ctxt_t,
+                                                     list);
+        if (out_ctxt->output->handle == output) {
+            return out_ctxt;
+        }
+    }
+    return NULL;
+}
+
 static int in_stop(const struct audio_stream_in* stream)
 {
     struct stream_in *in = (struct stream_in *)stream;
@@ -6019,7 +6081,7 @@ int adev_open_output_stream(struct audio_hw_device *dev,
                             audio_output_flags_t flags,
                             struct audio_config *config,
                             struct audio_stream_out **stream_out,
-                            const char *address __unused)
+                            const char *address)
 {
     struct audio_device *adev = (struct audio_device *)dev;
     struct stream_out *out;
@@ -6044,8 +6106,8 @@ int adev_open_output_stream(struct audio_hw_device *dev,
     out = (struct stream_out *)calloc(1, sizeof(struct stream_out));
 
     ALOGD("%s: enter: format(%#x) sample_rate(%d) channel_mask(%#x) devices(%#x) flags(%#x)\
-        stream_handle(%p)", __func__, config->format, config->sample_rate, config->channel_mask,
-        devices, flags, &out->stream);
+        stream_handle(%p) address(%s)", __func__, config->format, config->sample_rate, config->channel_mask,
+        devices, flags, &out->stream, address);
 
 
     if (!out) {
@@ -6117,6 +6179,23 @@ int adev_open_output_stream(struct audio_hw_device *dev,
                 goto error_open;
             }
         }
+    }
+
+    /* validate bus device address */
+    if (out->devices & AUDIO_DEVICE_OUT_BUS) {
+        /* extract car audio stream index */
+        out->car_audio_stream =
+            audio_extn_auto_hal_get_car_audio_stream_from_address(address);
+        if (out->car_audio_stream < 0) {
+            ALOGE("%s: invalid car audio stream %x",
+                __func__, out->car_audio_stream);
+            ret = -EINVAL;
+            goto error_open;
+        }
+        /* save car audio stream and address for bus device */
+        strlcpy(out->address, address, AUDIO_DEVICE_MAX_ADDRESS_LEN);
+        ALOGV("%s: address %s, car_audio_stream %x",
+            __func__, out->address, out->car_audio_stream);
     }
 
     /* Init use case and pcm_config */
@@ -6535,6 +6614,13 @@ int adev_open_output_stream(struct audio_hw_device *dev,
                 ret = -EINVAL;
                 goto error_open;
             }
+        } else if (out->devices & AUDIO_DEVICE_OUT_BUS) {
+            ret = audio_extn_auto_hal_open_output_stream(out);
+            if (ret) {
+                ALOGE("%s: Failed to open output stream for bus device", __func__);
+                ret = -EINVAL;
+                goto error_open;
+            }
         } else {
             /* primary path is the default path selected if no other outputs are available/suitable */
             out->usecase = USECASE_AUDIO_PLAYBACK_PRIMARY;
@@ -6674,6 +6760,20 @@ int adev_open_output_stream(struct audio_hw_device *dev,
             out->ip_hdlr_handle = NULL;
         }
     }
+
+    streams_output_ctxt_t *out_ctxt = (streams_output_ctxt_t *)
+        calloc(1, sizeof(streams_output_ctxt_t));
+    if (out_ctxt == NULL) {
+        ALOGE("%s fail to allocate output ctxt", __func__);
+        ret = -ENOMEM;
+        goto error_open;
+    }
+    out_ctxt->output = out;
+
+    pthread_mutex_lock(&adev->lock);
+    list_add_tail(&adev->active_outputs_list, &out_ctxt->list);
+    pthread_mutex_unlock(&adev->lock);
+
     ALOGV("%s: exit", __func__);
     return 0;
 
@@ -6749,7 +6849,17 @@ void adev_close_output_stream(struct audio_hw_device *dev __unused,
 
     pthread_cond_destroy(&out->cond);
     pthread_mutex_destroy(&out->lock);
+
+    pthread_mutex_lock(&adev->lock);
+    streams_output_ctxt_t *out_ctxt = out_get_stream(adev, out->handle);
+    if (out_ctxt != NULL) {
+        list_remove(&out_ctxt->list);
+        free(out_ctxt);
+    } else {
+        ALOGW("%s, output stream already closed", __func__);
+    }
     free(stream);
+    pthread_mutex_unlock(&adev->lock);
     ALOGV("%s: exit", __func__);
 }
 
@@ -7507,6 +7617,20 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
     pthread_mutex_unlock(&in->lock);
 
     *stream_in = &in->stream;
+
+    streams_input_ctxt_t *in_ctxt = (streams_input_ctxt_t *)
+        calloc(1, sizeof(streams_input_ctxt_t));
+    if (in_ctxt == NULL) {
+        ALOGE("%s fail to allocate input ctxt", __func__);
+        ret = -ENOMEM;
+        goto err_open;
+    }
+    in_ctxt->input = in;
+
+    pthread_mutex_lock(&adev->lock);
+    list_add_tail(&adev->active_inputs_list, &in_ctxt->list);
+    pthread_mutex_unlock(&adev->lock);
+
     ALOGV("%s: exit", __func__);
     return ret;
 
@@ -7579,6 +7703,13 @@ static void adev_close_input_stream(struct audio_hw_device *dev,
         ALOGV("%s: sound trigger pcm stop lab", __func__);
         audio_extn_sound_trigger_stop_lab(in);
     }
+    streams_input_ctxt_t *in_ctxt = in_get_stream(adev, in->capture_handle);
+    if (in_ctxt != NULL) {
+        list_remove(&in_ctxt->list);
+        free(in_ctxt);
+    } else {
+        ALOGW("%s, input stream already closed", __func__);
+    }
     free(stream);
     pthread_mutex_unlock(&adev->lock);
     return;
@@ -7591,32 +7722,50 @@ int adev_create_audio_patch(struct audio_hw_device *dev,
                             const struct audio_port_config *sinks,
                             audio_patch_handle_t *handle)
 {
+    int ret;
 
-
-     return audio_extn_hw_loopback_create_audio_patch(dev,
-                                         num_sources,
-                                         sources,
-                                         num_sinks,
-                                         sinks,
-                                         handle);
-
+    ret = audio_extn_hw_loopback_create_audio_patch(dev,
+                                        num_sources,
+                                        sources,
+                                        num_sinks,
+                                        sinks,
+                                        handle);
+    ret |= audio_extn_auto_hal_create_audio_patch(dev,
+                                        num_sources,
+                                        sources,
+                                        num_sinks,
+                                        sinks,
+                                        handle);
+    return ret;
 }
 
 int adev_release_audio_patch(struct audio_hw_device *dev,
                            audio_patch_handle_t handle)
 {
-    return audio_extn_hw_loopback_release_audio_patch(dev, handle);
+    int ret;
+
+    ret = audio_extn_hw_loopback_release_audio_patch(dev, handle);
+    ret |= audio_extn_auto_hal_release_audio_patch(dev, handle);
+    return ret;
 }
 
 int adev_get_audio_port(struct audio_hw_device *dev, struct audio_port *config)
 {
-    return audio_extn_hw_loopback_get_audio_port(dev, config);
+    int ret = 0;
+
+    ret = audio_extn_hw_loopback_get_audio_port(dev, config);
+    ret |= audio_extn_auto_hal_get_audio_port(dev, config);
+    return ret;
 }
 
 int adev_set_audio_port_config(struct audio_hw_device *dev,
                         const struct audio_port_config *config)
 {
-    return audio_extn_hw_loopback_set_audio_port_config(dev, config);
+    int ret = 0;
+
+    ret = audio_extn_hw_loopback_set_audio_port_config(dev, config);
+    ret |= audio_extn_auto_hal_set_audio_port_config(dev, config);
+    return ret;
 }
 
 static int adev_dump(const audio_hw_device_t *device __unused,
@@ -7660,6 +7809,7 @@ static int adev_close(hw_device_t *device)
         }
         if(adev->ext_hw_plugin)
             audio_extn_ext_hw_plugin_deinit(adev->ext_hw_plugin);
+        audio_extn_auto_hal_deinit();
         free(device);
         adev = NULL;
     }
@@ -7808,6 +7958,7 @@ static int adev_open(const hw_module_t *module, const char *name,
                      hw_device_t **device)
 {
     int ret;
+    char value[PROPERTY_VALUE_MAX] = {0};
 
     ALOGD("%s: enter", __func__);
     if (strcmp(name, AUDIO_HARDWARE_INTERFACE) != 0) return -EINVAL;
@@ -7835,8 +7986,13 @@ static int adev_open(const hw_module_t *module, const char *name,
     register_for_dynamic_logging("hal");
 #endif
 
+    /* default audio HAL major version */
+    uint32_t maj_version = 2;
+    if(property_get("vendor.audio.hal.maj.version", value, NULL))
+        maj_version = atoi(value);
+
     adev->device.common.tag = HARDWARE_DEVICE_TAG;
-    adev->device.common.version = AUDIO_DEVICE_API_VERSION_2_0;
+    adev->device.common.version = HARDWARE_DEVICE_API_VERSION(maj_version, 0);
     adev->device.common.module = (struct hw_module_t *)module;
     adev->device.common.close = adev_close;
 
@@ -7876,6 +8032,8 @@ static int adev_open(const hw_module_t *module, const char *name,
     adev->snd_dev_ref_cnt = calloc(SND_DEVICE_MAX, sizeof(int));
     voice_init(adev);
     list_init(&adev->usecase_list);
+    list_init(&adev->active_inputs_list);
+    list_init(&adev->active_outputs_list);
     adev->cur_wfd_channels = 2;
     adev->offload_usecases_state = 0;
     adev->pcm_record_uc_state = 0;
@@ -7914,6 +8072,7 @@ static int adev_open(const hw_module_t *module, const char *name,
         adev->device.close_output_stream = audio_extn_qaf_close_output_stream;
     }
 
+    audio_extn_auto_hal_init(adev);
     adev->ext_hw_plugin = audio_extn_ext_hw_plugin_init(adev);
 
     if (access(VISUALIZER_LIBRARY_PATH, R_OK) == 0) {
@@ -8010,7 +8169,6 @@ static int adev_open(const hw_module_t *module, const char *name,
 
     audio_device_ref_count++;
 
-    char value[PROPERTY_VALUE_MAX];
     int trial;
     if (property_get("vendor.audio_hal.period_size", value, NULL) > 0) {
         trial = atoi(value);
