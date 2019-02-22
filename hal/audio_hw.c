@@ -6106,7 +6106,7 @@ int adev_open_output_stream(struct audio_hw_device *dev,
 {
     struct audio_device *adev = (struct audio_device *)dev;
     struct stream_out *out;
-    int ret = 0;
+    int ret = 0, ip_hdlr_stream = 0, ip_hdlr_dev = 0;
     audio_format_t format;
     struct adsp_hdlr_stream_cfg hdlr_stream_cfg;
     bool is_direct_passthough = false;
@@ -6772,7 +6772,8 @@ int adev_open_output_stream(struct audio_hw_device *dev,
     is_direct_passthough = audio_extn_passthru_is_direct_passthrough(out);
     if ((out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) ||
             (out->flags & AUDIO_OUTPUT_FLAG_DIRECT_PCM) ||
-            (audio_extn_ip_hdlr_intf_supported(config->format, is_direct_passthough, false))) {
+        audio_extn_ip_hdlr_intf_supported_for_copp(adev->platform) ||
+        (audio_extn_ip_hdlr_intf_supported(config->format, is_direct_passthough, false))) {
         hdlr_stream_cfg.pcm_device_id = platform_get_pcm_device_id(
                 out->usecase, PCM_PLAYBACK);
         hdlr_stream_cfg.flags = out->flags;
@@ -6784,7 +6785,10 @@ int adev_open_output_stream(struct audio_hw_device *dev,
             out->adsp_hdlr_stream_handle = NULL;
         }
     }
-    if (audio_extn_ip_hdlr_intf_supported(config->format, is_direct_passthough, false)) {
+    ip_hdlr_stream = audio_extn_ip_hdlr_intf_supported(config->format,
+                                            is_direct_passthough, false);
+    ip_hdlr_dev = audio_extn_ip_hdlr_intf_supported_for_copp(adev->platform);
+    if (ip_hdlr_stream || ip_hdlr_dev ) {
         ret = audio_extn_ip_hdlr_intf_init(&out->ip_hdlr_handle, NULL, NULL, adev, out->usecase);
         if (ret < 0) {
             ALOGE("%s: audio_extn_ip_hdlr_intf_init failed %d",__func__, ret);
