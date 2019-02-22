@@ -227,6 +227,7 @@ typedef enum {
     AUDIO_STREAM_PP_EVENT = 0,
     AUDIO_STREAM_ENCDEC_EVENT = 1,
     AUDIO_STREAM_IEC_61937_FMT_UPDATE_EVENT = 2,
+    AUDIO_COPP_EVENT = 3,
 } audio_event_id;
 
 /* payload format for HAL parameter
