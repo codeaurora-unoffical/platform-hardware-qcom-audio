@@ -163,7 +163,6 @@ static int32_t ext_hw_plugin_check_plugin_usecase(audio_usecase_t hal_usecase,
     case USECASE_AUDIO_PLAYBACK_LOW_LATENCY:
     case USECASE_AUDIO_PLAYBACK_MULTI_CH:
     case USECASE_AUDIO_PLAYBACK_OFFLOAD:
-#ifdef MULTIPLE_OFFLOAD_ENABLED
     case USECASE_AUDIO_PLAYBACK_OFFLOAD2:
     case USECASE_AUDIO_PLAYBACK_OFFLOAD3:
     case USECASE_AUDIO_PLAYBACK_OFFLOAD4:
@@ -172,7 +171,6 @@ static int32_t ext_hw_plugin_check_plugin_usecase(audio_usecase_t hal_usecase,
     case USECASE_AUDIO_PLAYBACK_OFFLOAD7:
     case USECASE_AUDIO_PLAYBACK_OFFLOAD8:
     case USECASE_AUDIO_PLAYBACK_OFFLOAD9:
-#endif
     case USECASE_AUDIO_PLAYBACK_ULL:
     case USECASE_AUDIO_PLAYBACK_MEDIA:
     case USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION:
