@@ -477,6 +477,18 @@ typedef enum {
     QAHW_PARAM_LOOPBACK_SET_CALLBACK
 } qahw_loopback_param_id;
 
+typedef struct {
+    uint32_t num_sources;
+    audio_input_flags_t flags;
+    struct audio_port_config *source_config;
+} qahw_source_port_config_t;
+
+typedef struct {
+    uint32_t num_sinks;
+    audio_output_flags_t flags;
+    struct audio_port_config *sink_config;
+} qahw_sink_port_config_t;
+
 __END_DECLS
 
 #endif  // QTI_AUDIO_HAL_DEFS_H

@@ -303,6 +303,7 @@ struct stream_config {
     audio_devices_t devices;
     unsigned int bit_width;
 };
+
 struct stream_inout {
     pthread_mutex_t lock; /* see note below on mutex acquisition order */
     pthread_mutex_t pre_lock; /* acquire before lock to avoid DOS by playback thread */
@@ -317,7 +318,10 @@ struct stream_inout {
     void *ip_hdlr_handle;
     stream_callback_t client_callback;
     void *client_cookie;
+    audio_input_flags_t input_flags;
+    audio_output_flags_t output_flags;
 };
+
 struct stream_out {
     struct audio_stream_out stream;
     pthread_mutex_t lock; /* see note below on mutex acquisition order */
