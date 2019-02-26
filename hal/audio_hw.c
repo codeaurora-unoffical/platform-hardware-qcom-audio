@@ -3844,7 +3844,7 @@ static void out_snd_mon_cb(void * stream, struct str_parms * parms)
         out->card_status = status;
     pthread_mutex_unlock(&out->lock);
 
-    ALOGE("out_snd_mon_cb for card %d usecase %s, status %s", card,
+    ALOGI("out_snd_mon_cb for card %d usecase %s, status %s", card,
           use_case_table[out->usecase],
           status == CARD_STATUS_OFFLINE ? "offline" : "online");
 
