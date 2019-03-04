@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2017, 2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -62,6 +62,8 @@ typedef enum {
     CONFIG_PARAMS,
     GAIN_LEVEL_MAPPING,
     ACDB_METAINFO_KEY,
+    CUSTOM_MTMX_PARAMS,
+    CUSTOM_MTMX_PARAM_COEFFS,
 } section_t;
 
 typedef void (* section_process_fn)(const XML_Char **attr);
@@ -78,6 +80,8 @@ static void process_config_params(const XML_Char **attr);
 static void process_root(const XML_Char **attr);
 static void process_gain_db_to_level_map(const XML_Char **attr);
 static void process_acdb_metainfo_key(const XML_Char **attr);
+static void process_custom_mtmx_params(const XML_Char **attr);
+static void process_custom_mtmx_param_coeffs(const XML_Char **attr);
 
 static section_process_fn section_table[] = {
     [ROOT] = process_root,
@@ -91,6 +95,8 @@ static section_process_fn section_table[] = {
     [CONFIG_PARAMS] = process_config_params,
     [GAIN_LEVEL_MAPPING] = process_gain_db_to_level_map,
     [ACDB_METAINFO_KEY] = process_acdb_metainfo_key,
+    [CUSTOM_MTMX_PARAMS] = process_custom_mtmx_params,
+    [CUSTOM_MTMX_PARAM_COEFFS] = process_custom_mtmx_param_coeffs,
 };
 
 static section_t section;
@@ -102,6 +108,8 @@ struct platform_info {
 };
 
 static struct platform_info my_data;
+
+static struct audio_custom_mtmx_params_info mtmx_params_info;
 
 /*
  * <audio_platform_info>
@@ -482,6 +490,84 @@ done:
     return;
 }
 
+static void process_custom_mtmx_param_coeffs(const XML_Char **attr)
+{
+    uint32_t attr_idx = 0, out_ch_idx = -1, ch_coeff_count = 0;
+    uint32_t ip_channels = 0, op_channels = 0;
+    char *context = NULL, *ch_coeff_value = NULL;
+    struct audio_custom_mtmx_params *mtmx_params = NULL;
+
+    if (strcmp(attr[attr_idx++], "out_channel_index") != 0) {
+        ALOGE("%s: 'out_channel_index' not found", __func__);
+        return;
+    }
+    out_ch_idx = atoi((char *)attr[attr_idx++]);
+
+    if (out_ch_idx >= mtmx_params_info.op_channels) {
+        ALOGE("%s: invalid out channel index(%u)", __func__, out_ch_idx);
+        return;
+    }
+
+    if (strcmp(attr[attr_idx++], "values") != 0) {
+        ALOGE("%s: 'values' not found", __func__);
+        return;
+    }
+    mtmx_params = platform_get_custom_mtmx_params((void *)my_data.platform,
+                                                  &mtmx_params_info);
+    if (mtmx_params == NULL) {
+        ALOGE("%s: mtmx params with given param info, not found", __func__);
+        return;
+    }
+    ch_coeff_value = strtok_r((char *)attr[attr_idx++], " ", &context);
+    ip_channels = mtmx_params->info.ip_channels;
+    op_channels = mtmx_params->info.op_channels;
+    while(ch_coeff_value && ch_coeff_count < op_channels) {
+        mtmx_params->coeffs[ip_channels * out_ch_idx + ch_coeff_count++]
+                           = atoi(ch_coeff_value);
+        ch_coeff_value = strtok_r(NULL, " ", &context);
+    }
+    if (ch_coeff_count != mtmx_params->info.ip_channels ||
+        ch_coeff_value != NULL)
+        ALOGE("%s: invalid/malformed coefficient values", __func__);
+}
+
+static void process_custom_mtmx_params(const XML_Char **attr)
+{
+    int attr_idx = 0;
+
+    if (strcmp(attr[attr_idx++], "param_id") != 0) {
+        ALOGE("%s: 'param_id' not found", __func__);
+        return;
+    }
+    mtmx_params_info.id = atoi((char *)attr[attr_idx++]);
+
+    if (strcmp(attr[attr_idx++], "in_channel_count") != 0) {
+        ALOGE("%s: 'in_channel_count' not found", __func__);
+        return;
+    }
+    mtmx_params_info.ip_channels = atoi((char *)attr[attr_idx++]);
+
+    if (strcmp(attr[attr_idx++], "out_channel_count") != 0) {
+        ALOGE("%s: 'out_channel_count' not found", __func__);
+        return;
+    }
+    mtmx_params_info.op_channels = atoi((char *)attr[attr_idx++]);
+
+    if (strcmp(attr[attr_idx++], "usecase") != 0) {
+        ALOGE("%s: 'usecase' not found", __func__);
+        return;
+    }
+    mtmx_params_info.usecase_id = platform_get_usecase_index((char *)attr[attr_idx++]);
+
+    if (strcmp(attr[attr_idx++], "snd_device") != 0) {
+        ALOGE("%s: 'snd_device' not found", __func__);
+        return;
+    }
+    mtmx_params_info.snd_device = platform_get_snd_device_index((char *)attr[attr_idx++]);
+    platform_add_custom_mtmx_params((void *)my_data.platform, &mtmx_params_info);
+
+}
+
 static void start_tag(void *userdata __unused, const XML_Char *tag_name,
                       const XML_Char **attr)
 {
@@ -565,6 +651,22 @@ static void start_tag(void *userdata __unused, const XML_Char *tag_name,
                 return;
             }
             section = NS;
+        } else if (strcmp(tag_name, "custom_mtmx_params") == 0) {
+            if (section != ROOT) {
+                ALOGE("custom_mtmx_params tag supported only in ROOT section");
+                return;
+            }
+            section = CUSTOM_MTMX_PARAMS;
+            section_process_fn fn = section_table[section];
+            fn(attr);
+        } else if (strcmp(tag_name, "custom_mtmx_param_coeffs") == 0) {
+            if (section != CUSTOM_MTMX_PARAMS) {
+                ALOGE("custom_mtmx_param_coeffs tag supported only with CUSTOM_MTMX_PARAMS section");
+                return;
+            }
+            section = CUSTOM_MTMX_PARAM_COEFFS;
+            section_process_fn fn = section_table[section];
+            fn(attr);
         }
     } else {
             ALOGE("%s: unknown caller!", __func__);
@@ -599,6 +701,10 @@ static void end_tag(void *userdata __unused, const XML_Char *tag_name)
         section = ROOT;
     } else if (strcmp(tag_name, "acdb_metainfo_key") == 0) {
         section = ROOT;
+    } else if (strcmp(tag_name, "custom_mtmx_params") == 0) {
+        section = ROOT;
+    } else if (strcmp(tag_name, "custom_mtmx_param_coeffs") == 0) {
+        section = CUSTOM_MTMX_PARAMS;
     }
 }
 

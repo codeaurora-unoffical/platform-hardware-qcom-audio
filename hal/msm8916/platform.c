@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -299,6 +299,7 @@ struct platform_data {
     bool use_generic_handset;
     struct  spkr_device_chmap *spkr_ch_map;
     bool use_sprk_default_sample_rate;
+    struct listnode custom_mtmx_params_list;
 };
 
 struct  spkr_device_chmap {
@@ -2377,6 +2378,7 @@ void *platform_init(struct audio_device *adev)
         my_data->hifi_audio = true;
 
     list_init(&my_data->acdb_meta_key_list);
+    list_init(&my_data->custom_mtmx_params_list);
 
     set_platform_defaults(my_data);
 
@@ -2747,6 +2749,75 @@ acdb_init_fail:
     return my_data;
 }
 
+struct audio_custom_mtmx_params *
+    platform_get_custom_mtmx_params(void *platform,
+                                    struct audio_custom_mtmx_params_info *info)
+{
+    struct platform_data *my_data = (struct platform_data *)platform;
+    struct listnode *node = NULL;
+    struct audio_custom_mtmx_params *params = NULL;
+
+    list_for_each(node, &my_data->custom_mtmx_params_list) {
+        params = node_to_item(node, struct audio_custom_mtmx_params, list);
+        if (params &&
+            params->info.id == info->id &&
+            params->info.ip_channels == info->ip_channels &&
+            params->info.op_channels == info->op_channels &&
+            params->info.usecase_id == info->usecase_id &&
+            params->info.snd_device == info->snd_device) {
+            ALOGV("%s: found params with ip_ch %d op_ch %d uc_id %d snd_dev %d",
+                  __func__, info->ip_channels, info->op_channels,
+                  info->usecase_id, info->snd_device);
+            return params;
+        }
+    }
+    ALOGI("%s: no matching param with id %d ip_ch %d op_ch %d uc_id %d snd_dev %d",
+          __func__, info->id, info->ip_channels, info->op_channels,
+          info->usecase_id, info->snd_device);
+    return NULL;
+}
+
+int platform_add_custom_mtmx_params(void *platform,
+                                    struct audio_custom_mtmx_params_info *info)
+{
+    struct platform_data *my_data = (struct platform_data *)platform;
+    struct audio_custom_mtmx_params *params = NULL;
+    uint32_t size = sizeof(*params);
+
+    if (info->ip_channels > AUDIO_CHANNEL_COUNT_MAX ||
+        info->op_channels > AUDIO_CHANNEL_COUNT_MAX) {
+        ALOGE("%s: unusupported channels in %d, out %d",
+              __func__, info->ip_channels, info->op_channels);
+        return -EINVAL;
+    }
+
+    size += sizeof(params->coeffs[0]) * info->ip_channels * info->op_channels;
+    params = (struct audio_custom_mtmx_params *) calloc(1, size);
+    if (!params) {
+        ALOGE("%s: failed to add custom mtmx params", __func__);
+        return -ENOMEM;
+    }
+
+    ALOGI("%s: adding mtmx params with id %d ip_ch %d op_ch %d uc_id %d snd_dev %d",
+          __func__, info->id, info->ip_channels, info->op_channels,
+          info->usecase_id, info->snd_device);
+
+    params->info = *info;
+    list_add_tail(&my_data->custom_mtmx_params_list, &params->list);
+    return 0;
+}
+
+static void platform_release_custom_mtmx_params(void *platform)
+{
+    struct platform_data *my_data = (struct platform_data *)platform;
+    struct listnode *node = NULL, *tempnode = NULL;
+
+    list_for_each_safe(node, tempnode, &my_data->custom_mtmx_params_list) {
+        list_remove(node);
+        free(node_to_item(node, struct audio_custom_mtmx_params, list));
+    }
+}
+
 void platform_release_acdb_metainfo_key(void *platform)
 {
     struct platform_data *my_data = (struct platform_data *)platform;
@@ -2832,6 +2903,7 @@ void platform_deinit(void *platform)
 
     /* free acdb_meta_key_list */
     platform_release_acdb_metainfo_key(platform);
+    platform_release_custom_mtmx_params(platform);
 
     if (my_data->acdb_deallocate)
         my_data->acdb_deallocate();
@@ -6257,9 +6329,9 @@ static bool platform_check_codec_backend_cfg(struct audio_device* adev,
     }
 
     /* Native playback is preferred for Headphone/HS device over 192Khz */
-    if (!voice_call_active && codec_device_supports_native_playback(usecase->devices)) {
+    if (!voice_call_active && codec_device_supports_native_playback(snd_device)) {
         if (audio_is_true_native_stream_active(adev)) {
-            if (check_hdset_combo_device(snd_device)) {
+            if (check_hdset_combo_device(usecase->devices)) {
                 /*
                  * In true native mode Tasha has a limitation that one port at 44.1 khz
                  * cannot drive both spkr and hdset, to simiplify the solution lets
@@ -6318,8 +6390,8 @@ static bool platform_check_codec_backend_cfg(struct audio_device* adev,
      * backend with speaker, and these devices are restricited to 48kHz.
      */
     if (platform_check_backends_match(SND_DEVICE_OUT_SPEAKER, snd_device) &&
-        !(codec_device_supports_native_playback(usecase->devices) &&
-          my_data->hifi_audio && !check_hdset_combo_device(snd_device))) {
+        !(codec_device_supports_native_playback(snd_device) &&
+          my_data->hifi_audio && !check_hdset_combo_device(usecase->devices))) {
         sample_rate = CODEC_BACKEND_DEFAULT_SAMPLE_RATE;
 
         if (bit_width >= 24) {
