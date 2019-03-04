@@ -374,18 +374,19 @@ int audio_extn_hfp_set_parameters(struct audio_device *adev, struct str_parms *p
     int val;
     float vol;
     char value[32]={0};
+    int ret_val = 0;
 
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_HFP_ENABLE, value,
                             sizeof(value));
 
     if (ret >= 0) {
            if ((!strncmp(value,"true",sizeof(value))) && (!hfpmod.is_hfp_running))
-               ret = start_hfp(adev,parms);
+               ret_val = start_hfp(adev,parms);
            else if((!strncmp(value,"false",sizeof(value))) && (hfpmod.is_hfp_running))
                stop_hfp(adev);
            else {
                ALOGE("%s: concurrent start_hfp() and concurrent stop_hfp() is not valid", __func__);
-               ret = -EINVAL;
+               ret_val = -EINVAL;
                goto exit;
            }
     }
@@ -422,7 +423,7 @@ int audio_extn_hfp_set_parameters(struct audio_device *adev, struct str_parms *p
     if (ret >= 0) {
         if (sscanf(value, "%f", &vol) != 1){
             ALOGE("%s: error in retrieving hfp volume", __func__);
-            ret = -EIO;
+            ret_val = -EIO;
             goto exit;
         }
         ALOGD("%s: set_hfp_volume usecase, Vol: [%f]", __func__, vol);
@@ -430,6 +431,6 @@ int audio_extn_hfp_set_parameters(struct audio_device *adev, struct str_parms *p
     }
 exit:
     ALOGV("%s Exit",__func__);
-    return ret;
+    return ret_val;
 }
 #endif /*HFP_ENABLED*/
