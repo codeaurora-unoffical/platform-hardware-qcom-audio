@@ -3946,10 +3946,11 @@ static int out_dump(const struct audio_stream *stream, int fd)
         pthread_mutex_unlock(&out->lock);
     }
 
+#ifndef LINUX_ENABLED
     // dump error info
     (void)error_log_dump(
             out->error_log, fd, "      " /* prefix */, 0 /* lines */, 0 /* limit_ns */);
-
+#endif
     return 0;
 }
 
@@ -5722,11 +5723,11 @@ static int in_dump(const struct audio_stream *stream,
     if (locked) {
         pthread_mutex_unlock(&in->lock);
     }
-
+#ifndef LINUX_ENABLED
     // dump error info
     (void)error_log_dump(
             in->error_log, fd, "      " /* prefix */, 0 /* lines */, 0 /* limit_ns */);
-
+#endif
     return 0;
 }
 
@@ -7137,10 +7138,11 @@ int adev_open_output_stream(struct audio_hw_device *dev,
     register_channel_mask(out->channel_mask, out->supported_channel_masks);
     register_sample_rate(out->sample_rate, out->supported_sample_rates);
 
+#ifndef LINUX_ENABLED
     out->error_log = error_log_create(
             ERROR_LOG_ENTRIES,
             1000000000 /* aggregate consecutive identical errors within one second in ns */);
-
+#endif
     /*
        By locking output stream before registering, we allow the callback
        to update stream's state only after stream's initial state is set to
@@ -7269,9 +7271,10 @@ void adev_close_output_stream(struct audio_hw_device *dev __unused,
     if (adev->voice_tx_output == out)
         adev->voice_tx_output = NULL;
 
+#ifndef LINUX_ENABLED
     error_log_destroy(out->error_log);
     out->error_log = NULL;
-
+#endif
     if (adev->primary_output == out)
         adev->primary_output = NULL;
 
@@ -8003,7 +8006,9 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
         in->config.rate = config->sample_rate;
         in->sample_rate = config->sample_rate;
         in->af_period_multiplier = 1;
-    } else if (in->source == AUDIO_SOURCE_VOICE_COMMUNICATION &&
+    }
+#ifndef LINUX_ENABLED
+    else if (in->source == AUDIO_SOURCE_VOICE_COMMUNICATION &&
                in->flags & AUDIO_INPUT_FLAG_VOIP_TX &&
                (config->sample_rate == 8000 ||
                 config->sample_rate == 16000 ||
@@ -8021,7 +8026,9 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
         in->config.period_count = VOIP_CAPTURE_PERIOD_COUNT;
         in->config.rate = config->sample_rate;
         in->af_period_multiplier = 1;
-    } else {
+    }
+#endif
+    else {
         int ret_val;
         pthread_mutex_lock(&adev->lock);
         ret_val = audio_extn_check_and_set_multichannel_usecase(adev,
@@ -8103,9 +8110,11 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
     register_channel_mask(in->channel_mask, in->supported_channel_masks);
     register_sample_rate(in->sample_rate, in->supported_sample_rates);
 
+#ifndef LINUX_ENABLED
     in->error_log = error_log_create(
             ERROR_LOG_ENTRIES,
             1000000000 /* aggregate consecutive identical errors within one second */);
+#endif
 
     /* This stream could be for sound trigger lab,
        get sound trigger pcm if present */
@@ -8168,9 +8177,10 @@ static void adev_close_input_stream(struct audio_hw_device *dev,
     else
         audio_extn_sound_trigger_update_ec_ref_status(false);
 
+#ifndef LINUX_ENABLED
     error_log_destroy(in->error_log);
     in->error_log = NULL;
-
+#endif
     if (in == NULL) {
         ALOGE("%s: audio_stream_in ptr is NULL", __func__);
         return;

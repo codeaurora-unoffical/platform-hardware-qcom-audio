@@ -1248,11 +1248,21 @@ void audio_extn_usb_set_reconfig(bool is_required)
 
 //START: SPEAKER_PROTECTION ==========================================================
 #ifdef __LP64__
+#if LINUX_ENABLED
+#define SPKR_PROT_LIB_PATH  "/usr/lib64/audio.spkr.prot.so"
+#define CIRRUS_SPKR_PROT_LIB_PATH  "/usr/lib64/audio.external.spkr.prot.so"
+#else
 #define SPKR_PROT_LIB_PATH  "/vendor/lib64/libspkrprot.so"
 #define CIRRUS_SPKR_PROT_LIB_PATH  "/vendor/lib64/libcirrusspkrprot.so"
+#endif
+#else
+#if LINUX_ENABLED
+#define SPKR_PROT_LIB_PATH  "/usr/lib/audio.spkr.prot.so"
+#define CIRRUS_SPKR_PROT_LIB_PATH  "/usr/lib/audio.external.spkr.prot.so"
 #else
 #define SPKR_PROT_LIB_PATH  "/vendor/lib/libspkrprot.so"
 #define CIRRUS_SPKR_PROT_LIB_PATH  "/vendor/lib/libcirrusspkrprot.so"
+#endif
 #endif
 
 static void *spkr_prot_lib_handle = NULL;
@@ -1294,10 +1304,14 @@ void spkr_prot_feature_init(bool is_feature_enabled)
     ALOGD("%s: Called with feature %s", __func__, is_feature_enabled?"Enabled":"NOT Enabled");
     if (is_feature_enabled) {
         //dlopen lib
+#if LINUX_ENABLED
+        spkr_prot_lib_handle = dlopen(SPKR_PROT_LIB_PATH, RTLD_NOW);
+#else
         if (is_running_on_stock_version)
             spkr_prot_lib_handle = dlopen(CIRRUS_SPKR_PROT_LIB_PATH, RTLD_NOW);
         else
             spkr_prot_lib_handle = dlopen(SPKR_PROT_LIB_PATH, RTLD_NOW);
+#endif
 
         if (spkr_prot_lib_handle == NULL) {
             ALOGE("%s: dlopen failed", __func__);
@@ -2002,10 +2016,19 @@ void audio_extn_dsm_feedback_enable(struct audio_device *adev, snd_device_t snd_
 
 //START: SND_MONITOR_FEATURE ================================================================
 #ifdef __LP64__
+#if LINUX_ENABLED
+#define SND_MONITOR_PATH  "/usr/lib64/audio.snd.monitor.so"
+#else
 #define SND_MONITOR_PATH  "/vendor/lib64/libsndmonitor.so"
+#endif
+#else
+#if LINUX_ENABLED
+#define SND_MONITOR_PATH  "/usr/lib/audio.snd.monitor.so"
 #else
 #define SND_MONITOR_PATH  "/vendor/lib/libsndmonitor.so"
 #endif
+#endif
+
 static void *snd_mnt_lib_handle = NULL;
 
 typedef int (*snd_mon_init_t)();
@@ -2164,9 +2187,17 @@ void audio_extn_source_track_get_parameters(const struct audio_device *adev,
 
 //START: SSREC_FEATURE ==========================================================
 #ifdef __LP64__
+#if LINUX_ENABLED
+#define SSREC_LIB_PATH  "/usr/lib64/audio.ssrec.so"
+#else
 #define SSREC_LIB_PATH  "/vendor/lib64/libssrec.so"
+#endif
+#else
+#if LINUX_ENABLED
+#define SSREC_LIB_PATH  "/usr/lib/audio.ssrec.so"
 #else
 #define SSREC_LIB_PATH  "/vendor/lib/libssrec.so"
+#endif
 #endif
 
 static void *ssrec_lib_handle = NULL;
@@ -2348,10 +2379,19 @@ struct stream_in *audio_extn_ssr_get_stream() {
 
 //START: COMPRESS_CAPTURE_FEATURE ================================================================
 #ifdef __LP64__
+#if LINUX_ENABLED
+#define COMPRESS_CAPTURE_PATH  "/usr/lib64/audio.compress.capture.so"
+#else
 #define COMPRESS_CAPTURE_PATH  "/vendor/lib64/libcomprcapture.so"
+#endif
+#else
+#if LINUX_ENABLED
+#define COMPRESS_CAPTURE_PATH  "/usr/lib/audio.compress.capture.so"
 #else
 #define COMPRESS_CAPTURE_PATH  "/vendor/lib/libcomprcapture.so"
 #endif
+#endif
+
 static void *compr_cap_lib_handle = NULL;
 
 typedef void (*compr_cap_init_t)(struct stream_in*);
@@ -3109,9 +3149,17 @@ void audio_extn_fm_set_parameters(struct audio_device *adev,
 
 //START: HDMI_EDID =========================================================================
 #ifdef __LP64__
+#if LINUX_ENABLED
+#define HDMI_EDID_LIB_PATH  "/usr/lib64/audio.hdmi.edid.so"
+#else
 #define HDMI_EDID_LIB_PATH  "/vendor/lib64/libhdmiedid.so"
+#endif
+#else
+#if LINUX_ENABLED
+#define HDMI_EDID_LIB_PATH  "/usr/lib/audio.hdmi.edid.so"
 #else
 #define HDMI_EDID_LIB_PATH  "/vendor/lib/libhdmiedid.so"
+#endif
 #endif
 
 static void *hdmi_edid_lib_handle = NULL;
@@ -3630,9 +3678,17 @@ exit:
 //END: CUSTOM_STEREO =============================================================================
 // START: A2DP_OFFLOAD ===================================================================
 #ifdef __LP64__
+#if LINUX_ENABLED
+#define A2DP_OFFLOAD_LIB_PATH "/usr/lib64/audio.a2dp.offload.so"
+#else
 #define A2DP_OFFLOAD_LIB_PATH "/vendor/lib64/liba2dpoffload.so"
+#endif
+#else
+#if LINUX_ENABLED
+#define A2DP_OFFLOAD_LIB_PATH "/usr/lib/audio.a2dp.offload.so"
 #else
 #define A2DP_OFFLOAD_LIB_PATH "/vendor/lib/liba2dpoffload.so"
+#endif
 #endif
 
 static void *a2dp_lib_handle = NULL;
@@ -3833,7 +3889,7 @@ bool audio_extn_a2dp_source_is_suspended()
 // END: A2DP_OFFLOAD =====================================================================
 void audio_extn_feature_init()
 {
-    for(int index = 0; index < VOICE_START; index++)
+    for(int index = 0; index < MAX_SUPPORTED_FEATURE; index++)
     {
         bool enable = audio_feature_manager_is_feature_enabled(index);
         switch (index) {
@@ -3894,6 +3950,9 @@ void audio_extn_feature_init()
                 break;
             case ANC_HEADSET:
                 anc_headset_feature_init(enable);
+                break;
+            case SPKR_PROT:
+                spkr_prot_feature_init(enable);
                 break;
             default:
                 break;

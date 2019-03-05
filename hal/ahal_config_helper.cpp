@@ -83,34 +83,140 @@ void AHalConfigHelper::initDefaultConfig(bool isVendorEnhancedFwk)
             true,        /* COMPRESS_METADATA_NEEDED */
             false,       /* COMPRESS_VOIP */
             false,       /* DYNAMIC_ECNS */
+            true,        /* SPKR_PROT */
         };
     } else {
         mConfigs = {
+#if SND_MONITOR
             true,        /* SND_MONITOR */
+#else
+            false,        /* SND_MONITOR */
+#endif
+#if COMPRESS_CAPTURE
+            true,       /* COMPRESS_CAPTURE */
+#else
             false,       /* COMPRESS_CAPTURE */
+#endif
+#if SOURCE_TRACKING
+            true,       /* SOURCE_TRACK */
+#else
             false,       /* SOURCE_TRACK */
+#endif
+#if SSREC
+            true,       /* SSREC */
+#else
             false,       /* SSREC */
+#endif
+#if AUDIOSPHERE
+            true,       /* AUDIOSPHERE */
+#else
             false,       /* AUDIOSPHERE */
+#endif
+#if AFE_PROXY
+            true,       /* AFE_PROXY */
+#else
             false,       /* AFE_PROXY */
+#endif
+#if USE_DEEP_AS_PRIMARY_OUTPUT
+            true,       /* USE_DEEP_AS_PRIMARY_OUTPUT */
+#else
             false,       /* USE_DEEP_AS_PRIMARY_OUTPUT */
+#endif
+#if HDMI_EDID
+            true,       /* HDMI_EDID */
+#else
             false,       /* HDMI_EDID */
+#endif
+#if KEEP_ALIVE
+            true,       /* KEEP_ALIVE */
+#else
             false,       /* KEEP_ALIVE */
+#endif
+#if HIFI_AUDIO
+            true,       /* HIFI_AUDIO */
+#else
             false,       /* HIFI_AUDIO */
+#endif
+#if RECEIVER_AIDED_STEREO
+            true,       /* RECEIVER_AIDED_STEREO */
+#else
             false,       /* RECEIVER_AIDED_STEREO */
+#endif
+#if KPI_OPTIMIZE
+            true,       /* KPI_OPTIMIZE */
+#else
             false,       /* KPI_OPTIMIZE */
+#endif
+#if DISPLAY_PORT
+            true,       /* DISPLAY_PORT */
+#else
             false,       /* DISPLAY_PORT */
+#endif
+#if FLUENCE
+            true,       /* FLUENCE */
+#else
             false,       /* FLUENCE */
+#endif
+#if CUSTOM_STEREO
+            true,       /* CUSTOM_STEREO */
+#else
             false,       /* CUSTOM_STEREO */
+#endif
+#if ANC_HEADSET
+            true,       /* ANC_HEADSET */
+#else
             false,       /* ANC_HEADSET */
+#endif
+#if DSM_FEEDBACK
+            true,       /* DSM_FEEDBACK */
+#else
             false,       /* DSM_FEEDBACK */
+#endif
+#if USB_OFFLOAD
             true,        /* USB_OFFLOAD */
+#else
+            false,        /* USB_OFFLOAD */
+#endif
+#if USB_OFFLOAD_BURST_MODE
+            true,       /* USB_OFFLOAD_BURST_MODE */
+#else
             false,       /* USB_OFFLOAD_BURST_MODE */
+#endif
+#if USB_OFFLOAD_SIDETONE_VOLM
+            true,       /* USB_OFFLOAD_SIDETONE_VOLM */
+#else
             false,       /* USB_OFFLOAD_SIDETONE_VOLM */
+#endif
+#if A2DP_OFFLOAD_ENABLED
             true,        /* A2DP_OFFLOAD */
+#else
+            false,        /* A2DP_OFFLOAD */
+#endif
+#if VBAT
+            true,       /* VBAT */
+#else
             false,       /* VBAT */
+#endif
+#if COMPRESS_METADATA_ENABLED
+            true,       /* COMPRESS_METADATA_NEEDED */
+#else
             false,       /* COMPRESS_METADATA_NEEDED */
+#endif
+#ifdef COMPRESS_VOIP
+            true,       /* COMPRESS_VOIP */
+#else
             false,       /* COMPRESS_VOIP */
+#endif
+#ifdef DYNAMIC_ECNS
+            true,       /* DYNAMIC_ECNS */
+#else
             false,       /* DYNAMIC_ECNS */
+#endif
+#ifdef SPKR_PROT_ENABLED
+            true,        /* SPKR_PROT */
+#else
+            false,        /* SPKR_PROT */
+#endif
         };
     }
 }

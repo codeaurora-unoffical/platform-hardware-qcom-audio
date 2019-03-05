@@ -46,7 +46,9 @@
 #include <tinycompress/tinycompress.h>
 
 #include <audio_route/audio_route.h>
+#ifndef LINUX_ENABLED
 #include <audio_utils/ErrorLog.h>
+#endif
 #include "audio_defs.h"
 #include "voice.h"
 #include "audio_hw_extn_api.h"
@@ -66,6 +68,9 @@
 #define OFFLOAD_EFFECTS_BUNDLE_LIBRARY_PATH "/vendor/lib/soundfx/libqcompostprocbundle.so"
 #define ADM_LIBRARY_PATH "/vendor/lib/libadm.so"
 #endif
+
+#define ULONG_MAX (__LONG_MAX__ *2UL+1UL)
+#define PATH_MAX 4096
 
 /* Flags used to initialize acdb_settings variable that goes to ACDB library */
 #define NONE_FLAG            0x00000000
@@ -399,7 +404,9 @@ struct stream_out {
     char address[AUDIO_DEVICE_MAX_ADDRESS_LEN];
     int car_audio_stream;
 
+#ifndef LINUX_ENABLED
     error_log_t *error_log;
+#endif
 };
 
 struct stream_in {
@@ -441,8 +448,9 @@ struct stream_in {
 
     int64_t frames_read; /* total frames read, not cleared when entering standby */
     int64_t frames_muted; /* total frames muted, not cleared when entering standby */
-
+#ifndef LINUX_ENABLED
     error_log_t *error_log;
+#endif
 };
 
 typedef enum {

@@ -6049,12 +6049,13 @@ static void set_audiocal(void *platform, struct str_parms *parms, char *value, i
             ALOGE("[%s] memory allocation failed for %d",__func__, dlen);
             goto done_key_audcal;
         }
+#ifndef LINUX_ENABLED
         dlen = b64_pton(value, dptr, dlen);
         if(dlen<=0) {
             ALOGE("[%s] data decoding failed %d", __func__, dlen);
             goto done_key_audcal;
         }
-
+#endif
         if(cal.dev_id) {
           if(audio_is_input_device(cal.dev_id)) {
               cal.snd_dev_id = platform_get_input_snd_device(platform, cal.dev_id);

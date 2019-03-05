@@ -13,47 +13,53 @@ c_sources = audio_hw.c \
             ${TARGET_PLATFORM}/platform.c \
             audio_extn/audio_extn.c \
             audio_extn/utils.c \
-            acdb.c
+            acdb.c \
+            ahal_config_helper.cpp \
+            audio_extn/audio_feature_manager.c \
+            audio_extn/audio_hidl.cpp
 
-if HDMI_EDID
-AM_CFLAGS += -DHDMI_EDID
-c_sources += edid.c
-endif
+#if HDMI_EDID
+#AM_CFLAGS += -DHDMI_EDID
+#c_sources += edid.c
+#endif
 
-if FM_POWER_OPT
-AM_CFLAGS += -DFM_POWER_OPT
+#if FM_POWER_OPT
+#AM_CFLAGS += -DFM_POWER_OPT
 c_sources += audio_extn/fm.c
-endif
+#endif
 
-if USBAUDIO
-AM_CFLAGS += -DUSB_TUNNEL_ENABLED
+#if USBAUDIO
+#AM_CFLAGS += -DUSB_TUNNEL_ENABLED
 c_sources += audio_extn/usb.c
-endif
+#endif
 
 if HFP
 AM_CFLAGS += -DHFP_ENABLED
 c_sources += audio_extn/hfp.c
 endif
 
-if SSR
-AM_CFLAGS += -DSSR_ENABLED
-c_sources += audio_extn/ssr.c
-AM_CFLAGS +=  -I ${WORKSPACE}/audio/mm-audio-external-noship/surround_sound_3mic/libsurround_3mic_proc/surround_rec_interface/inc/
-endif
+#if SSR
+#AM_CFLAGS += -DSSR_ENABLED
+#c_sources += audio_extn/ssr.c
+#endif
 
 if MULTI_VOICE_SESSIONS
 AM_CFLAGS += -DMULTI_VOICE_SESSION_ENABLED
 c_sources += voice_extn/voice_extn.c
 endif
 
-if COMPRESS_VOIP
-AM_CFLAGS += -DCOMPRESS_VOIP_ENABLED
+#if COMPRESS_VOIP
+#AM_CFLAGS += -DCOMPRESS_VOIP_ENABLED
 c_sources += voice_extn/compress_voip.c
-endif
+#endif
 
-if SPKR_PROTECTION
+#if SPKR_PROTECTION
+#AM_CFLAGS += -DSPKR_PROT_ENABLED
+#c_sources += audio_extn/spkr_protection.c
+#endif
+
+if SPKR_PROT
 AM_CFLAGS += -DSPKR_PROT_ENABLED
-c_sources += audio_extn/spkr_protection.c
 endif
 
 if HW_VARIANTS
@@ -61,10 +67,10 @@ AM_CFLAGS += -DHW_VARIANTS_ENABLED
 c_sources +=  ${TARGET_PLATFORM}/hw_info.c
 endif
 
-if COMPRESS_CAPTURE
-AM_CFLAGS += -DCOMPRESS_CAPTURE_ENABLED
-c_sources += audio_extn/compress_capture.c
-endif
+#if COMPRESS_CAPTURE
+#AM_CFLAGS += -DCOMPRESS_CAPTURE_ENABLED
+#c_sources += audio_extn/compress_capture.c
+#endif
 
 if DTS_EAGLE
 AM_CFLAGS += -DDTS_EAGLE
@@ -107,22 +113,22 @@ endif
 
 if FLAC_SUPPORT
 AM_CFLAGS += -DFLAC_OFFLOAD_ENABLED
-AM_CFLAGS += -DCOMPRESS_METADATA_NEEDED
+AM_CFLAGS += -DCOMPRESS_METADATA_ENABLED
 endif
 
 if ALAC_SUPPORT
 AM_CFLAGS += -DALAC_OFFLOAD_ENABLED
-AM_CFLAGS += -DCOMPRESS_METADATA_NEEDED
+AM_CFLAGS += -DCOMPRESS_METADATA_ENABLED
 endif
 
 if VORBIS_SUPPORT
 AM_CFLAGS += -DVORBIS_OFFLOAD_ENABLED
-AM_CFLAGS += -DCOMPRESS_METADATA_NEEDED
+AM_CFLAGS += -DCOMPRESS_METADATA_ENABLED
 endif
 
 if WMA_SUPPORT
 AM_CFLAGS += -DWMA_OFFLOAD_ENABLED
-AM_CFLAGS += -DCOMPRESS_METADATA_NEEDED
+AM_CFLAGS += -DCOMPRESS_METADATA_ENABLED
 endif
 
 if COMPRESS_INPUT
@@ -170,9 +176,13 @@ AM_CFLAGS += -DAUDIO_EXTN_ADSP_HDLR_ENABLED
 c_sources += audio_extn/adsp_hdlr.c
 endif
 
+#if A2DP_OFFLOAD
+#AM_CFLAGS += -DA2DP_OFFLOAD_ENABLED
+#c_sources += audio_extn/a2dp.c
+#endif
+
 if A2DP_OFFLOAD
 AM_CFLAGS += -DA2DP_OFFLOAD_ENABLED
-c_sources += audio_extn/a2dp.c
 endif
 
 if SPLIT_A2DP_SINK
@@ -192,7 +202,7 @@ endif
 
 if AUDIO_HW_LOOPBACK
 AM_CFLAGS += -DAUDIO_HW_LOOPBACK_ENABLED
-AM_CFLAGS += -DCOMPRESS_METADATA_NEEDED
+AM_CFLAGS += -DCOMPRESS_METADATA_ENABLED
 c_sources += audio_extn/hw_loopback.c
 endif
 
@@ -223,6 +233,8 @@ AM_CFLAGS += -DDOLBY_MAT_THD_ENABLED
 c_sources += audio_extn/dolby.c
 endif
 
+AM_CFLAGS += -DMAX_TARGET_SPECIFIC_CHANNEL_CNT="4"
+
 h_sources = audio_extn/audio_defs.h \
             audio_extn/audio_extn.h \
             audio_hw.h \
@@ -245,3 +257,5 @@ audio_primary_default_la_CFLAGS += -D__unused=__attribute__\(\(__unused__\)\)
 audio_primary_default_la_CFLAGS += -DLINUX_ENABLED $(TARGET_CFLAGS) -DAUDIO_EXTN_FORMATS_ENABLED
 audio_primary_default_la_CFLAGS += -DNDEBUG
 audio_primary_default_la_LDFLAGS = -module -shared -avoid-version
+audio_primary_default_la_CPPFLAGS = $(AM_CFLAGS) $(GLIB_CFLAGS)
+audio_primary_default_la_CPPFLAGS += -DLINUX_ENABLED

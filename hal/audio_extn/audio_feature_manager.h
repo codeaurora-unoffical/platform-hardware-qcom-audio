@@ -59,6 +59,7 @@ enum audio_ext_feature_t {
     VOICE_START = COMPRESS_METADATA_NEEDED,
     COMPRESS_VOIP,
     DYNAMIC_ECNS,
+    SPKR_PROT,
     MAX_SUPPORTED_FEATURE
 };
 

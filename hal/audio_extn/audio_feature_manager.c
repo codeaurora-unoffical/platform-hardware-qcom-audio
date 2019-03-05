@@ -116,6 +116,8 @@ bool audio_feature_manager_is_feature_enabled(audio_ext_feature feature)
             return confValues->compress_voip_enabled;
         case DYNAMIC_ECNS:
             return confValues->dynamic_ecns_enabled;
+        case SPKR_PROT:
+            return confValues->spkr_prot_enabled;
         default:
             return false;
     }

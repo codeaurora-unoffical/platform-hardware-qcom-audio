@@ -55,6 +55,7 @@ struct AHalValues_t {
     bool compress_metadata_needed;
     bool compress_voip_enabled;
     bool dynamic_ecns_enabled;
+    bool spkr_prot_enabled;
 };
 typedef struct AHalValues_t AHalValues;
 
