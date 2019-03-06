@@ -543,6 +543,10 @@ ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXT_HW_PLUGIN)),true)
     LOCAL_SRC_FILES += audio_extn/ext_hw_plugin.c
 endif
 
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_FM_TUNER_EXT)),true)
+    LOCAL_CFLAGS += -DFM_TUNER_EXT_ENABLED
+endif
+
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_A2DP_DECODERS)), true)
     LOCAL_CFLAGS += -DAPTX_DECODER_ENABLED
 endif
