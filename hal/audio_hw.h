@@ -385,6 +385,7 @@ struct stream_out {
     mix_matrix_params_t downmix_params;
     bool set_dual_mono;
     int rx_dtmf_tone_gain;
+    bool prev_card_status_offline;
 
     char address[AUDIO_DEVICE_MAX_ADDRESS_LEN];
     int car_audio_stream;
