@@ -238,9 +238,12 @@ ro.af.client_heap_size_kbyte=7168
 PRODUCT_PROPERTY_OVERRIDES += \
 persist.vendor.bt.enable.splita2dp=false
 
+ifneq ($(strip $(TARGET_HAS_LOW_RAM)),true)
+android.hardware.audio@2.0-service
+endif
+
 # for HIDL related packages
 PRODUCT_PACKAGES += \
-    android.hardware.audio@2.0-service \
     android.hardware.audio@2.0-impl \
     android.hardware.audio.effect@2.0-impl \
     android.hardware.soundtrigger@2.0-impl
