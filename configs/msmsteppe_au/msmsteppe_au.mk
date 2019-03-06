@@ -70,6 +70,7 @@ AUDIO_FEATURE_ENABLED_SVA_MULTI_STAGE := false
 AUDIO_FEATURE_ENABLED_BATTERY_LISTENER := false
 ##AUDIO_FEATURE_FLAGS
 
+AUDIO_FEATURE_ENABLED_AUTO_HAL := true
 ifneq ($(strip $(TARGET_USES_RRO)), true)
 #Audio Specific device overlays
 DEVICE_PACKAGE_OVERLAYS += hardware/qcom/audio/configs/common/overlay
@@ -108,6 +109,9 @@ PRODUCT_COPY_FILES += \
 # Listen configuration file
 PRODUCT_COPY_FILES += \
     hardware/qcom/audio/configs/msmsteppe_au/listen_platform_info.xml:$(TARGET_COPY_OUT_VENDOR)/etc/listen_platform_info.xml
+#Audio HAL version
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.hal.maj.version=3
 
 # Reduce client buffer size for fast audio output tracks
 PRODUCT_PROPERTY_OVERRIDES += \
@@ -253,13 +257,7 @@ PRODUCT_PACKAGES += \
     android.hardware.audio.effect@4.0 \
     android.hardware.audio.effect@4.0-impl
 
-PRODUCT_PROPERTY_OVERRIDES += \
-persist.audio.calfile0=/vendor/etc/acdbdata/adsp_avs_config.acdb\
-persist.audio.calfile1=/vendor/etc/acdbdata/ADP/Bluetooth_cal.acdb\
-persist.audio.calfile2=/vendor/etc/acdbdata/ADP/Codec_cal.acdb\
-persist.audio.calfile3=/vendor/etc/acdbdata/ADP/General_cal.acdb\
-persist.audio.calfile4=/vendor/etc/acdbdata/ADP/Global_cal.acdb\
-persist.audio.calfile5=/vendor/etc/acdbdata/ADP/Handset_cal.acdb\
-persist.audio.calfile6=/vendor/etc/acdbdata/ADP/Hdmi_cal.acdb\
-persist.audio.calfile7=/vendor/etc/acdbdata/ADP/Headset_cal.acdb\
-persist.audio.calfile8=/vendor/etc/acdbdata/ADP/Speaker_cal.acdb
+# for HIDL related audiocontrol packages
+PRODUCT_PACKAGES += \
+    vendor.qti.hardware.automotive.audiocontrol@1.0-service \
+    android.hardware.automotive.audiocontrol@1.0
