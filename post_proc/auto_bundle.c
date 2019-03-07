@@ -33,8 +33,6 @@
 #include "auto_volume.h"
 #include "auto_fnb.h"
 #include "auto_delay.h"
-#include "auto_mute.h"
-#include "auto_gain.h"
 
 const effect_descriptor_t *descriptors[] = {
         &auto_effect_bmt_descriptor,
