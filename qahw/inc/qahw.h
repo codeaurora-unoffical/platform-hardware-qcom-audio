@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2011 The Android Open Source Project *
@@ -358,6 +358,10 @@ char* qahw_in_get_parameters_l(const qahw_stream_handle_t *in_handle,
 ssize_t qahw_in_read_l(qahw_stream_handle_t *in_handle,
                      qahw_in_buffer_t *in_buf);
 /*
+ * Stop input stream. Returns zero on success.
+ */
+int qahw_in_stop_l(qahw_stream_handle_t *in_handle);
+/*
  * Return the amount of input frames lost in the audio driver since the
  * last call of this function.
  * Audio driver is expected to reset the value to 0 and restart counting
@@ -463,6 +467,13 @@ int qahw_create_audio_patch_l(qahw_module_handle_t *hw_module,
 /* Release an audio patch */
 int qahw_release_audio_patch_l(qahw_module_handle_t *hw_module,
                         audio_patch_handle_t handle);
+
+/* API to set loopback stream specific config parameters. */
+int qahw_loopback_set_param_data_l(qahw_module_handle_t *hw_module,
+                                   audio_patch_handle_t handle,
+                                   qahw_loopback_param_id param_id,
+                                   qahw_loopback_param_payload *payload);
+
 /* Fills the list of supported attributes for a given audio port.
  * As input, "port" contains the information (type, role, address etc...)
  * needed by the HAL to identify the port.

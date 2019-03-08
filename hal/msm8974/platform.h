@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -66,10 +66,15 @@ enum {
  * All these devices are handled by the internal HW codec. We can
  * enable any one of these devices at any time
  */
+#ifdef CONCURRENT_CAPTURE_ENABLED
+#define AUDIO_DEVICE_IN_ALL_CODEC_BACKEND \
+    (AUDIO_DEVICE_IN_BUILTIN_MIC | AUDIO_DEVICE_IN_BACK_MIC | \
+     AUDIO_DEVICE_IN_VOICE_CALL) & ~AUDIO_DEVICE_BIT_IN
+#else
 #define AUDIO_DEVICE_IN_ALL_CODEC_BACKEND \
     (AUDIO_DEVICE_IN_BUILTIN_MIC | AUDIO_DEVICE_IN_BACK_MIC | \
      AUDIO_DEVICE_IN_WIRED_HEADSET | AUDIO_DEVICE_IN_VOICE_CALL) & ~AUDIO_DEVICE_BIT_IN
-
+#endif
 /* Sound devices specific to the platform
  * The DEVICE_OUT_* and DEVICE_IN_* should be mapped to these sound
  * devices to enable corresponding mixer paths
@@ -150,6 +155,10 @@ enum {
     SND_DEVICE_OUT_VOICE_SPEAKER_STEREO_AND_VOICE_HEADPHONES,
     SND_DEVICE_OUT_VOICE_SPEAKER_STEREO_AND_VOICE_ANC_HEADSET,
     SND_DEVICE_OUT_VOICE_SPEAKER_STEREO_AND_VOICE_ANC_FB_HEADSET,
+    SND_DEVICE_OUT_BUS_MEDIA,
+    SND_DEVICE_OUT_BUS_SYS,
+    SND_DEVICE_OUT_BUS_NAV,
+    SND_DEVICE_OUT_BUS_PHN,
     SND_DEVICE_OUT_END,
 
     /*
@@ -186,6 +195,7 @@ enum {
     SND_DEVICE_IN_BT_SCO_MIC_NREC,
     SND_DEVICE_IN_BT_SCO_MIC_WB,
     SND_DEVICE_IN_BT_SCO_MIC_WB_NREC,
+    SND_DEVICE_IN_BT_A2DP,
     SND_DEVICE_IN_CAMCORDER_MIC,
     SND_DEVICE_IN_VOICE_DMIC,
     SND_DEVICE_IN_VOICE_SPEAKER_DMIC,
@@ -253,6 +263,8 @@ enum {
     SND_DEVICE_IN_INCALL_REC_TX,
     SND_DEVICE_IN_INCALL_REC_RX_TX,
     SND_DEVICE_IN_LINE,
+    SND_DEVICE_IN_EC_REF_LOOPBACK_QUAD,
+    SND_DEVICE_IN_BUS,
     SND_DEVICE_IN_END,
 
     SND_DEVICE_MAX = SND_DEVICE_IN_END,
@@ -285,6 +297,7 @@ enum {
     SPDIF_TX_BACKEND,
     HDMI_TX_BACKEND,
     HDMI_ARC_TX_BACKEND,
+    HEADSET_TX_BACKEND,
     MAX_CODEC_BACKENDS
 };
 
@@ -292,6 +305,8 @@ enum {
 #define AUDIO_PARAMETER_KEY_NATIVE_AUDIO_MODE "native_audio_mode"
 
 #define AUDIO_PARAMETER_KEY_TRUE_32_BIT "true_32_bit"
+
+#define AUDIO_MAX_DSP_CHANNELS 32
 
 #define ALL_SESSION_VSID                0xFFFFFFFF
 #define DEFAULT_MUTE_RAMP_DURATION_MS   20
@@ -389,11 +404,23 @@ enum {
 #define PLAYBACK_OFFLOAD_DEVICE 9
 
 // Direct_PCM
-#if defined (PLATFORM_MSM8994) || defined (PLATFORM_MSM8996) || defined (PLATFORM_APQ8084) || defined (PLATFORM_MSM8998) || defined (PLATFORM_SDM845) || defined (PLATFORM_SDM710) ||defined (PLATFORM_QCS605) ||defined (PLATFORM_SDX24) || defined (PLATFORM_MSMNILE) || defined (PLATFORM_MSMSTEPPE) || defined (PLATFORM_QCS405)
+#if defined (PLATFORM_MSM8994) || defined (PLATFORM_MSM8996) || \
+    defined (PLATFORM_APQ8084) || defined (PLATFORM_MSM8998) || \
+    defined (PLATFORM_SDM845) || defined (PLATFORM_SDM710) || \
+    defined (PLATFORM_QCS605) ||defined (PLATFORM_SDX24) || \
+    defined (PLATFORM_MSMNILE) || defined (PLATFORM_KONA) || \
+    defined (PLATFORM_MSMSTEPPE) || defined (PLATFORM_QCS405) || \
+    defined (PLATFORM_TRINKET) || defined (PLATFORM_SDX55)
 #define PLAYBACK_OFFLOAD_DEVICE2 17
 #endif
 
-#if defined (PLATFORM_APQ8084) || defined (PLATFORM_MSM8996) || defined (PLATFORM_MSM8998) || defined (PLATFORM_SDM845) || defined (PLATFORM_SDM710) || defined(PLATFORM_QCS605) || defined (PLATFORM_SDX24) || defined (PLATFORM_MSMNILE) || defined (PLATFORM_MSMSTEPPE) || defined (PLATFORM_QCS405)
+#if defined (PLATFORM_APQ8084) || defined (PLATFORM_MSM8996) || \
+    defined (PLATFORM_MSM8998) || defined (PLATFORM_SDM845) || \
+    defined (PLATFORM_SDM710) || defined(PLATFORM_QCS605) || \
+    defined (PLATFORM_SDX24) || defined (PLATFORM_MSMNILE) || \
+    defined (PLATFORM_KONA) || defined (PLATFORM_MSMSTEPPE) || \
+    defined (PLATFORM_QCS405) || defined (PLATFORM_TRINKET) || \
+    defined (PLATFORM_SDX55)
 #define PLAYBACK_OFFLOAD_DEVICE3 18
 #define PLAYBACK_OFFLOAD_DEVICE4 34
 #define PLAYBACK_OFFLOAD_DEVICE5 35
@@ -495,6 +522,9 @@ enum {
 #elif PLATFORM_BEAR_FAMILY
 #define HFP_SCO_RX 17
 #define HFP_ASM_RX_TX 18
+#elif PLATFORM_AUTO
+#define HFP_SCO_RX 36
+#define HFP_ASM_RX_TX 29
 #else
 #define HFP_SCO_RX 23
 #define HFP_ASM_RX_TX 24
@@ -512,13 +542,18 @@ enum {
 #define PLAYBACK_INTERACTIVE_STRM_DEVICE7 48
 #define PLAYBACK_INTERACTIVE_STRM_DEVICE8 49
 
+#define MEDIA_PCM_DEVICE DEEP_BUFFER_PCM_DEVICE
+#define SYS_NOTIFICATION_PCM_DEVICE 9
+#define NAV_GUIDANCE_PCM_DEVICE MULTIMEDIA2_PCM_DEVICE
+#define PHONE_PCM_DEVICE 12
+
 #ifdef PLATFORM_APQ8084
 #define FM_RX_VOLUME "Quat MI2S FM RX Volume"
 #elif PLATFORM_MSM8994
 #define FM_RX_VOLUME "PRI MI2S LOOPBACK Volume"
-#elif PLATFORM_MSM8996
+#elif defined (PLATFORM_MSM8996) || defined (PLATFORM_KONA)
 #define FM_RX_VOLUME "Tert MI2S LOOPBACK Volume"
-#elif defined (PLATFORM_MSM8998) || defined (PLATFORM_SDM845) || defined (PLATFORM_MSMFALCON) || defined (PLATFORM_SDM710) || defined (PLATFORM_QCS605) || defined (PLATFORM_MSMNILE) || defined (PLATFORM_MSMSTEPPE) || defined (PLATFORM_QCS405)
+#elif defined (PLATFORM_MSM8998) || defined (PLATFORM_SDM845) || defined (PLATFORM_MSMFALCON) || defined (PLATFORM_SDM710) || defined (PLATFORM_QCS605) || defined (PLATFORM_MSMNILE) || defined (PLATFORM_MSMSTEPPE) || defined (PLATFORM_QCS405) || defined (PLATFORM_TRINKET)
 #define FM_RX_VOLUME "SLIMBUS_8 LOOPBACK Volume"
 #else
 #define FM_RX_VOLUME "Internal FM RX Volume"

@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+* Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -678,6 +678,22 @@ ssize_t qahw_in_read(qahw_stream_handle_t *in_handle,
     }
 }
 
+int qahw_in_stop(qahw_stream_handle_t *in_handle)
+{
+    if (g_binder_enabled) {
+        if (!g_qas_died) {
+            sp<Iqti_audio_server> qas = get_qti_audio_server();
+            if (qas_status(qas) == -1)
+                return -ENODEV;
+            return qas->qahw_in_stop(in_handle);
+        } else {
+            return -ENODEV;
+        }
+    } else {
+        return qahw_in_stop_l(in_handle);
+    }
+}
+
 uint32_t qahw_in_get_input_frames_lost(qahw_stream_handle_t *in_handle)
 {
     ALOGV("%d:%s",__LINE__, __func__);
@@ -913,6 +929,15 @@ int qahw_release_audio_patch(qahw_module_handle_t *hw_module,
     } else {
         return qahw_release_audio_patch_l(hw_module, handle);
     }
+}
+
+int qahw_loopback_set_param_data(qahw_module_handle_t *hw_module __unused,
+                                 audio_patch_handle_t handle __unused,
+                                 qahw_loopback_param_id param_id __unused,
+                                 qahw_loopback_param_payload *payload __unused)
+{
+    ALOGD("%d:%s", __LINE__, __func__);
+    return -ENOSYS;
 }
 
 int qahw_get_audio_port(qahw_module_handle_t *hw_module,
@@ -1535,6 +1560,11 @@ ssize_t qahw_in_read(qahw_stream_handle_t *in_handle,
     return qahw_in_read_l(in_handle, in_buf);
 }
 
+int qahw_in_stop(qahw_stream_handle_t *in_handle)
+{
+    return qahw_in_stop_l(in_handle);
+}
+
 uint32_t qahw_in_get_input_frames_lost(qahw_stream_handle_t *in_handle)
 {
     ALOGV("%d:%s",__LINE__, __func__);
@@ -1697,6 +1727,15 @@ int qahw_release_audio_patch(qahw_module_handle_t *hw_module,
 {
     ALOGV("%d:%s",__LINE__, __func__);
     return qahw_release_audio_patch_l(hw_module, handle);
+}
+
+int qahw_loopback_set_param_data(qahw_module_handle_t *hw_module,
+                                 audio_patch_handle_t handle,
+                                 qahw_loopback_param_id param_id,
+                                 qahw_loopback_param_payload *payload)
+{
+    ALOGV("%d:%s\n", __LINE__, __func__);
+    return qahw_loopback_set_param_data_l(hw_module, handle, param_id, payload);
 }
 
 int qahw_get_audio_port(qahw_module_handle_t *hw_module,

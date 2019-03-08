@@ -175,6 +175,11 @@ AM_CFLAGS += -DSPLIT_A2DP_ENABLED
 c_sources += audio_extn/a2dp.c
 endif
 
+if SPLIT_A2DP_SINK
+AM_CFLAGS += -DSPLIT_A2DP_SINK_ENABLED
+c_sources += audio_extn/a2dp_sink.c
+endif
+
 if AUDIO_IP_HDLR
 AM_CFLAGS += -DAUDIO_EXTN_IP_HDLR_ENABLED
 c_sources += audio_extn/ip_hdlr_intf.c
@@ -187,6 +192,7 @@ endif
 
 if AUDIO_HW_LOOPBACK
 AM_CFLAGS += -DAUDIO_HW_LOOPBACK_ENABLED
+AM_CFLAGS += -DCOMPRESS_METADATA_NEEDED
 c_sources += audio_extn/hw_loopback.c
 endif
 
@@ -206,6 +212,10 @@ endif
 
 if INSTANCE_ID
 AM_CFLAGS += -DINSTANCE_ID_ENABLED
+endif
+
+if LL_AS_PRIMARY_OUTPUT
+AM_CFLAGS += -DUSE_LL_AS_PRIMARY_OUTPUT
 endif
 
 h_sources = audio_extn/audio_defs.h \

@@ -73,7 +73,7 @@ AUDIO_FEATURE_ENABLED_BATTERY_LISTENER := true
 DEVICE_PACKAGE_OVERLAYS += hardware/qcom/audio/configs/common/overlay
 
 PRODUCT_COPY_FILES += \
-    hardware/qcom/audio/configs/msmsteppe/audio_output_policy.conf:$(TARGET_COPY_OUT_VENDOR)/etc/audio_output_policy.conf \
+    hardware/qcom/audio/configs/msmsteppe/audio_io_policy.conf:$(TARGET_COPY_OUT_VENDOR)/etc/audio_io_policy.conf \
     hardware/qcom/audio/configs/msmsteppe/audio_effects.conf:$(TARGET_COPY_OUT_VENDOR)/etc/audio_effects.conf \
     hardware/qcom/audio/configs/msmsteppe/audio_effects.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_effects.xml \
     hardware/qcom/audio/configs/msmsteppe/audio_tuning_mixer_tavil.txt:$(TARGET_COPY_OUT_VENDOR)/etc/audio_tuning_mixer_tavil.txt \
@@ -86,7 +86,9 @@ PRODUCT_COPY_FILES += \
     hardware/qcom/audio/configs/msmsteppe/sound_trigger_mixer_paths.xml:$(TARGET_COPY_OUT_VENDOR)/etc/sound_trigger_mixer_paths.xml \
     hardware/qcom/audio/configs/msmsteppe/sound_trigger_mixer_paths_qrd.xml:$(TARGET_COPY_OUT_VENDOR)/etc/sound_trigger_mixer_paths_qrd.xml \
     hardware/qcom/audio/configs/msmsteppe/mixer_paths_idp.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_idp.xml \
+    hardware/qcom/audio/configs/msmsteppe/mixer_paths_wcd9375.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_wcd9375.xml \
     hardware/qcom/audio/configs/msmsteppe/mixer_paths_qrd.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_qrd.xml \
+    hardware/qcom/audio/configs/msmsteppe/mixer_paths_wcd9375qrd.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_wcd9375qrd.xml \
     hardware/qcom/audio/configs/msmsteppe/mixer_paths_tavil.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_tavil.xml \
 
 #XML Audio configuration files
@@ -120,6 +122,11 @@ ro.vendor.audio.sdk.fluencetype=none\
 persist.vendor.audio.fluence.voicecall=true\
 persist.vendor.audio.fluence.voicerec=false\
 persist.vendor.audio.fluence.speaker=true
+
+##speaker protection v3 switch and ADSP AFE API version
+PRODUCT_PROPERTY_OVERRIDES += \
+persist.vendor.audio.spv3.enable=true\
+persist.vendor.audio.avs.afe_api_version=2
 
 #disable tunnel encoding
 PRODUCT_PROPERTY_OVERRIDES += \

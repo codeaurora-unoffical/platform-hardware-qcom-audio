@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
  * Not a contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -211,6 +211,12 @@ enum {
 
     USECASE_AUDIO_A2DP_ABR_FEEDBACK,
 
+    /* car streams usecases */
+    USECASE_AUDIO_PLAYBACK_MEDIA,
+    USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION,
+    USECASE_AUDIO_PLAYBACK_NAV_GUIDANCE,
+    USECASE_AUDIO_PLAYBACK_PHONE,
+
     AUDIO_USECASE_MAX
 };
 
@@ -251,6 +257,21 @@ typedef enum render_mode {
     RENDER_MODE_AUDIO_MASTER,
     RENDER_MODE_AUDIO_STC_MASTER,
 } render_mode_t;
+
+#ifdef AUDIO_EXTN_AUTO_HAL_ENABLED
+/* This defines the physical car streams supported in audio HAL,
+ * limited by the available frontend PCM driver.
+ * Max number of physical streams supported is currently 8 and is
+ * represented by stream bit flag as indicated in vehicle HAL interface.
+ */
+#define MAX_CAR_AUDIO_STREAMS    8
+enum {
+    CAR_AUDIO_STREAM_MEDIA            = 0x1,
+    CAR_AUDIO_STREAM_SYS_NOTIFICATION = 0x2,
+    CAR_AUDIO_STREAM_NAV_GUIDANCE     = 0x4,
+    CAR_AUDIO_STREAM_PHONE            = 0x8,
+};
+#endif
 
 struct stream_app_type_cfg {
     int sample_rate;
@@ -363,6 +384,10 @@ struct stream_out {
     mix_matrix_params_t pan_scale_params;
     mix_matrix_params_t downmix_params;
     bool set_dual_mono;
+    int rx_dtmf_tone_gain;
+
+    char address[AUDIO_DEVICE_MAX_ADDRESS_LEN];
+    int car_audio_stream;
 };
 
 struct stream_in {
@@ -455,6 +480,16 @@ struct streams_io_cfg {
     struct stream_app_type_cfg app_type_cfg;
 };
 
+typedef struct streams_input_ctxt {
+    struct listnode list;
+    struct stream_in *input;
+} streams_input_ctxt_t;
+
+typedef struct streams_output_ctxt {
+    struct listnode list;
+    struct stream_out *output;
+} streams_output_ctxt_t;
+
 typedef void* (*adm_init_t)();
 typedef void (*adm_deinit_t)(void *);
 typedef void (*adm_register_output_stream_t)(void *, audio_io_handle_t, audio_output_flags_t);
@@ -498,6 +533,7 @@ struct audio_device {
     bool allow_afe_proxy_usage;
     bool is_charging; // from battery listener
     bool mic_break_enabled;
+    unsigned int num_va_sessions;
 
     int snd_card;
     card_status_t card_status;
@@ -506,6 +542,7 @@ struct audio_device {
     bool is_channel_status_set;
     void *platform;
     unsigned int offload_usecases_state;
+    unsigned int pcm_record_uc_state;
     void *visualizer_lib;
     int (*visualizer_start_output)(audio_io_handle_t, int);
     int (*visualizer_stop_output)(audio_io_handle_t, int);
@@ -546,6 +583,9 @@ struct audio_device {
     struct audio_device_config_param *device_cfg_params;
     unsigned int interactive_usecase_state;
     bool dp_allowed_for_voice;
+    void *ext_hw_plugin;
+    struct listnode active_inputs_list;
+    struct listnode active_outputs_list;
 };
 
 int select_devices(struct audio_device *adev,
@@ -591,6 +631,16 @@ void adev_close_output_stream(struct audio_hw_device *dev __unused,
                               struct audio_stream_out *stream);
 
 bool is_interactive_usecase(audio_usecase_t uc_id);
+
+streams_input_ctxt_t *in_get_stream(struct audio_device *dev,
+                                  audio_io_handle_t input);
+streams_output_ctxt_t *out_get_stream(struct audio_device *dev,
+                                  audio_io_handle_t output);
+
+size_t get_output_period_size(uint32_t sample_rate,
+                            audio_format_t format,
+                            int channel_count,
+                            int duration /*in millisecs*/);
 
 #define LITERAL_TO_STRING(x) #x
 #define CHECK(condition) LOG_ALWAYS_FATAL_IF(!(condition), "%s",\

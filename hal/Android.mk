@@ -1,3 +1,4 @@
+ifneq ($(AUDIO_USE_STUB_HAL), true)
 ifeq ($(strip $(BOARD_USES_ALSA_AUDIO)),true)
 
 LOCAL_PATH := $(call my-dir)
@@ -8,7 +9,7 @@ LOCAL_ARM_MODE := arm
 
 AUDIO_PLATFORM := $(TARGET_BOARD_PLATFORM)
 
-ifneq ($(filter msm8974 msm8226 msm8610 apq8084 msm8994 msm8992 msm8996 msm8998 apq8098_latv sdm845 sdm710 qcs605 msmnile $(MSMSTEPPE),$(TARGET_BOARD_PLATFORM)),)
+ifneq ($(filter msm8974 msm8226 msm8610 apq8084 msm8994 msm8992 msm8996 msm8998 apq8098_latv sdm845 sdm710 qcs605 msmnile kona $(MSMSTEPPE) $(TRINKET),$(TARGET_BOARD_PLATFORM)),)
   # B-family platform uses msm8974 code base
   AUDIO_PLATFORM = msm8974
   MULTIPLE_HW_VARIANTS_ENABLED := true
@@ -45,8 +46,14 @@ endif
 ifneq ($(filter msmnile,$(TARGET_BOARD_PLATFORM)),)
   LOCAL_CFLAGS := -DPLATFORM_MSMNILE
 endif
+ifneq ($(filter kona,$(TARGET_BOARD_PLATFORM)),)
+  LOCAL_CFLAGS := -DPLATFORM_KONA
+endif
 ifneq ($(filter $(MSMSTEPPE) ,$(TARGET_BOARD_PLATFORM)),)
   LOCAL_CFLAGS := -DPLATFORM_MSMSTEPPE
+endif
+ifneq ($(filter $(TRINKET) ,$(TARGET_BOARD_PLATFORM)),)
+  LOCAL_CFLAGS := -DPLATFORM_TRINKET
 endif
 endif
 
@@ -60,6 +67,10 @@ endif
 ifneq ($(filter sdm660,$(TARGET_BOARD_PLATFORM)),)
   LOCAL_CFLAGS := -DPLATFORM_MSMFALCON
 endif
+endif
+
+ifeq ($(TARGET_BOARD_AUTO),true)
+  LOCAL_CFLAGS += -DPLATFORM_AUTO
 endif
 
 LOCAL_CFLAGS += -Wno-macro-redefined
@@ -292,9 +303,17 @@ ifeq ($(strip $(AUDIO_FEATURE_ENABLED_QAF)),true)
     LOCAL_SRC_FILES += audio_extn/qaf.c
 endif
 
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_CONCURRENT_CAPTURE)),true)
+    LOCAL_CFLAGS += -DCONCURRENT_CAPTURE_ENABLED
+endif
+
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_COMPRESS_INPUT)),true)
     LOCAL_CFLAGS += -DCOMPRESS_INPUT_ENABLED
     LOCAL_SRC_FILES += audio_extn/compress_in.c
+endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_CONCURRENT_CAPTURE)),true)
+    LOCAL_CFLAGS += -DCONCURRENT_CAPTURE_ENABLED
 endif
 
 ifeq ($(strip $(BOARD_SUPPORTS_QAHW)),true)
@@ -311,11 +330,16 @@ LOCAL_SHARED_LIBRARIES := \
 	liblog \
 	libcutils \
 	libtinyalsa \
-	libtinycompress_vendor \
 	libaudioroute \
 	libdl \
 	libaudioutils \
 	libexpat
+
+ifneq ($(strip $(TARGET_USES_AOSP_FOR_AUDIO)),true)
+    LOCAL_SHARED_LIBRARIES += libtinycompress_vendor
+else
+    LOCAL_SHARED_LIBRARIES += libtinycompress
+endif
 
 LOCAL_C_INCLUDES += \
 	external/tinyalsa/include \
@@ -434,6 +458,26 @@ ifeq ($(strip $(AUDIO_FEATURE_ENABLED_SND_MONITOR)), true)
     LOCAL_SRC_FILES += audio_extn/sndmonitor.c
 endif
 
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_GCOV)),true)
+    LOCAL_CFLAGS += --coverage -fprofile-arcs -ftest-coverage
+    LOCAL_CPPFLAGS += --coverage -fprofile-arcs -ftest-coverage
+    LOCAL_STATIC_LIBRARIES += libprofile_rt
+endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_AUTO_HAL)),true)
+    LOCAL_CFLAGS += -DAUDIO_EXTN_AUTO_HAL_ENABLED
+    LOCAL_SRC_FILES += audio_extn/auto_hal.c
+endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXT_HW_PLUGIN)),true)
+    LOCAL_CFLAGS += -DEXT_HW_PLUGIN_ENABLED
+    LOCAL_SRC_FILES += audio_extn/ext_hw_plugin.c
+endif
+
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_A2DP_DECODERS)), true)
+    LOCAL_CFLAGS += -DAPTX_DECODER_ENABLED
+endif
+
 LOCAL_MODULE := audio.primary.$(TARGET_BOARD_PLATFORM)
 
 LOCAL_MODULE_RELATIVE_PATH := hw
@@ -455,4 +499,5 @@ LOCAL_CFLAGS += -Wno-tautological-compare
 LOCAL_CFLAGS += -Wno-unused-function
 LOCAL_CFLAGS += -Wno-unused-local-typedef
 
+endif
 endif

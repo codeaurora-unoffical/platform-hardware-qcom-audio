@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2019, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2014 The Android Open Source Project
@@ -929,7 +929,8 @@ static int send_app_type_cfg_for_device(struct audio_device *adev,
         (usecase->id != USECASE_AUDIO_TRANSCODE_LOOPBACK_RX) &&
         (!is_interactive_usecase(usecase->id)) &&
         (!is_offload_usecase(usecase->id)) &&
-        (usecase->type != PCM_CAPTURE)) {
+        (usecase->type != PCM_CAPTURE) &&
+        (!audio_extn_auto_hal_is_bus_device_usecase(usecase->id))) {
         ALOGV("%s: a rx/tx/loopback path where app type cfg is not required %d", __func__, usecase->id);
         rc = 0;
         goto exit_send_app_type_cfg;
@@ -994,7 +995,14 @@ static int send_app_type_cfg_for_device(struct audio_device *adev,
         if (usecase->id == USECASE_AUDIO_PLAYBACK_VOIP) {
             usecase->stream.out->app_type_cfg.sample_rate = usecase->stream.out->sample_rate;
         } else if (usecase->stream.out->devices & AUDIO_DEVICE_OUT_SPEAKER) {
-            usecase->stream.out->app_type_cfg.sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
+            if (platform_spkr_use_default_sample_rate(adev->platform)) {
+                 usecase->stream.out->app_type_cfg.sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
+            } else {
+                 platform_check_and_update_copp_sample_rate(adev->platform, snd_device,
+                                      usecase->stream.out->sample_rate,
+                                      &usecase->stream.out->app_type_cfg.sample_rate);
+            }
+
         } else if ((snd_device == SND_DEVICE_OUT_HDMI ||
                     snd_device == SND_DEVICE_OUT_USB_HEADSET ||
                     snd_device == SND_DEVICE_OUT_DISPLAY_PORT) &&
@@ -1018,7 +1026,7 @@ static int send_app_type_cfg_for_device(struct audio_device *adev,
                   * For a2dp playback get encoder sampling rate and set copp sampling rate,
                   * for bit width use the stream param only.
                   */
-                   audio_extn_a2dp_get_sample_rate(&usecase->stream.out->app_type_cfg.sample_rate);
+                   audio_extn_a2dp_get_enc_sample_rate(&usecase->stream.out->app_type_cfg.sample_rate);
                    ALOGI("%s using %d sample rate rate for A2DP CoPP",
                         __func__, usecase->stream.out->app_type_cfg.sample_rate);
         }
@@ -1069,6 +1077,11 @@ static int send_app_type_cfg_for_device(struct audio_device *adev,
             audio_extn_btsco_get_sample_rate(usecase->in_snd_device, &usecase->stream.in->app_type_cfg.sample_rate);
         } else {
             audio_extn_btsco_get_sample_rate(snd_device, &usecase->stream.in->app_type_cfg.sample_rate);
+        }
+        if (usecase->stream.in->device & AUDIO_DEVICE_IN_BLUETOOTH_A2DP & ~AUDIO_DEVICE_BIT_IN) {
+            audio_extn_a2dp_get_dec_sample_rate(&usecase->stream.in->app_type_cfg.sample_rate);
+            ALOGI("%s using %d sample rate rate for A2DP dec CoPP",
+                  __func__, usecase->stream.in->app_type_cfg.sample_rate);
         }
         sample_rate = usecase->stream.in->app_type_cfg.sample_rate;
         app_type_cfg[len++] = sample_rate;
@@ -1290,7 +1303,11 @@ uint32_t get_alsa_fragment_size(uint32_t bytes_per_sample,
                                   uint32_t noOfChannels)
 {
     uint32_t fragment_size = 0;
+    char value[PROPERTY_VALUE_MAX] = {0};
     uint32_t pcm_offload_time = PCM_OFFLOAD_BUFFER_DURATION;
+
+    if (property_get("vendor.audio.pcm.offload.buffer.duration.ms", value, NULL))
+        pcm_offload_time = atoi(value);
 
     fragment_size = (pcm_offload_time
                      * sample_rate
@@ -2503,14 +2520,11 @@ int audio_extn_utils_get_sample_rate_from_string(const char *id_string)
 int audio_extn_utils_get_channels_from_string(const char *id_string)
 {
     int i;
-    const mixer_config_lookup mixer_channels_config[] = {{"One", 1},
-                                                         {"Two", 2},
-                                                         {"Three",3},
-                                                         {"Four", 4},
-                                                         {"Five", 5},
-                                                         {"Six", 6},
-                                                         {"Seven", 7},
-                                                         {"Eight", 8}};
+    const mixer_config_lookup mixer_channels_config[] =
+        {{"One", 1}, {"Two", 2}, {"Three",3}, {"Four", 4}, {"Five", 5},
+         {"Six", 6}, {"Seven", 7}, {"Eight", 8}, {"Nine", 9}, {"Ten", 10},
+         {"Eleven", 11}, {"Twelve", 12}, {"Thirteen", 13}, {"Fourteen", 14},
+         {"Fifteen", 15}, {"Sixteen", 16}};
     int num_configs = sizeof(mixer_channels_config) / sizeof(mixer_channels_config[0]);
 
     for (i = 0; i < num_configs; i++) {

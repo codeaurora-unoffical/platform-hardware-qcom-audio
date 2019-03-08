@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
+* Copyright (c) 2015-2019, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -50,15 +50,15 @@
 
 #ifdef SPLIT_A2DP_ENABLED
 #define AUDIO_PARAMETER_A2DP_STARTED "A2dpStarted"
-#define BT_IPC_LIB_NAME  "libbthost_if.so"
-#define ENC_MEDIA_FMT_NONE                                     0
-#define ENC_MEDIA_FMT_AAC                                  0x00010DA6
-#define ENC_MEDIA_FMT_APTX                                 0x000131ff
-#define ENC_MEDIA_FMT_APTX_HD                              0x00013200
-#define ENC_MEDIA_FMT_APTX_AD                              0x00013204
-#define ENC_MEDIA_FMT_SBC                                  0x00010BF2
-#define ENC_MEDIA_FMT_CELT                                 0x00013221
-#define ENC_MEDIA_FMT_LDAC                                 0x00013224
+#define BT_IPC_SOURCE_LIB_NAME  "libbthost_if.so"
+#define MEDIA_FMT_NONE                                     0
+#define MEDIA_FMT_AAC                                      0x00010DA6
+#define MEDIA_FMT_APTX                                     0x000131ff
+#define MEDIA_FMT_APTX_HD                                  0x00013200
+#define MEDIA_FMT_APTX_AD                                  0x00013204
+#define MEDIA_FMT_SBC                                      0x00010BF2
+#define MEDIA_FMT_CELT                                     0x00013221
+#define MEDIA_FMT_LDAC                                     0x00013224
 #define MEDIA_FMT_AAC_AOT_LC                               2
 #define MEDIA_FMT_AAC_AOT_SBR                              5
 #define MEDIA_FMT_AAC_AOT_PS                               29
@@ -71,7 +71,7 @@
 #define MEDIA_FMT_SBC_CHANNEL_MODE_JOINT_STEREO            9
 #define MEDIA_FMT_SBC_ALLOCATION_METHOD_LOUDNESS           0
 #define MEDIA_FMT_SBC_ALLOCATION_METHOD_SNR                1
-#define MIXER_ENC_CONFIG_BLOCK     "SLIM_7_RX Encoder Config"
+#define MIXER_ENC_CONFIG_BLOCK            "SLIM_7_RX Encoder Config"
 #define MIXER_DEC_CONFIG_BLOCK     "SLIM_7_TX Decoder Config"
 #define MIXER_ENC_BIT_FORMAT       "AFE Input Bit Format"
 #define MIXER_SCRAMBLER_MODE       "AFE Scrambler Mode"
@@ -84,6 +84,7 @@
 #define MIXER_ENC_FMT_SBC          "SBC"
 #define MIXER_ENC_FMT_AAC          "AAC"
 #define MIXER_ENC_FMT_APTX         "APTX"
+#define MIXER_FMT_TWS_CHANNEL_MODE "TWS Channel Mode"
 #define MIXER_ENC_FMT_APTXHD       "APTXHD"
 #define MIXER_ENC_FMT_NONE         "NONE"
 #define ENCODER_LATENCY_SBC        10
@@ -117,25 +118,24 @@
 #define SAMPLING_RATE_441K              44100
 #define CH_STEREO                       2
 #define CH_MONO                         1
+
 /*
  * Below enum values are extended from audio_base.h to
- * to keep encoder codec type local to bthost_ipc
+ * to keep encoder type local to bthost_ipc
  * and audio_hal as these are intended only for handshake
  * between IPC lib and Audio HAL.
  */
 typedef enum {
-    ENC_CODEC_TYPE_INVALID = AUDIO_FORMAT_INVALID, // 0xFFFFFFFFUL
-    ENC_CODEC_TYPE_AAC = AUDIO_FORMAT_AAC, // 0x04000000UL
-    ENC_CODEC_TYPE_SBC = AUDIO_FORMAT_SBC, // 0x1F000000UL
-    ENC_CODEC_TYPE_APTX = AUDIO_FORMAT_APTX, // 0x20000000UL
-    ENC_CODEC_TYPE_APTX_HD = AUDIO_FORMAT_APTX_HD, // 0x21000000UL
-#ifndef LINUX_ENABLED
-    ENC_CODEC_TYPE_APTX_DUAL_MONO = 570425344u, // 0x22000000UL
-#endif
-    ENC_CODEC_TYPE_LDAC = AUDIO_FORMAT_LDAC, // 0x23000000UL
-    ENC_CODEC_TYPE_CELT = 603979776u, // 0x24000000UL
-    ENC_CODEC_TYPE_APTX_AD = 620756992u, // 0x25000000UL
-}enc_codec_t;
+    CODEC_TYPE_INVALID = AUDIO_FORMAT_INVALID, // 0xFFFFFFFFUL
+    CODEC_TYPE_AAC = AUDIO_FORMAT_AAC, // 0x04000000UL
+    CODEC_TYPE_SBC = AUDIO_FORMAT_SBC, // 0x1F000000UL
+    CODEC_TYPE_APTX = AUDIO_FORMAT_APTX, // 0x20000000UL
+    CODEC_TYPE_APTX_HD = AUDIO_FORMAT_APTX_HD, // 0x21000000UL
+    CODEC_TYPE_APTX_DUAL_MONO = 570425344u, // 0x22000000UL
+    CODEC_TYPE_LDAC = AUDIO_FORMAT_LDAC, // 0x23000000UL
+    CODEC_TYPE_CELT = 603979776u, // 0x24000000UL
+    CODEC_TYPE_APTX_AD = 620756992u, // 0x25000000UL
+} codec_t;
 
 /*
  * enums which describes the APTX Adaptive
@@ -161,18 +161,19 @@ typedef enum {
     APTX_AD_44_1 = 0x2, // 44.1kHz
 } enc_aptx_ad_s_rate;
 
-typedef int (*audio_stream_open_t)(void);
-typedef int (*audio_stream_close_t)(void);
-typedef int (*audio_start_stream_t)(void);
-typedef int (*audio_stop_stream_t)(void);
-typedef int (*audio_suspend_stream_t)(void);
-typedef void (*audio_handoff_triggered_t)(void);
-typedef void (*clear_a2dpsuspend_flag_t)(void);
-typedef void * (*audio_get_codec_config_t)(uint8_t *multicast_status,uint8_t *num_dev,
-                               enc_codec_t *codec_type);
-typedef int (*audio_check_a2dp_ready_t)(void);
-typedef uint16_t (*audio_get_a2dp_sink_latency_t)(void);
-typedef int (*audio_is_scrambling_enabled_t)(void);
+typedef int (*audio_source_open_t)(void);
+typedef int (*audio_source_close_t)(void);
+typedef int (*audio_source_start_t)(void);
+typedef int (*audio_source_stop_t)(void);
+typedef int (*audio_source_suspend_t)(void);
+typedef void (*audio_source_handoff_triggered_t)(void);
+typedef void (*clear_source_a2dpsuspend_flag_t)(void);
+typedef void * (*audio_get_enc_config_t)(uint8_t *multicast_status,
+                                uint8_t *num_dev, codec_t *codec_type);
+typedef int (*audio_source_check_a2dp_ready_t)(void);
+typedef int (*audio_is_source_scrambling_enabled_t)(void);
+typedef bool (*audio_is_tws_mono_mode_enable_t)(void);
+typedef uint16_t (*audio_sink_get_a2dp_latency_t)(void);
 
 enum A2DP_STATE {
     A2DP_STATE_CONNECTED,
@@ -190,6 +191,11 @@ typedef enum {
     IMC_DISABLE,
     IMC_ENABLE,
 } imc_status_t;
+
+typedef enum {
+    MTU_SIZE,
+    PEAK_BIT_RATE,
+} frame_control_type_t;
 
 /* PCM config for ABR Feedback hostless front end */
 static struct pcm_config pcm_config_abr = {
@@ -223,28 +229,31 @@ static uint32_t instance_id = MAX_INSTANCE_ID;
  */
 struct a2dp_data {
     struct audio_device *adev;
-    void *bt_lib_handle;
-    audio_stream_open_t audio_stream_open;
-    audio_stream_close_t audio_stream_close;
-    audio_start_stream_t audio_start_stream;
-    audio_stop_stream_t audio_stop_stream;
-    audio_suspend_stream_t audio_suspend_stream;
-    audio_handoff_triggered_t audio_handoff_triggered;
-    clear_a2dpsuspend_flag_t clear_a2dpsuspend_flag;
-    audio_get_codec_config_t audio_get_codec_config;
-    audio_check_a2dp_ready_t audio_check_a2dp_ready;
-    audio_get_a2dp_sink_latency_t audio_get_a2dp_sink_latency;
-    audio_is_scrambling_enabled_t audio_is_scrambling_enabled;
-    enum A2DP_STATE bt_state;
-    enc_codec_t bt_encoder_format;
+    void *bt_lib_source_handle;
+    audio_source_open_t audio_source_open;
+    audio_source_close_t audio_source_close;
+    audio_source_start_t audio_source_start;
+    audio_source_stop_t audio_source_stop;
+    audio_source_suspend_t audio_source_suspend;
+    audio_source_handoff_triggered_t audio_source_handoff_triggered;
+    clear_source_a2dpsuspend_flag_t clear_source_a2dpsuspend_flag;
+    audio_get_enc_config_t audio_get_enc_config;
+    audio_source_check_a2dp_ready_t audio_source_check_a2dp_ready;
+    audio_is_tws_mono_mode_enable_t audio_is_tws_mono_mode_enable;
+    audio_is_source_scrambling_enabled_t audio_is_source_scrambling_enabled;
+    audio_sink_get_a2dp_latency_t audio_sink_get_a2dp_latency;
+    enum A2DP_STATE bt_state_source;
+    codec_t bt_encoder_format;
     uint32_t enc_sampling_rate;
     uint32_t enc_channels;
-    bool a2dp_started;
-    bool a2dp_suspended;
-    int  a2dp_total_active_session_request;
+    bool a2dp_source_started;
+    bool a2dp_source_suspended;
+    int  a2dp_source_total_active_session_requests;
     bool is_a2dp_offload_supported;
     bool is_handoff_in_progress;
     bool is_aptx_dual_mono_supported;
+    /* Mono Mode support for TWS+ */
+    bool is_tws_mono_mode_on;
     bool is_aptx_adaptive;
     /* Adaptive bitrate config for A2DP codecs */
     struct a2dp_abr_config abr_config;
@@ -298,6 +307,17 @@ struct imc_dec_enc_info {
     uint32_t comm_instance;
 };
 
+/* Structure to control frame size of AAC encoded frames. */
+struct aac_frame_size_control_t {
+    /* Type of frame size control: MTU_SIZE / PEAK_BIT_RATE*/
+    uint32_t ctl_type;
+    /* Control value
+     * MTU_SIZE: MTU size in bytes
+     * PEAK_BIT_RATE: Peak bitrate in bits per second.
+     */
+    uint32_t ctl_value;
+};
+
 /* Structure used for ABR config of AFE encoder and decoder. */
 struct abr_enc_cfg_t {
     /* Link quality level to bitrate mapping info sent to DSP. */
@@ -336,6 +356,11 @@ struct aac_enc_cfg_t {
     uint16_t      aac_fmt_flag;
     uint16_t      channel_cfg;
     uint32_t      sample_rate;
+} __attribute__ ((packed));
+
+struct aac_enc_cfg_v2_t {
+    struct aac_enc_cfg_t aac_enc_cfg;
+    struct aac_frame_size_control_t frame_ctl;
 } __attribute__ ((packed));
 
 /* SBC encoder configuration structure. */
@@ -412,12 +437,13 @@ struct aptx_ad_enc_cfg_ext_t
     uint32_t  sampling_freq;
     uint32_t  mtu;
     uint32_t  channel_mode;
-    uint32_t  min_sink_modeA;
-    uint32_t  max_sink_modeA;
-    uint32_t  min_sink_modeB;
-    uint32_t  max_sink_modeB;
-    uint32_t  min_sink_modeC;
-    uint32_t  max_sink_modeC;
+    uint32_t  min_sink_buffering_LL;
+    uint32_t  max_sink_buffering_LL;
+    uint32_t  min_sink_buffering_HQ;
+    uint32_t  max_sink_buffering_HQ;
+    uint32_t  min_sink_buffering_TWS;
+    uint32_t  max_sink_buffering_TWS;
+    uint32_t  profile;
 } __attribute__ ((packed));
 
 struct aptx_ad_enc_cfg_t
@@ -480,17 +506,20 @@ typedef struct {
     uint8_t  sampling_rate;
     uint8_t  channel_mode;
     uint16_t mtu;
-    uint8_t  min_sink_modeA;
-    uint8_t  max_sink_modeA;
-    uint8_t  min_sink_modeB;
-    uint8_t  max_sink_modeB;
-    uint8_t  min_sink_modeC;
-    uint8_t  max_sink_modeC;
-    uint8_t  TTP_modeA_low;
-    uint8_t  TTP_modeA_high;
-    uint8_t  TTP_modeB_low;
-    uint8_t  TTP_modeB_high;
+    uint8_t  min_sink_buffering_LL;
+    uint8_t  max_sink_buffering_LL;
+    uint8_t  min_sink_buffering_HQ;
+    uint8_t  max_sink_buffering_HQ;
+    uint8_t  min_sink_buffering_TWS;
+    uint8_t  max_sink_buffering_TWS;
+    uint8_t  TTP_LL_low;
+    uint8_t  TTP_LL_high;
+    uint8_t  TTP_HQ_low;
+    uint8_t  TTP_HQ_high;
+    uint8_t  TTP_TWS_low;
+    uint8_t  TTP_TWS_high;
     uint32_t bits_per_sample;
+    uint16_t aptx_mode;
 } audio_aptx_ad_config;
 
 typedef struct {
@@ -500,12 +529,6 @@ typedef struct {
     uint32_t sync_mode;
     uint32_t bits_per_sample;
 } audio_aptx_dual_mono_config;
-
-typedef union {
-    audio_aptx_default_config *default_cfg;
-    audio_aptx_dual_mono_config *dual_mono_cfg;
-    audio_aptx_ad_config *ad_cfg;
-} audio_aptx_encoder_config;
 
 /* Information about BT AAC encoder configuration
  * This data is used between audio HAL module and
@@ -520,6 +543,11 @@ typedef struct {
     uint32_t bits_per_sample;
 } audio_aac_encoder_config;
 #endif
+
+typedef struct {
+    audio_aac_encoder_config audio_aac_enc_cfg;
+    struct aac_frame_size_control_t frame_ctl;
+} audio_aac_encoder_config_v2;
 
 /* Information about BT CELT encoder configuration
  * This data is used between audio HAL module and
@@ -549,6 +577,12 @@ typedef struct {
     struct quality_level_to_bitrate_info level_to_bitrate_map;
     uint32_t bits_per_sample;
 } audio_ldac_encoder_config;
+
+typedef union {
+    audio_aptx_default_config *default_cfg;
+    audio_aptx_dual_mono_config *dual_mono_cfg;
+    audio_aptx_ad_config *ad_cfg;
+} audio_aptx_encoder_config_l;
 
 /*********** END of DSP configurable structures ********************/
 
@@ -587,7 +621,7 @@ static void a2dp_offload_codec_cap_parser(char *value)
             ALOGD("%s: ldac offload supported\n",__func__);
             a2dp.is_a2dp_offload_supported = true;
             break;
-        } else if( strcmp(tok, "aptxadaptive") == 0) {
+        } else if (strcmp(tok, "aptxadaptive") == 0) {
             ALOGD("%s: aptx adaptive offload supported\n",__func__);
             a2dp.is_a2dp_offload_supported = true;
         }
@@ -719,96 +753,101 @@ fail:
     return -ENOSYS;
 }
 
-/* API to open BT IPC library to start IPC communication */
-static void open_a2dp_output()
+/* API to open BT IPC library to start IPC communication for BT Source*/
+static void open_a2dp_source()
 {
     int ret = 0;
 
-    ALOGD(" Open A2DP output start ");
-    if (a2dp.bt_lib_handle == NULL){
+    ALOGD(" Open A2DP source start ");
+    if (a2dp.bt_lib_source_handle == NULL){
         ALOGD(" Requesting for BT lib handle");
-        a2dp.bt_lib_handle = dlopen(BT_IPC_LIB_NAME, RTLD_NOW);
+        a2dp.bt_lib_source_handle = dlopen(BT_IPC_SOURCE_LIB_NAME, RTLD_NOW);
 
-        if (a2dp.bt_lib_handle == NULL) {
-            ALOGE("%s: DLOPEN failed for %s", __func__, BT_IPC_LIB_NAME);
+        if (a2dp.bt_lib_source_handle == NULL) {
+            ALOGE("%s: DLOPEN failed for %s", __func__, BT_IPC_SOURCE_LIB_NAME);
             ret = -ENOSYS;
             goto init_fail;
         } else {
-            a2dp.audio_stream_open = (audio_stream_open_t)
-                          dlsym(a2dp.bt_lib_handle, "audio_stream_open");
-            a2dp.audio_start_stream = (audio_start_stream_t)
-                          dlsym(a2dp.bt_lib_handle, "audio_start_stream");
-            a2dp.audio_get_codec_config = (audio_get_codec_config_t)
-                          dlsym(a2dp.bt_lib_handle, "audio_get_codec_config");
-            a2dp.audio_suspend_stream = (audio_suspend_stream_t)
-                          dlsym(a2dp.bt_lib_handle, "audio_suspend_stream");
-            a2dp.audio_handoff_triggered = (audio_handoff_triggered_t)
-                          dlsym(a2dp.bt_lib_handle, "audio_handoff_triggered");
-            a2dp.clear_a2dpsuspend_flag = (clear_a2dpsuspend_flag_t)
-                          dlsym(a2dp.bt_lib_handle, "clear_a2dpsuspend_flag");
-            a2dp.audio_stop_stream = (audio_stop_stream_t)
-                          dlsym(a2dp.bt_lib_handle, "audio_stop_stream");
-            a2dp.audio_stream_close = (audio_stream_close_t)
-                          dlsym(a2dp.bt_lib_handle, "audio_stream_close");
-            a2dp.audio_check_a2dp_ready = (audio_check_a2dp_ready_t)
-                        dlsym(a2dp.bt_lib_handle,"audio_check_a2dp_ready");
-            a2dp.audio_get_a2dp_sink_latency = (audio_get_a2dp_sink_latency_t)
-                        dlsym(a2dp.bt_lib_handle,"audio_get_a2dp_sink_latency");
-            a2dp.audio_is_scrambling_enabled = (audio_is_scrambling_enabled_t)
-                        dlsym(a2dp.bt_lib_handle,"audio_is_scrambling_enabled");
+            a2dp.audio_source_open = (audio_source_open_t)
+                          dlsym(a2dp.bt_lib_source_handle, "audio_stream_open");
+            a2dp.audio_source_start = (audio_source_start_t)
+                          dlsym(a2dp.bt_lib_source_handle, "audio_start_stream");
+            a2dp.audio_get_enc_config = (audio_get_enc_config_t)
+                          dlsym(a2dp.bt_lib_source_handle, "audio_get_codec_config");
+            a2dp.audio_source_suspend = (audio_source_suspend_t)
+                          dlsym(a2dp.bt_lib_source_handle, "audio_suspend_stream");
+            a2dp.audio_source_handoff_triggered = (audio_source_handoff_triggered_t)
+                          dlsym(a2dp.bt_lib_source_handle, "audio_handoff_triggered");
+            a2dp.clear_source_a2dpsuspend_flag = (clear_source_a2dpsuspend_flag_t)
+                          dlsym(a2dp.bt_lib_source_handle, "clear_a2dpsuspend_flag");
+            a2dp.audio_source_stop = (audio_source_stop_t)
+                          dlsym(a2dp.bt_lib_source_handle, "audio_stop_stream");
+            a2dp.audio_source_close = (audio_source_close_t)
+                          dlsym(a2dp.bt_lib_source_handle, "audio_stream_close");
+            a2dp.audio_source_check_a2dp_ready = (audio_source_check_a2dp_ready_t)
+                        dlsym(a2dp.bt_lib_source_handle,"audio_check_a2dp_ready");
+            a2dp.audio_sink_get_a2dp_latency = (audio_sink_get_a2dp_latency_t)
+                        dlsym(a2dp.bt_lib_source_handle,"audio_get_a2dp_sink_latency");
+            a2dp.audio_is_source_scrambling_enabled = (audio_is_source_scrambling_enabled_t)
+                        dlsym(a2dp.bt_lib_source_handle,"audio_is_scrambling_enabled");
+           a2dp.audio_is_tws_mono_mode_enable = (audio_is_tws_mono_mode_enable_t)
+                        dlsym(a2dp.bt_lib_source_handle,"isTwsMonomodeEnable");
         }
     }
 
-    if (a2dp.bt_lib_handle && a2dp.audio_stream_open) {
-        if (a2dp.bt_state == A2DP_STATE_DISCONNECTED) {
+    if (a2dp.bt_lib_source_handle && a2dp.audio_source_open) {
+        if (a2dp.bt_state_source == A2DP_STATE_DISCONNECTED) {
             ALOGD("calling BT stream open");
-            ret = a2dp.audio_stream_open();
-            if(ret != 0) {
-                ALOGE("Failed to open output stream for a2dp: status %d", ret);
+            ret = a2dp.audio_source_open();
+            if (ret != 0) {
+                ALOGE("Failed to open source stream for a2dp: status %d", ret);
                 goto init_fail;
             }
-            a2dp.bt_state = A2DP_STATE_CONNECTED;
+            a2dp.bt_state_source = A2DP_STATE_CONNECTED;
         } else {
-            ALOGD("Called a2dp open with improper state, Ignoring request state %d", a2dp.bt_state);
+            ALOGD("Called a2dp open with improper state, Ignoring request state %d", a2dp.bt_state_source);
         }
     } else {
         ALOGE("a2dp handle is not identified, Ignoring open request");
-        a2dp.bt_state = A2DP_STATE_DISCONNECTED;
+        a2dp.bt_state_source = A2DP_STATE_DISCONNECTED;
         goto init_fail;
     }
 
 init_fail:
-    if(ret != 0 && (a2dp.bt_lib_handle != NULL)) {
-        dlclose(a2dp.bt_lib_handle);
-        a2dp.bt_lib_handle = NULL;
+    if (ret != 0 && (a2dp.bt_lib_source_handle != NULL)) {
+        dlclose(a2dp.bt_lib_source_handle);
+        a2dp.bt_lib_source_handle = NULL;
     }
 }
 
 static int close_a2dp_output()
 {
     ALOGV("%s\n",__func__);
-    if (!(a2dp.bt_lib_handle && a2dp.audio_stream_close)) {
-        ALOGE("a2dp handle is not identified, Ignoring close request");
+
+    if (!(a2dp.bt_lib_source_handle && a2dp.audio_source_close)) {
+        ALOGE("a2dp source handle is not identified, Ignoring close request");
         return -ENOSYS;
     }
-    if (a2dp.bt_state != A2DP_STATE_DISCONNECTED) {
-        ALOGD("calling BT stream close");
-        if(a2dp.audio_stream_close() == false)
-            ALOGE("failed close a2dp control path from BT library");
+
+    if (a2dp.bt_state_source != A2DP_STATE_DISCONNECTED) {
+        ALOGD("calling BT source stream close");
+        if (a2dp.audio_source_close() == false)
+            ALOGE("failed close a2dp source control path from BT library");
     }
-    a2dp.a2dp_started = false;
-    a2dp.a2dp_total_active_session_request = 0;
-    a2dp.a2dp_suspended = false;
-    a2dp.bt_encoder_format = ENC_CODEC_TYPE_INVALID;
+    a2dp.a2dp_source_started = false;
+    a2dp.a2dp_source_total_active_session_requests = 0;
+    a2dp.a2dp_source_suspended = false;
+    a2dp.bt_encoder_format = CODEC_TYPE_INVALID;
     a2dp.enc_sampling_rate = 48000;
     a2dp.enc_channels = 2;
-    a2dp.bt_state = A2DP_STATE_DISCONNECTED;
+    a2dp.bt_state_source = A2DP_STATE_DISCONNECTED;
     if (a2dp.abr_config.is_abr_enabled && a2dp.abr_config.abr_started)
         stop_abr();
     a2dp.abr_config.is_abr_enabled = false;
     a2dp.abr_config.abr_started = false;
     a2dp.abr_config.imc_instance = 0;
     a2dp.abr_config.abr_tx_handle = NULL;
+    a2dp.bt_state_source = A2DP_STATE_DISCONNECTED;
 
     return 0;
 }
@@ -817,15 +856,15 @@ static void a2dp_check_and_set_scrambler()
 {
     bool scrambler_mode = false;
     struct mixer_ctl *ctrl_scrambler_mode = NULL;
-    if (a2dp.audio_is_scrambling_enabled && (a2dp.bt_state != A2DP_STATE_DISCONNECTED))
-        scrambler_mode = a2dp.audio_is_scrambling_enabled();
+    if (a2dp.audio_is_source_scrambling_enabled && (a2dp.bt_state_source != A2DP_STATE_DISCONNECTED))
+        scrambler_mode = a2dp.audio_is_source_scrambling_enabled();
 
     if (scrambler_mode) {
         //enable scrambler in dsp
         ctrl_scrambler_mode = mixer_get_ctl_by_name(a2dp.adev->mixer,
                                             MIXER_SCRAMBLER_MODE);
         if (!ctrl_scrambler_mode) {
-            ALOGE(" ERROR scrambler mode mixer control not identifed");
+            ALOGE(" ERROR scrambler mode mixer control not identified");
             return;
         } else {
             if (mixer_ctl_set_value(ctrl_scrambler_mode, 0, true) != 0) {
@@ -836,21 +875,22 @@ static void a2dp_check_and_set_scrambler()
     }
 }
 
-static int a2dp_set_backend_cfg()
+static bool a2dp_set_backend_cfg()
 {
-    char *rate_str = NULL, *in_channels = NULL;
-    uint32_t sampling_rate_rx = a2dp.enc_sampling_rate;
-    struct mixer_ctl *ctl_sample_rate = NULL, *ctrl_in_channels = NULL;
+    char *rate_str = NULL, *channels = NULL;
+    uint32_t sampling_rate = a2dp.enc_sampling_rate;;
+    struct mixer_ctl *ctl_sample_rate = NULL, *ctrl_channels = NULL;
+    bool is_configured = false;
 
-    //For LDAC encoder open slimbus port at 96Khz for 48Khz input
-    //and 88.2Khz for 44.1Khz input.
-    if ((a2dp.bt_encoder_format == ENC_CODEC_TYPE_LDAC) &&
-        (sampling_rate_rx == 48000 || sampling_rate_rx == 44100 )) {
-        sampling_rate_rx *= 2;
+    //For LDAC encoder open slimbus port at
+    //96Khz for 48Khz input and 88.2Khz for 44.1Khz input.
+    if ((a2dp.bt_encoder_format == CODEC_TYPE_LDAC) &&
+        (sampling_rate == 48000 || sampling_rate == 44100 )) {
+        sampling_rate = sampling_rate *2;
     }
 
-    // Set Rx backend sample rate
-    switch (sampling_rate_rx) {
+    //Configure backend sampling rate
+    switch (sampling_rate) {
     case 44100:
         rate_str = "KHZ_44P1";
         break;
@@ -866,14 +906,15 @@ static int a2dp_set_backend_cfg()
         break;
     }
 
-    ALOGD("%s: set backend rx sample rate = %s", __func__, rate_str);
+    ALOGD("%s: set source backend sample rate =%s", __func__, rate_str);
     ctl_sample_rate = mixer_get_ctl_by_name(a2dp.adev->mixer,
-                                        MIXER_SAMPLE_RATE_RX);
+                                            MIXER_SAMPLE_RATE_RX);
     if (ctl_sample_rate) {
 
         if (mixer_ctl_set_enum_by_string(ctl_sample_rate, rate_str) != 0) {
             ALOGE("%s: Failed to set backend sample rate = %s", __func__, rate_str);
-            return -ENOSYS;
+            is_configured = false;
+            goto fail;
         }
 
         /* Set Tx backend sample rate */
@@ -884,13 +925,15 @@ static int a2dp_set_backend_cfg()
         ctl_sample_rate = mixer_get_ctl_by_name(a2dp.adev->mixer,
                                             MIXER_SAMPLE_RATE_TX);
         if (!ctl_sample_rate) {
-                ALOGE("%s: ERROR backend sample rate mixer control not identifed", __func__);
-                return -ENOSYS;
+            ALOGE("%s: ERROR backend sample rate mixer control not identifed", __func__);
+            is_configured = false;
+            goto fail;
         }
 
         if (mixer_ctl_set_enum_by_string(ctl_sample_rate, rate_str) != 0) {
             ALOGE("%s: Failed to set backend sample rate = %s", __func__, rate_str);
-            return -ENOSYS;
+            is_configured = false;
+            goto fail;
         }
     } else {
         /* Fallback to legacy approch if MIXER_SAMPLE_RATE_RX and
@@ -899,39 +942,44 @@ static int a2dp_set_backend_cfg()
                                         MIXER_SAMPLE_RATE_DEFAULT);
         if (!ctl_sample_rate) {
             ALOGE("%s: ERROR backend sample rate mixer control not identifed", __func__);
-            return -ENOSYS;
+            is_configured = false;
+            goto fail;
         }
 
         if (mixer_ctl_set_enum_by_string(ctl_sample_rate, rate_str) != 0) {
             ALOGE("%s: Failed to set backend sample rate = %s", __func__, rate_str);
-            return -ENOSYS;
+            is_configured = false;
+            goto fail;
         }
     }
 
-    //Configure AFE input channels
+    //Configure AFE enc channels
     switch (a2dp.enc_channels) {
     case 1:
-        in_channels = "One";
+        channels = "One";
         break;
     case 2:
     default:
-        in_channels = "Two";
+        channels = "Two";
         break;
     }
 
-    ALOGD("%s: set AFE input channels = %d", __func__, a2dp.enc_channels);
-    ctrl_in_channels = mixer_get_ctl_by_name(a2dp.adev->mixer,
-                                        MIXER_AFE_IN_CHANNELS);
-    if (!ctrl_in_channels) {
-        ALOGE("%s: ERROR AFE input channels mixer control not identifed", __func__);
-        return -ENOSYS;
-    }
-    if (mixer_ctl_set_enum_by_string(ctrl_in_channels, in_channels) != 0) {
-        ALOGE("%s: Failed to set AFE in channels = %d", __func__, a2dp.enc_channels);
-        return -ENOSYS;
-    }
+    ALOGD("%s: set afe enc channels =%s", __func__, channels);
+    ctrl_channels = mixer_get_ctl_by_name(a2dp.adev->mixer,
+                                          MIXER_AFE_IN_CHANNELS);
 
-    return 0;
+    if (!ctrl_channels) {
+        ALOGE(" ERROR AFE channels mixer control not identified");
+    } else {
+        if (mixer_ctl_set_enum_by_string(ctrl_channels, channels) != 0) {
+            ALOGE("%s: Failed to set AFE channels =%s", __func__, channels);
+            is_configured = false;
+            goto fail;
+        }
+    }
+    is_configured = true;
+fail:
+    return is_configured;
 }
 
 static int a2dp_set_bit_format(uint32_t enc_bit_format)
@@ -969,18 +1017,18 @@ static int a2dp_set_bit_format(uint32_t enc_bit_format)
 
 static int a2dp_reset_backend_cfg()
 {
-    const char *rate_str = "KHZ_8", *in_channels = "Zero";
-    struct mixer_ctl *ctl_sample_rate_rx = NULL, *ctl_sample_rate_tx = NULL;
-    struct mixer_ctl *ctrl_in_channels = NULL;
+    const char *rate_str = "KHZ_8", *channels = "Zero";
+    struct mixer_ctl *ctl_sample_rate = NULL, *ctl_sample_rate_tx = NULL;
+    struct mixer_ctl *ctrl_channels = NULL;
 
     // Reset backend sampling rate
-    ALOGD("%s: reset backend sample rate = %s", __func__, rate_str);
-    ctl_sample_rate_rx = mixer_get_ctl_by_name(a2dp.adev->mixer,
-                                        MIXER_SAMPLE_RATE_RX);
-    if (ctl_sample_rate_rx) {
+    ALOGD("%s: reset source backend sample rate =%s", __func__, rate_str);
+    ctl_sample_rate = mixer_get_ctl_by_name(a2dp.adev->mixer,
+                                              MIXER_SAMPLE_RATE_RX);
+    if (ctl_sample_rate) {
 
-        if (mixer_ctl_set_enum_by_string(ctl_sample_rate_rx, rate_str) != 0) {
-            ALOGE("%s: Failed to reset Rx backend sample rate = %s", __func__, rate_str);
+        if (mixer_ctl_set_enum_by_string(ctl_sample_rate, rate_str) != 0) {
+            ALOGE("%s: Failed to reset backend sample rate = %s", __func__, rate_str);
             return -ENOSYS;
         }
 
@@ -997,28 +1045,28 @@ static int a2dp_reset_backend_cfg()
         }
     } else {
 
-        ctl_sample_rate_rx = mixer_get_ctl_by_name(a2dp.adev->mixer,
+        ctl_sample_rate = mixer_get_ctl_by_name(a2dp.adev->mixer,
                                         MIXER_SAMPLE_RATE_DEFAULT);
-        if (!ctl_sample_rate_rx) {
+        if (!ctl_sample_rate) {
             ALOGE("%s: ERROR backend sample rate mixer control not identifed", __func__);
             return -ENOSYS;
         }
 
-        if (mixer_ctl_set_enum_by_string(ctl_sample_rate_rx, rate_str) != 0) {
+        if (mixer_ctl_set_enum_by_string(ctl_sample_rate, rate_str) != 0) {
             ALOGE("%s: Failed to reset backend sample rate = %s", __func__, rate_str);
             return -ENOSYS;
         }
     }
 
     // Reset AFE input channels
-    ALOGD("%s: reset AFE input channels = %s", __func__, in_channels);
-    ctrl_in_channels = mixer_get_ctl_by_name(a2dp.adev->mixer,
-                                        MIXER_AFE_IN_CHANNELS);
-    if (!ctrl_in_channels) {
+    ALOGD("%s: reset afe source channels =%s", __func__, channels);
+    ctrl_channels = mixer_get_ctl_by_name(a2dp.adev->mixer,
+                                          MIXER_AFE_IN_CHANNELS);
+    if (!ctrl_channels) {
         ALOGE("%s: ERROR AFE input channels mixer control not identifed", __func__);
         return -ENOSYS;
     }
-    if (mixer_ctl_set_enum_by_string(ctrl_in_channels, in_channels) != 0) {
+    if (mixer_ctl_set_enum_by_string(ctrl_channels, channels) != 0) {
         ALOGE("%s: Failed to reset AFE in channels = %d", __func__, a2dp.enc_channels);
         return -ENOSYS;
     }
@@ -1027,7 +1075,7 @@ static int a2dp_reset_backend_cfg()
 }
 
 /* API to configure AFE decoder in DSP */
-static bool configure_a2dp_decoder_format(int dec_format)
+static bool configure_a2dp_source_decoder_format(int dec_format)
 {
     struct mixer_ctl *ctl_dec_data = NULL;
     struct abr_dec_cfg_t dec_cfg;
@@ -1052,9 +1100,9 @@ static bool configure_a2dp_decoder_format(int dec_format)
             ALOGE("%s: Failed to set decoder config", __func__);
             return false;
         }
-    }
+     }
 
-    return true;
+     return true;
 }
 
 /* API to configure SBC DSP encoder */
@@ -1065,17 +1113,17 @@ bool configure_sbc_enc_format(audio_sbc_encoder_config *sbc_bt_cfg)
     bool is_configured = false;
     int ret = 0;
 
-    if(sbc_bt_cfg == NULL)
+    if (sbc_bt_cfg == NULL)
         return false;
 
    ctl_enc_data = mixer_get_ctl_by_name(a2dp.adev->mixer, MIXER_ENC_CONFIG_BLOCK);
     if (!ctl_enc_data) {
-        ALOGE(" ERROR  a2dp encoder CONFIG data mixer control not identifed");
+        ALOGE(" ERROR  a2dp encoder CONFIG data mixer control not identified");
         is_configured = false;
         goto fail;
     }
     memset(&sbc_dsp_cfg, 0x0, sizeof(struct sbc_enc_cfg_t));
-    sbc_dsp_cfg.enc_format = ENC_MEDIA_FMT_SBC;
+    sbc_dsp_cfg.enc_format = MEDIA_FMT_SBC;
     sbc_dsp_cfg.num_subbands = sbc_bt_cfg->subband;
     sbc_dsp_cfg.blk_len = sbc_bt_cfg->blk_len;
     switch(sbc_bt_cfg->channels) {
@@ -1112,7 +1160,7 @@ bool configure_sbc_enc_format(audio_sbc_encoder_config *sbc_bt_cfg)
         goto fail;
     }
     is_configured = true;
-    a2dp.bt_encoder_format = ENC_CODEC_TYPE_SBC;
+    a2dp.bt_encoder_format = CODEC_TYPE_SBC;
     a2dp.enc_sampling_rate = sbc_bt_cfg->sampling_rate;
 
     if (sbc_dsp_cfg.channel_mode == MEDIA_FMT_SBC_CHANNEL_MODE_MONO)
@@ -1126,38 +1174,42 @@ fail:
     return is_configured;
 }
 
-#ifndef LINUX_ENABLED
-static int update_aptx_ad_dsp_config(struct aptx_ad_enc_cfg_t *aptx_dsp_cfg,
-                                     audio_aptx_encoder_config *aptx_bt_cfg)
+static int update_aptx_ad_dsp_config(struct aptx_ad_enc_cfg_t *aptx_ad_dsp_cfg,
+                                     audio_aptx_encoder_config_l *aptx_bt_cfg)
 {
     int ret = 0;
 
-    if(aptx_dsp_cfg == NULL || aptx_bt_cfg == NULL) {
+    if (aptx_ad_dsp_cfg == NULL || aptx_bt_cfg == NULL) {
         ALOGE("Invalid param, aptx_dsp_cfg %p aptx_bt_cfg %p",
-              aptx_dsp_cfg, aptx_bt_cfg);
+              aptx_ad_dsp_cfg, aptx_bt_cfg);
         return -EINVAL;
     }
 
-    memset(aptx_dsp_cfg, 0x0, sizeof(struct aptx_ad_enc_cfg_t));
-    aptx_dsp_cfg->custom_cfg.enc_format = ENC_MEDIA_FMT_APTX_AD;
+    memset(aptx_ad_dsp_cfg, 0x0, sizeof(struct aptx_ad_enc_cfg_t));
+    aptx_ad_dsp_cfg->custom_cfg.enc_format = MEDIA_FMT_APTX_AD;
 
 
-    aptx_dsp_cfg->aptx_ad_cfg.sampling_freq = aptx_bt_cfg->ad_cfg->sampling_rate;
-    aptx_dsp_cfg->aptx_ad_cfg.mtu = aptx_bt_cfg->ad_cfg->mtu;
-    aptx_dsp_cfg->aptx_ad_cfg.channel_mode = aptx_bt_cfg->ad_cfg->channel_mode;
-    aptx_dsp_cfg->aptx_ad_cfg.min_sink_modeA = aptx_bt_cfg->ad_cfg->min_sink_modeA;
-    aptx_dsp_cfg->aptx_ad_cfg.max_sink_modeA = aptx_bt_cfg->ad_cfg->max_sink_modeA;
-    aptx_dsp_cfg->aptx_ad_cfg.min_sink_modeB = aptx_bt_cfg->ad_cfg->min_sink_modeB;
-    aptx_dsp_cfg->aptx_ad_cfg.max_sink_modeB = aptx_bt_cfg->ad_cfg->max_sink_modeB;
-    aptx_dsp_cfg->aptx_ad_cfg.min_sink_modeC = aptx_bt_cfg->ad_cfg->min_sink_modeC;
-    aptx_dsp_cfg->aptx_ad_cfg.max_sink_modeC = aptx_bt_cfg->ad_cfg->max_sink_modeC;
-    aptx_dsp_cfg->abr_cfg.imc_info.direction = IMC_RECEIVE;
-    aptx_dsp_cfg->abr_cfg.imc_info.enable = IMC_ENABLE;
-    aptx_dsp_cfg->abr_cfg.imc_info.purpose = IMC_PURPOSE_ID_BT_INFO;
-    aptx_dsp_cfg->abr_cfg.imc_info.comm_instance = a2dp.abr_config.imc_instance;
+    aptx_ad_dsp_cfg->aptx_ad_cfg.sampling_freq = aptx_bt_cfg->ad_cfg->sampling_rate;
+    aptx_ad_dsp_cfg->aptx_ad_cfg.mtu = aptx_bt_cfg->ad_cfg->mtu;
+    aptx_ad_dsp_cfg->aptx_ad_cfg.channel_mode = aptx_bt_cfg->ad_cfg->channel_mode;
+    aptx_ad_dsp_cfg->aptx_ad_cfg.min_sink_buffering_LL = aptx_bt_cfg->ad_cfg->min_sink_buffering_LL;
+    aptx_ad_dsp_cfg->aptx_ad_cfg.max_sink_buffering_LL = aptx_bt_cfg->ad_cfg->max_sink_buffering_LL;
+    aptx_ad_dsp_cfg->aptx_ad_cfg.min_sink_buffering_HQ = aptx_bt_cfg->ad_cfg->min_sink_buffering_HQ;
+    aptx_ad_dsp_cfg->aptx_ad_cfg.max_sink_buffering_HQ = aptx_bt_cfg->ad_cfg->max_sink_buffering_HQ;
+    aptx_ad_dsp_cfg->aptx_ad_cfg.min_sink_buffering_TWS = aptx_bt_cfg->ad_cfg->min_sink_buffering_TWS;
+    aptx_ad_dsp_cfg->aptx_ad_cfg.max_sink_buffering_TWS = aptx_bt_cfg->ad_cfg->max_sink_buffering_TWS;
+    aptx_ad_dsp_cfg->aptx_ad_cfg.profile = aptx_bt_cfg->ad_cfg->aptx_mode;
+    aptx_ad_dsp_cfg->abr_cfg.imc_info.direction = IMC_RECEIVE;
+    aptx_ad_dsp_cfg->abr_cfg.imc_info.enable = IMC_ENABLE;
+    aptx_ad_dsp_cfg->abr_cfg.imc_info.purpose = IMC_PURPOSE_ID_BT_INFO;
+    aptx_ad_dsp_cfg->abr_cfg.imc_info.comm_instance = a2dp.abr_config.imc_instance;
 
-
-    switch(aptx_dsp_cfg->aptx_ad_cfg.channel_mode) {
+    switch(aptx_ad_dsp_cfg->aptx_ad_cfg.channel_mode) {
+        case APTX_AD_CHANNEL_MONO:
+             a2dp.enc_channels = CH_MONO;
+             aptx_ad_dsp_cfg->custom_cfg.num_channels = CH_MONO;
+             aptx_ad_dsp_cfg->custom_cfg.channel_mapping[0] = PCM_CHANNEL_C;
+             break;
         case APTX_AD_CHANNEL_UNCHANGED:
         case APTX_AD_CHANNEL_JOINT_STEREO:
         case APTX_AD_CHANNEL_DUAL_MONO:
@@ -1165,48 +1217,63 @@ static int update_aptx_ad_dsp_config(struct aptx_ad_enc_cfg_t *aptx_dsp_cfg,
         case APTX_AD_CHANNEL_EARBUD:
         default:
              a2dp.enc_channels = CH_STEREO;
-             aptx_dsp_cfg->custom_cfg.num_channels = CH_STEREO;
-             aptx_dsp_cfg->custom_cfg.channel_mapping[0] = PCM_CHANNEL_L;
-             aptx_dsp_cfg->custom_cfg.channel_mapping[1] = PCM_CHANNEL_R;
+             aptx_ad_dsp_cfg->custom_cfg.num_channels = CH_STEREO;
+             aptx_ad_dsp_cfg->custom_cfg.channel_mapping[0] = PCM_CHANNEL_L;
+             aptx_ad_dsp_cfg->custom_cfg.channel_mapping[1] = PCM_CHANNEL_R;
              break;
-        case APTX_AD_CHANNEL_MONO:
-             a2dp.enc_channels = CH_MONO;
-             aptx_dsp_cfg->custom_cfg.num_channels = CH_MONO;
-             aptx_dsp_cfg->custom_cfg.channel_mapping[0] = PCM_CHANNEL_C;
-            break;
     }
-    switch(aptx_dsp_cfg->aptx_ad_cfg.sampling_freq) {
+    switch(aptx_ad_dsp_cfg->aptx_ad_cfg.sampling_freq) {
+        case APTX_AD_44_1:
+            a2dp.enc_sampling_rate = SAMPLING_RATE_441K;
+            aptx_ad_dsp_cfg->custom_cfg.sample_rate = SAMPLING_RATE_441K;
+            break;
         case APTX_AD_SR_UNCHANGED:
         case APTX_AD_48:
         default:
             a2dp.enc_sampling_rate = SAMPLING_RATE_48K;
-            aptx_dsp_cfg->custom_cfg.sample_rate = SAMPLING_RATE_48K;
+            aptx_ad_dsp_cfg->custom_cfg.sample_rate = SAMPLING_RATE_48K;
             break;
-        case APTX_AD_44_1:
-            a2dp.enc_sampling_rate = SAMPLING_RATE_441K;
-            aptx_dsp_cfg->custom_cfg.sample_rate = SAMPLING_RATE_441K;
-        break;
     }
     ALOGV("Successfully updated APTX AD enc format with \
                samplingrate: %d channels:%d",
-               aptx_dsp_cfg->custom_cfg.sample_rate,
-               aptx_dsp_cfg->custom_cfg.num_channels);
+               aptx_ad_dsp_cfg->custom_cfg.sample_rate,
+               aptx_ad_dsp_cfg->custom_cfg.num_channels);
 
     return ret;
 }
-static int update_aptx_dsp_config_v2(struct aptx_enc_cfg_t *aptx_dsp_cfg,
-                                     audio_aptx_encoder_config *aptx_bt_cfg)
+
+static void audio_a2dp_update_tws_channel_mode()
+{
+    char* channel_mode;
+    struct mixer_ctl *ctl_channel_mode;
+    if (a2dp.is_tws_mono_mode_on)
+       channel_mode = "One";
+    else
+       channel_mode = "Two";
+    ctl_channel_mode = mixer_get_ctl_by_name(a2dp.adev->mixer,MIXER_FMT_TWS_CHANNEL_MODE);
+    if (!ctl_channel_mode) {
+         ALOGE("failed to get tws mixer ctl");
+         return;
+    }
+    if (mixer_ctl_set_enum_by_string(ctl_channel_mode, channel_mode) != 0) {
+         ALOGE("%s: Failed to set the channel mode = %s", __func__, channel_mode);
+         return;
+    }
+}
+
+static int update_aptx_dsp_config(struct aptx_enc_cfg_t *aptx_dsp_cfg,
+                                  audio_aptx_encoder_config_l *aptx_bt_cfg)
 {
     int ret = 0;
 
-    if(aptx_dsp_cfg == NULL || aptx_bt_cfg == NULL) {
+    if (aptx_dsp_cfg == NULL || aptx_bt_cfg == NULL) {
         ALOGE("Invalid param, aptx_dsp_cfg %p aptx_bt_cfg %p",
               aptx_dsp_cfg, aptx_bt_cfg);
         return -EINVAL;
     }
 
     memset(aptx_dsp_cfg, 0x0, sizeof(struct aptx_enc_cfg_t));
-    aptx_dsp_cfg->custom_cfg.enc_format = ENC_MEDIA_FMT_APTX;
+    aptx_dsp_cfg->custom_cfg.enc_format = MEDIA_FMT_APTX;
 
     if (!a2dp.is_aptx_dual_mono_supported) {
         aptx_dsp_cfg->custom_cfg.sample_rate = aptx_bt_cfg->default_cfg->sampling_rate;
@@ -1223,8 +1290,14 @@ static int update_aptx_dsp_config_v2(struct aptx_enc_cfg_t *aptx_dsp_cfg,
             break;
         case 2:
         default:
-            aptx_dsp_cfg->custom_cfg.channel_mapping[0] = PCM_CHANNEL_L;
-            aptx_dsp_cfg->custom_cfg.channel_mapping[1] = PCM_CHANNEL_R;
+            if (!a2dp.is_tws_mono_mode_on) {
+               aptx_dsp_cfg->custom_cfg.channel_mapping[0] = PCM_CHANNEL_L;
+               aptx_dsp_cfg->custom_cfg.channel_mapping[1] = PCM_CHANNEL_R;
+            }
+            else {
+               a2dp.is_tws_mono_mode_on = true;
+               ALOGD("Update tws for mono_mode_on: %d",a2dp.is_tws_mono_mode_on);
+            }
             break;
     }
     a2dp.enc_channels = aptx_dsp_cfg->custom_cfg.num_channels;
@@ -1243,50 +1316,19 @@ static int update_aptx_dsp_config_v2(struct aptx_enc_cfg_t *aptx_dsp_cfg,
     }
     return ret;
 }
-#else
-static int update_aptx_dsp_config_v1(struct custom_enc_cfg_t *aptx_dsp_cfg,
-                                     audio_aptx_encoder_config *aptx_bt_cfg)
-{
-    int ret = 0;
-
-    if(aptx_dsp_cfg == NULL || aptx_bt_cfg == NULL) {
-        ALOGE("Invalid param, aptx_dsp_cfg %p aptx_bt_cfg %p",
-              aptx_dsp_cfg, aptx_bt_cfg);
-        return -EINVAL;
-    }
-
-    memset(&aptx_dsp_cfg, 0x0, sizeof(struct custom_enc_cfg_t));
-    aptx_dsp_cfg->enc_format = ENC_MEDIA_FMT_APTX;
-    aptx_dsp_cfg->sample_rate = aptx_bt_cfg->sampling_rate;
-    aptx_dsp_cfg->num_channels = aptx_bt_cfg->channels;
-    switch(aptx_dsp_cfg->num_channels) {
-        case 1:
-            aptx_dsp_cfg->channel_mapping[0] = PCM_CHANNEL_C;
-            break;
-        case 2:
-        default:
-            aptx_dsp_cfg->channel_mapping[0] = PCM_CHANNEL_L;
-            aptx_dsp_cfg->channel_mapping[1] = PCM_CHANNEL_R;
-            break;
-    }
-
-    ALOGV("Updated APTX enc format with samplingrate: %d channels:%d",
-            aptx_dsp_cfg->sample_rate, aptx_dsp_cfg->num_channels);
-
-    return ret;
-}
-#endif
 
 /* API to configure APTX DSP encoder */
-bool configure_aptx_enc_format(audio_aptx_encoder_config *aptx_bt_cfg)
+bool configure_aptx_enc_format(audio_aptx_encoder_config_l *aptx_bt_cfg)
 {
     struct mixer_ctl *ctl_enc_data = NULL;
     int mixer_size;
     bool is_configured = false;
     int ret = 0;
     int sample_rate_backup;
+    struct aptx_enc_cfg_t aptx_dsp_cfg;
+    struct aptx_ad_enc_cfg_t aptx_ad_dsp_cfg;
 
-    if(aptx_bt_cfg == NULL)
+    if (aptx_bt_cfg == NULL)
         return false;
 
     ctl_enc_data = mixer_get_ctl_by_name(a2dp.adev->mixer, MIXER_ENC_CONFIG_BLOCK);
@@ -1295,94 +1337,81 @@ bool configure_aptx_enc_format(audio_aptx_encoder_config *aptx_bt_cfg)
         return false;
     }
 
-#ifndef LINUX_ENABLED
-    struct aptx_enc_cfg_t aptx_dsp_cfg;
-    struct aptx_ad_enc_cfg_t aptx_ad_dsp_cfg;
-    if(a2dp.is_aptx_adaptive) {
+    if (a2dp.is_aptx_adaptive) {
         mixer_size = sizeof(struct aptx_ad_enc_cfg_t);
         ret = update_aptx_ad_dsp_config(&aptx_ad_dsp_cfg, aptx_bt_cfg);
         sample_rate_backup = aptx_ad_dsp_cfg.custom_cfg.sample_rate;
     } else {
         mixer_size = sizeof(struct aptx_enc_cfg_t);
         sample_rate_backup = aptx_bt_cfg->default_cfg->sampling_rate;
-        ret = update_aptx_dsp_config_v2(&aptx_dsp_cfg, aptx_bt_cfg);
+        ret = update_aptx_dsp_config(&aptx_dsp_cfg, aptx_bt_cfg);
     }
+
     if (ret) {
+        ALOGE("%s: Failed to set update APTX dsp config", __func__);
         is_configured = false;
         goto fail;
     }
 
-    if(a2dp.is_aptx_adaptive) {
+    if (a2dp.is_aptx_adaptive)
         ret = mixer_ctl_set_array(ctl_enc_data, (void *)&aptx_ad_dsp_cfg,
                               mixer_size);
-    } else {
+    else
         ret = mixer_ctl_set_array(ctl_enc_data, (void *)&aptx_dsp_cfg,
                               mixer_size);
-    }
-#else
-    struct custom_enc_cfg_t aptx_dsp_cfg;
-    mixer_size = sizeof(struct custom_enc_cfg_t);
-    sample_rate_backup = aptx_bt_cfg->sampling_rate;
-    ret = update_aptx_dsp_config_v1(&aptx_dsp_cfg, aptx_bt_cfg);
-    if (ret) {
-        is_configured = false;
-        goto fail;
-    }
-    ret = mixer_ctl_set_array(ctl_enc_data, (void *)&aptx_dsp_cfg,
-                          mixer_size);
-#endif
+
     if (ret != 0) {
         ALOGE("%s: Failed to set APTX encoder config", __func__);
         is_configured = false;
         goto fail;
     }
-    if(a2dp.is_aptx_adaptive)
+
+    if (a2dp.is_aptx_adaptive)
         ret = a2dp_set_bit_format(aptx_bt_cfg->ad_cfg->bits_per_sample);
-    else if(a2dp.is_aptx_dual_mono_supported)
+    else if (a2dp.is_aptx_dual_mono_supported)
         ret = a2dp_set_bit_format(aptx_bt_cfg->dual_mono_cfg->bits_per_sample);
     else
         ret = a2dp_set_bit_format(aptx_bt_cfg->default_cfg->bits_per_sample);
+
     if (ret != 0) {
+        ALOGE("%s: Failed to set bit format", __func__);
         is_configured = false;
         goto fail;
     }
+
     is_configured = true;
     if (a2dp.is_aptx_adaptive)
-        a2dp.bt_encoder_format = ENC_CODEC_TYPE_APTX_AD;
+        a2dp.bt_encoder_format = CODEC_TYPE_APTX_AD;
     else
-        a2dp.bt_encoder_format = ENC_CODEC_TYPE_APTX;
+        a2dp.bt_encoder_format = CODEC_TYPE_APTX;
 fail:
     /*restore sample rate */
-    if(!is_configured)
+    if (!is_configured)
         a2dp.enc_sampling_rate = sample_rate_backup;
     return is_configured;
 }
 
 /* API to configure APTX HD DSP encoder
  */
-#ifndef LINUX_ENABLED
 bool configure_aptx_hd_enc_format(audio_aptx_default_config *aptx_bt_cfg)
-#else
-bool configure_aptx_hd_enc_format(audio_aptx_encoder_config *aptx_bt_cfg)
-#endif
 {
     struct mixer_ctl *ctl_enc_data = NULL;
     struct custom_enc_cfg_t aptx_dsp_cfg;
     bool is_configured = false;
     int ret = 0;
 
-    if(aptx_bt_cfg == NULL)
+    if (aptx_bt_cfg == NULL)
         return false;
 
     ctl_enc_data = mixer_get_ctl_by_name(a2dp.adev->mixer, MIXER_ENC_CONFIG_BLOCK);
     if (!ctl_enc_data) {
-        ALOGE(" ERROR  a2dp encoder CONFIG data mixer control not identifed");
+        ALOGE(" ERROR  a2dp encoder CONFIG data mixer control not identified");
         is_configured = false;
         goto fail;
     }
 
     memset(&aptx_dsp_cfg, 0x0, sizeof(struct custom_enc_cfg_t));
-    aptx_dsp_cfg.enc_format = ENC_MEDIA_FMT_APTX_HD;
+    aptx_dsp_cfg.enc_format = MEDIA_FMT_APTX_HD;
     aptx_dsp_cfg.sample_rate = aptx_bt_cfg->sampling_rate;
     aptx_dsp_cfg.num_channels = aptx_bt_cfg->channels;
     switch(aptx_dsp_cfg.num_channels) {
@@ -1408,7 +1437,7 @@ bool configure_aptx_hd_enc_format(audio_aptx_encoder_config *aptx_bt_cfg)
         goto fail;
     }
     is_configured = true;
-    a2dp.bt_encoder_format = ENC_CODEC_TYPE_APTX_HD;
+    a2dp.bt_encoder_format = CODEC_TYPE_APTX_HD;
     a2dp.enc_sampling_rate = aptx_bt_cfg->sampling_rate;
     a2dp.enc_channels = aptx_bt_cfg->channels;
     ALOGV("Successfully updated APTX HD encformat with samplingrate: %d channels:%d",
@@ -1425,20 +1454,20 @@ bool configure_aac_enc_format(audio_aac_encoder_config *aac_bt_cfg)
     bool is_configured = false;
     int ret = 0;
 
-    if(aac_bt_cfg == NULL)
+    if (aac_bt_cfg == NULL)
         return false;
 
     ctl_enc_data = mixer_get_ctl_by_name(a2dp.adev->mixer, MIXER_ENC_CONFIG_BLOCK);
     if (!ctl_enc_data) {
-        ALOGE(" ERROR  a2dp encoder CONFIG data mixer control not identifed");
+        ALOGE(" ERROR  a2dp encoder CONFIG data mixer control not identified");
         is_configured = false;
         goto fail;
     }
     memset(&aac_dsp_cfg, 0x0, sizeof(struct aac_enc_cfg_t));
-    aac_dsp_cfg.enc_format = ENC_MEDIA_FMT_AAC;
+    aac_dsp_cfg.enc_format = MEDIA_FMT_AAC;
     aac_dsp_cfg.bit_rate = aac_bt_cfg->bitrate;
     aac_dsp_cfg.sample_rate = aac_bt_cfg->sampling_rate;
-    switch(aac_bt_cfg->enc_mode) {
+    switch (aac_bt_cfg->enc_mode) {
         case 0:
             aac_dsp_cfg.enc_mode = MEDIA_FMT_AAC_AOT_LC;
             break;
@@ -1452,10 +1481,11 @@ bool configure_aac_enc_format(audio_aac_encoder_config *aac_bt_cfg)
     }
     aac_dsp_cfg.aac_fmt_flag = aac_bt_cfg->format_flag;
     aac_dsp_cfg.channel_cfg = aac_bt_cfg->channels;
+
     ret = mixer_ctl_set_array(ctl_enc_data, (void *)&aac_dsp_cfg,
                               sizeof(struct aac_enc_cfg_t));
     if (ret != 0) {
-        ALOGE("%s: failed to set SBC encoder config", __func__);
+        ALOGE("%s: Failed to set AAC encoder config", __func__);
         is_configured = false;
         goto fail;
     }
@@ -1465,11 +1495,70 @@ bool configure_aac_enc_format(audio_aac_encoder_config *aac_bt_cfg)
         goto fail;
     }
     is_configured = true;
-    a2dp.bt_encoder_format = ENC_CODEC_TYPE_AAC;
+    a2dp.bt_encoder_format = CODEC_TYPE_AAC;
     a2dp.enc_sampling_rate = aac_bt_cfg->sampling_rate;
     a2dp.enc_channels = aac_bt_cfg->channels;
-    ALOGV("Successfully updated AAC enc format with samplingrate: %d channels:%d",
-           aac_dsp_cfg.sample_rate, aac_dsp_cfg.channel_cfg);
+    ALOGV("%s: Successfully updated AAC enc format with sampling rate: %d channels:%d",
+           __func__, aac_dsp_cfg.sample_rate, aac_dsp_cfg.channel_cfg);
+fail:
+    return is_configured;
+}
+
+bool configure_aac_enc_format_v2(audio_aac_encoder_config_v2 *aac_bt_cfg)
+{
+    struct mixer_ctl *ctl_enc_data = NULL;
+    struct aac_enc_cfg_v2_t aac_dsp_cfg;
+    bool is_configured = false;
+    int ret = 0;
+
+    if (aac_bt_cfg == NULL)
+        return false;
+
+    ctl_enc_data = mixer_get_ctl_by_name(a2dp.adev->mixer, MIXER_ENC_CONFIG_BLOCK);
+    if (!ctl_enc_data) {
+        ALOGE(" ERROR  a2dp encoder CONFIG data mixer control not identifed");
+        is_configured = false;
+        goto fail;
+    }
+    memset(&aac_dsp_cfg, 0x0, sizeof(struct aac_enc_cfg_v2_t));
+    aac_dsp_cfg.aac_enc_cfg.enc_format = MEDIA_FMT_AAC;
+    aac_dsp_cfg.aac_enc_cfg.bit_rate = aac_bt_cfg->audio_aac_enc_cfg.bitrate;
+    aac_dsp_cfg.aac_enc_cfg.sample_rate = aac_bt_cfg->audio_aac_enc_cfg.sampling_rate;
+    switch (aac_bt_cfg->audio_aac_enc_cfg.enc_mode) {
+        case 0:
+            aac_dsp_cfg.aac_enc_cfg.enc_mode = MEDIA_FMT_AAC_AOT_LC;
+            break;
+        case 2:
+            aac_dsp_cfg.aac_enc_cfg.enc_mode = MEDIA_FMT_AAC_AOT_PS;
+            break;
+        case 1:
+        default:
+            aac_dsp_cfg.aac_enc_cfg.enc_mode = MEDIA_FMT_AAC_AOT_SBR;
+            break;
+    }
+    aac_dsp_cfg.aac_enc_cfg.aac_fmt_flag = aac_bt_cfg->audio_aac_enc_cfg.format_flag;
+    aac_dsp_cfg.aac_enc_cfg.channel_cfg = aac_bt_cfg->audio_aac_enc_cfg.channels;
+    aac_dsp_cfg.frame_ctl.ctl_type = aac_bt_cfg->frame_ctl.ctl_type;
+    aac_dsp_cfg.frame_ctl.ctl_value = aac_bt_cfg->frame_ctl.ctl_value;
+
+    ret = mixer_ctl_set_array(ctl_enc_data, (void *)&aac_dsp_cfg,
+                              sizeof(struct aac_enc_cfg_v2_t));
+    if (ret != 0) {
+        ALOGE("%s: Failed to set AAC encoder config", __func__);
+        is_configured = false;
+        goto fail;
+    }
+    ret = a2dp_set_bit_format(aac_bt_cfg->audio_aac_enc_cfg.bits_per_sample);
+    if (ret != 0) {
+        is_configured = false;
+        goto fail;
+    }
+    is_configured = true;
+    a2dp.bt_encoder_format = CODEC_TYPE_AAC;
+    a2dp.enc_sampling_rate = aac_bt_cfg->audio_aac_enc_cfg.sampling_rate;
+    a2dp.enc_channels = aac_bt_cfg->audio_aac_enc_cfg.channels;
+    ALOGV("%s: Successfully updated AAC enc format with sampling rate: %d channels:%d",
+           __func__, aac_dsp_cfg.aac_enc_cfg.sample_rate, aac_dsp_cfg.aac_enc_cfg.channel_cfg);
 fail:
     return is_configured;
 }
@@ -1480,18 +1569,18 @@ bool configure_celt_enc_format(audio_celt_encoder_config *celt_bt_cfg)
     struct celt_enc_cfg_t celt_dsp_cfg;
     bool is_configured = false;
     int ret = 0;
-    if(celt_bt_cfg == NULL)
+    if (celt_bt_cfg == NULL)
         return false;
 
     ctl_enc_data = mixer_get_ctl_by_name(a2dp.adev->mixer, MIXER_ENC_CONFIG_BLOCK);
     if (!ctl_enc_data) {
-        ALOGE(" ERROR  a2dp encoder CONFIG data mixer control not identifed");
+        ALOGE(" ERROR  a2dp encoder CONFIG data mixer control not identified");
         is_configured = false;
         goto fail;
     }
     memset(&celt_dsp_cfg, 0x0, sizeof(struct celt_enc_cfg_t));
 
-    celt_dsp_cfg.custom_cfg.enc_format = ENC_MEDIA_FMT_CELT;
+    celt_dsp_cfg.custom_cfg.enc_format = MEDIA_FMT_CELT;
     celt_dsp_cfg.custom_cfg.sample_rate = celt_bt_cfg->sampling_rate;
     celt_dsp_cfg.custom_cfg.num_channels = celt_bt_cfg->channels;
     switch(celt_dsp_cfg.custom_cfg.num_channels) {
@@ -1526,7 +1615,7 @@ bool configure_celt_enc_format(audio_celt_encoder_config *celt_bt_cfg)
         goto fail;
     }
     is_configured = true;
-    a2dp.bt_encoder_format = ENC_CODEC_TYPE_CELT;
+    a2dp.bt_encoder_format = CODEC_TYPE_CELT;
     a2dp.enc_sampling_rate = celt_bt_cfg->sampling_rate;
     a2dp.enc_channels = celt_bt_cfg->channels;
     ALOGV("Successfully updated CELT encformat with samplingrate: %d channels:%d",
@@ -1541,18 +1630,18 @@ bool configure_ldac_enc_format(audio_ldac_encoder_config *ldac_bt_cfg)
     struct ldac_enc_cfg_t ldac_dsp_cfg;
     bool is_configured = false;
     int ret = 0;
-    if(ldac_bt_cfg == NULL)
+    if (ldac_bt_cfg == NULL)
         return false;
 
     ldac_enc_data = mixer_get_ctl_by_name(a2dp.adev->mixer, MIXER_ENC_CONFIG_BLOCK);
     if (!ldac_enc_data) {
-        ALOGE(" ERROR  a2dp encoder CONFIG data mixer control not identifed");
+        ALOGE(" ERROR  a2dp encoder CONFIG data mixer control not identified");
         is_configured = false;
         goto fail;
     }
     memset(&ldac_dsp_cfg, 0x0, sizeof(struct ldac_enc_cfg_t));
 
-    ldac_dsp_cfg.custom_cfg.enc_format = ENC_MEDIA_FMT_LDAC;
+    ldac_dsp_cfg.custom_cfg.enc_format = MEDIA_FMT_LDAC;
     ldac_dsp_cfg.custom_cfg.sample_rate = ldac_bt_cfg->sampling_rate;
     ldac_dsp_cfg.ldac_cfg.channel_mode = ldac_bt_cfg->channel_mode;
     switch(ldac_dsp_cfg.ldac_cfg.channel_mode) {
@@ -1594,7 +1683,7 @@ bool configure_ldac_enc_format(audio_ldac_encoder_config *ldac_bt_cfg)
         goto fail;
     }
     is_configured = true;
-    a2dp.bt_encoder_format = ENC_CODEC_TYPE_LDAC;
+    a2dp.bt_encoder_format = CODEC_TYPE_LDAC;
     a2dp.enc_sampling_rate = ldac_bt_cfg->sampling_rate;
     a2dp.enc_channels = ldac_dsp_cfg.custom_cfg.num_channels;
     a2dp.abr_config.is_abr_enabled = ldac_bt_cfg->is_abr_enabled;
@@ -1608,16 +1697,16 @@ bool configure_a2dp_encoder_format()
 {
     void *codec_info = NULL;
     uint8_t multi_cast = 0, num_dev = 1;
-    enc_codec_t codec_type = ENC_CODEC_TYPE_INVALID;
+    codec_t codec_type = CODEC_TYPE_INVALID;
     bool is_configured = false;
-    audio_aptx_encoder_config aptx_encoder_cfg;
+    audio_aptx_encoder_config_l aptx_encoder_cfg;
 
-    if (!a2dp.audio_get_codec_config) {
+    if (!a2dp.audio_get_enc_config) {
         ALOGE(" a2dp handle is not identified, ignoring a2dp encoder config");
         return false;
     }
     ALOGD("configure_a2dp_encoder_format start");
-    codec_info = a2dp.audio_get_codec_config(&multi_cast, &num_dev,
+    codec_info = a2dp.audio_get_enc_config(&multi_cast, &num_dev,
                                &codec_type);
 
     // ABR disabled by default for all codecs
@@ -1625,72 +1714,65 @@ bool configure_a2dp_encoder_format()
     a2dp.is_aptx_adaptive = false;
 
     switch(codec_type) {
-        case ENC_CODEC_TYPE_SBC:
+        case CODEC_TYPE_SBC:
             ALOGD(" Received SBC encoder supported BT device");
             is_configured =
               configure_sbc_enc_format((audio_sbc_encoder_config *)codec_info);
             break;
-        case ENC_CODEC_TYPE_APTX:
+        case CODEC_TYPE_APTX:
             ALOGD(" Received APTX encoder supported BT device");
-#ifndef LINUX_ENABLED
             a2dp.is_aptx_dual_mono_supported = false;
             aptx_encoder_cfg.default_cfg = (audio_aptx_default_config *)codec_info;
-#endif
-            is_configured =
-              configure_aptx_enc_format(&aptx_encoder_cfg);
+            is_configured = configure_aptx_enc_format(&aptx_encoder_cfg);
             break;
-        case ENC_CODEC_TYPE_APTX_HD:
+        case CODEC_TYPE_APTX_HD:
             ALOGD(" Received APTX HD encoder supported BT device");
-#ifndef LINUX_ENABLED
             is_configured =
               configure_aptx_hd_enc_format((audio_aptx_default_config *)codec_info);
-#else
-            is_configured =
-              configure_aptx_hd_enc_format((audio_aptx_encoder_config *)codec_info);
-#endif
             break;
-#ifndef LINUX_ENABLED
-        case ENC_CODEC_TYPE_APTX_DUAL_MONO:
+        case CODEC_TYPE_APTX_DUAL_MONO:
             ALOGD(" Received APTX dual mono encoder supported BT device");
             a2dp.is_aptx_dual_mono_supported = true;
+            if (a2dp.audio_is_tws_mono_mode_enable != NULL)
+                a2dp.is_tws_mono_mode_on = a2dp.audio_is_tws_mono_mode_enable();
             aptx_encoder_cfg.dual_mono_cfg = (audio_aptx_dual_mono_config *)codec_info;
-            is_configured =
-              configure_aptx_enc_format(&aptx_encoder_cfg);
+            is_configured = configure_aptx_enc_format(&aptx_encoder_cfg);
             break;
-#endif
-        case ENC_CODEC_TYPE_AAC:
+        case CODEC_TYPE_AAC:
             ALOGD(" Received AAC encoder supported BT device");
-            is_configured =
-              configure_aac_enc_format((audio_aac_encoder_config *)codec_info);
+            bool is_aac_frame_ctl_enabled =
+                    property_get_bool("persist.vendor.bt.aac_frm_ctl.enabled", false);
+            is_configured = is_aac_frame_ctl_enabled ?
+                  configure_aac_enc_format_v2((audio_aac_encoder_config_v2 *) codec_info) :
+                  configure_aac_enc_format((audio_aac_encoder_config *) codec_info);
             break;
-        case ENC_CODEC_TYPE_CELT:
+        case CODEC_TYPE_CELT:
             ALOGD(" Received CELT encoder supported BT device");
             is_configured =
               configure_celt_enc_format((audio_celt_encoder_config *)codec_info);
             break;
-        case ENC_CODEC_TYPE_LDAC:
+        case CODEC_TYPE_LDAC:
             ALOGD(" Received LDAC encoder supported BT device");
             if (!instance_id || instance_id > MAX_INSTANCE_ID)
                 instance_id = MAX_INSTANCE_ID;
             a2dp.abr_config.imc_instance = instance_id--;
             is_configured =
                 (configure_ldac_enc_format((audio_ldac_encoder_config *)codec_info) &&
-                 configure_a2dp_decoder_format(ENC_CODEC_TYPE_LDAC));
+                 configure_a2dp_source_decoder_format(CODEC_TYPE_LDAC));
             break;
-         case ENC_CODEC_TYPE_APTX_AD:
-             ALOGD(" Received APTX AD encoder supported BT device");
-             if (!instance_id || instance_id > MAX_INSTANCE_ID)
-                 instance_id = MAX_INSTANCE_ID;
-              a2dp.abr_config.imc_instance = instance_id--;
-              a2dp.abr_config.is_abr_enabled = true; // for APTX Adaptive ABR is Always on
-              a2dp.is_aptx_adaptive = true;
-              aptx_encoder_cfg.ad_cfg = (audio_aptx_ad_config *)codec_info;
-              is_configured =
-                (configure_aptx_enc_format(&aptx_encoder_cfg) &&
-                 configure_a2dp_decoder_format(ENC_MEDIA_FMT_APTX_AD));
+        case CODEC_TYPE_APTX_AD:
+            ALOGD(" Received APTX AD encoder supported BT device");
+            if (!instance_id || instance_id > MAX_INSTANCE_ID)
+                instance_id = MAX_INSTANCE_ID;
+            a2dp.abr_config.imc_instance = instance_id--;
+            a2dp.abr_config.is_abr_enabled = true; // for APTX Adaptive ABR is Always on
+            a2dp.is_aptx_adaptive = true;
+            aptx_encoder_cfg.ad_cfg = (audio_aptx_ad_config *)codec_info;
+            is_configured = (configure_aptx_enc_format(&aptx_encoder_cfg) &&
+               configure_a2dp_source_decoder_format(MEDIA_FMT_APTX_AD));
             break;
         default:
-            ALOGD(" Received Unsupported encoder formar");
+            ALOGD(" Received Unsupported encoder format");
             is_configured = false;
             break;
     }
@@ -1703,49 +1785,50 @@ int audio_extn_a2dp_start_playback()
 
     ALOGD("audio_extn_a2dp_start_playback start");
 
-    if(!(a2dp.bt_lib_handle && a2dp.audio_start_stream
-       && a2dp.audio_get_codec_config)) {
-        ALOGE("a2dp handle is not identified, Ignoring start request");
+    if (!(a2dp.bt_lib_source_handle && a2dp.audio_source_start
+       && a2dp.audio_get_enc_config)) {
+        ALOGE("a2dp handle is not identified, Ignoring start playback request");
         return -ENOSYS;
     }
 
-    if(a2dp.a2dp_suspended == true) {
+    if (a2dp.a2dp_source_suspended == true) {
         //session will be restarted after suspend completion
         ALOGD("a2dp start requested during suspend state");
         return -ENOSYS;
     }
 
-    if (!a2dp.a2dp_started && !a2dp.a2dp_total_active_session_request) {
+    if (!a2dp.a2dp_source_started && !a2dp.a2dp_source_total_active_session_requests) {
         ALOGD("calling BT module stream start");
         /* This call indicates BT IPC lib to start playback */
-        ret =  a2dp.audio_start_stream();
+        ret =  a2dp.audio_source_start();
         ALOGE("BT controller start return = %d",ret);
         if (ret != 0 ) {
            ALOGE("BT controller start failed");
-           a2dp.a2dp_started = false;
+           a2dp.a2dp_source_started = false;
         } else {
-           if(configure_a2dp_encoder_format() == true) {
-                a2dp.a2dp_started = true;
+           if (configure_a2dp_encoder_format() == true) {
+                a2dp.a2dp_source_started = true;
                 ret = 0;
                 ALOGD("Start playback successful to BT library");
            } else {
                 ALOGD(" unable to configure DSP encoder");
-                a2dp.a2dp_started = false;
+                a2dp.a2dp_source_started = false;
                 ret = -ETIMEDOUT;
            }
         }
     }
 
-    if (a2dp.a2dp_started) {
-        a2dp.a2dp_total_active_session_request++;
+    if (a2dp.a2dp_source_started) {
+        a2dp.a2dp_source_total_active_session_requests++;
         a2dp_check_and_set_scrambler();
+        audio_a2dp_update_tws_channel_mode();
         a2dp_set_backend_cfg();
         if (a2dp.abr_config.is_abr_enabled)
             start_abr();
     }
 
     ALOGD("start A2DP playback total active sessions :%d",
-          a2dp.a2dp_total_active_session_request);
+          a2dp.a2dp_source_total_active_session_requests);
     return ret;
 }
 
@@ -1753,32 +1836,44 @@ static void reset_a2dp_enc_config_params()
 {
     int ret =0;
 
-    struct mixer_ctl *ctl_enc_config, *ctrl_bit_format;
+    struct mixer_ctl *ctl_enc_config, *ctrl_bit_format, *ctl_channel_mode;
     struct sbc_enc_cfg_t dummy_reset_config;
+    char* channel_mode;
 
     memset(&dummy_reset_config, 0x0, sizeof(struct sbc_enc_cfg_t));
     ctl_enc_config = mixer_get_ctl_by_name(a2dp.adev->mixer,
                                            MIXER_ENC_CONFIG_BLOCK);
     if (!ctl_enc_config) {
-        ALOGE(" ERROR  a2dp encoder format mixer control not identifed");
+        ALOGE(" ERROR  a2dp encoder format mixer control not identified");
     } else {
         ret = mixer_ctl_set_array(ctl_enc_config, (void *)&dummy_reset_config,
                                         sizeof(struct sbc_enc_cfg_t));
-         a2dp.bt_encoder_format = ENC_MEDIA_FMT_NONE;
+         a2dp.bt_encoder_format = MEDIA_FMT_NONE;
     }
     ctrl_bit_format = mixer_get_ctl_by_name(a2dp.adev->mixer,
                                             MIXER_ENC_BIT_FORMAT);
     if (!ctrl_bit_format) {
-        ALOGE(" ERROR  bit format CONFIG data mixer control not identifed");
+        ALOGE(" ERROR  bit format CONFIG data mixer control not identified");
     } else {
         ret = mixer_ctl_set_enum_by_string(ctrl_bit_format, "S16_LE");
         if (ret != 0) {
             ALOGE("%s: Failed to set bit format to encoder", __func__);
         }
     }
+    ctl_channel_mode = mixer_get_ctl_by_name(a2dp.adev->mixer,MIXER_FMT_TWS_CHANNEL_MODE);
+
+    if (!ctl_channel_mode) {
+        ALOGE("failed to get tws mixer ctl");
+    } else {
+        channel_mode = "Two";
+        if (mixer_ctl_set_enum_by_string(ctl_channel_mode, channel_mode) != 0) {
+            ALOGE("%s: Failed to set the channel mode = %s", __func__, channel_mode);
+        }
+        a2dp.is_tws_mono_mode_on = false;
+    }
 }
 
-static int reset_a2dp_dec_config_params()
+static int reset_a2dp_source_dec_config_params()
 {
     struct mixer_ctl *ctl_dec_data = NULL;
     struct abr_dec_cfg_t dummy_reset_cfg;
@@ -1807,81 +1902,94 @@ int audio_extn_a2dp_stop_playback()
     int ret =0;
 
     ALOGV("audio_extn_a2dp_stop_playback start");
-    if(!(a2dp.bt_lib_handle && a2dp.audio_stop_stream)) {
-        ALOGE("a2dp handle is not identified, Ignoring start request");
+    if (!(a2dp.bt_lib_source_handle && a2dp.audio_source_stop)) {
+        ALOGE("a2dp handle is not identified, Ignoring stop request");
         return -ENOSYS;
     }
 
-    if (a2dp.a2dp_total_active_session_request > 0)
-        a2dp.a2dp_total_active_session_request--;
+    if (a2dp.a2dp_source_total_active_session_requests > 0)
+        a2dp.a2dp_source_total_active_session_requests--;
 
-    if ( a2dp.a2dp_started && !a2dp.a2dp_total_active_session_request) {
+    if ( a2dp.a2dp_source_started && !a2dp.a2dp_source_total_active_session_requests) {
         ALOGV("calling BT module stream stop");
-        ret = a2dp.audio_stop_stream();
+        ret = a2dp.audio_source_stop();
         if (ret < 0)
             ALOGE("stop stream to BT IPC lib failed");
         else
             ALOGV("stop steam to BT IPC lib successful");
         reset_a2dp_enc_config_params();
-        reset_a2dp_dec_config_params();
+        reset_a2dp_source_dec_config_params();
         a2dp_reset_backend_cfg();
         if (a2dp.abr_config.is_abr_enabled && a2dp.abr_config.abr_started)
             stop_abr();
         a2dp.abr_config.is_abr_enabled = false;
-        a2dp.a2dp_started = false;
+        a2dp.a2dp_source_started = false;
+        a2dp_reset_backend_cfg();
     }
-    if(!a2dp.a2dp_total_active_session_request)
-       a2dp.a2dp_started = false;
-    ALOGD("Stop A2DP playback total active sessions :%d",
-          a2dp.a2dp_total_active_session_request);
+    if (!a2dp.a2dp_source_total_active_session_requests)
+       a2dp.a2dp_source_started = false;
+    ALOGD("Stop A2DP playback, total active sessions :%d",
+          a2dp.a2dp_source_total_active_session_requests);
     return 0;
 }
 
 void audio_extn_a2dp_set_parameters(struct str_parms *parms)
 {
-     int ret, val;
-     char value[32]={0};
-     struct audio_usecase *uc_info;
-     struct listnode *node;
+    int ret, val;
+    char value[32]={0};
+    struct audio_usecase *uc_info;
+    struct listnode *node;
 
-     if(a2dp.is_a2dp_offload_supported == false) {
-        ALOGV("no supported encoders identified,ignoring a2dp setparam");
+    if (a2dp.is_a2dp_offload_supported == false) {
+        ALOGV("no supported codecs identified,ignoring a2dp setparam");
         return;
-     }
+    }
 
-     ret = str_parms_get_str(parms, AUDIO_PARAMETER_DEVICE_CONNECT, value,
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_DEVICE_CONNECT, value,
                             sizeof(value));
-     if (ret >= 0) {
-         val = atoi(value);
-         if (audio_is_a2dp_out_device(val)) {
-             ALOGV("Received device connect request for A2DP");
-             open_a2dp_output();
-         }
-         goto param_handled;
-     }
+    if (ret >= 0) {
+        val = atoi(value);
+        if (audio_is_a2dp_out_device(val)) {
+            ALOGV("Received device connect request for A2DP source");
+            open_a2dp_source();
+        }
+        goto param_handled;
+    }
 
-     ret = str_parms_get_str(parms, AUDIO_PARAMETER_DEVICE_DISCONNECT, value,
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_DEVICE_DISCONNECT, value,
                          sizeof(value));
 
-     if (ret >= 0) {
-         val = atoi(value);
-         if (audio_is_a2dp_out_device(val)) {
-             ALOGV("Received device dis- connect request");
-             reset_a2dp_enc_config_params();
-             reset_a2dp_dec_config_params();
-             close_a2dp_output();
-             a2dp_reset_backend_cfg();
-         }
-         goto param_handled;
-     }
+    if (ret >= 0) {
+        val = atoi(value);
+        if (audio_is_a2dp_out_device(val)) {
+            ALOGV("Received source device dis- connect request");
+            close_a2dp_output();
+            reset_a2dp_enc_config_params();
+            reset_a2dp_source_dec_config_params();
+            a2dp_reset_backend_cfg();
+        }
+        goto param_handled;
+    }
 
-     ret = str_parms_get_str(parms, "A2dpSuspended", value, sizeof(value));
-     if (ret >= 0) {
-         if (a2dp.bt_lib_handle) {
-             if ((!strncmp(value,"true",sizeof(value)))) {
+    ret = str_parms_get_str(parms, "TwsChannelConfig", value, sizeof(value));
+    if (ret>=0) {
+        ALOGD("Setting tws channel mode to %s",value);
+        if (!(strncmp(value,"mono",strlen(value))))
+            a2dp.is_tws_mono_mode_on = true;
+        else if (!(strncmp(value,"dual-mono",strlen(value))))
+            a2dp.is_tws_mono_mode_on = false;
+
+        audio_a2dp_update_tws_channel_mode();
+        goto param_handled;
+    }
+
+    ret = str_parms_get_str(parms, "A2dpSuspended", value, sizeof(value));
+    if (ret >= 0) {
+        if (a2dp.bt_lib_source_handle) {
+            if ((!strncmp(value,"true",sizeof(value)))) {
                 ALOGD("Setting a2dp to suspend state");
-                a2dp.a2dp_suspended = true;
-                if (a2dp.bt_state == A2DP_STATE_DISCONNECTED)
+                a2dp.a2dp_source_suspended = true;
+                if (a2dp.bt_state_source == A2DP_STATE_DISCONNECTED)
                     goto param_handled;
                 list_for_each(node, &a2dp.adev->usecase_list) {
                     uc_info = node_to_item(node, struct audio_usecase, list);
@@ -1893,16 +2001,16 @@ void audio_extn_a2dp_set_parameters(struct str_parms *parms)
                     }
                 }
                 reset_a2dp_enc_config_params();
-                reset_a2dp_dec_config_params();
-                if(a2dp.audio_suspend_stream)
-                   a2dp.audio_suspend_stream();
-            } else if (a2dp.a2dp_suspended == true) {
+                reset_a2dp_source_dec_config_params();
+                if (a2dp.audio_source_suspend)
+                   a2dp.audio_source_suspend();
+            } else if (a2dp.a2dp_source_suspended == true) {
                 ALOGD("Resetting a2dp suspend state");
                 struct audio_usecase *uc_info;
                 struct listnode *node;
-                if(a2dp.clear_a2dpsuspend_flag)
-                    a2dp.clear_a2dpsuspend_flag();
-                a2dp.a2dp_suspended = false;
+                if (a2dp.clear_source_a2dpsuspend_flag)
+                    a2dp.clear_source_a2dpsuspend_flag();
+                a2dp.a2dp_source_suspended = false;
                 /*
                  * It is possible that before suspend,a2dp sessions can be active
                  * for example during music + voice activation concurrency
@@ -1914,13 +2022,13 @@ void audio_extn_a2dp_set_parameters(struct str_parms *parms)
                  * Fix is to call a2dp start for IPC library post suspend
                  * based on number of active session count
                  */
-                if (a2dp.a2dp_total_active_session_request > 0) {
+                if (a2dp.a2dp_source_total_active_session_requests > 0) {
                     ALOGD(" Calling IPC lib start post suspend state");
-                    if(a2dp.audio_start_stream) {
-                        ret =  a2dp.audio_start_stream();
+                    if (a2dp.audio_source_start) {
+                        ret =  a2dp.audio_source_start();
                         if (ret != 0) {
                             ALOGE("BT controller start failed");
-                            a2dp.a2dp_started = false;
+                            a2dp.a2dp_source_started = false;
                         }
                     }
                 }
@@ -1936,9 +2044,9 @@ void audio_extn_a2dp_set_parameters(struct str_parms *parms)
             }
         }
         goto param_handled;
-     }
+    }
 param_handled:
-     ALOGV("end of a2dp setparam");
+    ALOGV("end of a2dp setparam");
 }
 
 void audio_extn_a2dp_set_handoff_mode(bool is_on)
@@ -1951,44 +2059,43 @@ bool audio_extn_a2dp_is_force_device_switch()
     //During encoder reconfiguration mode, force a2dp device switch
     // Or if a2dp device is selected but earlier start failed ( as a2dp
     // was suspended, force retry.
-    return a2dp.is_handoff_in_progress || !a2dp.a2dp_started;
+    return a2dp.is_handoff_in_progress || !a2dp.a2dp_source_started;
 }
 
-void audio_extn_a2dp_get_sample_rate(int *sample_rate)
+void audio_extn_a2dp_get_enc_sample_rate(int *sample_rate)
 {
     *sample_rate = a2dp.enc_sampling_rate;
 }
 
-bool audio_extn_a2dp_is_ready()
+bool audio_extn_a2dp_source_is_ready()
 {
     bool ret = false;
 
-    if (a2dp.a2dp_suspended)
+    if (a2dp.a2dp_source_suspended)
         return ret;
 
-    if ((a2dp.bt_state != A2DP_STATE_DISCONNECTED) &&
+    if ((a2dp.bt_state_source != A2DP_STATE_DISCONNECTED) &&
         (a2dp.is_a2dp_offload_supported) &&
-        (a2dp.audio_check_a2dp_ready))
-           ret = a2dp.audio_check_a2dp_ready();
+        (a2dp.audio_source_check_a2dp_ready))
+           ret = a2dp.audio_source_check_a2dp_ready();
     return ret;
 }
 
-bool audio_extn_a2dp_is_suspended()
+bool audio_extn_a2dp_source_is_suspended()
 {
-    return a2dp.a2dp_suspended;
+    return a2dp.a2dp_source_suspended;
 }
 
 void audio_extn_a2dp_init (void *adev)
 {
   a2dp.adev = (struct audio_device*)adev;
-  a2dp.bt_lib_handle = NULL;
-  a2dp.a2dp_started = false;
-  a2dp.bt_state = A2DP_STATE_DISCONNECTED;
-  a2dp.a2dp_total_active_session_request = 0;
-  a2dp.a2dp_suspended = false;
-  a2dp.bt_encoder_format = ENC_CODEC_TYPE_INVALID;
+  a2dp.bt_lib_source_handle = NULL;
+  a2dp.a2dp_source_started = false;
+  a2dp.bt_state_source = A2DP_STATE_DISCONNECTED;
+  a2dp.a2dp_source_total_active_session_requests = 0;
+  a2dp.a2dp_source_suspended = false;
+  a2dp.bt_encoder_format = CODEC_TYPE_INVALID;
   a2dp.enc_sampling_rate = 48000;
-  a2dp.is_a2dp_offload_supported = false;
   a2dp.is_handoff_in_progress = false;
   a2dp.is_aptx_dual_mono_supported = false;
   a2dp.is_aptx_adaptive = false;
@@ -1996,8 +2103,10 @@ void audio_extn_a2dp_init (void *adev)
   a2dp.abr_config.abr_started = false;
   a2dp.abr_config.imc_instance = 0;
   a2dp.abr_config.abr_tx_handle = NULL;
+  a2dp.is_tws_mono_mode_on = false;
   reset_a2dp_enc_config_params();
-  reset_a2dp_dec_config_params();
+  reset_a2dp_source_dec_config_params();
+  a2dp.is_a2dp_offload_supported = false;
   update_offload_codec_capabilities();
 }
 
@@ -2020,34 +2129,37 @@ uint32_t audio_extn_a2dp_get_encoder_latency()
     }
 
     uint32_t slatency = 0;
-    if (a2dp.audio_get_a2dp_sink_latency && a2dp.bt_state != A2DP_STATE_DISCONNECTED) {
-        slatency = a2dp.audio_get_a2dp_sink_latency();
+    if (a2dp.audio_sink_get_a2dp_latency && a2dp.bt_state_source != A2DP_STATE_DISCONNECTED) {
+        slatency = a2dp.audio_sink_get_a2dp_latency();
     }
 
     switch(a2dp.bt_encoder_format) {
-        case ENC_CODEC_TYPE_SBC:
+        case CODEC_TYPE_SBC:
             latency = (avsync_runtime_prop > 0) ? sbc_offset : ENCODER_LATENCY_SBC;
             latency += (slatency <= 0) ? DEFAULT_SINK_LATENCY_SBC : slatency;
             break;
-        case ENC_CODEC_TYPE_APTX:
+        case CODEC_TYPE_APTX:
             latency = (avsync_runtime_prop > 0) ? aptx_offset : ENCODER_LATENCY_APTX;
             latency += (slatency <= 0) ? DEFAULT_SINK_LATENCY_APTX : slatency;
             break;
-        case ENC_CODEC_TYPE_APTX_HD:
+        case CODEC_TYPE_APTX_HD:
             latency = (avsync_runtime_prop > 0) ? aptxhd_offset : ENCODER_LATENCY_APTX_HD;
             latency += (slatency <= 0) ? DEFAULT_SINK_LATENCY_APTX_HD : slatency;
             break;
-        case ENC_CODEC_TYPE_AAC:
+        case CODEC_TYPE_AAC:
             latency = (avsync_runtime_prop > 0) ? aac_offset : ENCODER_LATENCY_AAC;
             latency += (slatency <= 0) ? DEFAULT_SINK_LATENCY_AAC : slatency;
             break;
-        case ENC_CODEC_TYPE_CELT:
+        case CODEC_TYPE_CELT:
             latency = (avsync_runtime_prop > 0) ? celt_offset : ENCODER_LATENCY_CELT;
             latency += (slatency <= 0) ? DEFAULT_SINK_LATENCY_CELT : slatency;
             break;
-        case ENC_CODEC_TYPE_LDAC:
+        case CODEC_TYPE_LDAC:
             latency = (avsync_runtime_prop > 0) ? ldac_offset : ENCODER_LATENCY_LDAC;
             latency += (slatency <= 0) ? DEFAULT_SINK_LATENCY_LDAC : slatency;
+            break;
+        case CODEC_TYPE_APTX_AD: // for aptx adaptive the latency depends on the mode (HQ/LL) and
+            latency = slatency;      // BT IPC will take care of accomodating the mode factor and return latency
             break;
         default:
             latency = 200;

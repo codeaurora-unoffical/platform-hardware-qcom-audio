@@ -1,12 +1,21 @@
 #BOARD_USES_GENERIC_AUDIO := true
 #
 #AUDIO_FEATURE_FLAGS
+ifeq ($(TARGET_USES_QMAA_OVERRIDE_AUDIO), false)
+ifeq ($(TARGET_USES_QMAA),true)
+AUDIO_USE_STUB_HAL := true
+endif
+endif
+
+ifneq ($(AUDIO_USE_STUB_HAL), true)
 BOARD_USES_ALSA_AUDIO := true
 TARGET_USES_AOSP_FOR_AUDIO := false
 
 ifneq ($(TARGET_USES_AOSP_FOR_AUDIO), true)
 USE_CUSTOM_AUDIO_POLICY := 1
 AUDIO_FEATURE_ENABLED_COMPRESS_CAPTURE := false
+AUDIO_FEATURE_ENABLED_COMPRESS_INPUT := true
+AUDIO_FEATURE_ENABLED_CONCURRENT_CAPTURE := true
 AUDIO_FEATURE_ENABLED_COMPRESS_VOIP := false
 AUDIO_FEATURE_ENABLED_DYNAMIC_ECNS := true
 AUDIO_FEATURE_ENABLED_EXTN_FORMATS := true
@@ -123,6 +132,11 @@ persist.vendor.audio.fluence.voicerec=false\
 persist.vendor.audio.fluence.speaker=true\
 persist.vendor.audio.fluence.tmic.enabled=false
 
+##speaker protection v3 switch and ADSP AFE API version
+PRODUCT_PROPERTY_OVERRIDES += \
+persist.vendor.audio.spv3.enable=true\
+persist.vendor.audio.avs.afe_api_version=2
+
 #disable tunnel encoding
 PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.tunnel.encode=false
@@ -237,6 +251,11 @@ vendor.audio.enable.mirrorlink=false
 #enable voicecall speaker stereo
 PRODUCT_PROPERTY_OVERRIDES += \
 persist.vendor.audio.voicecall.speaker.stereo=true
+
+#enable AAC frame ctl for A2DP sinks
+PRODUCT_PROPERTY_OVERRIDES += \
+persist.vendor.bt.aac_frm_ctl.enabled=true
+endif
 
 # for HIDL related packages
 PRODUCT_PACKAGES += \

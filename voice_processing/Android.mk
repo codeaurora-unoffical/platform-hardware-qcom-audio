@@ -1,3 +1,4 @@
+ifneq ($(AUDIO_USE_STUB_HAL), true)
 LOCAL_PATH:= $(call my-dir)
 
 # audio preprocessing wrapper
@@ -20,6 +21,12 @@ LOCAL_SHARED_LIBRARIES := \
     liblog \
     libcutils
 
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_GCOV)),true)
+LOCAL_CFLAGS += --coverage -fprofile-arcs -ftest-coverage
+LOCAL_CPPFLAGS += --coverage -fprofile-arcs -ftest-coverage
+LOCAL_STATIC_LIBRARIES += libprofile_rt
+endif
+
 LOCAL_SHARED_LIBRARIES += libdl
 
 LOCAL_HEADER_LIBRARIES := libhardware_headers
@@ -37,3 +44,4 @@ LOCAL_CFLAGS += -Wno-unused-function
 LOCAL_CFLAGS += -Wno-unused-local-typedef
 
 include $(BUILD_SHARED_LIBRARY)
+endif

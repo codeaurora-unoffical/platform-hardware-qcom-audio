@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
-<!-- Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.    -->
+<!-- Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.    -->
 <!--                                                                        -->
 <!-- Redistribution and use in source and binary forms, with or without     -->
 <!-- modification, are permitted provided that the following conditions are -->
@@ -318,6 +318,10 @@
     <ctl name="SEC_TDM_RX_0 Audio Mixer MultiMedia9" value="0" />
     <ctl name="MultiMedia9 Mixer TERT_TDM_TX_0" value="0" />
 
+    <path name="dummy-hostless">
+        <ctl name="SEC_TDM_RX_7 Port Mixer TERT_TDM_TX_7" value="1" />
+    </path>
+
     <!-- Codec controls -->
     <!-- WSA controls -->
     <ctl name="SpkrLeft COMP Switch" value="0" />
@@ -576,7 +580,7 @@
     </path>
 
     <path name="deep-buffer-playback">
-        <ctl name="TERT_TDM_RX_0 Channels" value="Two" />
+        <ctl name="TERT_TDM_RX_0 Channels" value="Six" />
         <ctl name="TERT_TDM_RX_0 Audio Mixer MultiMedia1" value="1" />
     </path>
 
@@ -639,7 +643,7 @@
     </path>
 
     <path name="low-latency-playback">
-        <ctl name="TERT_TDM_RX_0 Channels" value="Two" />
+        <ctl name="TERT_TDM_RX_0 Channels" value="Six" />
         <ctl name="TERT_TDM_RX_0 Audio Mixer MultiMedia5" value="1" />
     </path>
 
@@ -706,7 +710,7 @@
     </path>
 
     <path name="audio-ull-playback">
-        <ctl name="TERT_TDM_RX_0 Channels" value="Two" />
+        <ctl name="TERT_TDM_RX_0 Channels" value="Six" />
         <ctl name="TERT_TDM_RX_0 Audio Mixer MultiMedia8" value="1" />
     </path>
 
@@ -772,7 +776,7 @@
     </path>
 
     <path name="compress-offload-playback">
-        <ctl name="TERT_TDM_RX_0 Channels" value="Two" />
+        <ctl name="TERT_TDM_RX_0 Channels" value="Six" />
         <ctl name="TERT_TDM_RX_0 Audio Mixer MultiMedia4" value="1" />
     </path>
 
@@ -847,7 +851,7 @@
     </path>
 
     <path name="compress-offload-playback2">
-        <ctl name="TERT_TDM_RX_0 Channels" value="Two" />
+        <ctl name="TERT_TDM_RX_0 Channels" value="Six" />
         <ctl name="TERT_TDM_RX_0 Audio Mixer MultiMedia7" value="1" />
     </path>
 
@@ -914,7 +918,7 @@
     </path>
 
     <path name="compress-offload-playback3">
-        <ctl name="TERT_TDM_RX_0 Channels" value="Two" />
+        <ctl name="TERT_TDM_RX_0 Channels" value="Six" />
         <ctl name="TERT_TDM_RX_0 Audio Mixer MultiMedia10" value="1" />
     </path>
 
@@ -981,7 +985,7 @@
     </path>
 
     <path name="compress-offload-playback4">
-        <ctl name="TERT_TDM_RX_0 Channels" value="Two" />
+        <ctl name="TERT_TDM_RX_0 Channels" value="Six" />
         <ctl name="TERT_TDM_RX_0 Audio Mixer MultiMedia11" value="1" />
     </path>
 
@@ -1049,7 +1053,7 @@
     </path>
 
     <path name="compress-offload-playback5">
-        <ctl name="TERT_TDM_RX_0 Channels" value="Two" />
+        <ctl name="TERT_TDM_RX_0 Channels" value="Six" />
         <ctl name="TERT_TDM_RX_0 Audio Mixer MultiMedia12" value="1" />
     </path>
 
@@ -1116,7 +1120,7 @@
     </path>
 
     <path name="compress-offload-playback6">
-        <ctl name="TERT_TDM_RX_0 Channels" value="Two" />
+        <ctl name="TERT_TDM_RX_0 Channels" value="Six" />
         <ctl name="TERT_TDM_RX_0 Audio Mixer MultiMedia13" value="1" />
     </path>
 
@@ -1183,7 +1187,7 @@
     </path>
 
     <path name="compress-offload-playback7">
-        <ctl name="TERT_TDM_RX_0 Channels" value="Two" />
+        <ctl name="TERT_TDM_RX_0 Channels" value="Six" />
         <ctl name="TERT_TDM_RX_0 Audio Mixer MultiMedia14" value="1" />
     </path>
 
@@ -1250,7 +1254,7 @@
     </path>
 
     <path name="compress-offload-playback8">
-        <ctl name="TERT_TDM_RX_0 Channels" value="Two" />
+        <ctl name="TERT_TDM_RX_0 Channels" value="Six" />
         <ctl name="TERT_TDM_RX_0 Audio Mixer MultiMedia15" value="1" />
     </path>
 
@@ -1317,7 +1321,7 @@
     </path>
 
     <path name="compress-offload-playback9">
-        <ctl name="TERT_TDM_RX_0 Channels" value="Two" />
+        <ctl name="TERT_TDM_RX_0 Channels" value="Six" />
         <ctl name="TERT_TDM_RX_0 Audio Mixer MultiMedia16" value="1" />
     </path>
 
@@ -1381,6 +1385,27 @@
     <path name="compress-offload-playback9 speaker-and-bt-sco-wb">
         <path name="compress-offload-playback9 bt-sco-wb" />
         <path name="compress-offload-playback9" />
+    </path>
+
+    <!-- The following use cases are used for car streams  -->
+    <path name="media-playback">
+        <ctl name="TERT_TDM_RX_0 Channels" value="Six" />
+        <ctl name="TERT_TDM_RX_0 Audio Mixer MultiMedia1" value="1" />
+    </path>
+
+    <path name="sys-notification-playback">
+        <ctl name="TERT_TDM_RX_0 Channels" value="Six" />
+        <ctl name="TERT_TDM_RX_0 Audio Mixer MultiMedia5" value="1" />
+    </path>
+
+    <path name="nav-guidance-playback">
+        <ctl name="TERT_TDM_RX_1 Channels" value="One" />
+        <ctl name="TERT_TDM_RX_1 Audio Mixer MultiMedia2" value="1" />
+    </path>
+
+    <path name="phone-playback">
+        <ctl name="TERT_TDM_RX_2 Channels" value="One" />
+        <ctl name="TERT_TDM_RX_2 Audio Mixer MultiMedia10" value="1" />
     </path>
 
     <path name="audio-record">
@@ -1612,9 +1637,11 @@
     <path name="hfp-sco headphones">
     </path>
 
-   <path name="hfp-sco-wb">
+    <path name="hfp-sco-wb">
+        <ctl name="PRIM_AUX_PCM_TX SampleRate" value="KHZ_16" />
+        <ctl name="PRIM_AUX_PCM_RX SampleRate" value="KHZ_16" />
         <path name="hfp-sco" />
-   </path>
+    </path>
 
     <path name="hfp-sco-wb headphones">
         <path name="hfp-sco headphones" />
@@ -1753,6 +1780,7 @@
 
     <!-- VoIP Rx settings -->
     <path name="audio-playback-voip">
+        <ctl name="TERT_TDM_RX_0 Channels" value="Six" />
         <ctl name="TERT_TDM_RX_0 Audio Mixer MultiMedia10" value="1" />
     </path>
 
@@ -1950,9 +1978,15 @@
     </path>
 
     <path name="speaker-adp">
+        <!--ctl name="TERT_TDM_RX_0 Channels" value="Six" /-->
     </path>
 
     <path name="speaker-custom">
+        <!--ctl name="TERT_TDM_RX_0 Channels" value="Six" /-->
+    </path>
+
+    <path name="bus-speaker">
+        <!--ctl name="TERT_TDM_RX_0 Channels" value="Six" /-->
     </path>
 
    <path name="sidetone-iir">
