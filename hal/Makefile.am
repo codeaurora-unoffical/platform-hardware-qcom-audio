@@ -218,6 +218,11 @@ if LL_AS_PRIMARY_OUTPUT
 AM_CFLAGS += -DUSE_LL_AS_PRIMARY_OUTPUT
 endif
 
+if DOLBY_MAT_THD
+AM_CFLAGS += -DDOLBY_MAT_THD_ENABLED
+c_sources += audio_extn/dolby.c
+endif
+
 h_sources = audio_extn/audio_defs.h \
             audio_extn/audio_extn.h \
             audio_hw.h \

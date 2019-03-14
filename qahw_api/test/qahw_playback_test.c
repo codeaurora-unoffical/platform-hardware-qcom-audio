@@ -235,6 +235,9 @@ static bool request_wake_lock(bool wakelock_acquired, bool enable)
 #define AUDIO_FORMAT_AAC_LATM_HE_V2 (AUDIO_FORMAT_AAC_LATM | AUDIO_FORMAT_AAC_SUB_HE_V2)
 #endif
 
+#ifndef AUDIO_FORMAT_MAT
+#define AUDIO_FORMAT_MAT 0x30000000UL
+#endif
 
 void stop_signal_handler(int signal __unused)
 {
@@ -278,6 +281,27 @@ static void init_streams(void)
         stream_param[i].play_later                          =   false;
         stream_param[i].set_params                          =   nullptr;
 
+        /*set the default values to -1 and always send all the values,
+        if -1 then HAL will ignore the value and don't send to furher layers*/
+        stream_param[i].dlb_truehd_params.ch_cfg            =   -1;
+        stream_param[i].dlb_truehd_params.presentation_mode =   -1;
+        stream_param[i].dlb_truehd_params.loud_mgmt         =   -1;
+        stream_param[i].dlb_truehd_params.drc_cut           =   -1;
+        stream_param[i].dlb_truehd_params.drc_mode          =   -1;
+        stream_param[i].dlb_truehd_params.drc_boost         =   -1;
+        stream_param[i].dlb_truehd_params.lfe_mode          =   -1;
+        stream_param[i].dlb_truehd_params.archive_mode      =   -1;
+
+        /*set the default values to -1 and always send all the values,
+        if -1 then HAL will ignore the value and don't send to furher layers*/
+        stream_param[i].dlb_mat_params.content_type      =   -1;
+        stream_param[i].dlb_mat_params.inplace_buf       =   -1;
+        stream_param[i].dlb_mat_params.loud_mgmt         =   -1;
+        stream_param[i].dlb_mat_params.drc_cut           =   -1;
+        stream_param[i].dlb_mat_params.drc_mode          =   -1;
+        stream_param[i].dlb_mat_params.drc_boost         =   -1;
+        stream_param[i].dlb_mat_params.ch_cfg            =   -1;
+        stream_param[i].dlb_mat_params.presentation_mode =   -1;
         pthread_mutex_init(&stream_param[i].write_lock, (const pthread_mutexattr_t *)NULL);
         pthread_cond_init(&stream_param[i].write_cond, (const pthread_condattr_t *) NULL);
         pthread_mutex_init(&stream_param[i].drain_lock, (const pthread_mutexattr_t *)NULL);
@@ -1198,6 +1222,11 @@ void get_file_format(stream_config *stream_info)
         case FILE_APE:
             stream_info->config.offload_info.format = AUDIO_FORMAT_APE;
             break;
+
+        case FILE_MAT:
+            stream_info->config.offload_info.format = AUDIO_FORMAT_MAT;
+            break;
+
         default:
            fprintf(log_file, "Does not support given filetype\n");
            fprintf(stderr, "Does not support given filetype\n");
@@ -2150,6 +2179,8 @@ int main(int argc, char* argv[]) {
 
     int num_of_streams = 1;
     char kvp_string[KV_PAIR_MAX_LENGTH] = {0};
+    struct qahw_dolby_thd_dec_param dthd_params;
+    struct qahw_dolby_mat_dec_param dmat_params;
 
     struct option long_options[] = {
         /* These options set a flag. */
@@ -2185,6 +2216,20 @@ int main(int argc, char* argv[]) {
         {"device-config", required_argument,    0, 'C'},
         {"play-list",    required_argument,    0, 'g'},
         {"help",          no_argument,          0, 'h'},
+        {"dlb_thd_m",     required_argument,    0, 200},
+        {"dlb_thd_p",     required_argument,    0, 201},
+        {"dlb_thd_t",     required_argument,    0, 202},
+        {"dlb_thd_k",     required_argument,    0, 203},
+        {"dlb_thd_x",     required_argument,    0, 204},
+        {"dlb_thd_y",     required_argument,    0, 205},
+        {"dlb_thd_l",     required_argument,    0, 206},
+        {"dlb_thd_r",     required_argument,    0, 207},
+        {"dlb_mat_c",     required_argument,    0, 210},
+        {"dlb_mat_ib",    required_argument,    0, 211},
+        {"dlb_mat_t",     required_argument,    0, 212},
+        {"dlb_mat_k",     required_argument,    0, 213},
+        {"dlb_mat_x",     required_argument,    0, 214},
+        {"dlb_mat_y",     required_argument,    0, 215},
         {0, 0, 0, 0}
     };
 
@@ -2478,6 +2523,62 @@ int main(int argc, char* argv[]) {
             return 0;
             break;
 
+        case 200:
+            stream_param[i].dlb_truehd_params.ch_cfg            =   atoi(optarg);
+            break;
+
+        case 201:
+            stream_param[i].dlb_truehd_params.presentation_mode =   atoi(optarg);
+            break;
+
+        case 202:
+            stream_param[i].dlb_truehd_params.loud_mgmt         =   atoi(optarg);
+            break;
+
+        case 203:
+            stream_param[i].dlb_truehd_params.drc_mode           =   atoi(optarg);
+            break;
+
+        case 204:
+            stream_param[i].dlb_truehd_params.drc_cut          =   atoi(optarg);
+            break;
+
+        case 205:
+            stream_param[i].dlb_truehd_params.drc_boost         =   atoi(optarg);
+            break;
+
+        case 206:
+            stream_param[i].dlb_truehd_params.lfe_mode         =   atoi(optarg);
+            break;
+
+        case 207:
+            stream_param[i].dlb_truehd_params.archive_mode     =   atoi(optarg);
+            break;
+
+        case 210:
+            stream_param[i].dlb_mat_params.content_type      =   atoi(optarg);
+            break;
+
+        case 211:
+            stream_param[i].dlb_mat_params.inplace_buf       =   atoi(optarg);
+            break;
+
+        case 212:
+            stream_param[i].dlb_mat_params.loud_mgmt         =   atoi(optarg);
+            break;
+
+        case 213:
+            stream_param[i].dlb_mat_params.drc_mode           =   atoi(optarg);
+            break;
+
+        case 214:
+            stream_param[i].dlb_mat_params.drc_cut          =   atoi(optarg);
+            break;
+
+        case 215:
+            stream_param[i].dlb_mat_params.drc_boost         =   atoi(optarg);
+            break;
+
         }
     }
     fprintf(log_file, "registering qas callback");
@@ -2679,6 +2780,46 @@ int main(int argc, char* argv[]) {
                 fprintf(log_file, "BT addr is NULL, Need valid BT addr for aptx file playback to work\n");
                 fprintf(stderr, "BT addr is NULL, Need valid BT addr for aptx file playback to work\n");
                 goto exit;
+            }
+        }
+
+        if (stream->filetype == FILE_MAT) {
+            dmat_params.dmat_params.content_type    = stream_param[i].dlb_mat_params.content_type;
+            dmat_params.dmat_params.inplace_buf     = stream_param[i].dlb_mat_params.inplace_buf;
+            dmat_params.dmat_params.loud_mgmt       = stream_param[i].dlb_mat_params.loud_mgmt;
+            dmat_params.dmat_params.drc_cut         = stream_param[i].dlb_mat_params.drc_cut;
+            dmat_params.dmat_params.drc_mode        = stream_param[i].dlb_mat_params.drc_mode;
+            dmat_params.dmat_params.drc_boost       = stream_param[i].dlb_mat_params.drc_boost;
+
+            dmat_params.dmat_params.ch_cfg             = stream_param[i].dlb_truehd_params.ch_cfg;
+            dmat_params.dmat_params.presentation_mode  = stream_param[i].dlb_truehd_params.presentation_mode;
+
+            payload = (qahw_param_payload)dmat_params;
+            param_id = QAHW_PARAM_DOLBY_MAT_DEC;
+            rc = qahw_set_param_data(stream->qahw_out_hal_handle, param_id, &payload);
+
+            if (rc != 0) {
+                fprintf(log_file, "Error.Failed Set DOLBY MAT decoder parameters\n");
+                fprintf(stderr, "Error.Failed Set DOLBY MAT decoder parameters %d\n",rc);
+            }
+        }
+
+        if (stream->filetype == FILE_TRUEHD) {
+            dthd_params.dthd_params.ch_cfg             = stream_param[i].dlb_truehd_params.ch_cfg;
+            dthd_params.dthd_params.presentation_mode  = stream_param[i].dlb_truehd_params.presentation_mode;
+            dthd_params.dthd_params.loud_mgmt          = stream_param[i].dlb_truehd_params.loud_mgmt;
+            dthd_params.dthd_params.drc_cut            = stream_param[i].dlb_truehd_params.drc_cut;
+            dthd_params.dthd_params.drc_mode           = stream_param[i].dlb_truehd_params.drc_mode;
+            dthd_params.dthd_params.drc_boost          = stream_param[i].dlb_truehd_params.drc_boost;
+            dthd_params.dthd_params.lfe_mode          = stream_param[i].dlb_truehd_params.lfe_mode;
+            dthd_params.dthd_params.archive_mode      = stream_param[i].dlb_truehd_params.archive_mode;
+            payload = (qahw_param_payload)dthd_params;
+            param_id = QAHW_PARAM_DOLBY_THD_DEC;
+            rc = qahw_set_param_data(stream->qahw_out_hal_handle, param_id, &payload);
+
+            if (rc != 0) {
+                fprintf(log_file, "Error.Failed Set DOLBY TureHD decoder parameters\n");
+                fprintf(stderr, "Error.Failed Set DOLBY MAT decoder parameters %d\n",rc);
             }
         }
 

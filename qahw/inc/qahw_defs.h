@@ -390,6 +390,36 @@ typedef struct qahw_license_params {
     char license[QAHW_LICENCE_STR_MAX_LENGTH + 1];
 } qahw_license_params_t;
 
+struct dolby_thd_params {
+    int32_t ch_cfg;
+    int32_t presentation_mode;
+    int32_t loud_mgmt;
+    int32_t drc_cut;
+    int32_t drc_mode;
+    int32_t drc_boost;
+    int32_t lfe_mode;
+    int32_t archive_mode;
+};
+
+struct qahw_dolby_thd_dec_param {
+   struct dolby_thd_params dthd_params;
+};
+
+struct dolby_mat_params {
+    int32_t content_type;
+    int32_t inplace_buf;
+    int32_t loud_mgmt;
+    int32_t drc_cut;
+    int32_t drc_mode;
+    int32_t drc_boost;
+    int32_t ch_cfg;
+    int32_t presentation_mode;
+};
+
+struct qahw_dolby_mat_dec_param {
+   struct dolby_mat_params dmat_params;
+};
+
 typedef union {
     struct qahw_source_tracking_param st_params;
     struct qahw_sound_focus_param sf_params;
@@ -404,6 +434,8 @@ typedef union {
     struct qahw_device_cfg_param device_cfg_params;
     struct qahw_mix_matrix_params mix_matrix_params;
     struct qahw_license_params license_params;
+    struct qahw_dolby_thd_dec_param dthd_params;
+    struct qahw_dolby_mat_dec_param dmat_params;
 } qahw_param_payload;
 
 typedef enum {
@@ -423,6 +455,8 @@ typedef enum {
     QAHW_PARAM_OUT_MIX_MATRIX_PARAMS,
     QAHW_PARAM_CH_MIX_MATRIX_PARAMS,
     QAHW_PARAM_LICENSE_PARAMS,
+    QAHW_PARAM_DOLBY_THD_DEC,
+    QAHW_PARAM_DOLBY_MAT_DEC,
 } qahw_param_id;
 
 typedef union {
