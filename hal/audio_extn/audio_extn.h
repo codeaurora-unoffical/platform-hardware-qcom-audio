@@ -152,6 +152,9 @@ int audio_extn_parse_compress_metadata(struct stream_out *out,
 
 #define MAX_LENGTH_MIXER_CONTROL_IN_INT                  (128)
 
+#define MIN_OFFLOAD_BUFFER_DURATION_MS 5 /* 5ms */
+#define MAX_OFFLOAD_BUFFER_DURATION_MS (100 * 1000) /* 100s */
+
 void audio_extn_set_parameters(struct audio_device *adev,
                                struct str_parms *parms);
 
@@ -594,7 +597,7 @@ enum {
 #define audio_extn_passthru_should_standby(o) (1)
 #define audio_extn_passthru_get_channel_count(out) (0)
 #define audio_extn_passthru_update_dts_stream_configuration(out, buffer, bytes) (-ENOSYS)
-#define audio_extn_passthru_is_direct_passthrough(out)	(0)
+#define audio_extn_passthru_is_direct_passthrough(out) (0)
 #define audio_extn_passthru_is_supported_backend_edid_cfg(adev, out) (0)
 #else
 bool audio_extn_passthru_is_convert_supported(struct audio_device *adev,
@@ -946,7 +949,7 @@ void audio_extn_cin_close_input_stream(struct stream_in *in);
 void audio_extn_cin_free_input_stream_resources(struct stream_in *in);
 int audio_extn_cin_read(struct stream_in *in, void *buffer,
                         size_t bytes, size_t *bytes_read);
-int audio_extn_cin_configure_input_stream(struct stream_in *in);
+int audio_extn_cin_configure_input_stream(struct stream_in *in, struct audio_config *in_config);
 #else
 #define audio_extn_cin_applicable_stream(in) (false)
 #define audio_extn_cin_attached_usecase(uc_id) (false)
@@ -957,7 +960,7 @@ int audio_extn_cin_configure_input_stream(struct stream_in *in);
 #define audio_extn_cin_close_input_stream(in) (0)
 #define audio_extn_cin_free_input_stream_resources(in) (0)
 #define audio_extn_cin_read(in, buffer, bytes, bytes_read) (0)
-#define audio_extn_cin_configure_input_stream(in) (0)
+#define audio_extn_cin_configure_input_stream(in, in_config) (0)
 #endif
 
 #ifndef SOURCE_TRACKING_ENABLED
@@ -1039,6 +1042,7 @@ int audio_extn_utils_set_pan_scale_params(
 int audio_extn_utils_set_downmix_params(
             struct stream_out *out,
             struct mix_matrix_params *mm_params);
+size_t audio_extn_utils_get_input_buffer_size(uint32_t, audio_format_t, int, int64_t, bool);
 #ifdef AUDIO_HW_LOOPBACK_ENABLED
 /* API to create audio patch */
 int audio_extn_hw_loopback_create_audio_patch(struct audio_hw_device *dev,
