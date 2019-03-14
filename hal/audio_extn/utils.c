@@ -83,6 +83,10 @@
 #define SND_AUDIOCODEC_TRUEHD 0x00000023
 #endif
 
+#ifndef SND_AUDIOCODEC_MAT
+#define SND_AUDIOCODEC_MAT 0x00000025
+#endif
+
 #define APP_TYPE_VOIP_AUDIO 0x1113A
 
 #ifdef AUDIO_EXTERNAL_HDMI_ENABLED
@@ -194,6 +198,7 @@ const struct string_to_enum s_format_name_to_enum_table[] = {
     STRING_TO_ENUM(AUDIO_FORMAT_AAC_LATM_HE_V1),
     STRING_TO_ENUM(AUDIO_FORMAT_AAC_LATM_HE_V2),
     STRING_TO_ENUM(AUDIO_FORMAT_APTX),
+    STRING_TO_ENUM(AUDIO_FORMAT_MAT),
 #endif
 };
 
@@ -1558,6 +1563,11 @@ int get_snd_codec_id(audio_format_t format)
     case AUDIO_FORMAT_APTX:
         id = SND_AUDIOCODEC_APTX;
         break;
+
+    case AUDIO_FORMAT_MAT:
+        id = SND_AUDIOCODEC_MAT;
+        break;
+
     default:
         ALOGE("%s: Unsupported audio format :%x", __func__, format);
     }
@@ -2590,7 +2600,18 @@ bool audio_extn_utils_is_dolby_format(audio_format_t format)
 {
     if (format == AUDIO_FORMAT_AC3 ||
             format == AUDIO_FORMAT_E_AC3 ||
-            format == AUDIO_FORMAT_E_AC3_JOC)
+            format == AUDIO_FORMAT_E_AC3_JOC ||
+            format == AUDIO_FORMAT_MAT ||
+            format == AUDIO_FORMAT_DOLBY_TRUEHD)
+        return true;
+    else
+        return false;
+}
+
+bool audio_extn_utils_is_dolby_mat_thd_format(audio_format_t format)
+{
+    if (format == AUDIO_FORMAT_MAT ||
+            format == AUDIO_FORMAT_DOLBY_TRUEHD)
         return true;
     else
         return false;

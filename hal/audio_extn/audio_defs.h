@@ -277,6 +277,36 @@ typedef struct audio_license_params {
     char license[AUDIO_LICENSE_STR_MAX_LENGTH + 1];
 } audio_license_params_t;
 
+struct dolby_thd_params {
+    int32_t ch_cfg;
+    int32_t presentation_mode;
+    int32_t loud_mgmt;
+    int32_t drc_cut;
+    int32_t drc_mode;
+    int32_t drc_boost;
+    int32_t lfe_mode;
+    int32_t archive_mode;
+};
+
+struct dolby_thd_dec_param {
+   struct dolby_thd_params dthd_params;
+};
+
+struct dolby_mat_params {
+    int32_t content_type;
+    int32_t inplace_buf;
+    int32_t loud_mgmt;
+    int32_t drc_cut;
+    int32_t drc_mode;
+    int32_t drc_boost;
+    int32_t ch_cfg;
+    int32_t presentation_mode;
+};
+
+struct dolby_mat_dec_param {
+   struct dolby_mat_params dmat_params;
+};
+
 typedef union {
     struct source_tracking_param st_params;
     struct sound_focus_param sf_params;
@@ -291,6 +321,8 @@ typedef union {
     struct audio_device_cfg_param device_cfg;
     struct mix_matrix_params mm_params;
     struct audio_license_params license_params;
+    struct dolby_thd_dec_param dthd_params;
+    struct dolby_mat_dec_param dmat_params;
 } audio_extn_param_payload;
 
 typedef enum {
@@ -314,6 +346,8 @@ typedef enum {
     AUDIO_EXTN_PARAM_CH_MIX_MATRIX_PARAMS,
     /* License information */
     AUDIO_EXTN_PARAM_LICENSE_PARAMS,
+    AUDIO_EXTN_PARAM_DOLBY_THD_DEC,
+    AUDIO_EXTN_PARAM_DOLBY_MAT_DEC,
 } audio_extn_param_id;
 
 typedef union {
