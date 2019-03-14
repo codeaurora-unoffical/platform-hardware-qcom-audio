@@ -83,6 +83,7 @@ typedef struct loopback_patch {
     struct compress *sink_stream;                    /* Sink stream */
     struct stream_inout patch_stream;                /* InOut type stream */
     patch_state_t patch_state;                       /* Patch operation state */
+    render_mode_t render_mode;
 } loopback_patch_t;
 
 typedef struct patch_db_struct {
@@ -321,6 +322,7 @@ int32_t release_loopback_session(loopback_patch_t *active_loopback_patch)
             adev->offload_effects_stop_output(active_loopback_patch->patch_handle_id, pcm_dev_asm_rx_id);
 
     active_loopback_patch->patch_state = PATCH_INACTIVE;
+    active_loopback_patch->render_mode = RENDER_MODE_AUDIO_NO_TIMESTAMP;
 
     /* Get and set stream specific mixer controls */
     disable_audio_route(adev, uc_info_rx);
@@ -369,6 +371,43 @@ int loopback_stream_cb(stream_callback_event_t event, void *param, void *cookie)
     }
     return 0;
 }
+
+#ifdef SNDRV_COMPRESS_RENDER_MODE
+static void audio_loopback_set_render_mode(loopback_patch_t *active_loopback_patch)
+{
+    audio_output_flags_t output_flags;
+    uint32_t render_mode = 0;
+    int ret = -EINVAL;
+
+    ALOGD("%s: output flags 0x%x", __func__, output_flags);
+
+    output_flags = active_loopback_patch->patch_stream.output_flags;
+    if ((output_flags & AUDIO_OUTPUT_FLAG_TIMESTAMP) &&
+                    (output_flags & AUDIO_OUTPUT_FLAG_HW_AV_SYNC)){
+        render_mode = RENDER_MODE_AUDIO_STC_MASTER;
+    } else if (output_flags & AUDIO_OUTPUT_FLAG_TIMESTAMP) {
+        if (property_get_bool("persist.vendor.audio.ttp.render.mode", false))
+            render_mode = RENDER_MODE_AUDIO_TTP;
+        else
+            render_mode = RENDER_MODE_AUDIO_MASTER;
+    } else {
+        render_mode = RENDER_MODE_AUDIO_NO_TIMESTAMP;
+    }
+
+    active_loopback_patch->render_mode = render_mode;
+    ret = audio_extn_utils_compress_set_render_mode_v2(active_loopback_patch->source_stream,
+                                                       render_mode);
+    if (ret) {
+        ALOGE("%s: set render mode failed %d", __func__, ret);
+        active_loopback_patch->render_mode = RENDER_MODE_AUDIO_NO_TIMESTAMP;
+    }
+}
+#else
+static void audio_loopback_set_render_mode(loopback_patch_t *active_loopback_patch __unused)
+{
+    ALOGD("%s: configuring render mode not supported", __func__);
+}
+#endif
 
 #ifdef SNDRV_COMPRESS_RENDER_WINDOW
 static loopback_patch_t *get_active_loopback_patch(audio_patch_handle_t handle)
@@ -655,6 +694,7 @@ int create_loopback_session(loopback_patch_t *active_loopback_patch)
     }
 
     active_loopback_patch->patch_state = PATCH_CREATED;
+    audio_loopback_set_render_mode(active_loopback_patch);
 
     if (compress_start(active_loopback_patch->source_stream) < 0) {
         ALOGE("%s: Failure to start loopback stream in capture path",
@@ -755,6 +795,7 @@ static loopback_patch_t *create_active_loopback_patch(struct audio_hw_device *de
 
     active_loopback_patch->patch_handle_id = PATCH_HANDLE_INVALID;
     active_loopback_patch->patch_state = PATCH_INACTIVE;
+    active_loopback_patch->render_mode = RENDER_MODE_AUDIO_NO_TIMESTAMP;
     active_loopback_patch->patch_stream.adsp_hdlr_stream_handle = NULL;
     memcpy(&active_loopback_patch->loopback_source, &sources[0],
         sizeof(struct audio_port_config));
