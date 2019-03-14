@@ -130,6 +130,10 @@
 #define AUDIO_OUTPUT_FLAG_INTERACTIVE 0x4000000
 #endif
 
+#ifndef AUDIO_FORMAT_MAT
+#define AUDIO_FORMAT_MAT 0x30000000UL
+#endif
+
 #ifndef COMPRESS_METADATA_NEEDED
 #define audio_extn_parse_compress_metadata(out, parms) (0)
 #else
@@ -710,6 +714,7 @@ bool audio_extn_utils_is_dolby_format(audio_format_t format);
 int audio_extn_utils_get_bit_width_from_string(const char *);
 int audio_extn_utils_get_sample_rate_from_string(const char *);
 int audio_extn_utils_get_channels_from_string(const char *);
+bool audio_extn_utils_is_dolby_mat_thd_format(audio_format_t format);
 
 #ifdef DS2_DOLBY_DAP_ENABLED
 #define LIB_DS2_DAP_HAL "vendor/lib/libhwdaphal.so"
@@ -1235,4 +1240,19 @@ int audio_extn_ext_hw_plugin_set_audio_gain(void *plugin,
 void audio_extn_set_custom_mtmx_params(struct audio_device *adev,
                                         struct audio_usecase *usecase,
                                         bool enable);
+#ifdef DOLBY_MAT_THD_ENABLED
+/* For setting the parameters from audio_hal adev_open */
+void audio_extn_mat_thd_init();
+void audio_extn_dolby_send_mat_thd_endp_params(struct audio_device *adev);
+int audio_extn_set_dolby_mat_dec_params(struct dolby_mat_dec_param *payload);
+int audio_extn_set_dolby_thd_dec_params(struct dolby_thd_dec_param *payload);
+
+#else
+
+#define audio_extn_mat_thd_init() (0)
+#define audio_extn_dolby_send_mat_thd_endp_params(adev) (0)
+#define audio_extn_set_dolby_mat_dec_params(payload) (0)
+#define audio_extn_set_dolby_thd_dec_params(payload) (0)
+#endif /* DOLBY_MAT_THD_ENABLED */
+
 #endif /* AUDIO_EXTN_H */

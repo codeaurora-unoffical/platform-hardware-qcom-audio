@@ -698,7 +698,8 @@ static bool is_supported_format(audio_format_t format)
         format == AUDIO_FORMAT_WMA ||
         format == AUDIO_FORMAT_WMA_PRO ||
         format == AUDIO_FORMAT_APTX ||
-        format == AUDIO_FORMAT_IEC61937)
+        format == AUDIO_FORMAT_IEC61937 ||
+        format == AUDIO_FORMAT_MAT)
            return true;
 
     return false;
@@ -3297,6 +3298,10 @@ int start_output_stream(struct stream_out *out)
         if (audio_extn_utils_is_dolby_format(out->format))
             audio_extn_dolby_send_ddp_endp_params(adev);
 #endif
+
+        if (audio_extn_utils_is_dolby_mat_thd_format(out->format))
+            audio_extn_dolby_send_mat_thd_endp_params(adev);
+
         if (!(audio_extn_passthru_is_passthrough_stream(out)) &&
                 (out->sample_rate != 176400 && out->sample_rate <= 192000)) {
             if (adev->visualizer_start_output != NULL)
@@ -6360,6 +6365,9 @@ int adev_open_output_stream(struct audio_hw_device *dev,
         if (audio_extn_utils_is_dolby_format(config->offload_info.format)) {
             audio_extn_dolby_send_ddp_endp_params(adev);
             audio_extn_dolby_set_dmid(adev);
+
+            if (audio_extn_utils_is_dolby_mat_thd_format(config->offload_info.format))
+                audio_extn_dolby_send_mat_thd_endp_params(adev);
         }
 
         out->compr_config.codec->sample_rate =
@@ -8197,6 +8205,7 @@ static int adev_open(const hw_module_t *module, const char *name,
     adev->vr_audio_mode_enabled = false;
 
     audio_extn_ds2_enable(adev);
+    audio_extn_mat_thd_init();
     *device = &adev->device.common;
     adev->dsp_bit_width_enforce_mode =
         adev_init_dsp_bit_width_enforce_mode(adev->mixer);
