@@ -88,6 +88,7 @@ hardware/qcom/audio/configs/msm8937/mixer_paths_wcd9306.xml:$(TARGET_COPY_OUT_VE
 hardware/qcom/audio/configs/msm8937/mixer_paths_skuk.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_skuk.xml \
 hardware/qcom/audio/configs/msm8937/mixer_paths_qrd_skum.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_qrd_skum.xml \
 hardware/qcom/audio/configs/msm8937/mixer_paths.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths.xml \
+hardware/qcom/audio/configs/msm8937/mixer_paths_wtp.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_wtp.xml \
 hardware/qcom/audio/configs/msm8937/sound_trigger_mixer_paths.xml:$(TARGET_COPY_OUT_VENDOR)/etc/sound_trigger_mixer_paths.xml \
 hardware/qcom/audio/configs/msm8937/sound_trigger_mixer_paths_wcd9306.xml:$(TARGET_COPY_OUT_VENDOR)/etc/sound_trigger_mixer_paths_wcd9306.xml \
 hardware/qcom/audio/configs/msm8937/sound_trigger_mixer_paths_wcd9330.xml:$(TARGET_COPY_OUT_VENDOR)/etc/sound_trigger_mixer_paths_wcd9330.xml \
