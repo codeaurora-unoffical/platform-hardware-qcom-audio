@@ -72,6 +72,8 @@ static const int dts_transmission_sample_rates[] = {
 
 #define DDP_COMPRESS_PASSTHROUGH_FRAGMENT_SIZE (10 * 1024)
 
+#define MAT_COMPRESS_PASSTHROUGH_FRAGMENT_SIZE (60 * 1024)
+
 static const audio_format_t audio_passthru_formats[] = {
     AUDIO_FORMAT_AC3,
     AUDIO_FORMAT_E_AC3,
@@ -79,7 +81,8 @@ static const audio_format_t audio_passthru_formats[] = {
     AUDIO_FORMAT_DTS,
     AUDIO_FORMAT_DTS_HD,
     AUDIO_FORMAT_DOLBY_TRUEHD,
-    AUDIO_FORMAT_IEC61937
+    AUDIO_FORMAT_IEC61937,
+    AUDIO_FORMAT_MAT,
 };
 
 /*
@@ -199,6 +202,7 @@ int audio_extn_passthru_get_channel_count(struct stream_out *out)
 
     switch(out->format) {
     case AUDIO_FORMAT_DOLBY_TRUEHD:
+    case AUDIO_FORMAT_MAT:
        channel_count = 8;
        break;
     case AUDIO_FORMAT_DTS:
@@ -401,6 +405,7 @@ bool audio_extn_passthru_is_passt_supported(struct audio_device *adev,
     case AUDIO_FORMAT_E_AC3:
     case AUDIO_FORMAT_DTS_HD:
     case AUDIO_FORMAT_DOLBY_TRUEHD:
+    case AUDIO_FORMAT_MAT:
         if (platform_is_edid_supported_format(adev->platform, out->format)) {
             ALOGV("%s:PASSTHROUGH supported for format %x",
                    __func__, out->format);
@@ -514,6 +519,9 @@ int audio_extn_passthru_get_buffer_size(audio_offload_info_t* info)
             property_get("vendor.audio.truehd.buffer.size.kb", value, "") &&
             atoi(value)) {
         fragment_size = atoi(value) * 1024;
+        goto done;
+    }  else if (info->format == AUDIO_FORMAT_MAT) {
+        fragment_size = MAT_COMPRESS_PASSTHROUGH_FRAGMENT_SIZE;
         goto done;
     } else if ((info->format == AUDIO_FORMAT_DTS) ||
                (info->format == AUDIO_FORMAT_DTS_HD)) {

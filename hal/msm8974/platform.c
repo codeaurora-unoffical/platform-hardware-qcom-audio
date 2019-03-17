@@ -6759,7 +6759,8 @@ static void platform_check_hdmi_backend_cfg(struct audio_device* adev,
         }
         if (((usecase->stream.out->format == AUDIO_FORMAT_E_AC3) ||
             (usecase->stream.out->format == AUDIO_FORMAT_E_AC3_JOC) ||
-            (usecase->stream.out->format == AUDIO_FORMAT_DOLBY_TRUEHD))
+            (usecase->stream.out->format == AUDIO_FORMAT_DOLBY_TRUEHD) ||
+            (usecase->stream.out->format == AUDIO_FORMAT_MAT))
             && (usecase->stream.out->compr_config.codec->compr_passthr == PASSTHROUGH)) {
             sample_rate = sample_rate * 4;
             if (sample_rate > HDMI_PASSTHROUGH_MAX_SAMPLE_RATE)
@@ -7929,6 +7930,10 @@ unsigned char platform_map_to_edid_format(int audio_format)
         format = DOLBY_DIGITAL_PLUS;
         break;
     case AUDIO_FORMAT_DOLBY_TRUEHD:
+        ALOGV("%s:MAT", __func__);
+        format = MAT;
+        break;
+    case AUDIO_FORMAT_MAT:
         ALOGV("%s:MAT", __func__);
         format = MAT;
         break;

@@ -425,7 +425,8 @@ static const struct string_to_enum formats_name_to_enum_table[] = {
     STRING_TO_ENUM(AUDIO_FORMAT_DOLBY_TRUEHD),
     STRING_TO_ENUM(AUDIO_FORMAT_DTS),
     STRING_TO_ENUM(AUDIO_FORMAT_DTS_HD),
-    STRING_TO_ENUM(AUDIO_FORMAT_IEC61937)
+    STRING_TO_ENUM(AUDIO_FORMAT_IEC61937),
+    STRING_TO_ENUM(AUDIO_FORMAT_MAT),
 };
 
 //list of all supported sample rates by HDMI specification.
@@ -1659,6 +1660,11 @@ static int read_hdmi_sink_caps(struct stream_out *out)
     if (platform_is_edid_supported_format(out->dev->platform, AUDIO_FORMAT_DTS_HD)) {
         ALOGV(":%s HDMI supports DTS HD format", __func__);
         out->supported_formats[i++] = AUDIO_FORMAT_DTS_HD;
+    }
+
+    if (platform_is_edid_supported_format(out->dev->platform, AUDIO_FORMAT_MAT)) {
+        ALOGV(":%s HDMI supports MAT format", __func__);
+        out->supported_formats[i++] = AUDIO_FORMAT_MAT;
     }
 
     if (platform_is_edid_supported_format(out->dev->platform, AUDIO_FORMAT_IEC61937)) {
