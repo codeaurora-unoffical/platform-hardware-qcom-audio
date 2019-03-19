@@ -471,13 +471,12 @@ int audio_extn_auto_hal_set_audio_port_config(struct audio_hw_device *dev,
      *     DEVICE -> DEVICE
      *
      * For BUS devices routed to/from mixer, gain will be applied to DSP
-     * mixer via kernel control since audio HAL stream is associated.
-     * FIXME: Consider switch to CODEC amplifier gain control.
+     * mixer via kernel control which audio HAL stream is associated with.
      *
      * For external (source) device (FM TUNER/AUX), routing is typically
-     * done with AudioPatch to (sink) device, thus gain should be applied
-     * to CODEC amplifier via codec plugin extention as audio HAL stream
-     * may not be available and data is routed externally.
+     * done with AudioPatch to (sink) device (SPKR), thus gain should be
+     * applied to CODEC amplifier via codec plugin extention as audio HAL
+     * stream may not be available for external audio routing.
      */
     if (config->type == AUDIO_PORT_TYPE_DEVICE) {
         ALOGI("%s: device port: type %x, address %s, gain %d mB", __func__,
@@ -496,7 +495,6 @@ int audio_extn_auto_hal_set_audio_port_config(struct audio_hw_device *dev,
                     out_ctxt->output->devices == config->ext.device.type &&
                     strcmp(out_ctxt->output->address,
                         config->ext.device.address) == 0) {
-                    pthread_mutex_lock(&out_ctxt->output->lock);
                     /* millibel = 1/100 dB = 1/1000 bel
                      * q13 = (10^(mdb/100/20))*(2^13)
                      */
@@ -507,7 +505,6 @@ int audio_extn_auto_hal_set_audio_port_config(struct audio_hw_device *dev,
                     out_ctxt->output->stream.set_volume(
                                                 &out_ctxt->output->stream,
                                                 volume, volume);
-                    pthread_mutex_unlock(&out_ctxt->output->lock);
                 }
             }
             /* NOTE: Ideally audio patch list is a superset of output stream list above.
