@@ -2543,8 +2543,8 @@ static size_t get_input_buffer_size(uint32_t sample_rate,
      *  5.000 ms = 240 frames = 15*16*1*2 = 480, a whole multiple of 32 (15)
      *  3.333 ms = 160 frames = 10*16*1*2 = 320, a whole multiple of 32 (10)
      */
-    size += 0x1f;
-    size &= ~0x1f;
+
+    size = ALIGN(size, ((audio_bytes_per_sample(format)) * channel_count * 32));;
 
     return size;
 }
