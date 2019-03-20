@@ -1414,7 +1414,8 @@ uint32_t hal_format_to_pcm(audio_format_t hal_format)
 
 uint32_t get_alsa_fragment_size(uint32_t bytes_per_sample,
                                   uint32_t sample_rate,
-                                  uint32_t noOfChannels)
+                                  uint32_t noOfChannels,
+                                  int64_t duration_ms)
 {
     uint32_t fragment_size = 0;
     char value[PROPERTY_VALUE_MAX] = {0};
@@ -1422,6 +1423,9 @@ uint32_t get_alsa_fragment_size(uint32_t bytes_per_sample,
 
     if (property_get("vendor.audio.pcm.offload.buffer.duration.ms", value, NULL))
         pcm_offload_time = atoi(value);
+
+    if (duration_ms >= MIN_OFFLOAD_BUFFER_DURATION_MS && duration_ms <= MAX_OFFLOAD_BUFFER_DURATION_MS)
+        pcm_offload_time = duration_ms;
 
     fragment_size = (pcm_offload_time
                      * sample_rate
@@ -1457,7 +1461,8 @@ void audio_extn_utils_update_direct_pcm_fragment_size(struct stream_out *out)
     out->compr_config.fragment_size =
              get_alsa_fragment_size(hal_op_bytes_per_sample,
                                       out->sample_rate,
-                                      popcount(out->channel_mask));
+                                      popcount(out->channel_mask),
+                                      out->info.duration_us / 1000);
 
     if ((src_format != dst_format) &&
          hal_op_bytes_per_sample != hal_ip_bytes_per_sample) {
@@ -2658,6 +2663,15 @@ struct audio_license_params *license_params
     if(!license_params)
         return -EINVAL;
     return platform_get_license_by_product(adev->platform, (const char*)license_params->product, &license_params->key, license_params->license);
+}
+
+int audio_extn_utils_get_perf_mode_flag(void)
+{
+#ifdef COMPRESSED_PERF_MODE_FLAG
+    return COMPRESSED_PERF_MODE_FLAG;
+#else
+    return 0;
+#endif
 }
 
 size_t audio_extn_utils_get_input_buffer_size(uint32_t sample_rate,
