@@ -23,7 +23,6 @@
     <!-- Global configuration Decalaration -->
     <globalConfiguration speaker_drc_enabled="true"/>
 
-
     <!-- Modules section:
         There is one section per audio HW module present on the platform.
         Each module section will contains two mandatory tags for audio HAL “halVersion” and “name”.
@@ -49,12 +48,10 @@
         <!-- Primary Audio HAL -->
         <module name="primary" halVersion="3.0">
             <attachedDevices>
-                <item>Earpiece</item>
-                <item>Speaker</item>
-                <item>Telephony Tx</item>
                 <item>Media Bus</item>
                 <item>Sys Notification Bus</item>
                 <item>Nav Guidance Bus</item>
+                <item>Telephony Tx</item>
                 <item>Built-In Mic</item>
                 <item>Built-In Back Mic</item>
                 <item>FM Tuner</item>
@@ -62,8 +59,21 @@
                 <item>Line In</item>
                 <item>HDMI In</item>
             </attachedDevices>
-            <defaultOutputDevice>Speaker</defaultOutputDevice>
+            <defaultOutputDevice>Media Bus</defaultOutputDevice>
             <mixPorts>
+                <mixPort name="media" role="source"
+                         flags="AUDIO_OUTPUT_FLAG_PRIMARY">
+                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+                             samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
+                </mixPort>
+                <mixPort name="sys_notification" role="source">
+                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+                             samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
+                </mixPort>
+                <mixPort name="driver_side" role="source">
+                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+                             samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
+                </mixPort>
                 <mixPort name="primary output" role="source" flags="AUDIO_OUTPUT_FLAG_FAST|AUDIO_OUTPUT_FLAG_PRIMARY">
                     <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
                              samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
@@ -146,19 +156,6 @@
                     <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
                              samplingRates="8000,16000,32000" channelMasks="AUDIO_CHANNEL_OUT_MONO"/>
                 </mixPort>
-                <mixPort name="media" role="source">
-                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
-                             samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
-                </mixPort>
-                <mixPort name="sys_notification" role="source">
-                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
-                             samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
-                </mixPort>
-                <mixPort name="driver_side" role="source">
-                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
-                             samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
-                </mixPort>
-
                 <mixPort name="primary input" role="sink">
                     <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
                              samplingRates="8000,11025,12000,16000,22050,24000,32000,44100,48000"
@@ -185,6 +182,18 @@
 
             <devicePorts>
                 <!-- Output devices declaration, i.e. Sink DEVICE PORT -->
+                <devicePort tagName="Media Bus" role="sink" type="AUDIO_DEVICE_OUT_BUS" address="BUS00_MEDIA">
+                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+                             samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
+                </devicePort>
+                <devicePort tagName="Sys Notification Bus" role="sink" type="AUDIO_DEVICE_OUT_BUS" address="BUS01_SYS_NOTIFICATION">
+                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+                             samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
+                </devicePort>
+                <devicePort tagName="Nav Guidance Bus" role="sink" type="AUDIO_DEVICE_OUT_BUS" address="BUS02_NAV_GUIDANCE">
+                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+                             samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
+                </devicePort>
                 <devicePort tagName="Earpiece" type="AUDIO_DEVICE_OUT_EARPIECE" role="sink">
                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
                             samplingRates="48000" channelMasks="AUDIO_CHANNEL_IN_MONO"/>
@@ -237,19 +246,6 @@
                     <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
                              samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_MONO,AUDIO_CHANNEL_OUT_STEREO"/>
                 </devicePort>
-                <devicePort tagName="Media Bus" role="sink" type="AUDIO_DEVICE_OUT_BUS" address="BUS00_MEDIA">
-                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
-                             samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
-                </devicePort>
-                <devicePort tagName="Sys Notification Bus" role="sink" type="AUDIO_DEVICE_OUT_BUS" address="BUS01_SYS_NOTIFICATION">
-                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
-                             samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
-                </devicePort>
-                <devicePort tagName="Nav Guidance Bus" role="sink" type="AUDIO_DEVICE_OUT_BUS" address="BUS02_NAV_GUIDANCE">
-                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
-                             samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
-                </devicePort>
-
                 <devicePort tagName="Built-In Mic" type="AUDIO_DEVICE_IN_BUILTIN_MIC" role="source">
                     <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
                              samplingRates="8000,11025,12000,16000,22050,24000,32000,44100,48000"
@@ -289,6 +285,12 @@
             </devicePorts>
             <!-- route declaration, i.e. list all available sources for a given sink -->
             <routes>
+                <route type="mix" sink="Media Bus"
+                       sources="media,direct_pcm,compressed_offload,voip_rx"/>
+                <route type="mix" sink="Sys Notification Bus"
+                       sources="sys_notification"/>
+                <route type="mix" sink="Nav Guidance Bus"
+                       sources="driver_side"/>
                 <route type="mix" sink="Earpiece"
                        sources="primary output,raw,deep_buffer,direct_pcm,compressed_offload,voip_rx,Line In,HDMI In"/>
                 <route type="mix" sink="Speaker"
@@ -309,12 +311,6 @@
                        sources="primary output,raw,deep_buffer,direct_pcm,compressed_offload,voip_rx,Telephony Rx"/>
                 <route type="mix" sink="Telephony Tx"
                        sources="voice_tx"/>
-                <route type="mix" sink="Media Bus"
-                       sources="media"/>
-                <route type="mix" sink="Sys Notification Bus"
-                       sources="sys_notification"/>
-                <route type="mix" sink="Nav Guidance Bus"
-                       sources="driver_side"/>
                 <route type="mix" sink="primary input"
                        sources="Built-In Mic,Built-In Back Mic,Wired Headset Mic,BT SCO Headset Mic,FM Tuner,Telephony Rx,Line In,HDMI In"/>
                 <route type="mix" sink="surround_sound"
