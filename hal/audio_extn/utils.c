@@ -36,6 +36,7 @@
 #include "platform.h"
 #include "platform_api.h"
 #include "audio_extn.h"
+#include "voice_extn.h"
 #include "voice.h"
 #include <sound/compress_params.h>
 #include <sound/compress_offload.h>
@@ -869,6 +870,18 @@ void audio_extn_utils_update_stream_app_type_cfg_for_usecase(
                                                 &usecase->stream.inout->out_app_type_cfg);
         ALOGV("%s Selected apptype: %d", __func__, usecase->stream.inout->out_app_type_cfg.app_type);
         break;
+    case TRANSCODE_LOOPBACK_TX :
+        audio_extn_utils_update_stream_input_app_type_cfg(adev->platform,
+                                                &adev->streams_input_cfg_list,
+                                                usecase->stream.inout->in_config.devices,
+                                                0,
+                                                usecase->stream.inout->in_config.format,
+                                                usecase->stream.inout->in_config.sample_rate,
+                                                usecase->stream.inout->in_config.bit_width,
+                                                usecase->stream.inout->profile,
+                                                &usecase->stream.inout->in_app_type_cfg);
+        ALOGV("%s Selected apptype: %d", __func__, usecase->stream.inout->in_app_type_cfg.app_type);
+        break;
     default:
         ALOGE("%s: app type cfg not supported for usecase type (%d)",
             __func__, usecase->type);
@@ -916,7 +929,8 @@ static int send_app_type_cfg_for_device(struct audio_device *adev,
           platform_get_snd_device_name(split_snd_device));
 
     if (usecase->type != PCM_PLAYBACK && usecase->type != PCM_CAPTURE &&
-        usecase->type != TRANSCODE_LOOPBACK_RX) {
+        usecase->type != TRANSCODE_LOOPBACK_RX &&
+        usecase->type != TRANSCODE_LOOPBACK_TX) {
         ALOGE("%s: not a playback/capture path, no need to cfg app type", __func__);
         rc = 0;
         goto exit_send_app_type_cfg;
@@ -927,6 +941,7 @@ static int send_app_type_cfg_for_device(struct audio_device *adev,
         (usecase->id != USECASE_AUDIO_PLAYBACK_ULL) &&
         (usecase->id != USECASE_AUDIO_PLAYBACK_VOIP) &&
         (usecase->id != USECASE_AUDIO_TRANSCODE_LOOPBACK_RX) &&
+        (usecase->id != USECASE_AUDIO_TRANSCODE_LOOPBACK_TX) &&
         (!is_interactive_usecase(usecase->id)) &&
         (!is_offload_usecase(usecase->id)) &&
         (usecase->type != PCM_CAPTURE) &&
@@ -947,7 +962,7 @@ static int send_app_type_cfg_for_device(struct audio_device *adev,
         pcm_device_id = platform_get_pcm_device_id(usecase->id, PCM_PLAYBACK);
         snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
             "Audio Stream %d App Type Cfg", pcm_device_id);
-    } else if (usecase->type == PCM_CAPTURE) {
+    } else if (usecase->type == PCM_CAPTURE || usecase->type == TRANSCODE_LOOPBACK_TX) {
         pcm_device_id = platform_get_pcm_device_id(usecase->id, PCM_CAPTURE);
         snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
             "Audio Stream Capture %d App Type Cfg", pcm_device_id);
@@ -1080,7 +1095,7 @@ static int send_app_type_cfg_for_device(struct audio_device *adev,
         }
         if (usecase->stream.in->device & AUDIO_DEVICE_IN_BLUETOOTH_A2DP & ~AUDIO_DEVICE_BIT_IN) {
             audio_extn_a2dp_get_dec_sample_rate(&usecase->stream.in->app_type_cfg.sample_rate);
-            ALOGI("%s using %d sample rate rate for A2DP dec CoPP",
+            ALOGI("%s using %d sample rate for A2DP dec CoPP",
                   __func__, usecase->stream.in->app_type_cfg.sample_rate);
         }
         sample_rate = usecase->stream.in->app_type_cfg.sample_rate;
@@ -1088,6 +1103,22 @@ static int send_app_type_cfg_for_device(struct audio_device *adev,
         if (snd_device_be_idx > 0)
             app_type_cfg[len++] = snd_device_be_idx;
         ALOGI("%s CAPTURE app_type %d, acdb_dev_id %d, sample_rate %d, snd_device_be_idx %d",
+           __func__, app_type, acdb_dev_id, sample_rate, snd_device_be_idx);
+    } else if ((usecase->type == TRANSCODE_LOOPBACK_TX) && (usecase->stream.inout != NULL)) {
+        app_type = usecase->stream.inout->in_app_type_cfg.app_type;
+        app_type_cfg[len++] = app_type;
+        app_type_cfg[len++] = acdb_dev_id;
+        if (usecase->stream.inout->in_config.devices & AUDIO_DEVICE_IN_BLUETOOTH_A2DP
+                & ~AUDIO_DEVICE_BIT_IN) {
+            audio_extn_a2dp_get_dec_sample_rate(&usecase->stream.inout->in_app_type_cfg.sample_rate);
+            ALOGI("%s using %d sample rate for A2DP dec CoPP in loopback",
+                  __func__, usecase->stream.inout->in_app_type_cfg.sample_rate);
+        }
+        sample_rate = usecase->stream.inout->in_app_type_cfg.sample_rate;
+        app_type_cfg[len++] = sample_rate;
+        if (snd_device_be_idx > 0)
+            app_type_cfg[len++] = snd_device_be_idx;
+        ALOGI("%s TRANSCODE_LOOPBACK_TX app_type %d, acdb_dev_id %d, sample_rate %d, snd_device_be_idx %d",
            __func__, app_type, acdb_dev_id, sample_rate, snd_device_be_idx);
     } else {
         app_type = platform_get_default_app_type_v2(adev->platform, usecase->type);
@@ -1109,6 +1140,88 @@ static int send_app_type_cfg_for_device(struct audio_device *adev,
     rc = 0;
 exit_send_app_type_cfg:
     return rc;
+}
+
+static int audio_extn_utils_check_input_parameters(uint32_t sample_rate,
+                                  audio_format_t format,
+                                  int channel_count)
+{
+    int ret = 0;
+
+    if (((format != AUDIO_FORMAT_PCM_16_BIT) && (format != AUDIO_FORMAT_PCM_8_24_BIT) &&
+        (format != AUDIO_FORMAT_PCM_24_BIT_PACKED) && (format != AUDIO_FORMAT_PCM_32_BIT) &&
+        (format != AUDIO_FORMAT_PCM_FLOAT)) &&
+        !voice_extn_compress_voip_is_format_supported(format) &&
+        !audio_extn_compr_cap_format_supported(format) &&
+        !audio_extn_cin_format_supported(format))
+            ret = -EINVAL;
+
+    switch (channel_count) {
+    case 1:
+    case 2:
+    case 3:
+    case 4:
+    case 6:
+    case 8:
+        break;
+    default:
+        ret = -EINVAL;
+    }
+
+    switch (sample_rate) {
+    case 8000:
+    case 11025:
+    case 12000:
+    case 16000:
+    case 22050:
+    case 24000:
+    case 32000:
+    case 44100:
+    case 48000:
+    case 88200:
+    case 96000:
+    case 176400:
+    case 192000:
+        break;
+    default:
+        ret = -EINVAL;
+    }
+
+    return ret;
+}
+
+static inline uint32_t audio_extn_utils_nearest_multiple(uint32_t num, uint32_t multiplier)
+{
+    uint32_t remainder = 0;
+
+    if (!multiplier)
+        return num;
+
+    remainder = num % multiplier;
+    if (remainder)
+        num += (multiplier - remainder);
+
+    return num;
+}
+
+static inline uint32_t audio_extn_utils_lcm(uint32_t num1, uint32_t num2)
+{
+    uint32_t high = num1, low = num2, temp = 0;
+
+    if (!num1 || !num2)
+        return 0;
+
+    if (num1 < num2) {
+         high = num2;
+         low = num1;
+    }
+
+    while (low != 0) {
+        temp = low;
+        low = high % low;
+        high = temp;
+    }
+    return (num1 * num2)/high;
 }
 
 int audio_extn_utils_send_app_type_cfg(struct audio_device *adev,
@@ -1133,6 +1246,7 @@ int audio_extn_utils_send_app_type_cfg(struct audio_device *adev,
         }
         break;
     case PCM_CAPTURE:
+    case TRANSCODE_LOOPBACK_TX:
         ALOGD("%s: usecase->in_snd_device %s",
               __func__, platform_get_snd_device_name(usecase->in_snd_device));
         if (voice_is_in_call_rec_stream(usecase->stream.in)) {
@@ -1300,7 +1414,8 @@ uint32_t hal_format_to_pcm(audio_format_t hal_format)
 
 uint32_t get_alsa_fragment_size(uint32_t bytes_per_sample,
                                   uint32_t sample_rate,
-                                  uint32_t noOfChannels)
+                                  uint32_t noOfChannels,
+                                  int64_t duration_ms)
 {
     uint32_t fragment_size = 0;
     char value[PROPERTY_VALUE_MAX] = {0};
@@ -1308,6 +1423,9 @@ uint32_t get_alsa_fragment_size(uint32_t bytes_per_sample,
 
     if (property_get("vendor.audio.pcm.offload.buffer.duration.ms", value, NULL))
         pcm_offload_time = atoi(value);
+
+    if (duration_ms >= MIN_OFFLOAD_BUFFER_DURATION_MS && duration_ms <= MAX_OFFLOAD_BUFFER_DURATION_MS)
+        pcm_offload_time = duration_ms;
 
     fragment_size = (pcm_offload_time
                      * sample_rate
@@ -1343,7 +1461,8 @@ void audio_extn_utils_update_direct_pcm_fragment_size(struct stream_out *out)
     out->compr_config.fragment_size =
              get_alsa_fragment_size(hal_op_bytes_per_sample,
                                       out->sample_rate,
-                                      popcount(out->channel_mask));
+                                      popcount(out->channel_mask),
+                                      out->info.duration_us / 1000);
 
     if ((src_format != dst_format) &&
          hal_op_bytes_per_sample != hal_ip_bytes_per_sample) {
@@ -2546,3 +2665,50 @@ struct audio_license_params *license_params
     return platform_get_license_by_product(adev->platform, (const char*)license_params->product, &license_params->key, license_params->license);
 }
 
+int audio_extn_utils_get_perf_mode_flag(void)
+{
+#ifdef COMPRESSED_PERF_MODE_FLAG
+    return COMPRESSED_PERF_MODE_FLAG;
+#else
+    return 0;
+#endif
+}
+
+size_t audio_extn_utils_get_input_buffer_size(uint32_t sample_rate,
+                                            audio_format_t format,
+                                            int channel_count,
+                                            int64_t duration_ms,
+                                            bool is_low_latency)
+{
+    size_t size = 0;
+    size_t capture_duration = AUDIO_CAPTURE_PERIOD_DURATION_MSEC;
+    uint32_t bytes_per_period_sample = 0;
+
+
+    if (audio_extn_utils_check_input_parameters(sample_rate, format, channel_count) != 0)
+        return 0;
+
+    if (duration_ms >= MIN_OFFLOAD_BUFFER_DURATION_MS && duration_ms <= MAX_OFFLOAD_BUFFER_DURATION_MS)
+        capture_duration = duration_ms;
+
+    size = (sample_rate * capture_duration) / 1000;
+    if (is_low_latency)
+        size = LOW_LATENCY_CAPTURE_PERIOD_SIZE;
+
+
+    bytes_per_period_sample = audio_bytes_per_sample(format) * channel_count;
+    size *= bytes_per_period_sample;
+
+    /* make sure the size is multiple of 32 bytes and additionally multiple of
+     * the frame_size (required for 24bit samples and non-power-of-2 channel counts)
+     * At 48 kHz mono 16-bit PCM:
+     *  5.000 ms = 240 frames = 15*16*1*2 = 480, a whole multiple of 32 (15)
+     *  3.333 ms = 160 frames = 10*16*1*2 = 320, a whole multiple of 32 (10)
+     *
+     *  The loop reaches result within 32 iterations, as initial size is
+     *  already a multiple of frame_size
+     */
+    size = audio_extn_utils_nearest_multiple(size, audio_extn_utils_lcm(32, bytes_per_period_sample));
+
+    return size;
+}

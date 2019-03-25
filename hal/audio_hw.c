@@ -1218,7 +1218,8 @@ int disable_snd_device(struct audio_device *adev,
             disable_asrc_mode(adev);
             audio_route_apply_and_update_path(adev->audio_route, "hph-lowpower-mode");
         }
-        if ((snd_device == SND_DEVICE_IN_HANDSET_6MIC) &&
+        if (((snd_device == SND_DEVICE_IN_HANDSET_6MIC) ||
+            (snd_device == SND_DEVICE_IN_HANDSET_QMIC)) &&
             (audio_extn_ffv_get_stream() == adev->active_input)) {
             ALOGD("%s: deinit ec ref loopback", __func__);
             audio_extn_ffv_deinit_ec_ref_loopback(adev, snd_device);
@@ -3726,6 +3727,12 @@ static int out_on_error(struct audio_stream *stream)
     if (out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) {
         send_offload_cmd_l(out, OFFLOAD_CMD_ERROR);
     }
+
+    if (is_offload_usecase(out->usecase) && out->card_status == CARD_STATUS_OFFLINE) {
+        ALOGD("Setting previous card status if offline");
+        out->prev_card_status_offline = true;
+    }
+
     pthread_mutex_unlock(&out->lock);
 
     return status;
@@ -5003,6 +5010,9 @@ static int out_get_render_position(const struct audio_stream_out *stream,
              */
             ALOGE(" ERROR: sound card not active, return error");
             ret = -EINVAL;
+        } else if (out->prev_card_status_offline) {
+            ALOGE("ERROR: previously sound card was offline,return error");
+            ret = -EINVAL;
         } else {
             ret = 0;
             adjust_frames_for_device_delay(out, dsp_frames);
@@ -5105,7 +5115,10 @@ static int out_get_presentation_position(const struct audio_stream_out *stream,
         } else if (out->card_status == CARD_STATUS_OFFLINE) {
             *frames = out->written;
             clock_gettime(CLOCK_MONOTONIC, timestamp);
-            ret = 0;
+            if (is_offload_usecase(out->usecase))
+                ret = -EINVAL;
+            else
+                ret = 0;
         }
     }
     pthread_mutex_unlock(&out->lock);
@@ -6151,6 +6164,7 @@ int adev_open_output_stream(struct audio_hw_device *dev,
     out->dynamic_pm_qos_config_supported = 0;
     out->set_dual_mono = false;
     out->rx_dtmf_tone_gain = 0;
+    out->prev_card_status_offline = false;
 
     if ((flags & AUDIO_OUTPUT_FLAG_BD) &&
         (property_get_bool("vendor.audio.matrix.limiter.enable", false)))
@@ -6308,6 +6322,11 @@ int adev_open_output_stream(struct audio_hw_device *dev,
             ALOGV("non-offload DIRECT_usecase ... usecase selected %d ", out->usecase);
         }
 
+        if (out->flags & AUDIO_OUTPUT_FLAG_FAST) {
+            ALOGD("%s: Setting latency mode to true", __func__);
+            out->compr_config.codec->flags |= audio_extn_utils_get_perf_mode_flag();
+        }
+
         if (out->usecase == USECASE_INVALID) {
             if (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL &&
                     config->format == 0 && config->sample_rate == 0 &&
@@ -6390,6 +6409,10 @@ int adev_open_output_stream(struct audio_hw_device *dev,
                              out->hal_op_format) << 3;
 
             out->compr_config.fragments = DIRECT_PCM_NUM_FRAGMENTS;
+
+            if ((config->offload_info.duration_us >= MIN_OFFLOAD_BUFFER_DURATION_MS * 1000) &&
+                   (config->offload_info.duration_us <= MAX_OFFLOAD_BUFFER_DURATION_MS * 1000))
+                out->info.duration_us = (int64_t)config->offload_info.duration_us;
 
             /* Check if alsa session is configured with the same format as HAL input format,
              * if not then derive correct fragment size needed to accomodate the
@@ -7458,6 +7481,8 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
 
     in->usecase = USECASE_AUDIO_RECORD;
     if (config->sample_rate == LOW_LATENCY_CAPTURE_SAMPLE_RATE &&
+            (flags & AUDIO_INPUT_FLAG_TIMESTAMP) == 0 &&
+            (flags & AUDIO_INPUT_FLAG_COMPRESS) == 0 &&
             (flags & AUDIO_INPUT_FLAG_FAST) != 0) {
         is_low_latency = true;
 #if LOW_LATENCY_CAPTURE_USE_CASE
@@ -7569,7 +7594,7 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
             audio_extn_compr_cap_init(in);
         } else if (audio_extn_cin_applicable_stream(in)) {
             in->sample_rate = config->sample_rate;
-            ret = audio_extn_cin_configure_input_stream(in);
+            ret = audio_extn_cin_configure_input_stream(in, config);
             if (ret)
                 goto err_open;
         } else {
@@ -7870,6 +7895,7 @@ static void adev_snd_mon_cb(void *cookie, struct str_parms *parms)
             adev->card_status = status;
             platform_snd_card_update(adev->platform, status);
             audio_extn_fm_set_parameters(adev, parms);
+            audio_extn_auto_hal_set_parameters(adev, parms);
         } else if (is_ext_device_status) {
             platform_set_parameters(adev->platform, parms);
         }

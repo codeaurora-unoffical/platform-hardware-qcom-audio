@@ -54,6 +54,7 @@ struct hostless_config {
 
 typedef struct auto_hal_module {
     struct audio_device *adev;
+    card_status_t card_status;
     struct hostless_config hostless;
 } auto_hal_module_t;
 
@@ -470,13 +471,12 @@ int audio_extn_auto_hal_set_audio_port_config(struct audio_hw_device *dev,
      *     DEVICE -> DEVICE
      *
      * For BUS devices routed to/from mixer, gain will be applied to DSP
-     * mixer via kernel control since audio HAL stream is associated.
-     * FIXME: Consider switch to CODEC amplifier gain control.
+     * mixer via kernel control which audio HAL stream is associated with.
      *
      * For external (source) device (FM TUNER/AUX), routing is typically
-     * done with AudioPatch to (sink) device, thus gain should be applied
-     * to CODEC amplifier via codec plugin extention as audio HAL stream
-     * may not be available and data is routed externally.
+     * done with AudioPatch to (sink) device (SPKR), thus gain should be
+     * applied to CODEC amplifier via codec plugin extention as audio HAL
+     * stream may not be available for external audio routing.
      */
     if (config->type == AUDIO_PORT_TYPE_DEVICE) {
         ALOGI("%s: device port: type %x, address %s, gain %d mB", __func__,
@@ -495,7 +495,6 @@ int audio_extn_auto_hal_set_audio_port_config(struct audio_hw_device *dev,
                     out_ctxt->output->devices == config->ext.device.type &&
                     strcmp(out_ctxt->output->address,
                         config->ext.device.address) == 0) {
-                    pthread_mutex_lock(&out_ctxt->output->lock);
                     /* millibel = 1/100 dB = 1/1000 bel
                      * q13 = (10^(mdb/100/20))*(2^13)
                      */
@@ -506,7 +505,6 @@ int audio_extn_auto_hal_set_audio_port_config(struct audio_hw_device *dev,
                     out_ctxt->output->stream.set_volume(
                                                 &out_ctxt->output->stream,
                                                 volume, volume);
-                    pthread_mutex_unlock(&out_ctxt->output->lock);
                 }
             }
             /* NOTE: Ideally audio patch list is a superset of output stream list above.
@@ -561,6 +559,31 @@ int audio_extn_auto_hal_set_audio_port_config(struct audio_hw_device *dev,
 
     ALOGV("%s: exit", __func__);
     return ret;
+}
+
+void audio_extn_auto_hal_set_parameters(struct audio_device *adev __unused,
+                                        struct str_parms *parms)
+{
+    int ret = 0;
+    char value[32]={0};
+
+    ALOGV("%s: enter", __func__);
+
+    ret = str_parms_get_str(parms, "SND_CARD_STATUS", value, sizeof(value));
+    if (ret >= 0) {
+        char *snd_card_status = value+2;
+        ALOGV("%s: snd card status %s", __func__, snd_card_status);
+        if (strstr(snd_card_status, "OFFLINE")) {
+            auto_hal->card_status = CARD_STATUS_OFFLINE;
+            audio_extn_auto_hal_disable_hostless();
+        }
+        else if (strstr(snd_card_status, "ONLINE")) {
+            auto_hal->card_status = CARD_STATUS_ONLINE;
+            audio_extn_auto_hal_enable_hostless();
+        }
+    }
+
+    ALOGV("%s: exit", __func__);
 }
 
 int32_t audio_extn_auto_hal_init(struct audio_device *adev)

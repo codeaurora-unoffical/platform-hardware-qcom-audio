@@ -6317,6 +6317,9 @@ uint32_t platform_get_compress_offload_buffer_size(audio_offload_info_t* info)
 {
     char value[PROPERTY_VALUE_MAX] = {0};
     uint32_t fragment_size = COMPRESS_OFFLOAD_FRAGMENT_SIZE;
+    uint32_t new_fragment_size = 0;
+    int32_t duration_ms = 0;
+    int channel_count = 0;
     if((property_get("vendor.audio.offload.buffer.size.kb", value, "")) &&
             atoi(value)) {
         fragment_size =  atoi(value) * 1024;
@@ -6328,6 +6331,17 @@ uint32_t platform_get_compress_offload_buffer_size(audio_offload_info_t* info)
               fragment_size,
               info->offload_buffer_size);
         fragment_size = info->offload_buffer_size;
+    }
+
+    /* Use client specified buffer size if mentioned */
+    if ((info != NULL) && (info->duration_us > 0)) {
+        duration_ms = info->duration_us / 1000;
+        channel_count = audio_channel_count_from_in_mask(info->channel_mask);
+
+        new_fragment_size = (duration_ms * info->sample_rate * channel_count * audio_bytes_per_sample(info->format)) / 1000;
+        ALOGI("%s:: Overwriting offload buffer size with client requested size old:%d new:%d", __func__, fragment_size, new_fragment_size);
+
+        fragment_size = new_fragment_size;
     }
 
     if (info != NULL) {
@@ -6371,7 +6385,10 @@ static int platform_get_voice_call_backend(struct audio_device* adev)
    if (voice_is_in_call(adev) || adev->mode == AUDIO_MODE_IN_COMMUNICATION) {
        list_for_each(node, &adev->usecase_list) {
            uc =  node_to_item(node, struct audio_usecase, list);
-           if (uc && (uc->type == VOICE_CALL || uc->type == VOIP_CALL) && uc->stream.out) {
+           if (uc && uc->stream.out &&
+               (uc->type == VOICE_CALL ||
+                uc->type == VOIP_CALL ||
+                uc->id == USECASE_AUDIO_PLAYBACK_VOIP)) {
                out_snd_device = platform_get_output_snd_device(adev->platform, uc->stream.out);
                backend_idx = platform_get_backend_index(out_snd_device);
                break;

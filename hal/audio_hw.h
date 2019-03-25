@@ -293,6 +293,7 @@ struct stream_inout {
     struct stream_config in_config;
     struct stream_config out_config;
     struct stream_app_type_cfg out_app_type_cfg;
+    struct stream_app_type_cfg in_app_type_cfg;
     char profile[MAX_STREAM_PROFILE_STR_LEN];
     struct audio_device *dev;
     void *adsp_hdlr_stream_handle;
@@ -385,6 +386,7 @@ struct stream_out {
     mix_matrix_params_t downmix_params;
     bool set_dual_mono;
     int rx_dtmf_tone_gain;
+    bool prev_card_status_offline;
 
     char address[AUDIO_DEVICE_MAX_ADDRESS_LEN];
     int car_audio_stream;

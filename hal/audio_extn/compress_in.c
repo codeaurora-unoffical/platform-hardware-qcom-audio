@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
+* Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -277,7 +277,7 @@ int audio_extn_cin_read(struct stream_in *in, void *buffer,
     return ret;
 }
 
-int audio_extn_cin_configure_input_stream(struct stream_in *in)
+int audio_extn_cin_configure_input_stream(struct stream_in *in, struct audio_config *in_config)
 {
     struct audio_device *adev = in->dev;
     struct audio_config config = {.format = 0};
@@ -316,7 +316,8 @@ int audio_extn_cin_configure_input_stream(struct stream_in *in)
     config.channel_mask = in->channel_mask;
     config.format = in->format;
     in->config.channels = audio_channel_count_from_in_mask(in->channel_mask);
-    buffer_size = adev->device.get_input_buffer_size(&adev->device, &config);
+    buffer_size = audio_extn_utils_get_input_buffer_size(config.sample_rate, config.format,
+                    in->config.channels, in_config->offload_info.duration_us / 1000, false);
 
     cin_data->compr_config.fragment_size = buffer_size;
     cin_data->compr_config.codec->id = get_snd_codec_id(in->format);
@@ -332,6 +333,11 @@ int audio_extn_cin_configure_input_stream(struct stream_in *in)
         cin_data->compr_config.codec->compr_passthr = PASSTHROUGH_IEC61937;
     else
         cin_data->compr_config.codec->compr_passthr = PASSTHROUGH_GEN;
+
+    if (in->flags & AUDIO_INPUT_FLAG_FAST) {
+        ALOGD("%s: Setting latency mode to true", __func__);
+        cin_data->compr_config.codec->flags |= audio_extn_utils_get_perf_mode_flag();
+    }
 
     if ((in->flags & AUDIO_INPUT_FLAG_TIMESTAMP) ||
         (in->flags & AUDIO_INPUT_FLAG_PASSTHROUGH)) {
