@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2014-2018, The Linux Foundation. All rights reserved.
+* Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -270,6 +270,7 @@ static int keep_alive_start_l()
     ka.out->channel_mask = AUDIO_CHANNEL_OUT_STEREO;
     ka.out->supported_channel_masks[0] = AUDIO_CHANNEL_OUT_STEREO;
     ka.out->config = silence_config;
+    ka.out->bit_width =  CODEC_BACKEND_DEFAULT_BIT_WIDTH;
 
     usecase->stream.out = ka.out;
     usecase->type = PCM_PLAYBACK;
