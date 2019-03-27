@@ -201,6 +201,25 @@ __BEGIN_DECLS
 #define QAHW_PCM_CHANNEL_FRC  14  /* Front right of center.                        */
 #define QAHW_PCM_CHANNEL_RLC  15  /* Rear left of center.                          */
 #define QAHW_PCM_CHANNEL_RRC  16  /* Rear right of center.                         */
+#define QAHW_PCM_CHANNEL_LFE2 17  /* Secondary low frequency effect channel.       */
+#define QAHW_PCM_CHANNEL_SL   18  /*  Side left channel.                           */
+#define QAHW_PCM_CHANNEL_SR   19  /* Side right channel.                           */
+#define QAHW_PCM_CHANNEL_TFL  20  /* Top front left channel.                       */
+#define QAHW_PCM_CHANNEL_LVH  QAHW_PCM_CHANNEL_TFL /* Left vertical height channel.*/
+#define QAHW_PCM_CHANNEL_TFR 21   /* Top front right channel.                      */
+#define QAHW_PCM_CHANNEL_RVH QAHW_PCM_CHANNEL_TFR /* Right vertical height channel.*/
+#define QAHW_PCM_CHANNEL_TC   22  /* Top center channel.                           */
+#define QAHW_PCM_CHANNEL_TBL  23  /* Top back left channel.                        */
+#define QAHW_PCM_CHANNEL_TBR  24  /* Top back right channel.                       */
+#define QAHW_PCM_CHANNEL_TSL  25  /* Top side left channel.                        */
+#define QAHW_PCM_CHANNEL_TSR  26  /* Top side right channel.                       */
+#define QAHW_PCM_CHANNEL_TBC  27  /* Top back center channel.                      */
+#define QAHW_PCM_CHANNEL_BFC  28  /* Bottom front center channel.                  */
+#define QAHW_PCM_CHANNEL_BFL  29  /* Bottom front left channel.                    */
+#define QAHW_PCM_CHANNEL_BFR  30  /* Bottom front right channel.                   */
+#define QAHW_PCM_CHANNEL_LW   31  /* Left wide channel.                            */
+#define QAHW_PCM_CHANNEL_RW   32  /* Right wide channel.                           */
+#define QAHW_PCM_CHANNEL_RSD  34  /* Right side direct channel.                    */
 
 /* type of asynchronous write callback events. Mutually exclusive */
 typedef enum {
@@ -367,6 +386,14 @@ typedef struct qahw_mix_matrix_params {
     float mixer_coeffs[AUDIO_CHANNEL_COUNT_MAX][AUDIO_CHANNEL_COUNT_MAX];
 } qahw_mix_matrix_params_t;
 
+#define QAHW_LICENCE_STR_MAX_LENGTH (64)
+#define QAHW_PRODUCT_STR_MAX_LENGTH (64)
+typedef struct qahw_license_params {
+    char product[QAHW_PRODUCT_STR_MAX_LENGTH + 1];
+    int key;
+    char license[QAHW_LICENCE_STR_MAX_LENGTH + 1];
+} qahw_license_params_t;
+
 typedef struct qahw_dtmf_gen_params {
    bool enable;
    uint16_t low_freq;
@@ -416,6 +443,7 @@ typedef union {
     struct qahw_out_channel_map_param channel_map_params;
     struct qahw_device_cfg_param device_cfg_params;
     struct qahw_mix_matrix_params mix_matrix_params;
+    struct qahw_license_params license_params;
     struct qahw_dtmf_gen_params dtmf_gen_params;
     struct qahw_tty_params tty_mode_params;
     struct qahw_hpcm_params hpcm_params;
@@ -437,10 +465,19 @@ typedef enum {
     QAHW_PARAM_DEVICE_CONFIG,      /* PARAM to set device config */
     QAHW_PARAM_OUT_MIX_MATRIX_PARAMS,
     QAHW_PARAM_CH_MIX_MATRIX_PARAMS,
+    QAHW_PARAM_LICENSE_PARAMS,
     QAHW_PARAM_DTMF_GEN,
     QAHW_PARAM_TTY_MODE,
     QAHW_PARAM_HPCM,
 } qahw_param_id;
+
+typedef union {
+    struct qahw_out_render_window_param render_window_params;
+} qahw_loopback_param_payload;
+
+typedef enum {
+    QAHW_PARAM_LOOPBACK_RENDER_WINDOW /* PARAM to set render window */
+} qahw_loopback_param_id;
 
 /** stream direction enumeration */
 typedef enum {
