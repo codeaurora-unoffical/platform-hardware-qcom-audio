@@ -36,6 +36,8 @@
 #include <cutils/log.h>
 #include <hardware/audio_effect.h>
 #include <cutils/properties.h>
+#include <unistd.h>
+#include <pthread.h>
 
 #define PRIMARY_HAL_PATH XSTR(LIB_AUDIO_HAL)
 #define XSTR(x) STR(x)

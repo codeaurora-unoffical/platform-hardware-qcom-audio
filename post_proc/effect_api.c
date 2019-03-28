@@ -61,6 +61,8 @@
 #include <sound/audio_effects.h>
 #include <sound/devdep_params.h>
 #include <linux/msm_audio.h>
+#include <stdio.h>
+#include <sys/ioctl.h>
 
 #include "effect_api.h"
 

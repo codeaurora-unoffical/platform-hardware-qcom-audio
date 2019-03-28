@@ -23,6 +23,8 @@ LOCAL_CFLAGS+= -O2 -fvisibility=hidden
 LOCAL_CFLAGS+= -Wno-error
 
 LOCAL_CFLAGS += -Wno-unused-variable -Wno-unused-parameter -Wno-gnu-designator -Wno-unused-value -Wno-typedef-redefinition
+LOCAL_HEADER_LIBRARIES := libsystem_headers \
+                          libhardware_headers
 
 LOCAL_SHARED_LIBRARIES := \
 	libcutils \

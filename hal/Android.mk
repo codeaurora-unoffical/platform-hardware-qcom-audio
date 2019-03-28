@@ -44,6 +44,8 @@ ifneq ($(filter msm8909,$(TARGET_BOARD_PLATFORM)),)
 endif
 endif
 
+LOCAL_HEADER_LIBRARIES := libhardware_headers
+
 LOCAL_SRC_FILES := \
     audio_hw.c \
     voice.c \
@@ -53,6 +55,10 @@ LOCAL_SRC_FILES := \
 LOCAL_SRC_FILES += audio_extn/audio_extn.c \
                    audio_extn/utils.c
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
+LOCAL_C_INCLUDES += $(TOP)/hardware/libhardware/include/
+LOCAL_C_INCLUDES += $(TOP)/system/media/audio/include/
+LOCAL_C_INCLUDES += $(TOP)/system/core/include/
+
 LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
 LOCAL_CFLAGS += -DUSE_VENDOR_EXTN
 
@@ -60,6 +66,8 @@ ifeq ($(strip $(AUDIO_FEATURE_ENABLED_HDMI_EDID)),true)
     LOCAL_CFLAGS += -DHDMI_EDID
     LOCAL_SRC_FILES += edid.c
 endif
+
+LOCAL_HEADER_LIBRARIES := libhardware_headers
 
 ifeq ($(strip $(AUDIO_USE_LL_AS_PRIMARY_OUTPUT)),true)
     LOCAL_CFLAGS += -DUSE_LL_AS_PRIMARY_OUTPUT

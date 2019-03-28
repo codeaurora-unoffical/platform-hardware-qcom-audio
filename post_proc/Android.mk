@@ -35,6 +35,10 @@ ifneq ($(strip $(AUDIO_FEATURE_DISABLED_DTS_EAGLE)),true)
     LOCAL_CFLAGS += -DDTS_EAGLE
 endif
 
+LOCAL_HEADER_LIBRARIES := libhardware_headers \
+                           libsystem_headers \
+                           libutils_headers
+
 LOCAL_SHARED_LIBRARIES := \
     libcutils \
     liblog \
@@ -97,6 +101,9 @@ LOCAL_SRC_FILES:= \
 
 LOCAL_CFLAGS+= -O2 -fvisibility=hidden
 LOCAL_CFLAGS+= -Wno-error
+LOCAL_HEADER_LIBRARIES := libhardware_headers \
+                          libsystem_headers \
+                          libutils_headers
 
 LOCAL_SHARED_LIBRARIES := \
         libcutils \
