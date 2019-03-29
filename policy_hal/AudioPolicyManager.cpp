@@ -295,6 +295,7 @@ status_t AudioPolicyManagerCustom::setDeviceConnectionStateInt(audio_devices_t d
                newDevice = (audio_devices_t)(getNewOutputDevice(mPrimaryOutput, false));
                mPrimaryOutput->changeRefCount(AUDIO_STREAM_MUSIC, -1);
                mFMIsActive = false;
+               mPrevFMVolumeDb = 0.0f;
            }
            AudioParameter param = AudioParameter();
            param.addInt(String8("handle_fm"), (int)newDevice);
