@@ -1330,10 +1330,10 @@ void platform_set_echo_reference(struct audio_device *adev, bool enable,
     }
 
     if (enable) {
-        if (!voice_extn_is_compress_voip_supported()) {
+#ifndef COMPRESS_VOIP_ENABLED
             if (adev->mode == AUDIO_MODE_IN_COMMUNICATION)
                 strlcat(ec_ref_mixer_path, "-voip", MIXER_PATH_MAX_LENGTH);
-        }
+#endif
         strlcpy(my_data->ec_ref_mixer_path, ec_ref_mixer_path,
                     MIXER_PATH_MAX_LENGTH);
         /*
