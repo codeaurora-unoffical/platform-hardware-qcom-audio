@@ -75,6 +75,7 @@
 
 #define MAX_SUPPORTED_CHANNEL_MASKS 8
 #define MAX_SUPPORTED_FORMATS 3
+#define MAX_SUPPORTED_SAMPLE_RATES 7
 #define DEFAULT_HDMI_OUT_CHANNELS   2
 
 #define MAX_PERF_LOCK_OPTS 20
@@ -234,6 +235,7 @@ struct stream_out {
     /* Array of supported channel mask configurations. +1 so that the last entry is always 0 */
     audio_channel_mask_t supported_channel_masks[MAX_SUPPORTED_CHANNEL_MASKS + 1];
     audio_format_t supported_formats[MAX_SUPPORTED_FORMATS+1];
+    uint32_t supported_sample_rates[MAX_SUPPORTED_SAMPLE_RATES+1];
     bool muted;
     uint64_t written; /* total frames written, not cleared when entering standby */
     audio_io_handle_t handle;
@@ -294,6 +296,10 @@ struct stream_in {
 
     struct audio_device *dev;
     card_status_t card_status;
+    /* Array of supported channel mask configurations. +1 so that the last entry is always 0 */
+    audio_channel_mask_t supported_channel_masks[MAX_SUPPORTED_CHANNEL_MASKS + 1];
+    audio_format_t supported_formats[MAX_SUPPORTED_FORMATS + 1];
+    uint32_t supported_sample_rates[MAX_SUPPORTED_SAMPLE_RATES + 1];
 };
 
 typedef enum {

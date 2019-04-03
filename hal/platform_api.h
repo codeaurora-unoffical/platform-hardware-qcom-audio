@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2016, 2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2016, 2018, 2019 The Linux Foundation. All rights reserved.
  * Not a contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -29,6 +29,12 @@
 struct be_dai_name_struct {
     unsigned int be_id;
     char be_name[BE_DAI_NAME_MAX_LENGTH];
+};
+
+struct mic_info {
+    char device_id[AUDIO_MICROPHONE_ID_MAX_LEN];
+    size_t channel_count;
+    audio_microphone_channel_mapping_t channel_mapping[AUDIO_CHANNEL_COUNT_MAX];
 };
 
 enum card_status_t;
@@ -144,4 +150,16 @@ void platform_set_gsm_mode(void *platform, bool enable);
 int platform_hal_plugin_enable(void *platform, struct stream_out *out, bool enable);
 bool platform_get_eccarstate(void *platform);
 int platform_set_multi_channel_ec_pri_mic_ch(void *platform);
+
+bool platform_set_microphone_characteristic(void *platform,
+                                            struct audio_microphone_characteristic_t mic);
+bool platform_set_microphone_map(void *platform, snd_device_t in_snd_device,
+                                 const struct mic_info *info);
+int platform_get_microphones(void *platform,
+                             struct audio_microphone_characteristic_t *mic_array,
+                             size_t *mic_count);
+int platform_get_active_microphones(void *platform, unsigned int channels,
+                                    audio_usecase_t usecase,
+                                    struct audio_microphone_characteristic_t *mic_array,
+                                    size_t *mic_count);
 #endif // AUDIO_PLATFORM_API_H

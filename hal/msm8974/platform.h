@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2015, 2019 The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -370,6 +370,9 @@ enum {
 #endif
 
 #define LIB_CSD_CLIENT "libcsd-client.so"
+
+#define AUDIO_MAKE_STRING_FROM_ENUM(X)   { #X, X }
+
 /* CSD-CLIENT related functions */
 typedef int (*init_t)(bool);
 typedef int (*deinit_t)();
