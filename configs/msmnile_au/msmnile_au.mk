@@ -29,8 +29,8 @@ DTS_CODEC_M_ := false
 MM_AUDIO_ENABLED_SAFX := true
 AUDIO_FEATURE_ENABLED_HW_ACCELERATED_EFFECTS := false
 AUDIO_FEATURE_ENABLED_AUDIOSPHERE := true
-AUDIO_FEATURE_ENABLED_USB_TUNNEL_AUDIO := true
-AUDIO_FEATURE_ENABLED_SPLIT_A2DP := true
+AUDIO_FEATURE_ENABLED_USB_TUNNEL := true
+AUDIO_FEATURE_ENABLED_A2DP_OFFLOAD := true
 AUDIO_FEATURE_ENABLED_3D_AUDIO := false
 DOLBY_ENABLE := false
 endif
@@ -38,7 +38,7 @@ endif
 USE_XML_AUDIO_POLICY_CONF := 1
 BOARD_SUPPORTS_SOUND_TRIGGER := true
 AUDIO_FEATURE_ENABLED_INSTANCE_ID := true
-AUDIO_USE_LL_AS_PRIMARY_OUTPUT := true
+AUDIO_USE_DEEP_AS_PRIMARY_OUTPUT := false
 AUDIO_FEATURE_ENABLED_VBAT_MONITOR := true
 AUDIO_FEATURE_ENABLED_ANC_HEADSET := true
 AUDIO_FEATURE_ENABLED_CUSTOMSTEREO := true
@@ -204,6 +204,18 @@ vendor.audio.flac.sw.decoder.24bit=true
 PRODUCT_PROPERTY_OVERRIDES += \
 persist.vendor.bt.a2dp_offload_cap=sbc-aptx-aptxtws-aptxhd-aac-ldac
 
+# A2DP offload support
+PRODUCT_PROPERTY_OVERRIDES += \
+ro.bluetooth.a2dp_offload.supported=true
+
+# Disable A2DP offload
+PRODUCT_PROPERTY_OVERRIDES += \
+persist.bluetooth.a2dp_offload.disabled=false
+
+# A2DP offload DSP supported encoder list
+PRODUCT_PROPERTY_OVERRIDES += \
+persist.bluetooth.a2dp_offload.cap=sbc-aac-aptx-aptxhd-ldac
+
 #enable software decoders for ALAC and APE
 PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.use.sw.alac.decoder=true
@@ -249,6 +261,14 @@ vendor.audio.enable.mirrorlink=false
 #enable voicecall speaker stereo
 PRODUCT_PROPERTY_OVERRIDES += \
 persist.vendor.audio.voicecall.speaker.stereo=true
+
+#enable headset calibration
+PRODUCT_PROPERTY_OVERRIDES += \
+audio.volume.headset.gain.depcal=true
+
+#enable dualmic fluence for voice communication
+PRODUCT_PROPERTY_OVERRIDES += \
+persist.audio.fluence.voicecomm=true
 
 # for HIDL related packages
 PRODUCT_PACKAGES += \

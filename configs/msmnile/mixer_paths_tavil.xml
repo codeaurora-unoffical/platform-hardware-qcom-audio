@@ -1442,7 +1442,6 @@
         <path name="audio-record-compress2 bt-sco" />
     </path>
 
-
     <path name="low-latency-record">
       <ctl name="MultiMedia8 Mixer SLIM_0_TX" value="1" />
     </path>
