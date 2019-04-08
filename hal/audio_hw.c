@@ -2424,10 +2424,6 @@ static int out_set_volume(struct audio_stream_out *stream, float left,
              * Mute is 0 and unmute 1
              */
             audio_extn_dolby_set_passt_volume(out, (left == 0.0f));
-        } else if (strcmp(out->address, "BUS00_MEDIA") == 0 &&
-                   out->car_audio_stream == CAR_AUDIO_STREAM_MEDIA) {
-            ALOGD("%s: Ignore offload set volume for media bus stream", __func__);
-            return 0;
         } else {
             char mixer_ctl_name[128];
             struct audio_device *adev = out->dev;
