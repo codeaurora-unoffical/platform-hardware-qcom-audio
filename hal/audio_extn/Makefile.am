@@ -50,7 +50,9 @@ audio_compress_capture_la_LDFLAGS = -module -shared -avoid-version
 ################################## SSREC LIB ####################################
 AM_CFLAGS +=  -I ${WORKSPACE}/audio/mm-audio-noship/surround_sound_3mic/libsurround_3mic_proc/surround_rec_interface/inc/
 
+if SSR
 c_sources += ssr.c
+endif
 library_include_HEADERS = $(h_sources)
 library_includedir = $(includedir)
 
