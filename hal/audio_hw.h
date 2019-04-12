@@ -678,6 +678,10 @@ streams_input_ctxt_t *in_get_stream(struct audio_device *dev,
 streams_output_ctxt_t *out_get_stream(struct audio_device *dev,
                                   audio_io_handle_t output);
 
+size_t get_output_period_size(uint32_t sample_rate,
+                            audio_format_t format,
+                            int channel_count,
+                            int duration /*in millisecs*/);
 
 #define LITERAL_TO_STRING(x) #x
 #define CHECK(condition) LOG_ALWAYS_FATAL_IF(!(condition), "%s",\
