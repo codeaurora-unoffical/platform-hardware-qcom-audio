@@ -3673,10 +3673,10 @@ static size_t get_input_buffer_size(uint32_t sample_rate,
                                   is_low_latency);
 }
 
-static size_t get_output_period_size(uint32_t sample_rate,
-                                    audio_format_t format,
-                                    int channel_count,
-                                    int duration /*in millisecs*/)
+size_t get_output_period_size(uint32_t sample_rate,
+                              audio_format_t format,
+                              int channel_count,
+                              int duration /*in millisecs*/)
 {
     size_t size = 0;
     uint32_t bytes_per_sample = audio_bytes_per_sample(format);
