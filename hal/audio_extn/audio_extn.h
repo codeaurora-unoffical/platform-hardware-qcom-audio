@@ -1232,7 +1232,14 @@ int audio_extn_ext_hw_plugin_get_mic_mute(void *plugin, bool *mute);
 int audio_extn_ext_hw_plugin_set_audio_gain(void *plugin,
             struct audio_usecase *usecase, uint32_t gain);
 #endif
-void audio_extn_set_custom_mtmx_params(struct audio_device *adev,
+
+void audio_extn_set_custom_mtmx_params_v2(struct audio_device *adev,
                                         struct audio_usecase *usecase,
                                         bool enable);
+void audio_extn_set_custom_mtmx_params_v1(struct audio_device *adev,
+                                        struct audio_usecase *usecase,
+                                        bool enable);
+snd_device_t audio_extn_get_loopback_snd_device(struct audio_device *adev,
+                                                struct audio_usecase *usecase,
+                                                int channel_count);
 #endif /* AUDIO_EXTN_H */
