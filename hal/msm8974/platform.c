@@ -1331,8 +1331,8 @@ void platform_set_echo_reference(struct audio_device *adev, bool enable,
 
     if (enable) {
 #ifndef COMPRESS_VOIP_ENABLED
-        if (adev->mode == AUDIO_MODE_IN_COMMUNICATION)
-            strlcat(ec_ref_mixer_path, "-voip", MIXER_PATH_MAX_LENGTH);
+            if (adev->mode == AUDIO_MODE_IN_COMMUNICATION)
+                strlcat(ec_ref_mixer_path, "-voip", MIXER_PATH_MAX_LENGTH);
 #endif
         strlcpy(my_data->ec_ref_mixer_path, ec_ref_mixer_path,
                     MIXER_PATH_MAX_LENGTH);
@@ -8543,6 +8543,9 @@ int platform_send_audio_cal(void* platform, acdb_audio_cal_cfg_t* cal,
         ret = -EINVAL;
         goto ERROR_RETURN;
     }
+    if ((cal->acdb_dev_id == ACDB_ID_STEREO_SPEAKER_DEVICE) &&
+       (cal->topo_id == TRUMPET_TOPOLOGY))
+        audio_extn_ip_hdlr_copp_update_cal_info((void*)cal, data);
 
     if (my_data->acdb_set_audio_cal) {
         // persist audio cal in local cache
