@@ -678,6 +678,14 @@ void *start_stream_playback (void* stream_data)
 
     fprintf(log_file, "stream %d: open output stream is success, out_handle %p\n", params->stream_index, params->out_handle);
 
+    if (audio_is_bluetooth_sco_device(params->output_device)) {
+        char param1[50];
+        int ret = -1;
+        snprintf(param1, sizeof(param1), "bt_wbs=%s", ((params->bt_wbs == 1) ? "on" : "off"));
+        ret = qahw_set_parameters(params->qahw_out_hal_handle, param1);
+        fprintf(log_file, " param %s set to hal with return value %d\n", param1, ret);
+    }
+
     if (kpi_mode == true) {
         measure_kpi_values(params->out_handle, params->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD);
         rc = qahw_close_output_stream(params->out_handle);
@@ -1634,6 +1642,7 @@ void usage() {
     printf(" -A  --bt-addr <bt device addr>            - Required to set bt device adress for aptx decoder\n\n");
     printf(" -q  --drift query                         - Required for querying avtime vs hdmi drift\n");
     printf(" -Q  --drift query and correction          - Enable Drift query and correction\n");
+    printf(" -z  --bt-wbs                              - Set bt_wbs param\n\n");
     printf(" -P                                        - Argument to do multi-stream playback, currently 2 streams are supported to run concurrently\n");
     printf("                                             Put -P and mention required attributes for the next stream\n");
     printf("                                             0:bassboost 1:virtualizer 2:equalizer 3:visualizer(NA) 4:reverb 5:audiosphere others:null");
@@ -2185,6 +2194,7 @@ int main(int argc, char* argv[]) {
         {"device-config", required_argument,    0, 'C'},
         {"play-list",    required_argument,    0, 'g'},
         {"help",          no_argument,          0, 'h'},
+        {"bt-wbs",        no_argument,    0, 'z'},
         {0, 0, 0, 0}
     };
 
@@ -2207,7 +2217,7 @@ int main(int argc, char* argv[]) {
 
     while ((opt = getopt_long(argc,
                               argv,
-                              "-f:r:c:b:d:s:v:V:l:t:a:w:k:PD:KF:Ee:A:u:m:S:C:p::x:y:qQh:i:h:g:O:",
+                              "-f:r:c:b:d:s:v:V:l:t:a:w:k:PD:KF:Ee:A:u:m:S:C:p::x:y:qQzh:i:h:g:O:",
                               long_options,
                               &option_index)) != -1) {
 
@@ -2239,6 +2249,9 @@ int main(int argc, char* argv[]) {
             break;
         case 'V':
             enable_dump = atof(optarg);
+            break;
+        case 'z':
+            stream_param[i].bt_wbs = true;
             break;
         case 'l':
             log_filename = optarg;
@@ -2580,9 +2593,18 @@ int main(int argc, char* argv[]) {
                 }
         }
 
-        if (stream->output_device != AUDIO_DEVICE_NONE)
-             if ((stream->qahw_out_hal_handle = load_hal(stream->output_device)) <= 0)
+        if (stream->output_device != AUDIO_DEVICE_NONE) {
+            if ((stream->qahw_out_hal_handle = load_hal(stream->output_device)) <= 0)
                 goto exit;
+
+            /* Turn BT_SCO on if bt_sco recording */
+            if(audio_is_bluetooth_sco_device(stream->output_device)) {
+                int ret = -1;
+                const char * bt_sco_on = "BT_SCO=on";
+                ret = qahw_set_parameters(stream->qahw_out_hal_handle, bt_sco_on);
+                fprintf(log_file, " param %s set to hal with return value %d\n", bt_sco_on, ret);
+            }
+        }
 
         if (stream->input_device != AUDIO_DEVICE_NONE)
             if ((stream->qahw_in_hal_handle = load_hal(stream->input_device))== 0)
