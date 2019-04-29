@@ -5,7 +5,6 @@ AM_CFLAGS = -I ${WORKSPACE}/external/tinyalsa/include \
         -I $(top_srcdir)/hal \
         -I $(top_srcdir)/hal/audio_extn \
         -I $(top_srcdir)/hal/voice_extn \
-        -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/audio-kernel \
         -I $(top_srcdir)/hal/${TARGET_PLATFORM}
 
 h_sources = audio_defs.h \
