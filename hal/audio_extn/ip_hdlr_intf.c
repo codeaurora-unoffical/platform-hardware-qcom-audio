@@ -223,7 +223,8 @@ bool audio_extn_ip_hdlr_intf_supported(audio_format_t format,
                     bool is_transcode_loopback)
 {
 
-    if ((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_DOLBY_TRUEHD) {
+    if (((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_DOLBY_TRUEHD) ||
+            ((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_MAT)) {
         asm_event_enable = true;
         return true;
     } else if ((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_MAT) {

@@ -42,6 +42,10 @@
 #define AUDIO_DEVICE_IN_HDMI_ARC (AUDIO_DEVICE_BIT_IN | 0x8000000)
 #endif
 
+#ifndef AUDIO_FORMAT_MAT
+#define AUDIO_FORMAT_MAT 0x30000000UL
+#endif
+
 #define MAX_RECORD_SESSIONS 4
 
 static int sock_event_fd = -1;
@@ -173,7 +177,8 @@ uint32_t check_audio_format(uint32_t audio_format)
 {
     if ((audio_format == AUDIO_FORMAT_AC3) ||
         (audio_format == AUDIO_FORMAT_E_AC3) ||
-        (audio_format == AUDIO_FORMAT_DOLBY_TRUEHD))
+        (audio_format == AUDIO_FORMAT_DOLBY_TRUEHD) ||
+        (audio_format == AUDIO_FORMAT_MAT))
         return audio_format;
 
     fprintf(log_file, "unsupported audio_format: 0x%0x, using AC3\n",
