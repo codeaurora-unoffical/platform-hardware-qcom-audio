@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2015, 2019 The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -3048,7 +3048,7 @@ static char* adev_get_parameters(const struct audio_hw_device *dev,
     char *str;
     char value[256] = {0};
     int ret = 0;
-
+    ALOGD("%s:%s", __func__, keys);
     if (!query || !reply) {
         ALOGE("adev_get_parameters: failed to create query or reply");
         return NULL;
@@ -3077,7 +3077,7 @@ exit:
     str_parms_destroy(query);
     str_parms_destroy(reply);
 
-    ALOGV("%s: exit: returns - %s", __func__, str);
+    ALOGD("%s: exit: returns - %s", __func__, str);
     return str;
 }
 
