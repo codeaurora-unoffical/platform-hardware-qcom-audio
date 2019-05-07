@@ -1543,10 +1543,10 @@ void platform_set_echo_reference(struct audio_device *adev, bool enable,
     }
 
     if (enable) {
-        if (!voice_extn_is_compress_voip_supported()) {
+#ifndef COMPRESS_VOIP_ENABLED
             if (adev->mode == AUDIO_MODE_IN_COMMUNICATION)
-                strlcat(ec_ref_mixer_path, "-voip", MIXER_PATH_MAX_LENGTH);    
-        }
+                strlcat(ec_ref_mixer_path, "-voip", MIXER_PATH_MAX_LENGTH);
+#endif
         strlcpy(my_data->ec_ref_mixer_path, ec_ref_mixer_path,
                     MIXER_PATH_MAX_LENGTH);
         /*
@@ -2870,8 +2870,6 @@ void *platform_init(struct audio_device *adev)
             ALOGD("ACDB initialization failed");
         }
     }
-    /* init keep-alive for compress passthru */
-    audio_extn_keep_alive_init(adev);
 
 #ifdef FLICKER_SENSOR_INPUT
     configure_flicker_sensor_input(adev->mixer);
@@ -2966,6 +2964,8 @@ acdb_init_fail:
         strdup("SLIM_0_RX Format");
     my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].samplerate_mixer_ctl =
         strdup("SLIM_0_RX SampleRate");
+    my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].channels_mixer_ctl =
+        strdup("SLIM_0_RX Channels");
 
     my_data->current_backend_cfg[DSD_NATIVE_BACKEND].bitwidth_mixer_ctl =
         strdup("SLIM_2_RX Format");
@@ -9262,6 +9262,9 @@ int platform_send_audio_cal(void* platform, acdb_audio_cal_cfg_t* cal,
         ret = -EINVAL;
         goto ERROR_RETURN;
     }
+    if ((cal->acdb_dev_id == ACDB_ID_STEREO_SPEAKER_DEVICE) &&
+       (cal->topo_id == TRUMPET_TOPOLOGY))
+        audio_extn_ip_hdlr_copp_update_cal_info((void*)cal, data);
 
     if (my_data->acdb_set_audio_cal) {
         // persist audio cal in local cache

@@ -407,6 +407,7 @@ struct stream_out {
 #ifndef LINUX_ENABLED
     error_log_t *error_log;
 #endif
+    bool pspd_coeff_sent;
 };
 
 struct stream_in {
@@ -440,6 +441,8 @@ struct stream_in {
     struct audio_device *dev;
     card_status_t card_status;
     int capture_started;
+
+    volatile int32_t capture_stopped;
 
     /* Array of supported channel mask configurations. +1 so that the last entry is always 0 */
     audio_channel_mask_t supported_channel_masks[MAX_SUPPORTED_CHANNEL_MASKS + 1];
@@ -616,7 +619,7 @@ struct audio_device {
     void *ext_hw_plugin;
     struct listnode active_inputs_list;
     struct listnode active_outputs_list;
-
+    bool use_old_pspd_mix_ctrl;
     /* logging */
     snd_device_t last_logged_snd_device[AUDIO_USECASE_MAX][2]; /* [out, in] */
 
@@ -678,6 +681,10 @@ streams_input_ctxt_t *in_get_stream(struct audio_device *dev,
 streams_output_ctxt_t *out_get_stream(struct audio_device *dev,
                                   audio_io_handle_t output);
 
+size_t get_output_period_size(uint32_t sample_rate,
+                            audio_format_t format,
+                            int channel_count,
+                            int duration /*in millisecs*/);
 
 #define LITERAL_TO_STRING(x) #x
 #define CHECK(condition) LOG_ALWAYS_FATAL_IF(!(condition), "%s",\

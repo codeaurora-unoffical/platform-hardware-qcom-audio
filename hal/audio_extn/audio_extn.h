@@ -1271,4 +1271,5 @@ void audio_extn_send_dual_mono_mixing_coefficients(struct stream_out *out);
 
 #define isRunningWithVendorEnhancedFramework() (0)
 
+void audio_extn_set_cpu_affinity();
 #endif /* AUDIO_EXTN_H */
