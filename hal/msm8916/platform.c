@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2015, 2019 The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -335,6 +335,7 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_SPEAKER_QMIC_AEC] = "quad-mic",
     [SND_DEVICE_IN_SPEAKER_QMIC_NS] = "quad-mic",
     [SND_DEVICE_IN_SPEAKER_QMIC_AEC_NS] = "quad-mic",
+    [SND_DEVICE_IN_EC_REF_LOOPBACK_MONO] = "ec-ref-loopback-mono",
 };
 
 /* ACDB IDs (audio DSP path configuration IDs) for each sound device */
@@ -432,6 +433,7 @@ static int acdb_device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_SPEAKER_QMIC_AEC] = 126,
     [SND_DEVICE_IN_SPEAKER_QMIC_NS] = 127,
     [SND_DEVICE_IN_SPEAKER_QMIC_AEC_NS] = 129,
+    [SND_DEVICE_IN_EC_REF_LOOPBACK_MONO] = 4,
 };
 
 struct snd_device_index {
@@ -529,6 +531,7 @@ struct snd_device_index snd_device_name_index[SND_DEVICE_MAX] = {
     {TO_NAME_INDEX(SND_DEVICE_IN_SPEAKER_QMIC_AEC)},
     {TO_NAME_INDEX(SND_DEVICE_IN_SPEAKER_QMIC_NS)},
     {TO_NAME_INDEX(SND_DEVICE_IN_SPEAKER_QMIC_AEC_NS)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_EC_REF_LOOPBACK_MONO)},
 };
 
 #define NO_COLS 2
@@ -1261,7 +1264,8 @@ void *platform_init(struct audio_device *adev)
     property_get("ro.qc.sdk.audio.fluencetype", my_data->fluence_cap, "");
     if (!strncmp("fluencepro", my_data->fluence_cap, sizeof("fluencepro"))) {
         my_data->fluence_type = FLUENCE_QUAD_MIC | FLUENCE_DUAL_MIC;
-    } else if (!strncmp("fluence", my_data->fluence_cap, sizeof("fluence"))) {
+    } else if ((!strncmp("fluence", my_data->fluence_cap, sizeof("fluence"))) ||
+            (!strncmp("fluenceffv", my_data->fluence_cap, sizeof("fluenceffv")))) {
         my_data->fluence_type = FLUENCE_DUAL_MIC;
     } else {
         my_data->fluence_type = FLUENCE_NONE;
@@ -1374,8 +1378,8 @@ acdb_init_fail:
 
     /* Read one time ssr property */
     audio_extn_ssr_update_enabled();
+    audio_extn_ffv_update_enabled();
     audio_extn_spkr_prot_init(adev);
-
     /* init dap hal */
     audio_extn_dap_hal_init(adev->snd_card);
 
@@ -1421,6 +1425,8 @@ int platform_get_snd_device_name_extn(void *platform, snd_device_t snd_device,
     if (snd_device >= SND_DEVICE_MIN && snd_device < SND_DEVICE_MAX) {
         strlcpy(device_name, device_table[snd_device], DEVICE_NAME_MAX_SIZE);
         hw_info_append_hw_type(my_data->hw_info, snd_device, device_name);
+        if (snd_device == SND_DEVICE_IN_EC_REF_LOOPBACK_MONO)
+            audio_extn_ffv_append_ec_ref_dev_name(device_name);
     } else {
         strlcpy(device_name, "", DEVICE_NAME_MAX_SIZE);
         return -EINVAL;
@@ -1645,6 +1651,17 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
                                      sample_rate);
     }
     return 0;
+}
+int platform_get_ec_ref_loopback_snd_device(int channel_count)
+{
+    snd_device_t snd_device;
+
+    if (channel_count == 1)
+        snd_device = SND_DEVICE_IN_EC_REF_LOOPBACK_MONO;
+    else
+        snd_device = SND_DEVICE_NONE;
+
+    return snd_device;
 }
 
 int platform_switch_voice_call_device_pre(void *platform)
@@ -2287,7 +2304,7 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
                 channel_count == 1 ) {
             ALOGD("Record path active");
             if(my_data->fluence_in_audio_rec) {
-                if(my_data->fluence_type & FLUENCE_QUAD_MIC) {
+                if (my_data->fluence_type & FLUENCE_QUAD_MIC) {
                     ALOGD(" snd_device = SND_DEVICE_IN_HANDSET_QMIC");
                     snd_device = SND_DEVICE_IN_HANDSET_QMIC;
                     platform_set_echo_reference(adev->platform, true);
@@ -2604,6 +2621,7 @@ int platform_set_parameters(void *platform, struct str_parms *parms)
         }
     }
 #endif
+    audio_extn_ffv_set_parameters(my_data->adev, parms);
     ALOGV("%s: exit with code(%d)", __func__, ret);
     return ret;
 }

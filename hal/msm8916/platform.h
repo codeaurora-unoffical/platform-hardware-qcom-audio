@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2016, 2019 The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -153,8 +153,8 @@ enum {
     SND_DEVICE_IN_SPEAKER_QMIC_AEC,
     SND_DEVICE_IN_SPEAKER_QMIC_NS,
     SND_DEVICE_IN_SPEAKER_QMIC_AEC_NS,
+    SND_DEVICE_IN_EC_REF_LOOPBACK_MONO,
     SND_DEVICE_IN_END,
-
     SND_DEVICE_MAX = SND_DEVICE_IN_END,
 
 };

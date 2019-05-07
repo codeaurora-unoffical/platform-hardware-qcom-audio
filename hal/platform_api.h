@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2015, 2019 The Linux Foundation. All rights reserved.
  * Not a contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -100,4 +100,5 @@ void platform_get_device_to_be_id_map(int **be_id_map, int *length);
 
 int platform_set_audio_device_interface(const char * device_name, const char *intf_name,
                                         const char * codec_type);
+int platform_get_ec_ref_loopback_snd_device(int channel_count);
 #endif // AUDIO_PLATFORM_API_H

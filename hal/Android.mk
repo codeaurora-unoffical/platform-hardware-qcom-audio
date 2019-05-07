@@ -239,6 +239,12 @@ ifeq ($(strip $(BOARD_SUPPORTS_SOUND_TRIGGER)),true)
     LOCAL_SRC_FILES += audio_extn/soundtrigger.c
 endif
 
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_FFV)), true)
+    LOCAL_CFLAGS += -DFFV_ENABLED
+    LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio-noship/include/ffv
+    LOCAL_SRC_FILES += audio_extn/ffv.c
+endif
+
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_AUXPCM_BT)),true)
     LOCAL_CFLAGS += -DAUXPCM_BT_ENABLED
 endif
