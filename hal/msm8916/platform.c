@@ -1171,8 +1171,7 @@ static bool is_wsa_found(int *wsaCount)
     }
     closedir(tdir);
     chdir(cwd); /* Restore current working dir */
-    /*ToDo- return proper value when sys node for WSA is enabled*/
-    return true;
+    return found;
 }
 
 void *platform_init(struct audio_device *adev)
