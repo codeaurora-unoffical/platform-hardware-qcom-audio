@@ -69,8 +69,10 @@
 #define ADM_LIBRARY_PATH "/vendor/lib/libadm.so"
 #endif
 
+#ifdef LINUX_ENABLED
 #define ULONG_MAX (__LONG_MAX__ *2UL+1UL)
 #define PATH_MAX 4096
+#endif
 
 /* Flags used to initialize acdb_settings variable that goes to ACDB library */
 #define NONE_FLAG            0x00000000

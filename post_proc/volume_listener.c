@@ -814,7 +814,7 @@ static int vol_prc_lib_release(effect_handle_t handle)
     pthread_mutex_lock(&vol_listner_init_lock);
 
     if (recv_contex->desc == NULL) {
-        ALOGE("%s: Got NULL descriptor");
+        ALOGE("%s: Got NULL descriptor", __func__);
         dump_list_l();
         pthread_mutex_unlock(&vol_listner_init_lock);
         return status;
