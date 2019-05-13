@@ -2544,6 +2544,8 @@ acdb_init_fail:
         strdup("SLIM_0_RX Format");
     my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].samplerate_mixer_ctl =
         strdup("SLIM_0_RX SampleRate");
+    my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].channels_mixer_ctl =
+        strdup("SLIM_0_RX Channels");
 
     my_data->current_backend_cfg[DSD_NATIVE_BACKEND].bitwidth_mixer_ctl =
         strdup("SLIM_2_RX Format");
@@ -4320,8 +4322,8 @@ snd_device_t platform_get_output_snd_device(void *platform, struct stream_out *o
     } else if (devices & AUDIO_DEVICE_OUT_ANLG_DOCK_HEADSET ||
                devices & AUDIO_DEVICE_OUT_DGTL_DOCK_HEADSET) {
         ALOGD("%s: setting USB hadset channel capability(2) for Proxy", __func__);
-        audio_extn_set_afe_proxy_channel_mixer(adev, 2);
         snd_device = SND_DEVICE_OUT_USB_HEADSET;
+        audio_extn_set_afe_proxy_channel_mixer(adev, 2, snd_device);
     } else if (devices &
                 (AUDIO_DEVICE_OUT_USB_DEVICE |
                  AUDIO_DEVICE_OUT_USB_HEADSET)) {
@@ -4336,8 +4338,8 @@ snd_device_t platform_get_output_snd_device(void *platform, struct stream_out *o
     } else if (devices & AUDIO_DEVICE_OUT_PROXY) {
         channel_count = audio_extn_get_afe_proxy_channel_count();
         ALOGD("%s: setting sink capability(%d) for Proxy", __func__, channel_count);
-        audio_extn_set_afe_proxy_channel_mixer(adev, channel_count);
         snd_device = SND_DEVICE_OUT_AFE_PROXY;
+        audio_extn_set_afe_proxy_channel_mixer(adev, channel_count, snd_device);
     } else {
         ALOGE("%s: Unknown device(s) %#x", __func__, devices);
     }
