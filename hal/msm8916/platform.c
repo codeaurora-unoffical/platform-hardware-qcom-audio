@@ -132,8 +132,8 @@ char * dsp_only_decoders_mime[] = {
 };
 
 enum {
-	VOICE_FEATURE_SET_DEFAULT,
-	VOICE_FEATURE_SET_VOLUME_BOOST
+    VOICE_FEATURE_SET_DEFAULT,
+    VOICE_FEATURE_SET_VOLUME_BOOST
 };
 
 struct audio_block_header
@@ -1654,7 +1654,7 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
 }
 int platform_get_ec_ref_loopback_snd_device(int channel_count)
 {
-    snd_device_t snd_device;
+    snd_device_t snd_device = SND_DEVICE_NONE;
 
     if (channel_count == 1)
         snd_device = SND_DEVICE_IN_EC_REF_LOOPBACK_MONO;
@@ -1928,7 +1928,7 @@ snd_device_t platform_get_output_snd_device(void *platform, audio_devices_t devi
                         AUDIO_DEVICE_OUT_SPEAKER)) {
             snd_device = SND_DEVICE_OUT_SPEAKER_AND_HEADPHONES;
         } else if (devices == (AUDIO_DEVICE_OUT_LINE |
-	                       AUDIO_DEVICE_OUT_SPEAKER)) {
+                               AUDIO_DEVICE_OUT_SPEAKER)) {
             snd_device = SND_DEVICE_OUT_SPEAKER_AND_LINE;
         } else if (devices == (AUDIO_DEVICE_OUT_WIRED_HEADSET |
                                AUDIO_DEVICE_OUT_SPEAKER)) {

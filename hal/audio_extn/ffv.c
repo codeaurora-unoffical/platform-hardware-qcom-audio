@@ -511,6 +511,9 @@ int32_t audio_extn_ffv_stream_init(struct stream_in *in)
     }
 
     ffvmod.in = in;
+#ifdef RUN_KEEP_ALIVE_IN_ARM_FFV
+    audio_extn_keep_alive_start(KEEP_ALIVE_OUT_PRIMARY);
+#endif
 
 #ifdef FFV_PCM_DUMP
     if (!ffvmod.fp_input) {
@@ -561,6 +564,10 @@ int32_t audio_extn_ffv_stream_deinit()
 
     if (ffvmod.buffers_allocated)
         deallocate_buffers();
+
+#ifdef RUN_KEEP_ALIVE_IN_ARM_FFV
+    audio_extn_keep_alive_stop(KEEP_ALIVE_OUT_PRIMARY);
+#endif
 
     ffvmod.in = NULL;
     ALOGV("%s: exit", __func__);
@@ -899,14 +906,15 @@ void audio_extn_ffv_set_parameters(struct audio_device *adev __unused,
                 ALOGE("%s: Invalid ec ref out device", __func__);
             }
         }
+
         ret = str_parms_get_int(parms, AUDIO_PARAMETER_DEVICE_DISCONNECT, &val);
         if (ret >= 0) {
-            str_parms_del(parms, AUDIO_PARAMETER_DEVICE_DISCONNECT);
             if (val & AUDIO_DEVICE_OUT_LINE) {
                 ALOGD("%s: capture ec ref from speaker", __func__);
                 ffvmod.ec_ref_dev = AUDIO_DEVICE_OUT_SPEAKER;
             }
         }
+
         ret = str_parms_get_int(parms, AUDIO_PARAMETER_FFV_CHANNEL_INDEX, &val);
         if (ret >= 0) {
             str_parms_del(parms, AUDIO_PARAMETER_FFV_CHANNEL_INDEX);

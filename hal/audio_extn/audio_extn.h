@@ -340,6 +340,59 @@ int audio_extn_dev_arbi_acquire(snd_device_t snd_device);
 int audio_extn_dev_arbi_release(snd_device_t snd_device);
 #endif
 
+#ifndef HDMI_PASSTHROUGH_ENABLED
+#define audio_extn_passthru_update_stream_configuration(adev, out, buffer, bytes)  (0)
+#define audio_extn_passthru_is_convert_supported(adev, out)                   (0)
+#define audio_extn_passthru_is_passt_supported(adev, out)                     (0)
+#define audio_extn_passthru_is_passthrough_stream(out)                        (0)
+#define audio_extn_passthru_get_buffer_size(info)                             (0)
+#define audio_extn_passthru_set_volume(out, mute)                             (0)
+#define audio_extn_passthru_set_latency(out, latency)                         (0)
+#define audio_extn_passthru_is_supported_format(f) (0)
+#define audio_extn_passthru_should_drop_data(o) (0)
+#define audio_extn_passthru_on_start(o) do {} while(0)
+#define audio_extn_passthru_on_stop(o) do {} while(0)
+#define audio_extn_passthru_on_pause(o) do {} while(0)
+#define audio_extn_passthru_is_enabled() (0)
+#define audio_extn_passthru_is_active() (0)
+#define audio_extn_passthru_set_parameters(a, p) (-ENOSYS)
+#define audio_extn_passthru_init(a) do {} while(0)
+#define audio_extn_passthru_should_standby(o) (1)
+#define audio_extn_passthru_get_channel_count(out) (0)
+#define audio_extn_passthru_update_dts_stream_configuration(out, buffer, bytes) (-ENOSYS)
+#define audio_extn_passthru_is_direct_passthrough(out)  (0)
+#define audio_extn_passthru_is_supported_backend_edid_cfg(adev, out) (0)
+#else
+bool audio_extn_passthru_is_convert_supported(struct audio_device *adev,
+                                                 struct stream_out *out);
+bool audio_extn_passthru_is_passt_supported(struct audio_device *adev,
+                                         struct stream_out *out);
+void audio_extn_passthru_update_stream_configuration(
+        struct audio_device *adev, struct stream_out *out,
+        const void *buffer, size_t bytes);
+bool audio_extn_passthru_is_passthrough_stream(struct stream_out *out);
+int audio_extn_passthru_get_buffer_size(audio_offload_info_t* info);
+int audio_extn_passthru_set_volume(struct stream_out *out, int mute);
+int audio_extn_passthru_set_latency(struct stream_out *out, int latency);
+bool audio_extn_passthru_is_supported_format(audio_format_t format);
+bool audio_extn_passthru_should_drop_data(struct stream_out * out);
+void audio_extn_passthru_on_start(struct stream_out *out);
+void audio_extn_passthru_on_stop(struct stream_out *out);
+void audio_extn_passthru_on_pause(struct stream_out *out);
+int audio_extn_passthru_set_parameters(struct audio_device *adev,
+                                       struct str_parms *parms);
+bool audio_extn_passthru_is_enabled();
+bool audio_extn_passthru_is_active();
+void audio_extn_passthru_init(struct audio_device *adev);
+bool audio_extn_passthru_should_standby(struct stream_out *out);
+int audio_extn_passthru_get_channel_count(struct stream_out *out);
+int audio_extn_passthru_update_dts_stream_configuration(struct stream_out *out,
+        const void *buffer, size_t bytes);
+bool audio_extn_passthru_is_direct_passthrough(struct stream_out *out);
+bool audio_extn_passthru_is_supported_backend_edid_cfg(struct audio_device *adev,
+                                                   struct stream_out *out);
+#endif
+
 #ifndef FFV_ENABLED
 #define audio_extn_ffv_init(adev) (0)
 #define audio_extn_ffv_deinit() (0)
