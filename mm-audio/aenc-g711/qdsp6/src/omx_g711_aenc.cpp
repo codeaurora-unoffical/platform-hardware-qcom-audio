@@ -4018,21 +4018,23 @@ OMX_ERRORTYPE  omx_g711_aenc::empty_this_buffer_proxy
         OMX_LOGV("meta_in.nFlags = 0x%8x\n",meta_in.nFlags);
     }
 
-    memcpy(&data[sizeof(META_IN)],buffer->pBuffer,buffer->nFilledLen);
-    bytes = write(m_drv_fd, data, buffer->nFilledLen+sizeof(META_IN));
-    if (bytes <= 0) {
-        frame_done_cb((OMX_BUFFERHEADERTYPE *)buffer);
+    if (data != NULL) {
+        memcpy(&data[sizeof(META_IN)],buffer->pBuffer,buffer->nFilledLen);
+        bytes = write(m_drv_fd, data, buffer->nFilledLen+sizeof(META_IN));
+        if (bytes <= 0) {
+            frame_done_cb((OMX_BUFFERHEADERTYPE *)buffer);
 
-        if (errno == ENETRESET)
-        {
-            ALOGE("In SSR, return error to close the session");
-            m_cb.EventHandler(&m_cmp,
-                  m_app_data,
-                  OMX_EventError,
-                  OMX_ErrorHardware,
-                  0, NULL );
+            if (errno == ENETRESET)
+            {
+                ALOGE("In SSR, return error to close the session");
+                m_cb.EventHandler(&m_cmp,
+                      m_app_data,
+                      OMX_EventError,
+                      OMX_ErrorHardware,
+                      0, NULL );
+            }
+            return OMX_ErrorNone;
         }
-        return OMX_ErrorNone;
     }
 
     pthread_mutex_lock(&m_state_lock);
