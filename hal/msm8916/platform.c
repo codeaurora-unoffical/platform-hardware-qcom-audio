@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -96,6 +96,7 @@
 #define MIXER_XML_PATH_MSM8909_PM8916 "/vendor/etc/mixer_paths_msm8909_pm8916.xml"
 #define MIXER_XML_PATH_MTP "/vendor/etc/mixer_paths_mtp.xml"
 #define MIXER_XML_PATH_SDM439_PM8953 "/vendor/etc/mixer_paths_sdm439_pm8953.xml"
+#define MIXER_XML_PATH_SDM429_QRD "/vendor/etc/mixer_paths_sdm429_qrd.xml"
 #define MIXER_XML_PATH_SKU2 "/vendor/etc/mixer_paths_qrd_sku2.xml"
 #define PLATFORM_INFO_XML_PATH_EXTCODEC  "/vendor/etc/audio_platform_info_extcodec.xml"
 #define PLATFORM_INFO_XML_PATH_SKUSH "/vendor/etc/audio_platform_info_skush.xml"
@@ -1251,6 +1252,13 @@ static void query_platform(const char *snd_card_name,
                  sizeof("sdm439-sku1-snd-card"))) {
         strlcpy(mixer_xml_path, MIXER_XML_PATH_SDM439_PM8953,
                 sizeof(MIXER_XML_PATH_SDM439_PM8953));
+        msm_device_to_be_id = msm_device_to_be_id_internal_codec;
+        msm_be_id_array_len  =
+            sizeof(msm_device_to_be_id_internal_codec) / sizeof(msm_device_to_be_id_internal_codec[0]);
+    } else if (!strncmp(snd_card_name, "sdm429-qrd-snd-card",
+                 sizeof("sdm429-qrd-snd-card"))) {
+        strlcpy(mixer_xml_path, MIXER_XML_PATH_SDM429_QRD,
+                sizeof(MIXER_XML_PATH_SDM429_QRD));
         msm_device_to_be_id = msm_device_to_be_id_internal_codec;
         msm_be_id_array_len  =
             sizeof(msm_device_to_be_id_internal_codec) / sizeof(msm_device_to_be_id_internal_codec[0]);
