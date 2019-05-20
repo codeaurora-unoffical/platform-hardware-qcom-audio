@@ -665,9 +665,9 @@ void *start_stream_playback (void* stream_data)
         }
         return NULL;
     }
-
+    
+    char kvpair[KV_PAIR_MAX_LENGTH] = {0};
     switch(params->filetype) {
-        char kvpair[KV_PAIR_MAX_LENGTH] = {0};
         case FILE_WMA:
         case FILE_VORBIS:
         case FILE_ALAC:
