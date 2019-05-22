@@ -41,3 +41,13 @@ trans_loopback_test_SOURCES = trans_loopback_test.c
 trans_loopback_test_CFLAGS  = $(AM_CFLAGS) -Wno-sign-compare -Werror
 trans_loopback_test_CFLAGS  += $(trans_loopback_test_INCLUDES)
 trans_loopback_test_LDADD = -llog  -lutils ../libqahw.la -lcutils
+
+bin_PROGRAMS += hal_voice_test
+
+hal_voice_test_INCLUDES = -I $(top_srcdir)/qahw_api/inc
+
+hal_voice_test_SOURCES = qahw_voice_test.c
+
+hal_voice_test_CFLAGS  = $(CFLAGS) -Wno-sign-compare -Werror
+hal_voice_test_CFLAGS  += $(hal_voice_test_INCLUDES)
+hal_voice_test_LDADD = -llog  -lutils ../libqahw.la -lcutils
