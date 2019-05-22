@@ -4114,21 +4114,23 @@ OMX_ERRORTYPE  omx_aac_aenc::empty_this_buffer_proxy
         ts = buffer->nTimeStamp;
     }
 
-    memcpy(&data[sizeof(META_IN)],buffer->pBuffer,buffer->nFilledLen);
-    bytes = write(m_drv_fd, data, buffer->nFilledLen+sizeof(META_IN));
-    if (bytes <= 0) {
-        frame_done_cb((OMX_BUFFERHEADERTYPE *)buffer);
+    if (data != NULL) {
+        memcpy(&data[sizeof(META_IN)],buffer->pBuffer,buffer->nFilledLen);
+        bytes = write(m_drv_fd, data, buffer->nFilledLen+sizeof(META_IN));
+        if (bytes <= 0) {
+            frame_done_cb((OMX_BUFFERHEADERTYPE *)buffer);
 
-        if (errno == ENETRESET)
-        {
-            ALOGE("In SSR, return error to close the session");
-            m_cb.EventHandler(&m_cmp,
-                  m_app_data,
-                  OMX_EventError,
-                  OMX_ErrorHardware,
-                  0, NULL );
+            if (errno == ENETRESET)
+            {
+                ALOGE("In SSR, return error to close the session");
+                m_cb.EventHandler(&m_cmp,
+                      m_app_data,
+                      OMX_EventError,
+                      OMX_ErrorHardware,
+                      0, NULL );
+            }
+            return OMX_ErrorNone;
         }
-        return OMX_ErrorNone;
     }
 
     pthread_mutex_lock(&m_state_lock);

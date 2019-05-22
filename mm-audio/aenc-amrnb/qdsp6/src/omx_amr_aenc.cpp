@@ -4083,8 +4083,10 @@ OMX_ERRORTYPE  omx_amr_aenc::empty_this_buffer_proxy
         DEBUG_PRINT("meta_in.nFlags = %d\n",meta_in.nFlags);
     }
 
-    memcpy(&data[sizeof(META_IN)],buffer->pBuffer,buffer->nFilledLen);
-    write(m_drv_fd, data, buffer->nFilledLen+sizeof(META_IN));
+    if (data != NULL) {
+        memcpy(&data[sizeof(META_IN)],buffer->pBuffer,buffer->nFilledLen);
+        write(m_drv_fd, data, buffer->nFilledLen+sizeof(META_IN));
+    }
 
     pthread_mutex_lock(&m_state_lock);
     get_state(&m_cmp, &state);
