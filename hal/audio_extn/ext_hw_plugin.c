@@ -77,8 +77,6 @@ void* audio_extn_ext_hw_plugin_init(struct audio_device *adev)
 
     my_plugin->adev = adev;
 
-    (void)audio_extn_auto_hal_enable_hostless();
-
     my_plugin->plugin_handle = dlopen(LIB_PLUGIN_DRIVER, RTLD_NOW);
     if (my_plugin->plugin_handle == NULL) {
         ALOGE("%s: DLOPEN failed for %s", __func__, LIB_PLUGIN_DRIVER);
@@ -146,8 +144,6 @@ int32_t audio_extn_ext_hw_plugin_deinit(void *plugin)
     }
     if(my_plugin->plugin_handle != NULL)
         dlclose(my_plugin->plugin_handle);
-
-    audio_extn_auto_hal_disable_hostless();
 
     free(my_plugin);
     return ret;
