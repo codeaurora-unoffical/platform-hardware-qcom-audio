@@ -777,6 +777,9 @@ int audio_extn_hw_loopback_create_audio_patch(struct audio_hw_device *dev,
         sizeof(struct audio_port_config));
     memcpy(&active_loopback_patch->loopback_sink, &sinks[0],
         sizeof(struct audio_port_config));
+    /* For loopback, the profile is always record_unprocessed */
+    memcpy(active_loopback_patch->patch_stream.profile,
+        "record_unprocessed", sizeof("record_unprocessed"));
 
     /* Get loopback patch type based on source and sink ports configuration */
     loopback_patch_id = get_loopback_patch_type(active_loopback_patch);
