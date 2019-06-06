@@ -87,102 +87,102 @@ void AHalConfigHelper::initDefaultConfig(bool isVendorEnhancedFwk)
         };
     } else {
         mConfigs = {
-#if SND_MONITOR
+#if SND_MONITOR_ENABLED
             true,        /* SND_MONITOR */
 #else
             false,        /* SND_MONITOR */
 #endif
-#if COMPRESS_CAPTURE
+#if COMPRESS_CAPTURE_ENABLED
             true,       /* COMPRESS_CAPTURE */
 #else
             false,       /* COMPRESS_CAPTURE */
 #endif
-#if SOURCE_TRACKING
+#if SOURCE_TRACKING_ENABLED
             true,       /* SOURCE_TRACK */
 #else
             false,       /* SOURCE_TRACK */
 #endif
-#if SSREC
+#if SSREC_ENABLED
             true,       /* SSREC */
 #else
             false,       /* SSREC */
 #endif
-#if AUDIOSPHERE
+#if AUDIOSPHERE_ENABLED
             true,       /* AUDIOSPHERE */
 #else
             false,       /* AUDIOSPHERE */
 #endif
-#if AFE_PROXY
+#if AFE_PROXY_ENABLED
             true,       /* AFE_PROXY */
 #else
             false,       /* AFE_PROXY */
 #endif
-#if USE_DEEP_AS_PRIMARY_OUTPUT
+#if USE_DEEP_AS_PRIMARY_OUTPUT_ENABLED
             true,       /* USE_DEEP_AS_PRIMARY_OUTPUT */
 #else
             false,       /* USE_DEEP_AS_PRIMARY_OUTPUT */
 #endif
-#if HDMI_EDID
+#if HDMI_EDID_ENABLED
             true,       /* HDMI_EDID */
 #else
             false,       /* HDMI_EDID */
 #endif
-#if KEEP_ALIVE
+#if KEEP_ALIVE_ENABLED
             true,       /* KEEP_ALIVE */
 #else
             false,       /* KEEP_ALIVE */
 #endif
-#if HIFI_AUDIO
+#if HIFI_AUDIO_ENABLED
             true,       /* HIFI_AUDIO */
 #else
             false,       /* HIFI_AUDIO */
 #endif
-#if RECEIVER_AIDED_STEREO
+#if RECEIVER_AIDED_STEREO_ENABLED
             true,       /* RECEIVER_AIDED_STEREO */
 #else
             false,       /* RECEIVER_AIDED_STEREO */
 #endif
-#if KPI_OPTIMIZE
+#if KPI_OPTIMIZE_ENABLED
             true,       /* KPI_OPTIMIZE */
 #else
             false,       /* KPI_OPTIMIZE */
 #endif
-#if DISPLAY_PORT
+#if DISPLAY_PORT_ENABLED
             true,       /* DISPLAY_PORT */
 #else
             false,       /* DISPLAY_PORT */
 #endif
-#if FLUENCE
+#if FLUENCE_ENABLED
             true,       /* FLUENCE */
 #else
             false,       /* FLUENCE */
 #endif
-#if CUSTOM_STEREO
+#if CUSTOM_STEREO_ENABLED
             true,       /* CUSTOM_STEREO */
 #else
             false,       /* CUSTOM_STEREO */
 #endif
-#if ANC_HEADSET
+#if ANC_HEADSET_ENABLED
             true,       /* ANC_HEADSET */
 #else
             false,       /* ANC_HEADSET */
 #endif
-#if DSM_FEEDBACK
+#if DSM_FEEDBACK_ENABLED
             true,       /* DSM_FEEDBACK */
 #else
             false,       /* DSM_FEEDBACK */
 #endif
-#if USB_OFFLOAD
+#if USB_OFFLOAD_ENABLED
             true,        /* USB_OFFLOAD */
 #else
             false,        /* USB_OFFLOAD */
 #endif
-#if USB_OFFLOAD_BURST_MODE
+#if USB_OFFLOAD_BURST_MODE_ENABLED
             true,       /* USB_OFFLOAD_BURST_MODE */
 #else
             false,       /* USB_OFFLOAD_BURST_MODE */
 #endif
-#if USB_OFFLOAD_SIDETONE_VOLM
+#if USB_OFFLOAD_SIDETONE_VOLM_ENABLED
             true,       /* USB_OFFLOAD_SIDETONE_VOLM */
 #else
             false,       /* USB_OFFLOAD_SIDETONE_VOLM */
@@ -192,7 +192,7 @@ void AHalConfigHelper::initDefaultConfig(bool isVendorEnhancedFwk)
 #else
             false,        /* A2DP_OFFLOAD */
 #endif
-#if VBAT
+#if VBAT_MONITOR_ENABLED
             true,       /* VBAT */
 #else
             false,       /* VBAT */
@@ -202,12 +202,12 @@ void AHalConfigHelper::initDefaultConfig(bool isVendorEnhancedFwk)
 #else
             false,       /* COMPRESS_METADATA_NEEDED */
 #endif
-#ifdef COMPRESS_VOIP
+#ifdef COMPRESS_VOIP_ENABLED
             true,       /* COMPRESS_VOIP */
 #else
             false,       /* COMPRESS_VOIP */
 #endif
-#ifdef DYNAMIC_ECNS
+#ifdef DYNAMIC_ECNS_ENABLED
             true,       /* DYNAMIC_ECNS */
 #else
             false,       /* DYNAMIC_ECNS */
