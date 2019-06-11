@@ -2397,6 +2397,10 @@
         <path name="headphones" />
     </path>
 
+    <path name="voice-headset">
+        <path name="headphones" />
+    </path>
+
     <path name="voice-line">
         <path name="voice-headphones" />
     </path>
