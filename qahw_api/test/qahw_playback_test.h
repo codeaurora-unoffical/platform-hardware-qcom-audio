@@ -118,6 +118,14 @@ struct dolby_mat_params_local {
     int32_t presentation_mode;
 };
 
+#define MAX_SUPPORTED_PLAYBACKS_FOR_GAPLESS 7
+#define MAX_FILE_NAME_LEN 100
+struct player_gapless_playback_params {
+    int32_t is_gapless_playback;
+    int32_t files_in_playlist;
+    char file_names[MAX_SUPPORTED_PLAYBACKS_FOR_GAPLESS][MAX_FILE_NAME_LEN];
+};
+
 typedef struct {
     qahw_module_handle_t *qahw_in_hal_handle;
     qahw_module_handle_t *qahw_out_hal_handle;
@@ -171,6 +179,7 @@ typedef struct {
     unsigned int raw_data_len_in_bytes;
     struct dolby_thd_params_local dlb_truehd_params;
     struct dolby_mat_params_local dlb_mat_params;
+    struct player_gapless_playback_params gapless_playlist_handle;
 }stream_config;
 
 qahw_module_handle_t * load_hal(audio_devices_t dev);

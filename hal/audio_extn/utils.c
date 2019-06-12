@@ -1071,7 +1071,8 @@ static int send_app_type_cfg_for_device(struct audio_device *adev,
         app_type_cfg[len++] = acdb_dev_id;
         if (((usecase->stream.out->format == AUDIO_FORMAT_E_AC3) ||
             (usecase->stream.out->format == AUDIO_FORMAT_E_AC3_JOC) ||
-            (usecase->stream.out->format == AUDIO_FORMAT_DOLBY_TRUEHD))
+            (usecase->stream.out->format == AUDIO_FORMAT_DOLBY_TRUEHD) ||
+            (usecase->stream.out->format == AUDIO_FORMAT_MAT))
             && audio_extn_passthru_is_passthrough_stream(usecase->stream.out)
             && !audio_extn_passthru_is_convert_supported(adev, usecase->stream.out)) {
 

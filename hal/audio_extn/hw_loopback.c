@@ -212,6 +212,7 @@ audio_patch_handle_t get_loopback_patch_type(loopback_patch_t*  loopback_patch)
                            case AUDIO_FORMAT_AC3:
                            case AUDIO_FORMAT_E_AC3:
                            case AUDIO_FORMAT_DOLBY_TRUEHD:
+                           case AUDIO_FORMAT_MAT:
                            case AUDIO_FORMAT_AAC_LATM_LC:
                            case AUDIO_FORMAT_AAC_LATM_HE_V1:
                            case AUDIO_FORMAT_AAC_LATM_HE_V2:
@@ -595,7 +596,7 @@ int create_loopback_session(loopback_patch_t *active_loopback_patch)
     if (source_patch_config->format == AUDIO_FORMAT_IEC61937) {
         // This is needed to set a known format to DSP and handle
         // any format change via ADSP event
-        codec.id = SND_AUDIOCODEC_AC3;
+        codec.id = SND_AUDIOCODEC_MAT;
     }
 
     codec.ch_out = 2; // Irrelevant for loopback case in this direction
@@ -719,7 +720,8 @@ bool is_fmt_update_event_supported(int format)
 {
     if ((format == AUDIO_FORMAT_AC3) ||
         (format == AUDIO_FORMAT_E_AC3) ||
-        (format == AUDIO_FORMAT_DOLBY_TRUEHD))
+        (format == AUDIO_FORMAT_DOLBY_TRUEHD) ||
+        (format == AUDIO_FORMAT_MAT))
         return true;
 
     return false;

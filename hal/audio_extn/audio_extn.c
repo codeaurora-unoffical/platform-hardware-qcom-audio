@@ -1379,7 +1379,89 @@ int audio_extn_parse_compress_metadata(struct stream_out *out,
                 out->compr_config.codec->options.wma.encodeopt,
                 out->compr_config.codec->options.wma.encodeopt1,
                 out->compr_config.codec->options.wma.encodeopt2);
+    } else if ((out->format == AUDIO_FORMAT_PCM_16_BIT) || \
+                       (out->format == AUDIO_FORMAT_PCM_24_BIT_PACKED) || \
+                       (out->format == AUDIO_FORMAT_PCM_8_24_BIT)) {
+
+        ret = str_parms_get_str(parms, AUDIO_OFFLOAD_CODEC_NUM_CHANNEL, value, sizeof(value));
+        ALOGV("PCM params: next track channels=%d", atoi(value));
+
+        if (ret >= 0) {
+            out->compr_config.codec->options.pcm_dec.num_channels = atoi(value);
+            out->is_compr_metadata_avail = true;
+            out->compr_config.codec->ch_in = atoi(value);
+
+            switch (out->compr_config.codec->options.pcm_dec.num_channels) {
+                case 1:
+                    /* AUDIO_CHANNEL_OUT_MONO */
+                    out->compr_config.codec->options.pcm_dec.ch_map[0] = PCM_CHANNEL_FC;
+                    out->channel_mask = AUDIO_CHANNEL_OUT_MONO;
+                    break;
+                case 2:
+                    /* AUDIO_CHANNEL_OUT_STEREO */
+                    out->compr_config.codec->options.pcm_dec.ch_map[0] = PCM_CHANNEL_FL;
+                    out->compr_config.codec->options.pcm_dec.ch_map[1] = PCM_CHANNEL_FR;
+                    out->channel_mask = AUDIO_CHANNEL_OUT_STEREO;
+                    break;
+                case 6:
+                    /* AUDIO_CHANNEL_OUT_5POINT1 */
+                    out->compr_config.codec->options.pcm_dec.ch_map[0] = PCM_CHANNEL_FL;
+                    out->compr_config.codec->options.pcm_dec.ch_map[1] = PCM_CHANNEL_FR;
+                    out->compr_config.codec->options.pcm_dec.ch_map[2] = PCM_CHANNEL_FC;
+                    out->compr_config.codec->options.pcm_dec.ch_map[3] = PCM_CHANNEL_LFE;
+                    out->compr_config.codec->options.pcm_dec.ch_map[4] = PCM_CHANNEL_LB;
+                    out->compr_config.codec->options.pcm_dec.ch_map[5] = PCM_CHANNEL_RB;
+                    out->channel_mask = AUDIO_CHANNEL_OUT_5POINT1;
+                    break;
+                case 8:
+                    /* AUDIO_CHANNEL_OUT_7POINT1 */
+                    out->compr_config.codec->options.pcm_dec.ch_map[0] = PCM_CHANNEL_FL;
+                    out->compr_config.codec->options.pcm_dec.ch_map[1] = PCM_CHANNEL_FR;
+                    out->compr_config.codec->options.pcm_dec.ch_map[2] = PCM_CHANNEL_FC;
+                    out->compr_config.codec->options.pcm_dec.ch_map[3] = PCM_CHANNEL_LFE;
+                    out->compr_config.codec->options.pcm_dec.ch_map[4] = PCM_CHANNEL_LB;
+                    out->compr_config.codec->options.pcm_dec.ch_map[5] = PCM_CHANNEL_RB;
+                    out->compr_config.codec->options.pcm_dec.ch_map[6] = PCM_CHANNEL_LS;
+                    out->compr_config.codec->options.pcm_dec.ch_map[7] = PCM_CHANNEL_RS;
+                    out->channel_mask = AUDIO_CHANNEL_OUT_7POINT1;
+                    break;
+                case 10:
+                    /* AUDIO_CHANNEL_OUT_7POINT1POINT2 */
+                    out->compr_config.codec->options.pcm_dec.ch_map[0] = PCM_CHANNEL_FL;
+                    out->compr_config.codec->options.pcm_dec.ch_map[1] = PCM_CHANNEL_FR;
+                    out->compr_config.codec->options.pcm_dec.ch_map[2] = PCM_CHANNEL_FC;
+                    out->compr_config.codec->options.pcm_dec.ch_map[3] = PCM_CHANNEL_LFE;
+                    out->compr_config.codec->options.pcm_dec.ch_map[4] = PCM_CHANNEL_LB;
+                    out->compr_config.codec->options.pcm_dec.ch_map[5] = PCM_CHANNEL_RB;
+                    out->compr_config.codec->options.pcm_dec.ch_map[6] = PCM_CHANNEL_LS;
+                    out->compr_config.codec->options.pcm_dec.ch_map[7] = PCM_CHANNEL_RS;
+                    out->compr_config.codec->options.pcm_dec.ch_map[8] = PCM_CHANNEL_FLC;
+                    out->compr_config.codec->options.pcm_dec.ch_map[9] = PCM_CHANNEL_FRC;
+                    out->channel_mask = AUDIO_CHANNEL_OUT_7POINT1POINT2;
+                    break;
+                case 12:
+                    /* AUDIO_CHANNEL_OUT_7POINT1POINT4 */
+                    out->compr_config.codec->options.pcm_dec.ch_map[0] = PCM_CHANNEL_FL;
+                    out->compr_config.codec->options.pcm_dec.ch_map[1] = PCM_CHANNEL_FR;
+                    out->compr_config.codec->options.pcm_dec.ch_map[2] = PCM_CHANNEL_FC;
+                    out->compr_config.codec->options.pcm_dec.ch_map[3] = PCM_CHANNEL_LFE;
+                    out->compr_config.codec->options.pcm_dec.ch_map[4] = PCM_CHANNEL_LB;
+                    out->compr_config.codec->options.pcm_dec.ch_map[5] = PCM_CHANNEL_RB;
+                    out->compr_config.codec->options.pcm_dec.ch_map[6] = PCM_CHANNEL_SL;
+                    out->compr_config.codec->options.pcm_dec.ch_map[7] = PCM_CHANNEL_SR;
+                    out->compr_config.codec->options.pcm_dec.ch_map[8] = PCM_CHANNEL_TFL;
+                    out->compr_config.codec->options.pcm_dec.ch_map[9] = PCM_CHANNEL_TFR;
+                    out->compr_config.codec->options.pcm_dec.ch_map[10] = PCM_CHANNEL_TSL;
+                    out->compr_config.codec->options.pcm_dec.ch_map[11] = PCM_CHANNEL_TSR;
+                    out->channel_mask = AUDIO_CHANNEL_OUT_7POINT1POINT4;
+                    break;
+                default:
+                    ALOGE("%s: unsupported channel configuration for PCM gapless playback", __func__);
+                    break;
+            }
+        }
     }
+
 
     return ret;
 }

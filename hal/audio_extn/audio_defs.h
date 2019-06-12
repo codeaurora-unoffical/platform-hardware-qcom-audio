@@ -34,7 +34,7 @@
 /**
  * extended audio codec parameters
  */
-
+#define AUDIO_OFFLOAD_CODEC_NUM_CHANNEL "music_offload_num_channels"
 #define AUDIO_OFFLOAD_CODEC_WMA_FORMAT_TAG "music_offload_wma_format_tag"
 #define AUDIO_OFFLOAD_CODEC_WMA_BLOCK_ALIGN "music_offload_wma_block_align"
 #define AUDIO_OFFLOAD_CODEC_WMA_BIT_PER_SAMPLE "music_offload_wma_bit_per_sample"

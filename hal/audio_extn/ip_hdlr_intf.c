@@ -223,7 +223,11 @@ bool audio_extn_ip_hdlr_intf_supported(audio_format_t format,
                     bool is_transcode_loopback)
 {
 
-    if ((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_DOLBY_TRUEHD) {
+    if (((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_DOLBY_TRUEHD) ||
+            ((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_MAT)) {
+        asm_event_enable = true;
+        return true;
+    } else if ((format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_MAT) {
         asm_event_enable = true;
         return true;
     } else if (!is_direct_passthrough && !audio_extn_qaf_is_enabled() &&
@@ -889,9 +893,6 @@ int audio_extn_ip_hdlr_intf_deinit(void *handle)
         return -EINVAL;
     }
     ALOGD("%s:[%d] handle = %p",__func__, ip_hdlr->ref_cnt, handle);
-    ret = ip_hdlr->deinit(handle);
-    if (ret < 0)
-        ALOGE("%s:[%d] deinit failed ret = %d", __func__, ip_hdlr->ref_cnt, ret);
 
     if (--ip_hdlr->ref_cnt == 0) {
         ip_hdlr->get_lib_fd(handle, &lib_fd.fd);
@@ -919,8 +920,11 @@ int audio_extn_ip_hdlr_intf_deinit(void *handle)
             goto dlclose;
         }
 
-        ret = ip_hdlr->deinit_lib(ip_hdlr->ip_lib_handle);
+        ret = ip_hdlr->deinit_lib(handle);
         ip_hdlr->lib_fd_created = false;
+        ret = ip_hdlr->deinit(handle);
+        if (ret < 0)
+            ALOGE("%s:[%d] deinit failed ret = %d", __func__, ip_hdlr->ref_cnt, ret);
         if (ip_hdlr->lib_hdl)
             dlclose(ip_hdlr->lib_hdl);
 dlclose:

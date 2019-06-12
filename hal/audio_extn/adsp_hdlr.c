@@ -54,6 +54,7 @@
 #include "platform.h"
 #include "platform_api.h"
 #include "adsp_hdlr.h"
+#include "audio_extn.h"
 
 #define MAX_EVENT_PAYLOAD             512
 #define WAIT_EVENT_POLL_TIMEOUT       50
@@ -390,6 +391,10 @@ static void *event_callback_thread_loop(void *context)
                             case SND_AUDIOCODEC_TRUEHD:
                                 ptr[0] = AUDIO_FORMAT_DOLBY_TRUEHD;
                                 ALOGD("%s: Event AUDIO_FORMAT_DOLBY_TRUEHD\n", __func__);
+                                break;
+                            case SND_AUDIOCODEC_MAT:
+                                ptr[0] = AUDIO_FORMAT_MAT;
+                                ALOGD("%s: Event AUDIO_FORMAT_MAT\n", __func__);
                                 break;
                             case SND_AUDIOCODEC_AAC:
                                 ptr[0] = AUDIO_FORMAT_AAC;
