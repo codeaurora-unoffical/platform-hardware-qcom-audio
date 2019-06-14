@@ -192,7 +192,7 @@ typedef struct spkr_prot_init_config spkr_prot_init_config_t;
 
 // call at adev init
 void audio_extn_init(struct audio_device *adev);
-void audio_extn_feature_init(int is_running_with_enhanced_fwk);
+void audio_extn_feature_init();
 //START: SND_MONITOR_FEATURE ===========================================
 void snd_mon_feature_init (bool is_feature_enabled);
 typedef void (* snd_mon_cb)(void * stream, struct str_parms * parms);
@@ -800,6 +800,7 @@ int audio_extn_utils_get_bit_width_from_string(const char *);
 int audio_extn_utils_get_sample_rate_from_string(const char *);
 int audio_extn_utils_get_channels_from_string(const char *);
 void audio_extn_utils_release_snd_device(snd_device_t snd_device);
+int audio_extn_utils_is_vendor_enhanced_fwk();
 
 #ifdef DS2_DOLBY_DAP_ENABLED
 #define LIB_DS2_DAP_HAL "vendor/lib/libhwdaphal.so"
@@ -1082,6 +1083,12 @@ int audio_extn_utils_set_pan_scale_params(
 int audio_extn_utils_set_downmix_params(
             struct stream_out *out,
             struct mix_matrix_params *mm_params);
+int audio_ext_get_presentation_position(struct stream_out *out,
+            struct audio_out_presentation_position_param *pos_param);
+int audio_extn_utils_compress_get_dsp_presentation_pos(struct stream_out *out,
+            uint64_t *frames, struct timespec *timestamp, int32_t clock_id);
+int audio_extn_utils_pcm_get_dsp_presentation_pos(struct stream_out *out,
+            uint64_t *frames, struct timespec *timestamp, int32_t clock_id);
 #ifdef AUDIO_HW_LOOPBACK_ENABLED
 /* API to create audio patch */
 int audio_extn_hw_loopback_create_audio_patch(struct audio_hw_device *dev,

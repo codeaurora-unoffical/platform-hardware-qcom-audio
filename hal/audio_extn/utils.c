@@ -30,6 +30,7 @@
 #include <log/log.h>
 #include <cutils/misc.h>
 #include <unistd.h>
+#include <sys/ioctl.h>
 
 
 #include "audio_hw.h"
@@ -39,6 +40,7 @@
 #include "voice.h"
 #include <sound/compress_params.h>
 #include <sound/compress_offload.h>
+#include <sound/devdep_params.h>
 #include <tinycompress/tinycompress.h>
 
 #ifdef DYNAMIC_LOG_ENABLED
@@ -107,6 +109,16 @@
 #ifndef MAX_CHANNELS_SUPPORTED
 #define MAX_CHANNELS_SUPPORTED 8
 #endif
+
+#ifdef __LP64__
+#define VNDK_FWK_LIB_PATH "/vendor/lib64/libqti_vndfwk_detect.so"
+#else
+#define VNDK_FWK_LIB_PATH "/vendor/lib/libqti_vndfwk_detect.so"
+#endif
+
+static void *vndk_fwk_lib_handle = NULL;
+typedef int (*vndk_fwk_isVendorEnhancedFwk_t)();
+static vndk_fwk_isVendorEnhancedFwk_t vndk_fwk_isVendorEnhancedFwk;
 
 typedef struct {
     const char *id_string;
@@ -2248,6 +2260,80 @@ int audio_extn_utils_compress_set_start_delay(
 }
 #endif
 
+#ifdef SNDRV_COMPRESS_DSP_POSITION
+int audio_extn_utils_compress_get_dsp_presentation_pos(struct stream_out *out,
+            uint64_t *frames, struct timespec *timestamp, int32_t clock_id)
+{
+    int ret = -EINVAL;
+    uint64_t *val = NULL;
+    uint64_t time = 0;
+    struct snd_compr_metadata metadata;
+
+    ALOGV("%s:: Quering DSP position with clock id %d",__func__, clock_id);
+    metadata.key = SNDRV_COMPRESS_DSP_POSITION;
+    metadata.value[0] = clock_id;
+    ret = compress_get_metadata(out->compr, &metadata);
+    if (ret) {
+        ALOGE("%s::error %s", __func__, compress_get_error(out->compr));
+        ret = -errno;
+        goto exit;
+    }
+    val = (uint64_t *)&metadata.value[1];
+    *frames = *val;
+    time = *(val + 1);
+    timestamp->tv_sec = time / 1000000;
+    timestamp->tv_nsec = (time % 1000000)*1000;
+
+exit:
+    return ret;
+}
+#else
+int audio_extn_utils_compress_get_dsp_presentation_pos(struct stream_out *out __unused,
+            uint64_t *frames __unused, struct timespec *timestamp __unused,
+            int32_t clock_id __unused)
+{
+    ALOGD("%s:: dsp presentation position not supported", __func__);
+    return 0;
+
+}
+#endif
+
+#ifdef SNDRV_PCM_IOCTL_DSP_POSITION
+int audio_extn_utils_pcm_get_dsp_presentation_pos(struct stream_out *out,
+            uint64_t *frames, struct timespec *timestamp, int32_t clock_id)
+{
+    int ret = -EINVAL;
+    uint64_t time = 0;
+    struct snd_pcm_prsnt_position prsnt_position;
+
+    ALOGV("%s:: Quering DSP position with clock id %d",__func__, clock_id);
+    prsnt_position.clock_id = clock_id;
+    ret = pcm_ioctl(out->pcm, SNDRV_PCM_IOCTL_DSP_POSITION, &prsnt_position);
+    if (ret) {
+        ALOGE("%s::error  %d", __func__, ret);
+        ret = -EIO;
+        goto exit;
+    }
+
+    *frames = prsnt_position.frames;
+    time = prsnt_position.timestamp;
+    timestamp->tv_sec = time / 1000000;
+    timestamp->tv_nsec = (time % 1000000)*1000;
+
+exit:
+    return ret;
+}
+#else
+int audio_extn_utils_pcm_get_dsp_presentation_pos(struct stream_out *out __unused,
+            uint64_t *frames __unused, struct timespec *timestamp __unused,
+            int32_t clock_id __unused)
+{
+    ALOGD("%s:: dsp presentation position not supported", __func__);
+    return 0;
+
+}
+#endif
+
 #define MAX_SND_CARD 8
 #define RETRY_US 1000000
 #define RETRY_NUMBER 40
@@ -2751,4 +2837,32 @@ int audio_extn_utils_send_app_type_gain(struct audio_device *adev,
     ALOGV("%s app_type %d l(%d) r(%d)", __func__,  app_type, gain[0], gain[1]);
     return mixer_ctl_set_array(ctl, gain_cfg,
                                sizeof(gain_cfg)/sizeof(gain_cfg[0]));
+}
+
+int audio_extn_utils_is_vendor_enhanced_fwk()
+{
+    static int is_running_with_enhanced_fwk = -EINVAL;
+
+    if (is_running_with_enhanced_fwk == -EINVAL) {
+        vndk_fwk_lib_handle = dlopen(VNDK_FWK_LIB_PATH, RTLD_NOW);
+        if (vndk_fwk_lib_handle != NULL) {
+            vndk_fwk_isVendorEnhancedFwk = (vndk_fwk_isVendorEnhancedFwk_t)
+                        dlsym(vndk_fwk_lib_handle, "isRunningWithVendorEnhancedFramework");
+            if (vndk_fwk_isVendorEnhancedFwk == NULL) {
+                ALOGW("%s: dlsym failed, defaulting to enhanced_fwk configuration",
+                       __func__);
+                is_running_with_enhanced_fwk = 1;
+            } else {
+                is_running_with_enhanced_fwk = vndk_fwk_isVendorEnhancedFwk();
+            }
+            dlclose(vndk_fwk_lib_handle);
+            vndk_fwk_lib_handle = NULL;
+        } else {
+            ALOGW("%s: VNDK_FWK_LIB not found, setting stock configuration", __func__);
+            is_running_with_enhanced_fwk = 0;
+        }
+        ALOGV("%s: vndk_fwk_isVendorEnhancedFwk=%d", __func__, is_running_with_enhanced_fwk);
+    }
+
+    return is_running_with_enhanced_fwk;
 }
