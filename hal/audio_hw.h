@@ -39,12 +39,16 @@
 #define QCOM_AUDIO_HW_H
 
 #include <stdlib.h>
+#include <cutils/str_parms.h>
 #include <cutils/list.h>
 #include <hardware/audio.h>
 #include <tinyalsa/asoundlib.h>
 #include <tinycompress/tinycompress.h>
 
 #include <audio_route/audio_route.h>
+#ifndef LINUX_ENABLED
+#include <audio_utils/ErrorLog.h>
+#endif
 #include "audio_defs.h"
 #include "voice.h"
 #include "audio_hw_extn_api.h"
@@ -65,6 +69,9 @@
 #define ADM_LIBRARY_PATH "/vendor/lib/libadm.so"
 #endif
 
+#define ULONG_MAX (__LONG_MAX__ *2UL+1UL)
+#define PATH_MAX 4096
+
 /* Flags used to initialize acdb_settings variable that goes to ACDB library */
 #define NONE_FLAG            0x00000000
 #define ANC_FLAG	     0x00000001
@@ -83,12 +90,15 @@
 #define ACDB_DEV_TYPE_OUT 1
 #define ACDB_DEV_TYPE_IN 2
 
-#define MAX_SUPPORTED_CHANNEL_MASKS 14
+/* support positional and index masks to 8ch */
+#define MAX_SUPPORTED_CHANNEL_MASKS (2 * FCC_8)
 #define MAX_SUPPORTED_FORMATS 15
 #define MAX_SUPPORTED_SAMPLE_RATES 7
 #define DEFAULT_HDMI_OUT_CHANNELS   2
 #define DEFAULT_HDMI_OUT_SAMPLE_RATE 48000
 #define DEFAULT_HDMI_OUT_FORMAT AUDIO_FORMAT_PCM_16_BIT
+
+#define ERROR_LOG_ENTRIES 16
 
 #define SND_CARD_STATE_OFFLINE 0
 #define SND_CARD_STATE_ONLINE 1
@@ -142,6 +152,7 @@ enum {
     USECASE_AUDIO_PLAYBACK_ULL,
     USECASE_AUDIO_PLAYBACK_MMAP,
     USECASE_AUDIO_PLAYBACK_HIFI,
+    USECASE_AUDIO_PLAYBACK_TTS,
 
     /* FM usecase */
     USECASE_AUDIO_PLAYBACK_FM,
@@ -192,6 +203,7 @@ enum {
 
     USECASE_AUDIO_PLAYBACK_AFE_PROXY,
     USECASE_AUDIO_RECORD_AFE_PROXY,
+    USECASE_AUDIO_DSM_FEEDBACK,
 
     USECASE_AUDIO_PLAYBACK_SILENCE,
 
@@ -277,6 +289,7 @@ struct stream_app_type_cfg {
     int sample_rate;
     uint32_t bit_width;
     int app_type;
+    int gain[2];
 };
 
 struct stream_config {
@@ -390,6 +403,10 @@ struct stream_out {
 
     char address[AUDIO_DEVICE_MAX_ADDRESS_LEN];
     int car_audio_stream;
+
+#ifndef LINUX_ENABLED
+    error_log_t *error_log;
+#endif
 };
 
 struct stream_in {
@@ -424,10 +441,18 @@ struct stream_in {
     card_status_t card_status;
     int capture_started;
 
+    volatile int32_t capture_stopped;
+
     /* Array of supported channel mask configurations. +1 so that the last entry is always 0 */
     audio_channel_mask_t supported_channel_masks[MAX_SUPPORTED_CHANNEL_MASKS + 1];
     audio_format_t supported_formats[MAX_SUPPORTED_FORMATS + 1];
     uint32_t supported_sample_rates[MAX_SUPPORTED_SAMPLE_RATES + 1];
+
+    int64_t frames_read; /* total frames read, not cleared when entering standby */
+    int64_t frames_muted; /* total frames muted, not cleared when entering standby */
+#ifndef LINUX_ENABLED
+    error_log_t *error_log;
+#endif
 };
 
 typedef enum {
@@ -437,7 +462,8 @@ typedef enum {
     VOIP_CALL,
     PCM_HFP_CALL,
     TRANSCODE_LOOPBACK_RX,
-    TRANSCODE_LOOPBACK_TX
+    TRANSCODE_LOOPBACK_TX,
+    USECASE_TYPE_MAX
 } usecase_type_t;
 
 union stream_ptr {
@@ -535,6 +561,9 @@ struct audio_device {
     bool allow_afe_proxy_usage;
     bool is_charging; // from battery listener
     bool mic_break_enabled;
+    bool enable_hfp;
+    bool mic_muted;
+    bool enable_voicerx;
     unsigned int num_va_sessions;
 
     int snd_card;
@@ -543,6 +572,7 @@ struct audio_device {
     unsigned int cur_codec_backend_bit_width;
     bool is_channel_status_set;
     void *platform;
+    void *extspk;
     unsigned int offload_usecases_state;
     unsigned int pcm_record_uc_state;
     void *visualizer_lib;
@@ -588,6 +618,17 @@ struct audio_device {
     void *ext_hw_plugin;
     struct listnode active_inputs_list;
     struct listnode active_outputs_list;
+
+    /* logging */
+    snd_device_t last_logged_snd_device[AUDIO_USECASE_MAX][2]; /* [out, in] */
+
+    /* The pcm_params use_case_table is loaded by adev_verify_devices() upon
+     * calling adev_open().
+     *
+     * If an entry is not NULL, it can be used to determine if extended precision
+     * or other capabilities are present for the device corresponding to that usecase.
+     */
+    struct pcm_params *use_case_table[AUDIO_USECASE_MAX];
 };
 
 int select_devices(struct audio_device *adev,

@@ -27,7 +27,7 @@
 #include <stdlib.h>
 #include <dlfcn.h>
 #include <cutils/str_parms.h>
-#include <cutils/log.h>
+#include <log/log.h>
 #include <cutils/misc.h>
 #include <unistd.h>
 
@@ -81,6 +81,10 @@
 
 #ifndef SND_AUDIOCODEC_TRUEHD
 #define SND_AUDIOCODEC_TRUEHD 0x00000023
+#endif
+
+#ifndef SND_AUDIOCODEC_MAT
+#define SND_AUDIOCODEC_MAT 0x00000025
 #endif
 
 #define APP_TYPE_VOIP_AUDIO 0x1113A
@@ -180,7 +184,6 @@ const struct string_to_enum s_format_name_to_enum_table[] = {
     STRING_TO_ENUM(AUDIO_FORMAT_FLAC),
     STRING_TO_ENUM(AUDIO_FORMAT_ALAC),
     STRING_TO_ENUM(AUDIO_FORMAT_APE),
-    STRING_TO_ENUM(AUDIO_FORMAT_E_AC3_JOC),
     STRING_TO_ENUM(AUDIO_FORMAT_AAC_LC),
     STRING_TO_ENUM(AUDIO_FORMAT_AAC_HE_V1),
     STRING_TO_ENUM(AUDIO_FORMAT_AAC_HE_V2),
@@ -194,6 +197,7 @@ const struct string_to_enum s_format_name_to_enum_table[] = {
     STRING_TO_ENUM(AUDIO_FORMAT_AAC_LATM_HE_V1),
     STRING_TO_ENUM(AUDIO_FORMAT_AAC_LATM_HE_V2),
     STRING_TO_ENUM(AUDIO_FORMAT_APTX),
+    STRING_TO_ENUM(AUDIO_FORMAT_MAT),
 #endif
 };
 
@@ -907,6 +911,132 @@ void audio_extn_btsco_get_sample_rate(int snd_device, int *sample_rate)
     }
 }
 
+static int set_stream_app_type_mixer_ctrl(struct audio_device *adev,
+                                          int pcm_device_id, int app_type,
+                                          int acdb_dev_id, int sample_rate,
+                                          int stream_type,
+                                          snd_device_t snd_device)
+{
+
+    char mixer_ctl_name[MAX_LENGTH_MIXER_CONTROL_IN_INT];
+    struct mixer_ctl *ctl;
+    int app_type_cfg[MAX_LENGTH_MIXER_CONTROL_IN_INT], len = 0, rc = 0;
+    int snd_device_be_idx = -1;
+
+    if (stream_type == PCM_PLAYBACK) {
+        snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
+             "Audio Stream %d App Type Cfg", pcm_device_id);
+    } else if (stream_type == PCM_CAPTURE) {
+        snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
+             "Audio Stream Capture %d App Type Cfg", pcm_device_id);
+    }
+
+    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+    if (!ctl) {
+        ALOGE("%s: Could not get ctl for mixer cmd - %s",
+             __func__, mixer_ctl_name);
+        rc = -EINVAL;
+        goto exit;
+    }
+    app_type_cfg[len++] = app_type;
+    app_type_cfg[len++] = acdb_dev_id;
+    app_type_cfg[len++] = sample_rate;
+
+    snd_device_be_idx = platform_get_snd_device_backend_index(snd_device);
+    if (snd_device_be_idx > 0)
+        app_type_cfg[len++] = snd_device_be_idx;
+    ALOGV("%s: stream type %d app_type %d, acdb_dev_id %d "
+          "sample rate %d, snd_device_be_idx %d",
+          __func__, stream_type, app_type, acdb_dev_id, sample_rate,
+          snd_device_be_idx);
+    mixer_ctl_set_array(ctl, app_type_cfg, len);
+
+exit:
+    return rc;
+}
+
+static int audio_extn_utils_send_app_type_cfg_hfp(struct audio_device *adev,
+                                       struct audio_usecase *usecase)
+{
+    int pcm_device_id, acdb_dev_id = 0, snd_device = usecase->out_snd_device;
+    int32_t sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
+    int app_type = 0, rc = 0;
+
+    ALOGV("%s", __func__);
+
+    if (usecase->type != PCM_HFP_CALL) {
+        ALOGV("%s: not a playback or HFP path, no need to cfg app type", __func__);
+        rc = 0;
+        goto exit_send_app_type_cfg;
+    }
+    if ((usecase->id != USECASE_AUDIO_HFP_SCO) &&
+        (usecase->id != USECASE_AUDIO_HFP_SCO_WB)) {
+        ALOGV("%s: a playback path where app type cfg is not required", __func__);
+        rc = 0;
+        goto exit_send_app_type_cfg;
+    }
+
+    snd_device = usecase->out_snd_device;
+    pcm_device_id = platform_get_pcm_device_id(usecase->id, PCM_PLAYBACK);
+
+    acdb_dev_id = platform_get_snd_device_acdb_id(snd_device);
+    if (acdb_dev_id < 0) {
+        ALOGE("%s: Couldn't get the acdb dev id", __func__);
+        rc = -EINVAL;
+        goto exit_send_app_type_cfg;
+    }
+
+    if (usecase->type == PCM_HFP_CALL) {
+
+        /* config HFP session:1 playback path */
+        app_type = platform_get_default_app_type_v2(adev->platform, PCM_PLAYBACK);
+        sample_rate= CODEC_BACKEND_DEFAULT_SAMPLE_RATE;
+        rc = set_stream_app_type_mixer_ctrl(adev, pcm_device_id, app_type,
+                                            acdb_dev_id, sample_rate,
+                                            PCM_PLAYBACK,
+                                            SND_DEVICE_NONE); // use legacy behavior
+        if (rc < 0)
+            goto exit_send_app_type_cfg;
+
+        /* config HFP session:1 capture path */
+        app_type = platform_get_default_app_type_v2(adev->platform, PCM_CAPTURE);
+        rc = set_stream_app_type_mixer_ctrl(adev, pcm_device_id, app_type,
+                                            acdb_dev_id, sample_rate,
+                                            PCM_CAPTURE,
+                                            SND_DEVICE_NONE);
+        if (rc < 0)
+            goto exit_send_app_type_cfg;
+
+        /* config HFP session:2 capture path */
+        pcm_device_id = HFP_ASM_RX_TX;
+        snd_device = usecase->in_snd_device;
+        acdb_dev_id = platform_get_snd_device_acdb_id(snd_device);
+        if (acdb_dev_id <= 0) {
+            ALOGE("%s: Couldn't get the acdb dev id", __func__);
+            rc = -EINVAL;
+            goto exit_send_app_type_cfg;
+        }
+        app_type = platform_get_default_app_type_v2(adev->platform, PCM_CAPTURE);
+        rc = set_stream_app_type_mixer_ctrl(adev, pcm_device_id, app_type,
+                                            acdb_dev_id, sample_rate, PCM_CAPTURE,
+                                            SND_DEVICE_NONE);
+        if (rc < 0)
+            goto exit_send_app_type_cfg;
+
+        /* config HFP session:2 playback path */
+        app_type = platform_get_default_app_type_v2(adev->platform, PCM_PLAYBACK);
+        rc = set_stream_app_type_mixer_ctrl(adev, pcm_device_id, app_type,
+                                            acdb_dev_id, sample_rate,
+                                            PCM_PLAYBACK, SND_DEVICE_NONE);
+        if (rc < 0)
+            goto exit_send_app_type_cfg;
+    }
+
+    rc = 0;
+exit_send_app_type_cfg:
+    return rc;
+}
+
 static int send_app_type_cfg_for_device(struct audio_device *adev,
                                         struct audio_usecase *usecase,
                                         int split_snd_device)
@@ -1231,6 +1361,10 @@ int audio_extn_utils_send_app_type_cfg(struct audio_device *adev,
     snd_device_t new_snd_devices[SND_DEVICE_OUT_END] = {0};
     snd_device_t in_snd_device = usecase->in_snd_device;
     int rc = 0;
+
+    if (usecase->type == PCM_HFP_CALL) {
+        return audio_extn_utils_send_app_type_cfg_hfp(adev, usecase);
+    }
 
     switch (usecase->type) {
     case PCM_PLAYBACK:
@@ -1558,6 +1692,11 @@ int get_snd_codec_id(audio_format_t format)
     case AUDIO_FORMAT_APTX:
         id = SND_AUDIOCODEC_APTX;
         break;
+
+    case AUDIO_FORMAT_MAT:
+        id = SND_AUDIOCODEC_MAT;
+        break;
+
     default:
         ALOGE("%s: Unsupported audio format :%x", __func__, format);
     }
@@ -2256,6 +2395,66 @@ int audio_extn_utils_compress_set_start_delay(
 #define MAX_SND_CARD 8
 #define RETRY_US 1000000
 #define RETRY_NUMBER 40
+#define PLATFORM_INFO_XML_PATH          "audio_platform_info.xml"
+#define PLATFORM_INFO_XML_BASE_STRING   "audio_platform_info"
+
+#ifdef LINUX_ENABLED
+static const char *kConfigLocationList[] =
+        {"/etc"};
+#else
+static const char *kConfigLocationList[] =
+        {"/vendor/etc"};
+#endif
+static const int kConfigLocationListSize =
+        (sizeof(kConfigLocationList) / sizeof(kConfigLocationList[0]));
+
+bool audio_extn_utils_resolve_config_file(char file_name[MIXER_PATH_MAX_LENGTH])
+{
+    char full_config_path[MIXER_PATH_MAX_LENGTH];
+    for (int i = 0; i < kConfigLocationListSize; i++) {
+        snprintf(full_config_path,
+                 MIXER_PATH_MAX_LENGTH,
+                 "%s/%s",
+                 kConfigLocationList[i],
+                 file_name);
+        if (F_OK == access(full_config_path, 0)) {
+            strcpy(file_name, full_config_path);
+            return true;
+        }
+    }
+    return false;
+}
+
+/* platform_info_file should be size 'MIXER_PATH_MAX_LENGTH' */
+int audio_extn_utils_get_platform_info(const char* snd_card_name, char* platform_info_file)
+{
+    if (NULL == snd_card_name) {
+        return -1;
+    }
+
+    struct snd_card_split *snd_split_handle = NULL;
+    int ret = 0;
+    audio_extn_set_snd_card_split(snd_card_name);
+    snd_split_handle = audio_extn_get_snd_card_split();
+
+    snprintf(platform_info_file, MIXER_PATH_MAX_LENGTH, "%s_%s_%s.xml",
+                     PLATFORM_INFO_XML_BASE_STRING, snd_split_handle->snd_card,
+                     snd_split_handle->form_factor);
+
+    if (!audio_extn_utils_resolve_config_file(platform_info_file)) {
+        memset(platform_info_file, 0, MIXER_PATH_MAX_LENGTH);
+        snprintf(platform_info_file, MIXER_PATH_MAX_LENGTH, "%s_%s.xml",
+                     PLATFORM_INFO_XML_BASE_STRING, snd_split_handle->snd_card);
+
+        if (!audio_extn_utils_resolve_config_file(platform_info_file)) {
+            memset(platform_info_file, 0, MIXER_PATH_MAX_LENGTH);
+            strlcpy(platform_info_file, PLATFORM_INFO_XML_PATH, MIXER_PATH_MAX_LENGTH);
+            ret = audio_extn_utils_resolve_config_file(platform_info_file) ? 0 : -1;
+        }
+    }
+
+    return ret;
+}
 
 int audio_extn_utils_get_snd_card_num()
 {
@@ -2274,8 +2473,9 @@ int audio_extn_utils_open_snd_mixer(struct mixer **mixer_handle)
     void *hw_info = NULL;
     struct mixer *mixer = NULL;
     int retry_num = 0;
-    int snd_card_num = 0, min_snd_card_num = 0;
+    int snd_card_num = 0;
     char* snd_card_name = NULL;
+    int snd_card_detection_info[MAX_SND_CARD] = {0};
 
     if (!mixer_handle) {
         ALOGE("invalid mixer handle");
@@ -2283,26 +2483,29 @@ int audio_extn_utils_open_snd_mixer(struct mixer **mixer_handle)
     }
     *mixer_handle = NULL;
     /*
-    * Try with all the sound cards ( 0 to 8 ) and if none of them were detected
+    * Try with all the sound cards ( 0 to 7 ) and if none of them were detected
     * sleep for 1 sec and try detections with sound card 0 again.
     * If sound card gets detected, check if it is relevant, if not check with the
     * other sound cards. To ensure that the irrelevant sound card is not check again,
     * we maintain it in min_snd_card_num.
     */
     while (retry_num < RETRY_NUMBER) {
-
-        while (snd_card_num <= MAX_SND_CARD) {
-           mixer = mixer_open(snd_card_num);
-           if (!mixer)
-              snd_card_num++;
-           else
-              break;
+        snd_card_num = 0;
+        while (snd_card_num < MAX_SND_CARD) {
+            if (snd_card_detection_info[snd_card_num] == 0) {
+                mixer = mixer_open(snd_card_num);
+                if (!mixer)
+                    snd_card_num++;
+                else
+                    break;
+            } else
+                snd_card_num++;
         }
 
         if (!mixer) {
            usleep(RETRY_US);
-           snd_card_num = min_snd_card_num;
            retry_num++;
+           ALOGD("%s: retry, retry_num %d", __func__, retry_num);
            continue;
         }
 
@@ -2313,18 +2516,13 @@ int audio_extn_utils_open_snd_mixer(struct mixer **mixer_handle)
             return -1;
         }
         ALOGD("%s: snd_card_name: %s", __func__, snd_card_name);
-
+        snd_card_detection_info[snd_card_num] = 1;
         hw_info = hw_info_init(snd_card_name);
         if (hw_info) {
             ALOGD("%s: Opened sound card:%d", __func__, snd_card_num);
             break;
         }
-        ALOGE("%s: Failed to init hardware info", __func__);
-        min_snd_card_num++;
-        snd_card_num = min_snd_card_num;
-
-        if (snd_card_num >= MAX_SND_CARD)
-            break;
+        ALOGE("%s: Failed to init hardware info, snd_card_num:%d", __func__, snd_card_num);
 
         free(snd_card_name);
         snd_card_name = NULL;
@@ -2338,7 +2536,7 @@ int audio_extn_utils_open_snd_mixer(struct mixer **mixer_handle)
     if (hw_info)
         hw_info_deinit(hw_info);
 
-    if ((snd_card_num >= MAX_SND_CARD) || (retry_num >= RETRY_NUMBER)) {
+    if (retry_num >= RETRY_NUMBER) {
         ALOGE("%s: Unable to find correct sound card, aborting.", __func__);
         return -1;
     }
@@ -2590,7 +2788,18 @@ bool audio_extn_utils_is_dolby_format(audio_format_t format)
 {
     if (format == AUDIO_FORMAT_AC3 ||
             format == AUDIO_FORMAT_E_AC3 ||
-            format == AUDIO_FORMAT_E_AC3_JOC)
+            format == AUDIO_FORMAT_E_AC3_JOC ||
+            format == AUDIO_FORMAT_MAT ||
+            format == AUDIO_FORMAT_DOLBY_TRUEHD)
+        return true;
+    else
+        return false;
+}
+
+bool audio_extn_utils_is_dolby_mat_thd_format(audio_format_t format)
+{
+    if (format == AUDIO_FORMAT_MAT ||
+            format == AUDIO_FORMAT_DOLBY_TRUEHD)
         return true;
     else
         return false;
@@ -2711,4 +2920,26 @@ size_t audio_extn_utils_get_input_buffer_size(uint32_t sample_rate,
     size = audio_extn_utils_nearest_multiple(size, audio_extn_utils_lcm(32, bytes_per_period_sample));
 
     return size;
+}
+
+int audio_extn_utils_send_app_type_gain(struct audio_device *adev,
+                                        int app_type,
+                                        int *gain)
+{
+    int gain_cfg[4];
+    const char *mixer_ctl_name = "App Type Gain";
+    struct mixer_ctl *ctl;
+    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+    if (!ctl) {
+        ALOGE("%s: Could not get volume ctl mixer %s", __func__,
+              mixer_ctl_name);
+        return -EINVAL;
+    }
+    gain_cfg[0] = 0;
+    gain_cfg[1] = app_type;
+    gain_cfg[2] = gain[0];
+    gain_cfg[3] = gain[1];
+    ALOGV("%s app_type %d l(%d) r(%d)", __func__,  app_type, gain[0], gain[1]);
+    return mixer_ctl_set_array(ctl, gain_cfg,
+                               sizeof(gain_cfg)/sizeof(gain_cfg[0]));
 }

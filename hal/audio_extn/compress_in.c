@@ -279,7 +279,6 @@ int audio_extn_cin_read(struct stream_in *in, void *buffer,
 
 int audio_extn_cin_configure_input_stream(struct stream_in *in, struct audio_config *in_config)
 {
-    struct audio_device *adev = in->dev;
     struct audio_config config = {.format = 0};
     int ret = 0, buffer_size = 0, meta_size = sizeof(struct snd_codec_metadata);
     cin_private_data_t *cin_data = NULL;

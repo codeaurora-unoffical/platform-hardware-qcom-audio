@@ -1,6 +1,8 @@
 AM_CFLAGS = -I ${WORKSPACE}/external/tinyalsa/include \
             -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/audio-kernel \
-            -I ${WORKSPACE}/system/media/audio_effects/include
+            -I ${WORKSPACE}/system/media/audio_effects/include \
+            -I $(top_srcdir)/hal \
+            -I $(top_srcdir)/hal/audio_extn
 
 c_sources = bundle.c \
             equalizer.c \
@@ -8,7 +10,8 @@ c_sources = bundle.c \
             virtualizer.c \
             reverb.c \
             effect_api.c \
-            effect_util.c
+            effect_util.c \
+            asphere.c
 
 if AFE_PROXY
 AM_CFLAGS += -DAFE_PROXY_ENABLED
@@ -19,10 +22,9 @@ AM_CFLAGS += -DHW_ACCELERATED_EFFECTS
 c_sources += hw_accelerator.c
 endif
 
-if AUDIOSPHERE
-AM_CFLAGS += -DAUDIOSPHERE_ENABLED
-c_sources += asphere.c
-endif
+#if AUDIOSPHERE
+#c_sources += asphere.c
+#endif
 
 library_include_HEADERS = $(h_sources)
 library_includedir = $(includedir)
@@ -33,3 +35,4 @@ libqcompostprocbundle_la_LIBADD = $(GLIB_LIBS) -llog -lcutils -ltinyalsa -ldl
 libqcompostprocbundle_la_CFLAGS = $(AM_CFLAGS) $(GLIB_CFLAGS)
 libqcompostprocbundle_la_CFLAGS += -D__unused=__attribute__\(\(__unused__\)\)
 libqcompostprocbundle_la_LDFLAGS = -module -shared -avoid-version
+libqcompostprocbundle_la_CPPFLAGS = $(AM_CFLAGS) $(GLIB_CFLAGS)

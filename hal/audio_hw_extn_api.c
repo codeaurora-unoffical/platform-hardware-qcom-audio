@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2016-2017, 2018, The Linux Foundation. All rights reserved.
+* Copyright (c) 2016-2017, 2018-2019, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -34,6 +34,7 @@
 #include <inttypes.h>
 #include <errno.h>
 #include <cutils/log.h>
+#include <cutils/atomic.h>
 
 #include <hardware/audio.h>
 #include "sound/compress_params.h"
@@ -182,6 +183,15 @@ int qahwi_set_param_data(struct audio_hw_device *adev,
               audio_extn_set_device_cfg_params(dev,
                                (struct audio_device_cfg_param *)payload);
               break;
+
+        case AUDIO_EXTN_PARAM_DOLBY_THD_DEC:
+              audio_extn_set_dolby_thd_dec_params((struct dolby_thd_dec_param *)payload);
+              break;
+
+        case AUDIO_EXTN_PARAM_DOLBY_MAT_DEC:
+              audio_extn_set_dolby_mat_dec_params((struct dolby_mat_dec_param *)payload);
+              break;
+
        default:
              ALOGE("%s::INVALID PARAM ID:%d\n",__func__,param_id);
              ret = -EINVAL;
@@ -201,9 +211,13 @@ int qahwi_in_stop(struct audio_stream_in* stream) {
     if (!in->standby) {
         if (in->pcm != NULL ) {
             pcm_stop(in->pcm);
-        } else if (audio_extn_cin_format_supported(in->format)) {
+        } else if (audio_extn_cin_attached_usecase(in->usecase)) {
             audio_extn_cin_stop_input_stream(in);
         }
+
+        /* Set the atomic variable when the session is stopped */
+        if (android_atomic_acquire_cas(false, true, &(in->capture_stopped)) == 0)
+            ALOGI("%s: capture_stopped bit set", __func__);
     }
 
     pthread_mutex_unlock(&adev->lock);
