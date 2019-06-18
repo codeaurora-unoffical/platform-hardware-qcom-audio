@@ -241,6 +241,7 @@ endif
 
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_KEEP_ALIVE_ARM_FFV)), true)
     LOCAL_CFLAGS += -DRUN_KEEP_ALIVE_IN_ARM_FFV
+    LOCAL_CFLAGS += -DKEEP_ALIVE_ENABLED
     LOCAL_SRC_FILES += audio_extn/keep_alive.c
 endif
 

@@ -236,6 +236,8 @@ static const int pcm_device_table[AUDIO_USECASE_MAX][2] = {
                                       INCALL_MUSIC_UPLINK2_PCM_DEVICE},
     [USECASE_AUDIO_SPKR_CALIB_RX] = {SPKR_PROT_CALIB_RX_PCM_DEVICE, -1},
     [USECASE_AUDIO_SPKR_CALIB_TX] = {-1, SPKR_PROT_CALIB_TX_PCM_DEVICE},
+    [USECASE_AUDIO_PLAYBACK_SILENCE] = {MULTIMEDIA9_PCM_DEVICE, -1},
+    [USECASE_AUDIO_EC_REF_LOOPBACK] = {MULTIMEDIA9_PCM_DEVICE, MULTIMEDIA9_PCM_DEVICE}, /* pcm id updated from platform info file */
 };
 
 /* Array to store sound devices */
@@ -1361,6 +1363,8 @@ void *platform_init(struct audio_device *adev)
         }
         platform_acdb_init(my_data);
     }
+    /* Initialize keep alive for HDMI/loopback silence */
+    audio_extn_keep_alive_init(adev);
     audio_extn_pm_vote();
 
 acdb_init_fail:
@@ -1392,6 +1396,8 @@ acdb_init_fail:
 void platform_deinit(void *platform)
 {
     struct platform_data *my_data = (struct platform_data *)platform;
+
+    audio_extn_keep_alive_deinit();
 
     hw_info_deinit(my_data->hw_info);
     close_csd_client(my_data->csd);

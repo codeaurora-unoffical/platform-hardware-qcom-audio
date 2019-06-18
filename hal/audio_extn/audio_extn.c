@@ -580,6 +580,7 @@ void audio_extn_set_parameters(struct audio_device *adev,
    audio_extn_pm_set_parameters(parms);
    audio_extn_source_track_set_parameters(adev, parms);
    audio_extn_asphere_set_parameters(adev, parms);
+   audio_extn_keep_alive_set_parameters(adev, parms);
    audio_extn_ffv_set_parameters(adev, parms);
 }
 
