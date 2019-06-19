@@ -1447,6 +1447,70 @@ end:
     return d2; // return whatever was calculated before.
 }
 
+/*
+ * legend same as derive_playback_snd_device.
+ * cases which differ with playback or additional cases will be listed here
+ */
+static snd_device_t derive_capture_snd_device(void * platform,
+                                              struct audio_usecase *uc,
+                                              struct audio_usecase *new_uc,
+                                              snd_device_t new_snd_device)
+{
+    audio_devices_t a1, a2;
+
+    snd_device_t d1 = uc->in_snd_device;
+    snd_device_t d2 = new_snd_device;
+
+    switch (uc->type) {
+        case TRANSCODE_LOOPBACK_TX:
+            a1 = uc->stream.inout->in_config.devices;
+            a2 = new_uc->stream.inout->in_config.devices;
+            break;
+        default :
+            a1 = uc->stream.in->device;
+            a2 = new_uc->stream.in->device;
+            break;
+    }
+
+    // Treat as a special case when a1 and a2 are not disjoint
+    if ((a1 != a2) && (a1 & a2)) {
+        snd_device_t d3[2];
+        int num_devices = 0;
+        int ret = platform_split_snd_device(platform,
+                      popcount(a1 & ~AUDIO_DEVICE_BIT_IN) > 1 ? d1 : d2,
+                      &num_devices, d3);
+        if (ret < 0) {
+            if (ret != -ENOSYS) {
+                ALOGW("%s failed to split snd_device %d",
+                      __func__,
+                      popcount(a1 & ~AUDIO_DEVICE_BIT_IN) > 1 ? d1 : d2);
+            }
+            goto end;
+        }
+
+        if (platform_check_backends_match(d3[0], d3[1])) {
+            return d2; // case 5
+        } else {
+            if (popcount(a1) > 1)
+                return d1; //case 7
+            // check if d1 is related to any of d3's
+            if (d1 == d3[0] || d1 == d3[1])
+                return d1; // case 1
+            else
+                return d3[1]; // case 8
+        }
+    } else {
+        if (platform_check_backends_match(d1, d2)) {
+            return d2; // case 2, 4
+        } else {
+            return d1; // case 6, 3
+        }
+    }
+
+end:
+    return d2; // return whatever was calculated before.
+}
+
 static void check_usecases_codec_backend(struct audio_device *adev,
                                               struct audio_usecase *uc_info,
                                               snd_device_t snd_device)
@@ -1584,6 +1648,8 @@ static void check_usecases_capture_codec_backend(struct audio_device *adev,
 {
     struct listnode *node;
     struct audio_usecase *usecase;
+    snd_device_t uc_derive_snd_device;
+    snd_device_t derive_snd_device[AUDIO_USECASE_MAX];
     bool switch_device[AUDIO_USECASE_MAX];
     int i, num_uc_to_switch = 0;
     int backend_check_cond = AUDIO_DEVICE_OUT_ALL_CODEC_BACKEND;
@@ -1619,18 +1685,25 @@ static void check_usecases_capture_codec_backend(struct audio_device *adev,
          * TODO: Enhance below condition to handle BT sco/USB multi recording
          */
         if (usecase->type != PCM_PLAYBACK &&
-                usecase != uc_info &&
-                (usecase->in_snd_device != snd_device || force_routing) &&
+                usecase != uc_info) {
+            uc_derive_snd_device = derive_capture_snd_device(adev->platform,
+                                               usecase, uc_info, snd_device);
+            ALOGD("%s: usecase snd device %d, derived snd device %d",
+                   __func__, usecase->in_snd_device, uc_derive_snd_device);
+            if ((uc_derive_snd_device != usecase->in_snd_device || force_routing) &&
                 ((uc_info->devices & backend_check_cond) &&
                  (((usecase->devices & ~AUDIO_DEVICE_BIT_IN) & AUDIO_DEVICE_IN_ALL_CODEC_BACKEND) ||
                   (usecase->type == VOIP_CALL))) &&
                 (usecase->id != USECASE_AUDIO_SPKR_CALIB_TX)) {
-            ALOGV("%s: Usecase (%s) is active on (%s) - disabling ..",
-                  __func__, use_case_table[usecase->id],
-                  platform_get_snd_device_name(usecase->in_snd_device));
-            disable_audio_route(adev, usecase);
-            switch_device[usecase->id] = true;
-            num_uc_to_switch++;
+                ALOGV("%s: Usecase (%s) is active on (%s) - disabling ..",
+                       __func__, use_case_table[usecase->id],
+                       platform_get_snd_device_name(usecase->in_snd_device));
+                disable_audio_route(adev, usecase);
+                switch_device[usecase->id] = true;
+                /* Enable existing usecase on derived record device */
+                derive_snd_device[usecase->id] = uc_derive_snd_device;
+                num_uc_to_switch++;
+            }
         }
     }
 
@@ -1649,7 +1722,7 @@ static void check_usecases_capture_codec_backend(struct audio_device *adev,
         list_for_each(node, &adev->usecase_list) {
             usecase = node_to_item(node, struct audio_usecase, list);
             if (switch_device[usecase->id]) {
-                enable_snd_device(adev, snd_device);
+                enable_snd_device(adev, derive_snd_device[usecase->id]);
             }
         }
 
@@ -1659,7 +1732,7 @@ static void check_usecases_capture_codec_backend(struct audio_device *adev,
             usecase = node_to_item(node, struct audio_usecase, list);
             /* Update the in_snd_device only before enabling the audio route */
             if (switch_device[usecase->id] ) {
-                usecase->in_snd_device = snd_device;
+                usecase->in_snd_device = derive_snd_device[usecase->id];
                 if (usecase->type != VOICE_CALL) {
                     /* Update voc calibration before enabling VoIP route */
                     if (usecase->type == VOIP_CALL)
