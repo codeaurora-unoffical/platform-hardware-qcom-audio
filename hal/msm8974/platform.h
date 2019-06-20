@@ -430,7 +430,7 @@ enum {
 #else
 #define SPKR_PROT_CALIB_TX_PCM_DEVICE 25
 #endif
-#define PLAYBACK_OFFLOAD_DEVICE 9
+#define PLAYBACK_OFFLOAD_DEVICE 7
 #define QUAT_MI2S_PCM_DEVICE    44
 
 // Direct_PCM
