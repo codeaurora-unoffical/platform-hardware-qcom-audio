@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Copyright (c) 2018, The Linux Foundation. All rights reserved.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are
+    met:
+        * Redistributions of source code must retain the above copyright
+          notice, this list of conditions and the following disclaimer.
+        * Redistributions in binary form must reproduce the above
+          copyright notice, this list of conditions and the following
+          disclaimer in the documentation and/or other materials provided
+          with the distribution.
+        * Neither the name of The Linux Foundation nor the names of its
+          contributors may be used to endorse or promote products derived
+          from this software without specific prior written permission.
+
+    THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+    WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
+    ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+    BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+    CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+    SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+    BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+    WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+    OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+    IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+-->
+<module name="eavb" halVersion="2.0">
+    <attachedDevices>
+        <item>eAVB Out</item>
+        <item>eAVB In</item>
+    </attachedDevices>
+    <defaultOutputDevice>eAVB Out</defaultOutputDevice>
+    <mixPorts>
+        <mixPort name="eavb output" role="source" flags="AUDIO_OUTPUT_FLAG_PRIMARY">
+            <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+                     samplingRates="48000"
+                     channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
+        </mixPort>
+        <mixPort name="eavb input" role="sink">
+            <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+                     samplingRates="48000"
+                     channelMasks="AUDIO_CHANNEL_IN_STEREO"/>
+        </mixPort>
+    </mixPorts>
+    <devicePorts>
+        <devicePort tagName="eAVB Out" type="AUDIO_DEVICE_OUT_PROXY" role="sink" address="skt_name=eavb_out_1">
+            <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+                     samplingRates="48000"
+                     channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
+        </devicePort>
+        <devicePort tagName="eAVB In" type="AUDIO_DEVICE_IN_PROXY" role="source" address="skt_name=eavb_in_1">
+            <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+                     samplingRates="48000"
+                     channelMasks="AUDIO_CHANNEL_IN_STEREO"/>
+        </devicePort>
+    </devicePorts>
+    <routes>
+        <route type="mix" sink="eAVB Out"
+               sources="eavb output"/>
+        <route type="mix" sink="eavb input"
+               sources="eAVB In"/>
+    </routes>
+</module>
