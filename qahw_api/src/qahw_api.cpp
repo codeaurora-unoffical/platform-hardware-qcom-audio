@@ -74,7 +74,7 @@ typedef struct {
     struct qahw_mute_data out_mute;
     struct qahw_mute_data in_mute;
     char sess_id_call_state[QAHW_KV_PAIR_LENGTH];
-    qahw_stream_callback_t cb;
+    qahw_stream_callback_t *cb;
     void *cookie;
 } qahw_api_stream_t;
 

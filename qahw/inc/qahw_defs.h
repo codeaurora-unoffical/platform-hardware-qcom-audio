@@ -233,7 +233,7 @@ typedef enum {
                                            */
 } qahw_stream_callback_event_t;
 
-typedef int (*qahw_stream_callback_t)(qahw_stream_callback_event_t event,
+typedef int qahw_stream_callback_t(qahw_stream_callback_event_t event,
                                    void *param,
                                    void *cookie);
 
