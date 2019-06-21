@@ -104,6 +104,7 @@
 #define MIXER_XML_PATH_WCD9335 "/vendor/etc/mixer_paths_wcd9335.xml"
 #define MIXER_XML_PATH_SKUN "/vendor/etc/mixer_paths_qrd_skun.xml"
 #define PLATFORM_INFO_XML_PATH      "/vendor/etc/audio_platform_info.xml"
+#define PLATFORM_INFO_XML_PATH_QRD "/vendor/etc/audio_platform_info_qrd.xml"
 #define MIXER_XML_PATH_WCD9326_I2S "/vendor/etc/mixer_paths_wcd9326_i2s.xml"
 #define MIXER_XML_PATH_WCD9326_I2S_TDM "/vendor/etc/mixer_paths_wcd9326_i2s_tdm.xml"
 #define MIXER_XML_PATH_WCD9330_I2S "/vendor/etc/mixer_paths_wcd9330_i2s.xml"
@@ -2401,6 +2402,9 @@ void *platform_init(struct audio_device *adev)
     else if (!strncmp(snd_card_name, "sdm660-snd-card-skush",
                sizeof("sdm660-snd-card-skush")))
         platform_info_init(PLATFORM_INFO_XML_PATH_SKUSH, my_data, PLATFORM);
+    else if (!strncmp(snd_card_name, "sdm429-qrd-snd-card",
+               sizeof("sdm429-qrd-snd-card")))
+        platform_info_init(PLATFORM_INFO_XML_PATH_QRD, my_data, PLATFORM);
     else
         platform_info_init(PLATFORM_INFO_XML_PATH, my_data, PLATFORM);
 
