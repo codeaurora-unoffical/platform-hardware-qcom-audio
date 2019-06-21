@@ -51,6 +51,9 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 #define AUDIO_PARAMETER_HFP_SET_SAMPLING_RATE "hfp_set_sampling_rate"
 #define AUDIO_PARAMETER_KEY_HFP_VOLUME "hfp_volume"
 #define AUDIO_PARAMETER_HFP_PCM_DEV_ID "hfp_pcm_dev_id"
+#define AUDIO_PARAMETER_HFP_PCM_RX_LINEOUT_DEV_ID "hfp_pcm_rx_lineout_dev_id"
+#define AUDIO_PARAMETER_HFP_PCM_RX_SPEAKER_DEV_ID "hfp_pcm_rx_speaker_dev_id"
+#define AUDIO_PARAMETER_HFP_ENABLE_MULTI_INTERFACES "hfp_enable_on_multi_interfaces"
 
 #define AUDIO_PARAMETER_KEY_HFP_MIC_VOLUME "hfp_mic_volume"
 #define PLAYBACK_VOLUME_MAX 0x2000
@@ -72,6 +75,8 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 #define HFP_RX_VOLUME     "Internal HFP RX Volume"
 #endif
 
+static bool hfp_enable_on_multi_interfaces = false;
+
 static int32_t start_hfp(struct audio_device *adev,
                                struct str_parms *parms);
 
@@ -85,6 +90,8 @@ struct hfp_module {
     bool is_hfp_running;
     float hfp_volume;
     int32_t hfp_pcm_dev_id;
+    int32_t hfp_pcm_dev_rx1_id;
+    int32_t hfp_pcm_dev_rx2_id;
     audio_usecase_t ucid;
     float mic_volume;
     bool mic_mute;
@@ -98,6 +105,8 @@ static struct hfp_module hfpmod = {
     .is_hfp_running = 0,
     .hfp_volume = 0,
     .hfp_pcm_dev_id = HFP_ASM_RX_TX,
+    .hfp_pcm_dev_rx1_id = HFP_PCM_RX,
+    .hfp_pcm_dev_rx2_id = HFP_PCM_RX,
     .ucid = USECASE_AUDIO_HFP_SCO,
     .mic_volume = CAPTURE_VOLUME_DEFAULT,
     .mic_mute = 0,
@@ -301,7 +310,13 @@ static int32_t start_hfp(struct audio_device *adev,
             ALOGE("%s: failed to start ext hw plugin", __func__);
     }
 
-    pcm_dev_rx_id = platform_get_pcm_device_id(uc_info->id, PCM_PLAYBACK);
+    if (hfp_enable_on_multi_interfaces) {
+        if (adev->primary_output->devices == AUDIO_DEVICE_OUT_LINE)
+            pcm_dev_rx_id = hfpmod.hfp_pcm_dev_rx1_id;
+        else if (adev->primary_output->devices == AUDIO_DEVICE_OUT_SPEAKER)
+            pcm_dev_rx_id = hfpmod.hfp_pcm_dev_rx2_id;
+    } else
+        pcm_dev_rx_id = platform_get_pcm_device_id(uc_info->id, PCM_PLAYBACK);
     pcm_dev_tx_id = platform_get_pcm_device_id(uc_info->id, PCM_CAPTURE);
     pcm_dev_asm_rx_id = hfpmod.hfp_pcm_dev_id;
     pcm_dev_asm_tx_id = hfpmod.hfp_pcm_dev_id;
@@ -497,6 +512,16 @@ void audio_extn_hfp_set_parameters(struct audio_device *adev, struct str_parms *
     float vol;
     char value[32]={0};
 
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_HFP_ENABLE_MULTI_INTERFACES, value,
+                            sizeof(value));
+    if (ret >= 0) {
+        if (!strncmp(value, "true", sizeof(value)))
+            hfp_enable_on_multi_interfaces = true;
+        else
+            hfp_enable_on_multi_interfaces = false;
+        str_parms_del(parms, AUDIO_PARAMETER_HFP_ENABLE_MULTI_INTERFACES);
+    }
+
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_HFP_ENABLE, value,
                             sizeof(value));
     if (ret >= 0) {
@@ -565,6 +590,26 @@ void audio_extn_hfp_set_parameters(struct audio_device *adev, struct str_parms *
         }
         ALOGD("%s: set_hfp_mic_volume usecase, Vol: [%f]", __func__, vol);
         hfp_set_mic_volume(adev, vol);
+    }
+
+    if (hfp_enable_on_multi_interfaces) {
+        memset(value, 0, sizeof(value));
+        ret = str_parms_get_str(parms, AUDIO_PARAMETER_HFP_PCM_RX_LINEOUT_DEV_ID,
+                            value, sizeof(value));
+        if (ret >= 0) {
+            hfpmod.hfp_pcm_dev_rx1_id = atoi(value);
+            ALOGD("Updating HFP_PCM_RX_DEV_ID as %d from platform XML", hfpmod.hfp_pcm_dev_rx1_id);
+            str_parms_del(parms, AUDIO_PARAMETER_HFP_PCM_RX_LINEOUT_DEV_ID);
+        }
+
+        memset(value, 0, sizeof(value));
+        ret = str_parms_get_str(parms, AUDIO_PARAMETER_HFP_PCM_RX_SPEAKER_DEV_ID,
+                                value, sizeof(value));
+        if (ret >= 0) {
+            hfpmod.hfp_pcm_dev_rx2_id = atoi(value);
+            ALOGD("Updating HFP_PCM_RX_DEV_ID as %d from platform XML", hfpmod.hfp_pcm_dev_rx2_id);
+            str_parms_del(parms, AUDIO_PARAMETER_HFP_PCM_RX_SPEAKER_DEV_ID);
+        }
     }
 
 exit:
