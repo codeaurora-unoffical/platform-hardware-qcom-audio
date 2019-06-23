@@ -4951,7 +4951,8 @@ snd_device_t platform_get_output_snd_device(void *platform, struct stream_out *o
             } else {
                 snd_device = SND_DEVICE_OUT_VOICE_SPEAKER_HFP;
             }
-        } else if (devices & AUDIO_DEVICE_OUT_SPEAKER) {
+        } else if (devices & AUDIO_DEVICE_OUT_SPEAKER ||
+                   devices & AUDIO_DEVICE_OUT_BUS) {
                 if (my_data->is_vbat_speaker || my_data->is_bcl_speaker) {
                     if (hw_info_is_stereo_spkr(my_data->hw_info)) {
                         if (my_data->mono_speaker == SPKR_1)
@@ -4961,7 +4962,9 @@ snd_device_t platform_get_output_snd_device(void *platform, struct stream_out *o
                     } else
                         snd_device = SND_DEVICE_OUT_VOICE_SPEAKER_VBAT;
                 } else {
-                    if (hw_info_is_stereo_spkr(my_data->hw_info)) {
+                    if (adev->enable_hfp) {
+                        snd_device = SND_DEVICE_OUT_VOICE_SPEAKER_HFP;
+                    } else if (hw_info_is_stereo_spkr(my_data->hw_info)) {
                         if (my_data->voice_speaker_stereo)
                             snd_device = SND_DEVICE_OUT_VOICE_SPEAKER_STEREO;
                         else {
@@ -4971,7 +4974,7 @@ snd_device_t platform_get_output_snd_device(void *platform, struct stream_out *o
                                 snd_device = SND_DEVICE_OUT_VOICE_SPEAKER_2;
                         }
                     } else
-                            snd_device = SND_DEVICE_OUT_VOICE_SPEAKER;
+                        snd_device = SND_DEVICE_OUT_VOICE_SPEAKER;
                 }
         } else if (devices & AUDIO_DEVICE_OUT_ALL_A2DP) {
             snd_device = SND_DEVICE_OUT_BT_A2DP;
@@ -5434,7 +5437,8 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
         } else if (out_device & AUDIO_DEVICE_OUT_SPEAKER ||
                    out_device & AUDIO_DEVICE_OUT_SPEAKER_SAFE ||
                    out_device & AUDIO_DEVICE_OUT_WIRED_HEADPHONE ||
-                   out_device & AUDIO_DEVICE_OUT_LINE) {
+                   out_device & AUDIO_DEVICE_OUT_LINE ||
+                   out_device & AUDIO_DEVICE_OUT_BUS) {
             if (my_data->fluence_type != FLUENCE_NONE &&
                 (my_data->fluence_in_voice_call ||
                  my_data->fluence_in_hfp_call) &&
