@@ -782,7 +782,11 @@ snd_device_t audio_extn_auto_hal_get_input_snd_device(struct audio_device *adev,
         switch (usecase->id) {
         case USECASE_AUDIO_HFP_SCO:
         case USECASE_AUDIO_HFP_SCO_WB:
-            snd_device = SND_DEVICE_IN_VOICE_SPEAKER_MIC_HFP;
+            if (platform_get_eccarstate((void *) adev->platform)) {
+                snd_device = SND_DEVICE_IN_VOICE_SPEAKER_MIC_HFP_MMSECNS;
+            } else {
+                snd_device = SND_DEVICE_IN_VOICE_SPEAKER_MIC_HFP;
+            }
             if (adev->enable_hfp)
                 platform_set_echo_reference(adev, true, out_device);
             break;
