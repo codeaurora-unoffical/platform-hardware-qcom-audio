@@ -272,6 +272,10 @@
         <ctl name="QUAT_MI2S_RX Audio Mixer MultiMedia1" value="1" />
     </path>
 
+    <path name="deep-buffer-playback speaker">
+        <path name="deep-buffer-playback" />
+    </path>
+
     <path name="deep-buffer-playback bt-sco">
         <ctl name="INTERNAL_BT_SCO_RX Audio Mixer MultiMedia1" value="1" />
     </path>
@@ -323,6 +327,10 @@
 
     <path name="low-latency-playback">
         <ctl name="QUAT_MI2S_RX Audio Mixer MultiMedia5" value="1" />
+    </path>
+
+    <path name="low-latency-playback speaker">
+        <path name="low-latency-playback" />
     </path>
 
     <path name="low-latency-playback speaker-protected">
@@ -382,6 +390,10 @@
         <ctl name="QUAT_MI2S_RX Audio Mixer MultiMedia3" value="1" />
     </path>
 
+    <path name="audio-ull-playback speaker">
+        <path name="audio-ull-playback" />
+    </path>
+
     <path name="audio-ull-playback speaker-protected">
         <path name="audio-ull-playback" />
     </path>
@@ -439,6 +451,10 @@
         <ctl name="QUAT_MI2S_RX Audio Mixer MultiMedia4" value="1" />
     </path>
 
+    <path name="compress-offload-playback speaker">
+        <path name="compress-offload-playback" />
+    </path>
+
     <path name="compress-offload-playback speaker-protected">
         <path name="compress-offload-playback" />
     </path>
@@ -489,6 +505,10 @@
 
     <path name="compress-offload-playback2">
         <ctl name="QUAT_MI2S_RX Audio Mixer MultiMedia7" value="1" />
+    </path>
+
+    <path name="compress-offload-playback2 speaker">
+        <path name="compress-offload-playback2" />
     </path>
 
     <path name="compress-offload-playback2 bt-sco">
@@ -544,6 +564,10 @@
         <ctl name="QUAT_MI2S_RX Audio Mixer MultiMedia10" value="1" />
     </path>
 
+    <path name="compress-offload-playback3 speaker">
+        <path name="compress-offload-playback3" />
+    </path>
+
     <path name="compress-offload-playback3 bt-sco">
         <ctl name="INTERNAL_BT_SCO_RX Audio Mixer MultiMedia10" value="1" />
     </path>
@@ -578,6 +602,10 @@
 
     <path name="compress-offload-playback4">
         <ctl name="QUAT_MI2S_RX Audio Mixer MultiMedia11" value="1" />
+    </path>
+
+    <path name="compress-offload-playback4 speaker">
+        <path name="compress-offload-playback4" />
     </path>
 
     <path name="compress-offload-playback4 bt-sco">
@@ -616,6 +644,10 @@
         <ctl name="QUAT_MI2S_RX Audio Mixer MultiMedia12" value="1" />
     </path>
 
+    <path name="compress-offload-playback5 speaker">
+        <path name="compress-offload-playback5" />
+    </path>
+
     <path name="compress-offload-playback5 bt-sco">
         <ctl name="INTERNAL_BT_SCO_RX Audio Mixer MultiMedia12" value="1" />
     </path>
@@ -652,6 +684,10 @@
         <ctl name="QUAT_MI2S_RX Audio Mixer MultiMedia13" value="1" />
     </path>
 
+    <path name="compress-offload-playback6 speaker">
+        <path name="compress-offload-playback6" />
+    </path>
+
     <path name="compress-offload-playback6 bt-sco">
         <ctl name="INTERNAL_BT_SCO_RX Audio Mixer MultiMedia13" value="1" />
     </path>
@@ -686,6 +722,10 @@
 
     <path name="compress-offload-playback7">
         <ctl name="QUAT_MI2S_RX Audio Mixer MultiMedia14" value="1" />
+    </path>
+
+    <path name="compress-offload-playback7 speaker">
+        <path name="compress-offload-playback7" />
     </path>
 
     <path name="compress-offload-playback7 bt-sco">
@@ -783,6 +823,10 @@
         <ctl name="Voice_Tx Mixer TERT_MI2S_TX_Voice" value="1" />
     </path>
 
+    <path name="voice-call speaker">
+        <path name="voice-call" />
+    </path>
+
     <path name="voice-call bt-sco">
         <ctl name="INTERNAL_BT_SCO_RX_Voice Mixer CSVoice" value="1" />
         <ctl name="Voice_Tx Mixer INTERNAL_BT_SCO_TX_Voice" value="1" />
@@ -805,6 +849,10 @@
     <path name="voice2-call">
         <ctl name="QUAT_MI2S_RX_Voice Mixer Voice2" value="1" />
         <ctl name="Voice2_Tx Mixer TERT_MI2S_TX_Voice2" value="1" />
+    </path>
+
+    <path name="voice2-call speaker">
+        <path name="voice2-call" />
     </path>
 
     <path name="voice2-call bt-sco">
@@ -837,6 +885,10 @@
         <ctl name="VoWLAN_Tx Mixer TERT_MI2S_TX_VoWLAN" value="1" />
     </path>
 
+    <path name="vowlan-call speaker">
+        <path name="vowlan-call" />
+    </path>
+
     <path name="vowlan-call hdmi">
         <ctl name="HDMI_RX_Voice Mixer VoWLAN" value="1" />
         <ctl name="VoWLAN_Tx Mixer TERT_MI2S_TX_VoWLAN" value="1" />
@@ -866,6 +918,10 @@
         <ctl name="VoiceMMode1_Tx Mixer TERT_MI2S_TX_MMode1" value="1" />
     </path>
 
+    <path name="voicemmode1-call speaker">
+        <path name="voicemmode1-call" />
+    </path>
+
     <path name="voicemmode1-call bt-sco">
         <ctl name="INTERNAL_BT_SCO_RX_Voice Mixer VoiceMMode1" value="1" />
         <ctl name="VoiceMMode1_Tx Mixer INT_BT_SCO_TX_MMode1" value="1" />
@@ -892,6 +948,10 @@
     <path name="voicemmode2-call">
         <ctl name="QUAT_MI2S_RX_Voice Mixer VoiceMMode2" value="1" />
         <ctl name="VoiceMMode2_Tx Mixer TERT_MI2S_TX_MMode2" value="1" />
+    </path>
+
+    <path name="voicemmode2-call speaker">
+        <path name="voicemmode2-call" />
     </path>
 
     <path name="voicemmode2-call bt-sco">
@@ -1042,6 +1102,10 @@
        <ctl name="Incall_Music Audio Mixer MultiMedia2" value="1" />
     </path>
 
+    <path name="incall_music_uplink speaker">
+        <path name="incall_music_uplink" />
+    </path>
+
     <path name="incall_music_uplink bt-sco">
         <path name="incall_music_uplink" />
     </path>
@@ -1057,8 +1121,13 @@
     <path name="incall_music_uplink usb-headphones">
         <path name="incall_music_uplink" />
     </path>
+
     <path name="incall_music_uplink2">
         <ctl name="Incall_Music_2 Audio Mixer MultiMedia9" value="1" />
+    </path>
+
+    <path name="incall_music_uplink2 speaker">
+        <path name="incall_music_uplink2" />
     </path>
 
     <path name="incall_music_uplink2 bt-sco">
@@ -1076,30 +1145,35 @@
     <path name="incall_music_uplink2 usb-headphones">
         <path name="incall_music_uplink2" />
     </path>
+
     <path name="volte-call">
         <ctl name="QUAT_MI2S_RX_Voice Mixer VoLTE" value="1" />
         <ctl name="VoLTE_Tx Mixer TERT_MI2S_TX_VoLTE" value="1" />
-   </path>
+    </path>
 
-   <path name="volte-call hdmi">
+    <path name="volte-call speaker">
+        <path name="volte-call" />
+    </path>
+
+    <path name="volte-call hdmi">
        <ctl name="HDMI_RX_Voice Mixer VoLTE" value="1" />
        <ctl name="VoLTE_Tx Mixer SLIM_0_TX_VoLTE" value="1" />
-   </path>
+    </path>
 
-   <path name="volte-call bt-sco">
+    <path name="volte-call bt-sco">
         <ctl name="INTERNAL_BT_SCO_RX_Voice Mixer VoLTE" value="1" />
         <ctl name="VoLTE_Tx Mixer INTERNAL_BT_SCO_TX_VoLTE" value="1" />
     </path>
 
-   <path name="volte-call bt-sco-wb">
+    <path name="volte-call bt-sco-wb">
         <ctl name="Internal BTSCO SampleRate" value="BTSCO_RATE_16KHZ" />
         <path name="volte-call bt-sco" />
     </path>
 
-   <path name="volte-call usb-headphones">
+    <path name="volte-call usb-headphones">
         <ctl name="AFE_PCM_RX_Voice Mixer VoLTE" value="1" />
         <ctl name="VoLTE_Tx Mixer AFE_PCM_TX_VoLTE" value="1" />
-   </path>
+    </path>
 
     <path name="volte-call afe-proxy">
        <path name="volte-call usb-headphones" />
@@ -1108,6 +1182,10 @@
     <path name="compress-voip-call">
         <ctl name="QUAT_MI2S_RX_Voice Mixer Voip" value="1" />
         <ctl name="Voip_Tx Mixer TERT_MI2S_TX_Voip" value="1" />
+    </path>
+
+    <path name="compress-voip-call speaker">
+        <path name="compress-voip-call" />
     </path>
 
     <path name="compress-voip-call bt-sco">
@@ -1138,6 +1216,10 @@
     <path name="qchat-call">
         <ctl name="QUAT_MI2S_RX_Voice Mixer QCHAT" value="1" />
         <ctl name="QCHAT_Tx Mixer TERT_MI2S_TX_QCHAT" value="1" />
+    </path>
+
+    <path name="qchat-call speaker">
+        <path name="qchat-call" />
     </path>
 
     <path name="qchat-call bt-sco">
