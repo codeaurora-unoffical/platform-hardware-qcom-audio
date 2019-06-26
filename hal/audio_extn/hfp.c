@@ -277,7 +277,7 @@ static int32_t start_hfp(struct audio_device *adev,
 {
     int32_t ret = 0;
     struct audio_usecase *uc_info;
-    int32_t pcm_dev_rx_id, pcm_dev_tx_id, pcm_dev_asm_rx_id, pcm_dev_asm_tx_id;
+    int32_t pcm_dev_rx_id = HFP_PCM_RX, pcm_dev_tx_id, pcm_dev_asm_rx_id, pcm_dev_asm_tx_id;
 
     ALOGD("%s: enter", __func__);
 
