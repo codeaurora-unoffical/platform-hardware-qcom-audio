@@ -629,6 +629,12 @@ enum {
 #define TX_VOICE_SMECNS_V2 0x10F31
 #define TX_VOICE_FV5ECNS_DM 0x10F0A
 
+/* multi-mic surround ECNS zone control */
+#define TOPOLOGY_ID_MM_HFP_ECNS 0x1FFF0002
+#define MODULE_ID_MM_HFP_ECNS   0x10F3B
+#define PARAM_ID_MM_HFP_ZONE    0x109F0
+#define INSTANCE_ID_MM_HFP_ECNS 0x8000
+
 #define LIB_CSD_CLIENT "libcsd-client.so"
 
 #define AUDIO_MAKE_STRING_FROM_ENUM(X)   { #X, X }
