@@ -504,6 +504,23 @@ typedef enum {
 #define AUDIO_FORMAT_DTS_LBR 0x1E000000UL
 #endif
 
+#ifndef KEEP_ALIVE_ENABLED
+#define audio_extn_keep_alive_init(adev) do {} while(0)
+#define audio_extn_keep_alive_deinit() do {} while(0)
+#define audio_extn_keep_alive_start(ka_mode) do {} while(0)
+#define audio_extn_keep_alive_stop(ka_mode) do {} while(0)
+#define audio_extn_keep_alive_is_active() (false)
+#define audio_extn_keep_alive_set_parameters(adev, parms) (0)
+#else
+void audio_extn_keep_alive_init(struct audio_device *adev);
+void audio_extn_keep_alive_deinit();
+void audio_extn_keep_alive_start(ka_mode_t ka_mode);
+void audio_extn_keep_alive_stop(ka_mode_t ka_mode);
+bool audio_extn_keep_alive_is_active();
+int audio_extn_keep_alive_set_parameters(struct audio_device *adev,
+                                         struct str_parms *parms);
+#endif
+
 int read_line_from_file(const char *path, char *buf, size_t count);
 
 #ifndef KPI_OPTIMIZE_ENABLED

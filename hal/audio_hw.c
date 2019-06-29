@@ -183,6 +183,7 @@ const char * const use_case_table[AUDIO_USECASE_MAX] = {
 
     [USECASE_AUDIO_PLAYBACK_AFE_PROXY] = "afe-proxy-playback",
     [USECASE_AUDIO_RECORD_AFE_PROXY] = "afe-proxy-record",
+    [USECASE_AUDIO_PLAYBACK_SILENCE] = "silence-playback",
     [USECASE_AUDIO_EC_REF_LOOPBACK] = "ec-ref-audio-capture",
 };
 
@@ -1428,8 +1429,10 @@ static int stop_output_stream(struct stream_out *out)
     free(uc_info);
 
     /* Must be called after removing the usecase from list */
-    if (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL)
+    if (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL) {
         check_and_set_hdmi_channels(adev, DEFAULT_HDMI_OUT_CHANNELS);
+        audio_extn_keep_alive_start(KEEP_ALIVE_OUT_HDMI);
+    }
 
     ALOGV("%s: exit: status(%d)", __func__, ret);
     return ret;
@@ -1483,6 +1486,7 @@ int start_output_stream(struct stream_out *out)
 
     /* This must be called before adding this usecase to the list */
     if (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL) {
+        audio_extn_keep_alive_stop(KEEP_ALIVE_OUT_HDMI);
         property_get("audio.use.hdmi.sink.cap", prop_value, NULL);
         if (!strncmp("true", prop_value, 4)) {
             sink_channels = platform_edid_get_max_channels(out->dev->platform);
