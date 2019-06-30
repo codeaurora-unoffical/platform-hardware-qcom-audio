@@ -679,7 +679,10 @@ static bool is_supported_format(audio_format_t format)
         format == AUDIO_FORMAT_WMA ||
         format == AUDIO_FORMAT_WMA_PRO ||
         format == AUDIO_FORMAT_APTX ||
-        format == AUDIO_FORMAT_IEC61937)
+        format == AUDIO_FORMAT_IEC61937 ||
+        format == AUDIO_FORMAT_AMR_NB ||
+        format == AUDIO_FORMAT_AMR_WB ||
+        format == AUDIO_FORMAT_AMR_WB_PLUS)
            return true;
 
     return false;
