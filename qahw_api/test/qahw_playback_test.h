@@ -62,7 +62,10 @@ enum {
     FILE_TRUEHD,
     FILE_IEC61937,
     FILE_APE,
-    FILE_MAT
+    FILE_MAT,
+    FILE_AMR = 20,
+    FILE_AMR_WB,
+    FILE_AMR_WB_PLUS
 };
 
 typedef enum {

@@ -162,6 +162,7 @@ __BEGIN_DECLS
 #define QAHW_OFFLOAD_CODEC_APE_SEEK_TABLE_PRESENT "music_offload_seek_table_present"
 
 #define QAHW_OFFLOAD_CODEC_VORBIS_BITSTREAM_FMT "music_offload_vorbis_bitstream_fmt"
+#define QAHW_OFFLOAD_CODEC_AMRWBPLUS_BITSTREAM_FMT "music_offload_amrwbplus_bitstream_fmt"
 
 /* Set or Query stream profile type */
 #define QAHW_PARAMETER_STREAM_PROFILE "audio_stream_profile"
