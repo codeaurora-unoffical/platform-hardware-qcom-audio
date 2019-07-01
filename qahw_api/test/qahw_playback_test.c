@@ -186,6 +186,8 @@ audio_io_handle_t stream_handle = 0x999;
                    "music_offload_sample_rate=%d;" \
                    "music_offload_seek_table_present=%d;"
 
+#define AMRWBPLUS_KVPAIR "music_offload_amrwbplus_bitstream_fmt=%d;"
+
 #ifndef AUDIO_OUTPUT_FLAG_ASSOCIATED
 #define AUDIO_OUTPUT_FLAG_ASSOCIATED 0x10000000
 #endif
@@ -330,6 +332,9 @@ void read_kvpair(char *kvpair, char* kvpair_values, int filetype)
         break;
     case FILE_APE:
         kvpair_type = APE_KVPAIR;
+        break;
+    case FILE_AMR_WB_PLUS:
+        kvpair_type = AMRWBPLUS_KVPAIR;
         break;
     default:
         break;
@@ -694,6 +699,7 @@ void *start_stream_playback (void* stream_data)
         case FILE_ALAC:
         case FILE_FLAC:
         case FILE_APE:
+        case FILE_AMR_WB_PLUS:
             fprintf(log_file, "%s:calling setparam for kvpairs\n", __func__);
             if (!(params->kvpair_values)) {
                fprintf(log_file, "stream %d: error!!No metadata for the clip\n", params->stream_index);
@@ -1198,6 +1204,9 @@ void get_file_format(stream_config *stream_info)
         case FILE_APE:
             stream_info->config.offload_info.format = AUDIO_FORMAT_APE;
             break;
+        case FILE_AMR_WB_PLUS:
+            stream_info->config.offload_info.format = AUDIO_FORMAT_AMR_WB_PLUS;
+            break;
         default:
            fprintf(log_file, "Does not support given filetype\n");
            fprintf(stderr, "Does not support given filetype\n");
@@ -1612,6 +1621,7 @@ void usage() {
     printf("                                             for example catpure data from USB HAL(device) and play it on Regular HAL(device)\n\n");
     printf(" -t  --file-type <file type>               - 1:WAV 2:MP3 3:AAC 4:AAC_ADTS 5:FLAC\n");
     printf("                                             6:ALAC 7:VORBIS 8:WMA 10:AAC_LATM \n");
+    printf("                                             19:AMR 20:AMR_WB 21:AMR_WB_PLUS \n");
     printf("                                             Required for non WAV formats\n\n");
     printf(" -a  --aac-type <aac type>                 - Required for AAC streams\n");
     printf("                                             1: LC 2: HE_V1 3: HE_V2\n\n");
@@ -1720,6 +1730,10 @@ void usage() {
     printf("hal_play_test -f /data/ape_dsp.isf.0x152E.bitstream.0x10100400.0x2.0x12F32.rx.bin -k 16,73728,3990,2000,53808,32,2,44100,157,44100,1 -t 18 -r 48000 -c 2 -v 0.5 -d 131072");
     printf("                                          -> kvpair(-k) values represent media-info of clip & values should be in below mentioned sequence\n");
     printf("                                          ->bits_per_sample,blocks_per_frame,compatible_version,compression_level,final_frame_blocks,format_flags,num_channels,sample_rate,total_frames,sample_rate,seek_table_present \n");
+    printf(" hal_play_test -f /data/amrwbplus.amr -k 1 -t 21 -r 48000 -c 2 -v 0.5 \n");
+    printf("                                          -> Play amrwbplus clip (-t = 21)\n");
+    printf("                                          -> kvpair(-k) values represent media-info of clip & values should be in below mentioned sequence\n");
+    printf("                                          -> vorbis_bitstream_fmt\n");
 }
 
 int get_wav_header_length (FILE* file_stream)
