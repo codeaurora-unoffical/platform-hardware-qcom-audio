@@ -74,6 +74,8 @@ typedef struct {
     struct qahw_mute_data out_mute;
     struct qahw_mute_data in_mute;
     char sess_id_call_state[QAHW_KV_PAIR_LENGTH];
+    qahw_stream_callback_t *cb;
+    void *cookie;
 } qahw_api_stream_t;
 
 /* Array to store sound devices */
@@ -2059,11 +2061,12 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
                                      &(attr.attr.shared.config),
                                      &stream->out_stream,
                                      address);
-        /*set cb function */
-        if (rc)
-            rc = qahw_out_set_callback(stream->out_stream, cb, cookie);
-        if (rc)
-            ALOGE("%s: setting callback failed %d \n", __func__, rc);
+        /* cache cb function now, set later as adsp stream handler registered
+           after voice start */
+        if ((!rc) && (attr.type == QAHW_VOICE_CALL)) {
+            stream->cb = cb;
+            stream->cookie = cookie;
+        }
 
         if (attr.type != QAHW_VOICE_CALL) {
             rc = qahw_open_input_stream(hw_module, handle, devices[1],
@@ -2085,11 +2088,15 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
                                      &(attr.attr.shared.config),
                                      &stream->out_stream,
                                      address);
-        /*set cb function */
-        if (rc)
+        /*ToDO: set cb function, currently registration of callback not supported
+          for all stream ignore error incase fails */
+        if (!rc) {
             rc = qahw_out_set_callback(stream->out_stream, cb, cookie);
-        if (rc)
-            ALOGE("%s: setting callback failed %d \n", __func__, rc);
+            if (rc) {
+                ALOGE("%s: setting callback failed %d \n", __func__, rc);
+                rc = 0;
+            }
+        }
         break;
     case QAHW_STREAM_INPUT:
         if (num_of_devices != 1) {
@@ -2730,14 +2737,15 @@ int32_t qahw_stream_set_dtmf_gen_params(qahw_api_stream_t *stream,
     if(stream->type == QAHW_VOICE_CALL) {
         if(dtmf_params->enable) {
             snprintf(kv, QAHW_KV_PAIR_LENGTH,
-                     "dtmf_low_freq=%d;dtmf_high_freq=%d;dtmf_tone_gain=%d",
-                     dtmf_params->low_freq,
-                     dtmf_params->high_freq,
-                     dtmf_params->gain);
-           ALOGV("%d:%s kv set is %s", __LINE__, __func__, kv);
+               "dtmf_tone_gain=%d;dtmf_low_freq=%d;dtmf_high_freq=%d;dtmf_duration_ms=%d",
+                dtmf_params->gain,
+                dtmf_params->low_freq,
+                dtmf_params->high_freq,
+                dtmf_params->duration_ms);
         } else
             snprintf(kv, QAHW_KV_PAIR_LENGTH, "dtmf_tone_off");
-        rc = qahw_out_set_parameters(stream->out_stream,kv);
+        ALOGV("%d:%s kv set is %s", __LINE__, __func__, kv);
+        rc = qahw_out_set_parameters(stream->out_stream, kv);
     } else
         ALOGE("%d:%s cannot set dtmf on non voice stream", __LINE__, __func__);
     return rc;
@@ -2811,6 +2819,32 @@ int32_t qahw_stream_set_hpcm_params(qahw_api_stream_t *stream,
     return rc;
 }
 
+int32_t qahw_stream_set_dtmf_detect_params(qahw_api_stream_t *stream,
+                                      struct qahw_dtmf_detect_params *dtmf_params){
+    int32_t rc = -EINVAL;
+    char kv[QAHW_KV_PAIR_LENGTH];
+
+    if(stream->type == QAHW_VOICE_CALL) {
+        if(dtmf_params->enable) {
+           snprintf(kv, QAHW_KV_PAIR_LENGTH, "dtmf_detect=true");
+        } else
+           snprintf(kv, QAHW_KV_PAIR_LENGTH, "dtmf_detect=false");
+
+	ALOGV("%d:%s kv set is %s", __LINE__, __func__, kv);
+        rc = qahw_out_set_parameters(stream->out_stream, kv);
+        if(!rc) {
+            rc = qahw_out_set_callback(stream->out_stream, stream->cb, stream->cookie);
+            if(rc) {
+                ALOGE("%d:%s setting callback failed %d\n", __LINE__,  __func__, rc);
+                rc = 0;
+            }
+        } else
+            ALOGE("%d:%s failed", __LINE__, __func__);
+    } else
+        ALOGE("%d:%s cannot set on non voice stream", __LINE__, __func__);
+    return rc;
+}
+
 int32_t qahw_stream_set_parameters(qahw_stream_handle_t *stream_handle,
                                    uint32_t param_id,
                                    qahw_param_payload *param_payload) {
@@ -2830,6 +2864,10 @@ int32_t qahw_stream_set_parameters(qahw_stream_handle_t *stream_handle,
             case QAHW_PARAM_HPCM:
                 rc = qahw_stream_set_hpcm_params(stream,
                                                  &param_payload->hpcm_params);
+                break;
+            case QAHW_PARAM_DTMF_DETECT:
+                rc = qahw_stream_set_dtmf_detect_params(stream,
+                                                 &param_payload->dtmf_detect_params);
                 break;
             default:
             ALOGE("%d:%s unsupported param id %d"
