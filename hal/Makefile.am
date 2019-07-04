@@ -232,7 +232,7 @@ AM_CFLAGS += -DDOLBY_MAT_THD_ENABLED
 c_sources += audio_extn/dolby.c
 endif
 
-AM_CFLAGS += -DMAX_TARGET_SPECIFIC_CHANNEL_CNT="4"
+AM_CFLAGS += -DMAX_TARGET_SPECIFIC_CHANNEL_CNT="14"
 
 h_sources = audio_extn/audio_defs.h \
             audio_extn/audio_extn.h \
