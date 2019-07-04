@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -66,6 +66,8 @@
 #define PLATFORM_INFO_XML_PATH_I2S "/etc/audio_platform_info_extcodec.xml"
 #define PLATFORM_INFO_XML_PATH_WSA  "/etc/audio_platform_info_wsa.xml"
 #define PLATFORM_INFO_XML_PATH_TDM  "/etc/audio_platform_info_tdm.xml"
+#define PLATFORM_INFO_XML_PATH_CSRA6 "/etc/audio_platform_info_csra6.xml"
+#define PLATFORM_INFO_XML_PATH_CSRA8 "/etc/audio_platform_info_csra8.xml"
 #else
 #define MIXER_XML_BASE_STRING "/vendor/etc/mixer_paths"
 #define MIXER_XML_DEFAULT_PATH "/vendor/etc/mixer_paths.xml"
@@ -78,6 +80,8 @@
 #define PLATFORM_INFO_XML_PATH_I2S "/vendor/etc/audio_platform_info_i2s.xml"
 #define PLATFORM_INFO_XML_PATH_WSA  "/vendor/etc/audio_platform_info_wsa.xml"
 #define PLATFORM_INFO_XML_PATH_TDM  "/vendor/etc/audio_platform_info_tdm.xml"
+#define PLATFORM_INFO_XML_PATH_CSRA6 "/vendor/etc/audio_platform_info_csra6.xml"
+#define PLATFORM_INFO_XML_PATH_CSRA8 "/vendor/etc/audio_platform_info_csra8.xml"
 #endif
 
 #include <linux/msm_audio.h>
@@ -153,6 +157,7 @@
  */
 #define AUDIO_PARAMETER_KEY_DP_FOR_VOICE_USECASE "dp_for_voice"
 #define AUDIO_PARAMETER_KEY_SPKR_DEVICE_CHMAP "spkr_device_chmap"
+#define AUDIO_PARAMETER_KEY_CAPTURE_DEVICE_CHMAP "capture_device_chmap"
 
 #define EVENT_EXTERNAL_SPK_1 "qc_ext_spk_1"
 #define EVENT_EXTERNAL_SPK_2 "qc_ext_spk_2"
@@ -286,7 +291,9 @@ struct platform_data {
     struct acdb_init_data_v4 acdb_init_data;
     bool use_generic_handset;
     struct  spkr_device_chmap *spkr_ch_map;
+    struct  spkr_device_chmap *capture_ch_map;
     bool use_sprk_default_sample_rate;
+    struct listnode custom_mtmx_params_list;
 };
 
 struct  spkr_device_chmap {
@@ -2112,6 +2119,7 @@ void *platform_init(struct audio_device *adev)
     my_data->mono_speaker = SPKR_1;
     my_data->speaker_lr_swap = false;
     my_data->spkr_ch_map = NULL;
+    my_data->capture_ch_map = NULL;
     my_data->use_sprk_default_sample_rate = true;
     be_dai_name_table = NULL;
 
@@ -2178,6 +2186,7 @@ void *platform_init(struct audio_device *adev)
         my_data->is_vbat_speaker = true;
 
     list_init(&my_data->acdb_meta_key_list);
+    list_init(&my_data->custom_mtmx_params_list);
 
     set_platform_defaults(my_data);
 
@@ -2193,6 +2202,12 @@ void *platform_init(struct audio_device *adev)
     else if (!strncmp(snd_card_name, "qcs405-wsa-snd-card",
                sizeof("qcs405-wsa-snd-card")))
         platform_info_init(PLATFORM_INFO_XML_PATH_WSA, my_data, PLATFORM);
+    else if (!strncmp(snd_card_name, "qcs405-csra6-snd-card",
+               sizeof("qcs405-csra6-snd-card")))
+        platform_info_init(PLATFORM_INFO_XML_PATH_CSRA6, my_data, PLATFORM);
+    else if (!strncmp(snd_card_name, "qcs405-csra8-snd-card",
+               sizeof("qcs405-csra8-snd-card")))
+        platform_info_init(PLATFORM_INFO_XML_PATH_CSRA8, my_data, PLATFORM);
     else if (!strncmp(snd_card_name, "qcs405-tdm-snd-card",
                sizeof("qcs405-tdm-snd-card")))
         platform_info_init(PLATFORM_INFO_XML_PATH_TDM, my_data, PLATFORM);
@@ -2471,6 +2486,8 @@ acdb_init_fail:
                    strdup("PRIM_MI2S_RX Format");
                my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].samplerate_mixer_ctl =
                    strdup("PRIM_MI2S_RX SampleRate");
+               my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].channels_mixer_ctl =
+                   strdup("PRIM_MI2S_RX Channels");
             } else {
                my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].bitwidth_mixer_ctl =
                    strdup("WSA_CDC_DMA_RX_0 Format");
@@ -2622,6 +2639,75 @@ acdb_init_fail:
     return my_data;
 }
 
+struct audio_custom_mtmx_params *
+    platform_get_custom_mtmx_params(void *platform,
+                                    struct audio_custom_mtmx_params_info *info)
+{
+    struct platform_data *my_data = (struct platform_data *)platform;
+    struct listnode *node = NULL;
+    struct audio_custom_mtmx_params *params = NULL;
+
+    list_for_each(node, &my_data->custom_mtmx_params_list) {
+        params = node_to_item(node, struct audio_custom_mtmx_params, list);
+        if (params &&
+            params->info.id == info->id &&
+            params->info.ip_channels == info->ip_channels &&
+            params->info.op_channels == info->op_channels &&
+            params->info.usecase_id == info->usecase_id &&
+            params->info.snd_device == info->snd_device) {
+            ALOGV("%s: found params with ip_ch %d op_ch %d uc_id %d snd_dev %d",
+                  __func__, info->ip_channels, info->op_channels,
+                  info->usecase_id, info->snd_device);
+            return params;
+        }
+    }
+    ALOGI("%s: no matching param with id %d ip_ch %d op_ch %d uc_id %d snd_dev %d",
+          __func__, info->id, info->ip_channels, info->op_channels,
+          info->usecase_id, info->snd_device);
+    return NULL;
+}
+
+int platform_add_custom_mtmx_params(void *platform,
+                                    struct audio_custom_mtmx_params_info *info)
+{
+    struct platform_data *my_data = (struct platform_data *)platform;
+    struct audio_custom_mtmx_params *params = NULL;
+    uint32_t size = sizeof(*params);
+
+    if (info->ip_channels > AUDIO_CHANNEL_COUNT_MAX ||
+        info->op_channels > AUDIO_CHANNEL_COUNT_MAX) {
+        ALOGE("%s: unusupported channels in %d, out %d",
+              __func__, info->ip_channels, info->op_channels);
+        return -EINVAL;
+    }
+
+    size += sizeof(params->coeffs[0]) * info->ip_channels * info->op_channels;
+    params = (struct audio_custom_mtmx_params *) calloc(1, size);
+    if (!params) {
+        ALOGE("%s: failed to add custom mtmx params", __func__);
+        return -ENOMEM;
+    }
+
+    ALOGI("%s: adding mtmx params with id %d ip_ch %d op_ch %d uc_id %d snd_dev %d",
+          __func__, info->id, info->ip_channels, info->op_channels,
+          info->usecase_id, info->snd_device);
+
+    params->info = *info;
+    list_add_tail(&my_data->custom_mtmx_params_list, &params->list);
+    return 0;
+}
+
+static void platform_release_custom_mtmx_params(void *platform)
+{
+    struct platform_data *my_data = (struct platform_data *)platform;
+    struct listnode *node = NULL, *tempnode = NULL;
+
+    list_for_each_safe(node, tempnode, &my_data->custom_mtmx_params_list) {
+        list_remove(node);
+        free(node_to_item(node, struct audio_custom_mtmx_params, list));
+    }
+}
+
 void platform_release_acdb_metainfo_key(void *platform)
 {
     struct platform_data *my_data = (struct platform_data *)platform;
@@ -2685,6 +2771,11 @@ void platform_deinit(void *platform)
         my_data->spkr_ch_map = NULL;
     }
 
+    if (my_data->capture_ch_map) {
+        free(my_data->capture_ch_map);
+        my_data->capture_ch_map = NULL;
+    }
+
     int32_t idx;
 
     for (idx = 0; idx < MAX_CODEC_BACKENDS; idx++) {
@@ -2706,6 +2797,7 @@ void platform_deinit(void *platform)
 
     /* free acdb_meta_key_list */
     platform_release_acdb_metainfo_key(platform);
+    platform_release_custom_mtmx_params(platform);
 
     if (my_data->acdb_deallocate)
         my_data->acdb_deallocate();
@@ -4362,9 +4454,14 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
             } else if (my_data->fluence_type == FLUENCE_NONE ||
                 (my_data->fluence_in_voice_call == false &&
                  my_data->fluence_in_hfp_call == false)) {
-                snd_device = SND_DEVICE_IN_HANDSET_MIC;
-                if (audio_extn_hfp_is_active(adev))
-                    platform_set_echo_reference(adev, true, out_device);
+                 if (out_device & AUDIO_DEVICE_OUT_LINE &&
+                     audio_extn_hfp_is_active(adev)) {
+                     snd_device = SND_DEVICE_IN_VOICE_SPEAKER_MIC;
+                 } else {
+                     snd_device = SND_DEVICE_IN_HANDSET_MIC;
+                 }
+                 if (audio_extn_hfp_is_active(adev))
+                     platform_set_echo_reference(adev, true, out_device);
             } else {
                 if ((my_data->fluence_type & FLUENCE_TRI_MIC) &&
                     (my_data->source_mic_type & SOURCE_THREE_MIC)) {
@@ -5106,11 +5203,59 @@ static void platform_spkr_device_set_params(struct platform_data *platform,
                     str_parms_del(parms, AUDIO_PARAMETER_KEY_SPKR_DEVICE_CHMAP);
                     return;
                 } else {
-                    platform->spkr_ch_map->chmap[i] = strtoul(opts, NULL, 16);
+                    platform->spkr_ch_map->chmap[i] = strtoul(opts, NULL, 0);
                 }
             }
         }
         str_parms_del(parms, AUDIO_PARAMETER_KEY_SPKR_DEVICE_CHMAP);
+    }
+}
+
+static void platform_capture_device_set_params(struct platform_data *platform,
+                                               struct str_parms *parms,
+                                               char *value, int len)
+{
+    int err = 0, i = 0, num_ch = 0;
+    char *test_r = NULL;
+    char *opts = NULL;
+    char *ch_count = NULL;
+
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_CAPTURE_DEVICE_CHMAP,
+                            value, len);
+    if (err >= 0) {
+        platform->capture_ch_map = calloc(1, sizeof(struct spkr_device_chmap));
+        if (!platform->capture_ch_map) {
+            ALOGE("%s: failed to allocate mem for adm channel map\n", __func__);
+            str_parms_del(parms, AUDIO_PARAMETER_KEY_CAPTURE_DEVICE_CHMAP);
+            return;
+        }
+
+        ch_count = strtok_r(value, ", ", &test_r);
+        if (ch_count == NULL) {
+            ALOGE("%s: incorrect ch_map\n", __func__);
+            free(platform->capture_ch_map);
+            platform->capture_ch_map = NULL;
+            str_parms_del(parms, AUDIO_PARAMETER_KEY_CAPTURE_DEVICE_CHMAP);
+            return;
+        }
+
+        num_ch = atoi(ch_count);
+        if ((num_ch > 0) && (num_ch <= AUDIO_CHANNEL_COUNT_MAX)) {
+            platform->capture_ch_map->num_ch = num_ch;
+            for (i = 0; i < num_ch; i++) {
+                opts = strtok_r(NULL, ", ", &test_r);
+                if (opts == NULL) {
+                    ALOGE("%s: incorrect ch_map\n", __func__);
+                    free(platform->capture_ch_map);
+                    platform->capture_ch_map = NULL;
+                    str_parms_del(parms, AUDIO_PARAMETER_KEY_CAPTURE_DEVICE_CHMAP);
+                    return;
+                } else {
+                    platform->capture_ch_map->chmap[i] = strtoul(opts, NULL, 0);
+                }
+            }
+        }
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_CAPTURE_DEVICE_CHMAP);
     }
 }
 
@@ -5343,6 +5488,7 @@ int platform_set_parameters(void *platform, struct str_parms *parms)
     perf_lock_set_params(platform, parms, value, len);
     true_32_bit_set_params(parms, value, len);
     platform_spkr_device_set_params(platform, parms, value, len);
+    platform_capture_device_set_params(platform, parms, value, len);
 done:
     ALOGV("%s: exit with code(%d)", __func__, ret);
     if(kv_pairs != NULL)
@@ -6353,9 +6499,9 @@ static bool platform_check_codec_backend_cfg(struct audio_device* adev,
     }
 
     /* Native playback is preferred for Headphone/HS device over 192Khz */
-    if (!voice_call_active && codec_device_supports_native_playback(usecase->devices)) {
+    if (!voice_call_active && codec_device_supports_native_playback(snd_device)) {
         if (audio_is_true_native_stream_active(adev)) {
-            if (check_hdset_combo_device(snd_device)) {
+            if (check_hdset_combo_device(usecase->devices)) {
                 /*
                  * In true native mode Tasha has a limitation that one port at 44.1 khz
                  * cannot drive both spkr and hdset, to simiplify the solution lets
@@ -6433,6 +6579,8 @@ static bool platform_check_codec_backend_cfg(struct audio_device* adev,
             ALOGD("%s:becf: afe: playback on codec device not supporting native playback set "
             "default Sample Rate(48k)", __func__);
         }
+        /* Reset channels for speaker as its fixed and independent of active streams */
+        channels = my_data->current_backend_cfg[backend_idx].channels;
     }
 
     if (backend_idx == USB_AUDIO_RX_BACKEND) {
@@ -6678,6 +6826,7 @@ bool platform_check_and_set_capture_codec_backend_cfg(struct audio_device* adev,
 {
     int backend_idx = platform_get_backend_index(snd_device);
     int ret = 0;
+    struct platform_data *my_data = (struct platform_data *)adev->platform;
     struct audio_backend_cfg backend_cfg;
 
     backend_cfg.passthrough_enabled = false;
@@ -6699,6 +6848,11 @@ bool platform_check_and_set_capture_codec_backend_cfg(struct audio_device* adev,
         backend_cfg.format = AUDIO_FORMAT_PCM_16_BIT;
         backend_cfg.channels = 1;
     }
+
+    if ((my_data->capture_ch_map != NULL) &&
+        (platform_get_backend_index(snd_device) == HDMI_TX_BACKEND))
+        platform_set_channel_map(my_data, my_data->capture_ch_map->num_ch,
+                                 my_data->capture_ch_map->chmap, -2);
 
     ALOGI("%s:txbecf: afe: bitwidth %d, samplerate %d, channel %d format %d"
           ", backend_idx %d usecase = %d device (%s)", __func__,
@@ -7282,10 +7436,13 @@ int platform_set_channel_map(void *platform, int ch_count, char *ch_map, int snd
 
     /*
      * If snd_id is greater than 0, stream channel mapping
-     * If snd_id is below 0, typically -1, device channel mapping
+     * If snd_id is -2, capture device channel mapping
+     * If snd_id is other value below 0, typically -1, playback device channel mapping
      */
     if (snd_id >= 0) {
         snprintf(mixer_ctl_name, sizeof(mixer_ctl_name), "Playback Channel Map%d", snd_id);
+    } else if (snd_id == -2) {
+        strlcpy(mixer_ctl_name, "Capture Device Channel Map", sizeof(mixer_ctl_name));
     } else {
         strlcpy(mixer_ctl_name, "Playback Device Channel Map", sizeof(mixer_ctl_name));
     }

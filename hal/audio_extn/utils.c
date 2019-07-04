@@ -1298,7 +1298,11 @@ uint32_t get_alsa_fragment_size(uint32_t bytes_per_sample,
                                   uint32_t noOfChannels)
 {
     uint32_t fragment_size = 0;
+    char value[PROPERTY_VALUE_MAX] = {0};
     uint32_t pcm_offload_time = PCM_OFFLOAD_BUFFER_DURATION;
+
+    if (property_get("vendor.audio.pcm.offload.buffer.duration.ms", value, NULL))
+        pcm_offload_time = atoi(value);
 
     fragment_size = (pcm_offload_time
                      * sample_rate
@@ -2505,14 +2509,11 @@ int audio_extn_utils_get_sample_rate_from_string(const char *id_string)
 int audio_extn_utils_get_channels_from_string(const char *id_string)
 {
     int i;
-    const mixer_config_lookup mixer_channels_config[] = {{"One", 1},
-                                                         {"Two", 2},
-                                                         {"Three",3},
-                                                         {"Four", 4},
-                                                         {"Five", 5},
-                                                         {"Six", 6},
-                                                         {"Seven", 7},
-                                                         {"Eight", 8}};
+    const mixer_config_lookup mixer_channels_config[] =
+        {{"One", 1}, {"Two", 2}, {"Three",3}, {"Four", 4}, {"Five", 5},
+         {"Six", 6}, {"Seven", 7}, {"Eight", 8}, {"Nine", 9}, {"Ten", 10},
+         {"Eleven", 11}, {"Twelve", 12}, {"Thirteen", 13}, {"Fourteen", 14},
+         {"Fifteen", 15}, {"Sixteen", 16}};
     int num_configs = sizeof(mixer_channels_config) / sizeof(mixer_channels_config[0]);
 
     for (i = 0; i < num_configs; i++) {

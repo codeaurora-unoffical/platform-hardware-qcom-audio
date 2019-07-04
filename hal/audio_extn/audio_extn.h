@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -890,9 +890,10 @@ bool audio_extn_cin_applicable_stream(struct stream_in *in);
 bool audio_extn_cin_attached_usecase(audio_usecase_t uc_id);
 bool audio_extn_cin_format_supported(audio_format_t format);
 size_t audio_extn_cin_get_buffer_size(struct stream_in *in);
-int audio_extn_cin_start_input_stream(struct stream_in *in);
+int audio_extn_cin_open_input_stream(struct stream_in *in);
 void audio_extn_cin_stop_input_stream(struct stream_in *in);
 void audio_extn_cin_close_input_stream(struct stream_in *in);
+void audio_extn_cin_free_input_stream_resources(struct stream_in *in);
 int audio_extn_cin_read(struct stream_in *in, void *buffer,
                         size_t bytes, size_t *bytes_read);
 int audio_extn_cin_configure_input_stream(struct stream_in *in);
@@ -901,9 +902,10 @@ int audio_extn_cin_configure_input_stream(struct stream_in *in);
 #define audio_extn_cin_attached_usecase(uc_id) (false)
 #define audio_extn_cin_format_supported(format) (false)
 #define audio_extn_cin_get_buffer_size(in) (0)
-#define audio_extn_cin_start_input_stream(in) (0)
+#define audio_extn_cin_open_input_stream(in) (0)
 #define audio_extn_cin_stop_input_stream(in) (0)
 #define audio_extn_cin_close_input_stream(in) (0)
+#define audio_extn_cin_free_input_stream_resources(in) (0)
 #define audio_extn_cin_read(in, buffer, bytes, bytes_read) (0)
 #define audio_extn_cin_configure_input_stream(in) (0)
 #endif
@@ -1015,6 +1017,9 @@ int audio_extn_hw_loopback_set_param_data(audio_patch_handle_t handle,
 int audio_extn_hw_loopback_set_render_window(audio_patch_handle_t handle,
                                              struct audio_out_render_window_param *render_window);
 
+int audio_extn_hw_loopback_set_callback(audio_patch_handle_t handle,
+                                        audio_extn_loopback_param_payload *payload);
+
 int audio_extn_hw_loopback_init(struct audio_device *adev);
 void audio_extn_hw_loopback_deinit(struct audio_device *adev);
 #else
@@ -1111,4 +1116,7 @@ void audio_extn_ffv_append_ec_ref_dev_name(char *device_name);
 void audio_extn_send_dual_mono_mixing_coefficients(struct stream_out *out);
 #endif
 int audio_extn_utils_get_license_params(const struct audio_device *adev,  struct audio_license_params *lic_params);
+void audio_extn_set_custom_mtmx_params(struct audio_device *adev,
+                                        struct audio_usecase *usecase,
+                                        bool enable);
 #endif /* AUDIO_EXTN_H */
