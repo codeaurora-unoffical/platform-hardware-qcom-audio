@@ -230,7 +230,7 @@ struct qap {
 };
 
 #define MAX_OUTPUTS  2
-#define MAX_OUT_BUFFER   (10*1024)
+#define MAX_OUT_BUFFER   (20*1024)
 //Global handle of QAP. Access to this should be protected by mutex lock.
 static struct qap *p_qap = NULL;
 
@@ -241,9 +241,70 @@ struct data_cb_data {
 };
 static struct data_cb_data cb_data_array[MAX_OUTPUTS];
 static int no_of_outputs  = 0;
-static long long total_bytes_written = 0;
-FILE *proxy_out_ptr = NULL;
-bool ec_ref = false;
+
+#define ID_RIFF 0x46464952
+#define ID_WAVE 0x45564157
+#define ID_FMT  0x20746d66
+#define ID_DATA 0x61746164
+#define WAVE_FORMAT_PCM 0x0001
+
+struct wav_header {
+   uint32_t riff_id;
+   uint32_t riff_sz;
+   uint32_t riff_fmt;
+
+   uint32_t fmt_id;
+   uint32_t fmt_sz;
+   uint16_t audio_format;
+   uint16_t num_channels;
+   uint32_t sample_rate;
+   uint32_t byte_rate;       /* sample_rate * num_channels * bps / 8 */
+   uint16_t block_align;     /* num_channels * bps / 8 */
+   uint16_t bits_per_sample;
+
+   uint32_t data_id;
+   uint32_t data_sz;
+};
+
+struct ecref {
+    char file_dump[40];
+    FILE *proxy_out_ptr;
+    struct wav_header hdr;
+    long long total_bytes_written;
+    int ch;
+};
+
+static struct ecref ec;
+
+static void insert_wav_header(FILE *fp, struct audio_config *config) {
+    struct wav_header *hdr = &ec.hdr;
+    int bps = 16;
+    int channels = 0;
+
+     if (config) {
+         channels = audio_channel_count_from_out_mask(config->channel_mask);
+         hdr->riff_id = ID_RIFF;
+         hdr->riff_sz = 0;
+         hdr->riff_fmt = ID_WAVE;
+
+         hdr->fmt_id = ID_FMT;
+         hdr->fmt_sz = 16;
+         hdr->audio_format = WAVE_FORMAT_PCM;
+         hdr->num_channels = channels;
+         hdr->sample_rate = config->sample_rate;
+         hdr->byte_rate = hdr->sample_rate * hdr->num_channels * (bps/8);
+         hdr->block_align = hdr->num_channels * (bps/8);
+         hdr->bits_per_sample = bps;
+
+         hdr->data_id = ID_DATA;
+         hdr->data_sz = 0;
+     }
+
+     hdr->data_sz = ec.total_bytes_written;
+     hdr->riff_sz = 4 + (8 + hdr->fmt_sz) + (8 + hdr->data_sz);
+     fseek(fp, 0, SEEK_SET);
+     fwrite(hdr, 1, sizeof(*hdr), fp);
+}
 
 /* Gets the pointer to qap module for the qap input stream. */
 static struct qap_module* get_qap_module_for_input_stream_l(struct stream_out *out)
@@ -1378,16 +1439,18 @@ static uint32_t qap_out_get_latency(const struct audio_stream_out *stream)
 static int qap_session_cmd_l(audio_session_handle_t session_handle, qap_session_outputs_config_t *outputs_config){
     int status = 0;
 
-    if (ec_ref){
-        no_of_outputs++;
-        outputs_config->num_output = no_of_outputs;
-        outputs_config->output_config[no_of_outputs - 1].format = QAP_AUDIO_FORMAT_PCM_16_BIT;
-        outputs_config->output_config[no_of_outputs - 1].id = AUDIO_DEVICE_OUT_PROXY;
+    if (ec.ch){
+        outputs_config->num_output += 1;
+        outputs_config->output_config[outputs_config->num_output - 1].format = QAP_AUDIO_FORMAT_PCM_16_BIT;
+        outputs_config->output_config[outputs_config->num_output - 1].id = AUDIO_DEVICE_OUT_PROXY;
+        outputs_config->output_config[outputs_config->num_output - 1].channels = ec.ch;
 
         DEBUG_MSG(" Enabling PROXY(pcm out) from MS12 wrapper outputid = 0x%x",
-                    outputs_config->output_config[no_of_outputs - 1].id);
+                    outputs_config->output_config[outputs_config->num_output - 1].id);
 
     }
+
+    no_of_outputs = outputs_config->num_output;
     status = qap_session_cmd(session_handle, QAP_SESSION_CMD_SET_OUTPUTS,
                              sizeof(qap_session_outputs_config_t),
                              outputs_config, NULL, NULL);
@@ -1457,6 +1520,14 @@ void static qap_close_all_output_streams(struct qap_module *qap_mod)
         qap_mod->is_media_fmt_changed[i] = false;
         delay_event_fired = false;
     }
+    if (ec.proxy_out_ptr) {
+        insert_wav_header(ec.proxy_out_ptr, NULL);
+        fclose(ec.proxy_out_ptr);
+        DEBUG_MSG("File %s CLOSED, total bytes written %lld", ec.file_dump,
+                       ec.total_bytes_written);
+        ec.proxy_out_ptr = NULL;
+        ec.total_bytes_written = 0;
+    }
     p_qap->passthrough_enabled = false;
     p_qap->mch_pcm_hdmi_enabled = false;
 
@@ -1513,14 +1584,6 @@ static void qap_session_callback(qap_session_handle_t session_handle __unused,
         }
         pthread_mutex_unlock(&qap_mod->session_output_lock);
     }
-
-    /* Default config initialization. */
-    config.sample_rate = config.offload_info.sample_rate = QAP_OUTPUT_SAMPLING_RATE;
-    config.offload_info.version = AUDIO_INFO_INITIALIZER.version;
-    config.offload_info.size = AUDIO_INFO_INITIALIZER.size;
-    config.format = config.offload_info.format = AUDIO_FORMAT_PCM_16_BIT;
-    config.offload_info.bit_width = CODEC_BACKEND_DEFAULT_BIT_WIDTH;
-    config.offload_info.channel_mask = config.channel_mask = AUDIO_CHANNEL_OUT_STEREO;
 
     pthread_mutex_lock(&p_qap->lock);
 
@@ -1597,26 +1660,20 @@ static void qap_session_callback(qap_session_handle_t session_handle __unused,
 
             DEBUG_MSG_VV("callback (%d) buffer_size (%d) data_buffer_p(%p) device 0x%x",i, buffer_size, data_buffer_p, device);
 
-            if(device == AUDIO_DEVICE_OUT_PROXY) {
-                if(proxy_out_ptr) {
-                    bytes_written = fwrite(data_buffer_p, 1, buffer_size, proxy_out_ptr);
-                    if (bytes_written != buffer_size) {
-                        ERROR_MSG("unable to write to proxy dump");
-                        fclose(proxy_out_ptr);
-                        proxy_out_ptr = NULL;
-                    }
-                    else
-                        total_bytes_written += bytes_written;
-                }
-                continue;
-            }
-
             if (buffer && buffer->common_params.data) {
                 int index = -1;
+                /* Default config initialization. */
+                config.sample_rate = config.offload_info.sample_rate = QAP_OUTPUT_SAMPLING_RATE;
+                config.offload_info.version = AUDIO_INFO_INITIALIZER.version;
+                config.offload_info.size = AUDIO_INFO_INITIALIZER.size;
+                config.format = config.offload_info.format = AUDIO_FORMAT_PCM_16_BIT;
+                config.offload_info.bit_width = CODEC_BACKEND_DEFAULT_BIT_WIDTH;
+                config.offload_info.channel_mask = config.channel_mask = AUDIO_CHANNEL_OUT_STEREO;
 
+                need_to_recreate_stream = false;
                 index = get_media_fmt_array_index_for_output_id_l(qap_mod, device);
                 if (index > -1 && qap_mod->is_media_fmt_changed[index]) {
-                    DEBUG_MSG("FORMAT changed, recreate stream");
+                    DEBUG_MSG("FORMAT changed of device 0x%x, recreate stream", device);
                     need_to_recreate_stream = true;
                     qap_mod->is_media_fmt_changed[index] = false;
 
@@ -1653,6 +1710,42 @@ static void qap_session_callback(qap_session_handle_t session_handle __unused,
                         config.channel_mask,
                         device);
                 }
+            }
+
+            if (device == AUDIO_DEVICE_OUT_PROXY) {
+                if (need_to_recreate_stream && ec.proxy_out_ptr) {
+                    insert_wav_header(ec.proxy_out_ptr, NULL);
+                    fclose(ec.proxy_out_ptr);
+                    DEBUG_MSG("File %s CLOSED, total bytes written %lld", ec.file_dump, ec.total_bytes_written);
+                    ec.total_bytes_written = 0;
+                    ec.proxy_out_ptr = NULL;
+                }
+                if (!need_to_recreate_stream) {
+                    config.channel_mask = audio_channel_out_mask_from_count(ec.ch);
+                }
+                if (ec.proxy_out_ptr == NULL && ec.ch) {
+                    memset(ec.file_dump, 0, 40);
+                    snprintf(ec.file_dump, 40, "/data/vendor/misc/audio/ecref%d.wav", audio_channel_count_from_out_mask(config.channel_mask));
+                    ec.proxy_out_ptr = fopen(ec.file_dump, "w+");
+                    if (!ec.proxy_out_ptr)
+                        ERROR_MSG("unable to open proxy dump file %s", ec.file_dump);
+                    else {
+                        DEBUG_MSG("Proxy dump file opened successfully at %s", ec.file_dump);
+                        insert_wav_header(ec.proxy_out_ptr, &config);
+                    }
+                }
+                if(ec.proxy_out_ptr) {
+                    bytes_written = fwrite(data_buffer_p, 1, buffer_size, ec.proxy_out_ptr);
+                    if (bytes_written != buffer_size) {
+                        ERROR_MSG("unable to write to proxy dump");
+                        insert_wav_header(ec.proxy_out_ptr, NULL);
+                        fclose(ec.proxy_out_ptr);
+                        ec.proxy_out_ptr = NULL;
+                    }
+                    else
+                        ec.total_bytes_written += bytes_written;
+                }
+                continue;
             }
 
             if (p_qap->passthrough_out != NULL) {
@@ -2245,7 +2338,7 @@ static int qap_set_hdmi_configuration_to_module()
         return -EINVAL;
     }
 
-    session_outputs_config.num_output = no_of_outputs = 1;
+    session_outputs_config.num_output = 1;
     //QAP re-encoding and DSP offload passthrough is supported.
     if (property_get_bool("vendor.audio.offload.passthrough", false)
             && property_get_bool("vendor.audio.qap.reencode", false)) {
@@ -2357,9 +2450,10 @@ static int qap_set_hdmi_configuration_to_module()
     return ret;
 }
 
-static int set_ecref(bool enable) {
+static int set_ecref(const char *value) {
 
     int status = 0;
+    long int channel = 0;
     qap_session_outputs_config_t session_outputs_config = {0};
 
     if (p_qap) {
@@ -2367,67 +2461,63 @@ static int set_ecref(bool enable) {
            DEBUG_MSG("EC-ref request comes but session is not setup, caching request");
        }
     } else
-            return -EINVAL;
+       return -EINVAL;
 
-    if (enable) {
-        if (!ec_ref) {
-            ec_ref = enable;
-            if (proxy_out_ptr == NULL) {
-                proxy_out_ptr = fopen("/data/vendor/misc/audio/ecref", "w+");
-                if (proxy_out_ptr == NULL) {
-                    ERROR_MSG("unable to open proxy dump file");
-                    status = errno;
-                    return status;
-                } else
-                    DEBUG_MSG("Proxy dump file opened successfully at /data/vendor/misc/audio/ecref");
-            }
+    channel = strtol(value, NULL, 10);
+    if (ec.ch == (int)channel) {
+       DEBUG_MSG_VV("EC ref for channel %ld is already active", channel);
+       return status;
+    }
 
-            if (p_qap->qap_mod[MS12].session_handle) {
-               if (p_qap->hdmi_connect) {
-                  status = qap_set_hdmi_configuration_to_module();
-               } else {
-                  session_outputs_config.num_output = no_of_outputs = 1;
-                  session_outputs_config.output_config[0].id = AUDIO_DEVICE_OUT_SPEAKER;
-                  session_outputs_config.output_config[0].format = QAP_AUDIO_FORMAT_PCM_16_BIT;
-                  status = qap_session_cmd_l(p_qap->qap_mod[MS12].session_handle,
-                                             &session_outputs_config);
-               }
-               if (QAP_STATUS_OK != status) {
-                   ERROR_MSG("Unable to register ECREF with QAP %d", status);
-                   ec_ref = false;
-               } else {
-                   DEBUG_MSG("EC reference is enabled.");
-               }
+    if (channel > 0 && channel != 2 && channel != 6) {
+       ERROR_MSG("Unsupported ec-ref channels %ld", channel);
+       return -ENOTSUP;
+    }
+
+    pthread_mutex_lock(&p_qap->lock);
+    ec.ch = (int)channel;
+    if (ec.ch) {
+        if (p_qap->qap_mod[MS12].session_handle) {
+            if (p_qap->hdmi_connect) {
+                status = qap_set_hdmi_configuration_to_module();
+            } else {
+                session_outputs_config.num_output = 1;
+                session_outputs_config.output_config[0].id = AUDIO_DEVICE_OUT_SPEAKER;
+                session_outputs_config.output_config[0].format = QAP_AUDIO_FORMAT_PCM_16_BIT;
+                status = qap_session_cmd_l(p_qap->qap_mod[MS12].session_handle,
+                                           &session_outputs_config);
             }
-        } else {
-            DEBUG_MSG("EC ref is already enabled");
+            if (QAP_STATUS_OK != status) {
+                ERROR_MSG("Unable to register ECREF with QAP %d", status);
+                ec.ch = 0;
+            } else {
+                DEBUG_MSG("EC reference is enabled.");
+            }
         }
     } else {
-         if(ec_ref) {
-            ec_ref = enable;
-            if (proxy_out_ptr) {
-                fclose(proxy_out_ptr);
-                proxy_out_ptr = NULL;
-                DEBUG_MSG("proxy dump file CLOSED, total bytes written %lld", total_bytes_written);
-                total_bytes_written = 0;
-            }
-
-            if(p_qap->qap_mod[MS12].session_handle) {
-               if (p_qap->hdmi_connect) {
-                  status = qap_set_hdmi_configuration_to_module();
-               } else {
-                  session_outputs_config.num_output = no_of_outputs = 1;
-                  session_outputs_config.output_config[0].id = AUDIO_DEVICE_OUT_SPEAKER;
-                  session_outputs_config.output_config[0].format = QAP_AUDIO_FORMAT_PCM_16_BIT;
-                  status = qap_session_cmd_l(p_qap->qap_mod[MS12].session_handle,
-                                             &session_outputs_config);
-               }
-               DEBUG_MSG("EC reference is disabled.");
-            }
-         } else {
-              DEBUG_MSG("EC ref is already disabled");
-         }
+        if(p_qap->qap_mod[MS12].session_handle) {
+           if (p_qap->hdmi_connect) {
+               status = qap_set_hdmi_configuration_to_module();
+           } else {
+               session_outputs_config.num_output = 1;
+               session_outputs_config.output_config[0].id = AUDIO_DEVICE_OUT_SPEAKER;
+               session_outputs_config.output_config[0].format = QAP_AUDIO_FORMAT_PCM_16_BIT;
+               status = qap_session_cmd_l(p_qap->qap_mod[MS12].session_handle,
+                                          &session_outputs_config);
+           }
+           if (ec.proxy_out_ptr) {
+               insert_wav_header(ec.proxy_out_ptr, NULL);
+               fclose(ec.proxy_out_ptr);
+               DEBUG_MSG("File %s CLOSED, total bytes written %lld", ec.file_dump,
+                              ec.total_bytes_written);
+               ec.proxy_out_ptr = NULL;
+               ec.total_bytes_written = 0;
+           }
+           DEBUG_MSG("EC reference is disabled.");
+        }
     }
+    pthread_mutex_unlock(&p_qap->lock);
+
     return status;
 }
 
@@ -2450,7 +2540,7 @@ static void qap_set_default_configuration_to_module()
     //will take care as a part of data callback notifier
 
 
-    session_outputs_config.num_output = no_of_outputs = 1;
+    session_outputs_config.num_output = 1;
 
     session_outputs_config.output_config[0].id = AUDIO_DEVICE_OUT_SPEAKER;
     session_outputs_config.output_config[0].format = QAP_AUDIO_FORMAT_PCM_16_BIT;
@@ -2485,8 +2575,6 @@ static int set_ms12_output_format(const char *out_format) {
    if (p_qap) {
        if (!p_qap->qap_mod[MS12].session_handle && !p_qap->qap_mod[DTS_M8].session_handle) {
            ERROR_MSG("Set request recieved but session is not setup, caching request");
-           memcpy(p_qap->ms12_out_format, out_format, sizeof(p_qap->ms12_out_format) - 1);
-           return status;
        }
    } else
        return -EINVAL;
@@ -2518,15 +2606,19 @@ static int set_ms12_output_format(const char *out_format) {
 
    memcpy(p_qap->ms12_out_format, out_format, sizeof(p_qap->ms12_out_format) - 1);
 
-   if (p_qap->hdmi_connect) {
-       if (strncmp(p_qap->ms12_out_format, "pcm", 3) != 0)
-           property_set("vendor.audio.qap.reencode", "true");
+  if (p_qap->qap_mod[MS12].session_handle) {
+      pthread_mutex_lock(&p_qap->lock);
+      if (p_qap->hdmi_connect) {
+          if (strncmp(p_qap->ms12_out_format, "pcm", 3) != 0)
+              property_set("vendor.audio.qap.reencode", "true");
 
-       status = qap_set_hdmi_configuration_to_module();
-   } else
-       qap_set_default_configuration_to_module();
+          status = qap_set_hdmi_configuration_to_module();
+      } else
+          qap_set_default_configuration_to_module();
+      pthread_mutex_unlock(&p_qap->lock);
+   }
 
-   return 0;
+   return status;
 }
 
 static int enable_qap_bypass(bool bypass_qap) {
@@ -3143,13 +3235,10 @@ int audio_extn_qap_set_parameters(struct audio_device *adev, struct str_parms *p
     }
 
     if (!p_qap->bypass_enable) {
-        status = str_parms_get_int(parms, "ecref", &val);
+        status = str_parms_get_str(parms, "ecref", value, sizeof(value));
         if (status >= 0) {
-            if (val == 1)
-                set_ecref(true);
-            else
-               set_ecref(false);
-
+            status = set_ecref(value);
+            DEBUG_MSG("Set ec ref to channel %ld is %s", strtol(value, NULL, 10), status ? "failed" : "success");
             return status;
         }
         status = str_parms_get_str(parms, "ms12_out_format", value, sizeof(value));
@@ -3179,12 +3268,15 @@ int audio_extn_qap_set_parameters(struct audio_device *adev, struct str_parms *p
                     }
                     unlock_output_stream_l(p_qap->passthrough_in);
                 }
-
+                pthread_mutex_lock(&p_qap->lock);
                 qap_set_hdmi_configuration_to_module();
+                pthread_mutex_unlock(&p_qap->lock);
             } else if (val & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP) {
                 DEBUG_MSG("AUDIO_DEVICE_OUT_BLUETOOTH_A2DP connected");
                 p_qap->bt_connect = 1;
+                pthread_mutex_lock(&p_qap->lock);
                 qap_set_default_configuration_to_module();
+                pthread_mutex_unlock(&p_qap->lock);
 #ifndef SPLIT_A2DP_ENABLED
                 for (k = 0; k < MAX_MM_MODULE_TYPE; k++) {
                      if (!p_qap->qap_mod[k].bt_hdl) {
@@ -3203,8 +3295,8 @@ int audio_extn_qap_set_parameters(struct audio_device *adev, struct str_parms *p
 
         status = str_parms_get_int(parms, AUDIO_PARAMETER_DEVICE_DISCONNECT, &val);
         if ((status >= 0) && audio_is_output_device(val)) {
-            DEBUG_MSG("AUDIO_DEVICE_OUT_AUX_DIGITAL disconnected");
             if (val & AUDIO_DEVICE_OUT_AUX_DIGITAL) {
+            DEBUG_MSG("AUDIO_DEVICE_OUT_AUX_DIGITAL disconnected");
 
                 p_qap->hdmi_sink_channels = 0;
 
@@ -3218,7 +3310,7 @@ int audio_extn_qap_set_parameters(struct audio_device *adev, struct str_parms *p
                     return 0;
                 }
 
-                session_outputs_config.num_output = no_of_outputs = 1;
+                session_outputs_config.num_output = 1;
 
                 session_outputs_config.output_config[0].id = AUDIO_DEVICE_OUT_SPEAKER;
                 session_outputs_config.output_config[0].format = QAP_AUDIO_FORMAT_PCM_16_BIT;
@@ -3227,30 +3319,36 @@ int audio_extn_qap_set_parameters(struct audio_device *adev, struct str_parms *p
                    DEBUG_MSG("Enabling speaker(PCM out) from MS12 wrapper outputid = %x",
                              session_outputs_config.output_config[0].id);
 
+                   pthread_mutex_lock(&p_qap->lock);
                    status = qap_session_cmd_l(p_qap->qap_mod[MS12].session_handle,
                                              &session_outputs_config);
+                   pthread_mutex_unlock(&p_qap->lock);
                    if (QAP_STATUS_OK != status) {
                        ERROR_MSG("Unable to register AUDIO_DEVICE_OUT_SPEAKER device with QAP %d",status);
                        return -EINVAL;
                    }
                 }
                 if (p_qap->qap_mod[DTS_M8].session_handle) {
+                    pthread_mutex_lock(&p_qap->lock);
                     status = qap_session_cmd_l(p_qap->qap_mod[MS12].session_handle,
                                                &session_outputs_config);
+                    pthread_mutex_unlock(&p_qap->lock);
                     if (QAP_STATUS_OK != status) {
                         ERROR_MSG("Unable to register AUDIO_DEVICE_OUT_SPEAKER device with QAP %d", status);
                         return -EINVAL;
                     }
                 }
-
                 close_all_hdmi_output_l();
                 close_qap_passthrough_stream_l();
             } else if (val & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP) {
                 DEBUG_MSG("AUDIO_DEVICE_OUT_BLUETOOTH_A2DP disconnected");
                 p_qap->bt_connect = 0;
                 //reconfig HDMI as end device (if connected)
-                if(p_qap->hdmi_connect)
+                if(p_qap->hdmi_connect) {
+                   pthread_mutex_lock(&p_qap->lock);
                    qap_set_hdmi_configuration_to_module();
+                   pthread_mutex_unlock(&p_qap->lock);
+                }
 #ifndef SPLIT_A2DP_ENABLED
                    DEBUG_MSG("Closing a2dp output...");
                    for (k = 0; k < MAX_MM_MODULE_TYPE; k++) {
@@ -3272,6 +3370,7 @@ int audio_extn_qap_set_parameters(struct audio_device *adev, struct str_parms *p
 /* Create the QAP. */
 int audio_extn_qap_init(struct audio_device *adev)
 {
+    char value[PROPERTY_VALUE_MAX] = {0};
     DEBUG_MSG("Entry");
 
     p_qap = calloc(1, sizeof(struct qap));
@@ -3293,8 +3392,8 @@ int audio_extn_qap_init(struct audio_device *adev)
         p_qap->qap_output_block_handling = 1;
     }
 
-    if (property_get_bool("persist.vendor.audio.qap.ecref", false)) {
-        set_ecref(true);
+    if (property_get("persist.vendor.audio.qap.ecref", value, NULL)) {
+        set_ecref(value);
     }
 
     pthread_mutex_init(&p_qap->lock, (const pthread_mutexattr_t *) NULL);
@@ -3302,7 +3401,6 @@ int audio_extn_qap_init(struct audio_device *adev)
     int i = 0;
 
     for (i = 0; i < MAX_MM_MODULE_TYPE; i++) {
-        char value[PROPERTY_VALUE_MAX] = {0};
         char lib_name[PROPERTY_VALUE_MAX] = {0};
         struct qap_module *qap_mod = &(p_qap->qap_mod[i]);
 
@@ -3397,8 +3495,8 @@ void audio_extn_qap_deinit()
     }
 
     no_of_outputs = 0;
-    if (property_get_bool("persist.vendor.audio.qap.ecref", false)) {
-        set_ecref(false);
+    if (property_get("persist.vendor.audio.qap.ecref", value, NULL)) {
+        set_ecref(value);
     }
 
     DEBUG_MSG("Exit");
