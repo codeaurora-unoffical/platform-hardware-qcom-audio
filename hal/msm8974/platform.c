@@ -7282,11 +7282,14 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
               adev_device_cfg_ptr->dev_cfg_params.sample_rate,
               adev_device_cfg_ptr->dev_cfg_params.channels,
               adev_device_cfg_ptr->dev_cfg_params.format);
-
-        bit_width = adev_device_cfg_ptr->dev_cfg_params.bit_width;
-        sample_rate = adev_device_cfg_ptr->dev_cfg_params.sample_rate;
-        channels = adev_device_cfg_ptr->dev_cfg_params.channels;
-        format = adev_device_cfg_ptr->dev_cfg_params.format;
+        if (adev_device_cfg_ptr->dev_cfg_params.bit_width)
+            bit_width = adev_device_cfg_ptr->dev_cfg_params.bit_width;
+        if (adev_device_cfg_ptr->dev_cfg_params.sample_rate)
+            sample_rate = adev_device_cfg_ptr->dev_cfg_params.sample_rate;
+        if (adev_device_cfg_ptr->dev_cfg_params.channels)
+            channels = adev_device_cfg_ptr->dev_cfg_params.channels;
+        if (adev_device_cfg_ptr->dev_cfg_params.format)
+            format = adev_device_cfg_ptr->dev_cfg_params.format;
     }
 
     ALOGI("%s:becf: afe: bitwidth %d, samplerate %d channels %d format %d"
