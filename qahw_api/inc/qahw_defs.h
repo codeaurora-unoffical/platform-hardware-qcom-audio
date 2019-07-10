@@ -387,7 +387,22 @@ typedef struct qahw_dtmf_gen_params {
    uint16_t low_freq;
    uint16_t high_freq;
    uint16_t gain;
+   uint16_t duration_ms;
+   /* ToDo: Direction flag, framework does not support. Do we add later
+      Currently supported on Rx only */
 } qahw_dtmf_gen_params_t;
+
+#define MAX_TONE_FREQ 2
+
+typedef struct qahw_tone_gen_params {
+   bool enable;
+   uint16_t nr_tone_freq; /* "1" for single tone, "2" for dual tone*/
+   uint16_t freq[MAX_TONE_FREQ];
+   uint16_t gain;
+   uint16_t duration_ms;
+   /* ToDo: Direction flag, framework does not support. Do we add later
+      Currently supported on Rx only */
+} qahw_tone_gen_params_t;
 
 enum {
     QAHW_TTY_MODE_OFF,
@@ -418,6 +433,13 @@ typedef struct qahw_hpcm_params {
    qahw_hpcm_direction direction;
 } qahw_hpcm_params_t;
 
+/* Session ID for detect implicit derived from voice session */
+typedef struct qahw_dtmf_detect_params {
+   bool enable;
+   /* ToDo: Direction flag, framework does not support. Do we add later
+      Currently supported on Rx only */
+} qahw_dtmf_detect_params_t;
+
 typedef union {
     struct qahw_source_tracking_param st_params;
     struct qahw_sound_focus_param sf_params;
@@ -435,6 +457,8 @@ typedef union {
     struct qahw_dtmf_gen_params dtmf_gen_params;
     struct qahw_tty_params tty_mode_params;
     struct qahw_hpcm_params hpcm_params;
+    struct qahw_dtmf_detect_params dtmf_detect_params;
+    struct qahw_tone_gen_params tone_gen_params;
 } qahw_param_payload;
 
 typedef enum {
@@ -457,6 +481,8 @@ typedef enum {
     QAHW_PARAM_DTMF_GEN,
     QAHW_PARAM_TTY_MODE,
     QAHW_PARAM_HPCM,
+    QAHW_PARAM_DTMF_DETECT,
+    QAHW_PARAM_TONE_GEN,
 } qahw_param_id;
 
 typedef union {

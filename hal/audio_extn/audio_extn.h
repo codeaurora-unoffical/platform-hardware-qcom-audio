@@ -1119,4 +1119,21 @@ int audio_extn_utils_get_license_params(const struct audio_device *adev,  struct
 void audio_extn_set_custom_mtmx_params(struct audio_device *adev,
                                         struct audio_usecase *usecase,
                                         bool enable);
+
+#ifdef TONE_ENABLED
+/* for Tone generation with reference of DTMF */
+int audio_extn_set_tone_parameters(struct stream_out *out,
+                                  struct str_parms *parms);
+#else
+static int __unused audio_extn_set_tone_parameters(
+                                   struct stream_out *out __unused,
+                                   struct str_parms *parms __unused)
+{
+    ALOGV("%s: TONE_ENABLED is not defined in tone generation", __func__);
+    return -ENOSYS;
+}
+
+#endif
+
 #endif /* AUDIO_EXTN_H */
+
