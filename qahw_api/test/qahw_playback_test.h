@@ -171,6 +171,7 @@ typedef struct {
     unsigned int raw_data_len_in_bytes;
     struct dolby_thd_params_local dlb_truehd_params;
     struct dolby_mat_params_local dlb_mat_params;
+    bool bt_wbs;
 }stream_config;
 
 qahw_module_handle_t * load_hal(audio_devices_t dev);

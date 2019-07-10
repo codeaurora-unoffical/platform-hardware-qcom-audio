@@ -259,12 +259,12 @@ static bool a2dp_set_backend_cfg()
     bool is_configured = false;
 
     //For SBC and AAC decoder open slimbus port at
-    //96Khz for 48Khz input and 88.2Khz for 44.1Khz input.
+    //96Khz for both 48Khz and 44.1Khz input.
     if (((a2dp_sink.bt_decoder_format == CODEC_TYPE_SBC) ||
          (a2dp_sink.bt_decoder_format == CODEC_TYPE_AAC) ||
          (a2dp_sink.bt_decoder_format == CODEC_TYPE_APTX_AD)) &&
         (sampling_rate == 48000 || sampling_rate == 44100 )) {
-        sampling_rate = sampling_rate *2;
+        sampling_rate = 96000;
     }
 
     //Configure backend sampling rate

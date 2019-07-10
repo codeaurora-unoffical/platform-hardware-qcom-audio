@@ -1050,6 +1050,12 @@ int audio_extn_utils_set_downmix_params(
             struct mix_matrix_params *mm_params);
 size_t audio_extn_utils_get_input_buffer_size(uint32_t, audio_format_t, int, int64_t, bool);
 int audio_extn_utils_get_perf_mode_flag(void);
+int audio_ext_get_presentation_position(struct stream_out *out,
+            struct audio_out_presentation_position_param *pos_param);
+int audio_extn_utils_compress_get_dsp_presentation_pos(struct stream_out *out,
+            uint64_t *frames, struct timespec *timestamp, int32_t clock_id);
+int audio_extn_utils_pcm_get_dsp_presentation_pos(struct stream_out *out,
+            uint64_t *frames, struct timespec *timestamp, int32_t clock_id);
 #ifdef AUDIO_HW_LOOPBACK_ENABLED
 /* API to create audio patch */
 int audio_extn_hw_loopback_create_audio_patch(struct audio_hw_device *dev,
@@ -1172,8 +1178,6 @@ int audio_extn_utils_get_license_params(const struct audio_device *adev,  struct
 #ifndef AUDIO_EXTN_AUTO_HAL_ENABLED
 #define audio_extn_auto_hal_init(adev)                (0)
 #define audio_extn_auto_hal_deinit()                  (0)
-#define audio_extn_auto_hal_enable_hostless()         (0)
-#define audio_extn_auto_hal_disable_hostless()        (0)
 #define audio_extn_auto_hal_create_audio_patch(dev, num_sources,\
     sources, num_sinks, sinks, handle) (0)
 #define audio_extn_auto_hal_release_audio_patch(dev, handle) (0)
@@ -1187,8 +1191,6 @@ int audio_extn_utils_get_license_params(const struct audio_device *adev,  struct
 #else
 int32_t audio_extn_auto_hal_init(struct audio_device *adev);
 void audio_extn_auto_hal_deinit(void);
-int32_t audio_extn_auto_hal_enable_hostless(void);
-void audio_extn_auto_hal_disable_hostless(void);
 int audio_extn_auto_hal_create_audio_patch(struct audio_hw_device *dev,
                                 unsigned int num_sources,
                                 const struct audio_port_config *sources,

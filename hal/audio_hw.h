@@ -69,8 +69,10 @@
 #define ADM_LIBRARY_PATH "/vendor/lib/libadm.so"
 #endif
 
+#ifdef LINUX_ENABLED
 #define ULONG_MAX (__LONG_MAX__ *2UL+1UL)
 #define PATH_MAX 4096
+#endif
 
 /* Flags used to initialize acdb_settings variable that goes to ACDB library */
 #define NONE_FLAG            0x00000000
@@ -229,6 +231,8 @@ enum {
     USECASE_AUDIO_PLAYBACK_NAV_GUIDANCE,
     USECASE_AUDIO_PLAYBACK_PHONE,
 
+    /*Audio FM Tuner usecase*/
+    USECASE_AUDIO_FM_TUNER_EXT,
     AUDIO_USECASE_MAX
 };
 
@@ -464,6 +468,7 @@ typedef enum {
     PCM_HFP_CALL,
     TRANSCODE_LOOPBACK_RX,
     TRANSCODE_LOOPBACK_TX,
+    PCM_PASSTHROUGH,
     USECASE_TYPE_MAX
 } usecase_type_t;
 
@@ -630,6 +635,18 @@ struct audio_device {
      * or other capabilities are present for the device corresponding to that usecase.
      */
     struct pcm_params *use_case_table[AUDIO_USECASE_MAX];
+    struct listnode audio_patch_record_list;
+    unsigned int audio_patch_index;
+};
+
+struct audio_patch_record {
+    struct listnode list;
+    audio_patch_handle_t handle;
+    audio_usecase_t usecase;
+    audio_io_handle_t input_io_handle;
+    audio_io_handle_t output_io_handle;
+    struct audio_port_config source;
+    struct audio_port_config sink;
 };
 
 int select_devices(struct audio_device *adev,
