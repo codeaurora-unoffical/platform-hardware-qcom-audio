@@ -4237,6 +4237,8 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
     bool bypass_a2dp = false;
     bool reconfig = false;
     unsigned long service_interval = 0;
+    bool use_db_as_primary =
+           audio_feature_manager_is_feature_enabled(USE_DEEP_BUFFER_AS_PRIMARY_OUTPUT);
 
     ALOGD("%s: enter: usecase(%d: %s) kvpairs: %s",
           __func__, out->usecase, use_case_table[out->usecase], kvpairs);
@@ -4421,6 +4423,8 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
         audio_extn_set_parameters(adev, parms);
         if (voice_is_call_state_active(adev))
             voice_extn_out_set_parameters(out, parms);
+        if (out->usecase == GET_USECASE_AUDIO_PLAYBACK_PRIMARY(use_db_as_primary))
+            audio_extn_set_tone_parameters(out, parms);
         pthread_mutex_unlock(&adev->lock);
         pthread_mutex_unlock(&out->lock);
     }
