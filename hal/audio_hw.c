@@ -3128,6 +3128,8 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
         audio_extn_set_parameters(adev, parms);
         if (voice_is_call_state_active(adev))
             voice_extn_out_set_parameters(out, parms);
+        if (out->usecase == USECASE_AUDIO_PLAYBACK_PRIMARY)
+            audio_extn_set_tone_parameters(out, parms);
         pthread_mutex_unlock(&adev->lock);
         pthread_mutex_unlock(&out->lock);
     }

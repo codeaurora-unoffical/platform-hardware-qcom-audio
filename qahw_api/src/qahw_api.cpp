@@ -2751,6 +2751,37 @@ int32_t qahw_stream_set_dtmf_gen_params(qahw_api_stream_t *stream,
     return rc;
 }
 
+int32_t qahw_stream_set_tone_gen_params(qahw_api_stream_t *stream,
+                                      struct qahw_tone_gen_params *tone_params){
+    int32_t rc = -EINVAL;
+    int32_t tone_low_freq = 0;
+    int32_t tone_high_freq = 0;
+    char kv[QAHW_KV_PAIR_LENGTH];
+
+    if(stream->type == QAHW_AUDIO_PLAYBACK_DEEP_BUFFER) {
+        if(tone_params->enable) {
+           if (tone_params->nr_tone_freq == 1) {
+                tone_low_freq = tone_params->freq[0];
+                tone_high_freq = tone_params->freq[0];
+            } else if (tone_params->nr_tone_freq == 2) {
+                tone_low_freq = tone_params->freq[0];
+                tone_high_freq = tone_params->freq[1];
+            }
+            snprintf(kv, QAHW_KV_PAIR_LENGTH,
+               "tone_gain=%d;tone_low_freq=%d;tone_high_freq=%d;tone_duration_ms=%d",
+                tone_params->gain,
+                tone_low_freq,
+                tone_high_freq,
+                tone_params->duration_ms);
+        } else
+            snprintf(kv, QAHW_KV_PAIR_LENGTH, "tone_off");
+        ALOGV("%d:%s kv set is %s", __LINE__, __func__, kv);
+        rc = qahw_out_set_parameters(stream->out_stream, kv);
+    } else
+        ALOGE("%d:%s cannot set tone on non playback stream", __LINE__, __func__);
+    return rc;
+}
+
 int32_t qahw_stream_set_tty_mode_params(qahw_api_stream_t *stream,
                                        struct qahw_tty_params *tty_params){
     int32_t rc = -EINVAL;
@@ -2868,6 +2899,10 @@ int32_t qahw_stream_set_parameters(qahw_stream_handle_t *stream_handle,
             case QAHW_PARAM_DTMF_DETECT:
                 rc = qahw_stream_set_dtmf_detect_params(stream,
                                                  &param_payload->dtmf_detect_params);
+                break;
+            case QAHW_PARAM_TONE_GEN:
+                rc = qahw_stream_set_tone_gen_params(stream,
+                                               &param_payload->tone_gen_params);
                 break;
             default:
             ALOGE("%d:%s unsupported param id %d"
