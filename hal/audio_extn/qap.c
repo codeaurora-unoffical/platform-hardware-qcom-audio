@@ -1458,6 +1458,7 @@ void static qap_close_all_output_streams(struct qap_module *qap_mod)
         delay_event_fired = false;
     }
     p_qap->passthrough_enabled = false;
+    p_qap->mch_pcm_hdmi_enabled = false;
 
     DEBUG_MSG("exit");
 }
@@ -1786,20 +1787,9 @@ static void qap_session_callback(qap_session_handle_t session_handle __unused,
                 if (!p_qap->mch_pcm_hdmi_enabled && !(qap_mod->stream_out[QAP_OUT_OFFLOAD_MCH])) {
                     audio_devices_t devices;
 
-                    if (event_id == AUDIO_DATA_EVENT) {
-                        config.offload_info.format = config.format = AUDIO_FORMAT_PCM_16_BIT;
-
-                        if (p_qap->hdmi_sink_channels == 8) {
-                            config.offload_info.channel_mask = config.channel_mask =
-                                    AUDIO_CHANNEL_OUT_7POINT1;
-                        } else if (p_qap->hdmi_sink_channels == 6) {
-                            config.offload_info.channel_mask = config.channel_mask =
-                                    AUDIO_CHANNEL_OUT_5POINT1;
-                        } else {
-                            config.offload_info.channel_mask = config.channel_mask =
-                                    AUDIO_CHANNEL_OUT_STEREO;
-                        }
-                    }
+                    config.offload_info.format = config.format = AUDIO_FORMAT_PCM_16_BIT;
+                    config.offload_info.channel_mask = config.channel_mask =
+                                                               AUDIO_CHANNEL_OUT_5POINT1;
 
                     devices = AUDIO_DEVICE_OUT_AUX_DIGITAL;
                     flags = AUDIO_OUTPUT_FLAG_DIRECT;
