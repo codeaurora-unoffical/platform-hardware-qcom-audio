@@ -993,8 +993,8 @@ static ssize_t qap_out_write(struct audio_stream_out *stream, const void *buffer
     ssize_t ret = 0;
     struct qap_module *qap_mod = NULL;
 
-    DEBUG_MSG_VV("bytes = %d, usecase[%s] and flags[%x] for handle[%p]",
-          (int)bytes, use_case_table[out->usecase], out->flags, out);
+    DEBUG_MSG_VV("bytes = %d, usecase[%s] and flags[%x] for handle[%p] bypass mode[%d]",
+          (int)bytes, use_case_table[out->usecase], out->flags, out, p_qap->bypass_enable);
 
     if (!p_qap->bypass_enable) {
         lock_output_stream_l(out);
@@ -1369,7 +1369,7 @@ static uint32_t qap_out_get_latency(const struct audio_stream_out *stream)
            }
         }
     } else {
-        p_qap->hal_stream_ops.get_latency(stream);
+        latency = p_qap->hal_stream_ops.get_latency(stream);
     }
     DEBUG_MSG_VV("Latency %d", latency);
     return latency;
@@ -3008,90 +3008,6 @@ bool audio_extn_is_qap_stream(struct stream_out *out)
     return false;
 }
 
-#if 0
-/* API to send playback stream specific config parameters */
-int audio_extn_qap_out_set_param_data(struct stream_out *out,
-                                       audio_extn_param_id param_id,
-                                       audio_extn_param_payload *payload)
-{
-    int ret = -EINVAL;
-    int index;
-    struct stream_out *new_out = NULL;
-    struct audio_adsp_event *adsp_event;
-    struct qap_module *qap_mod = get_qap_module_for_input_stream_l(out);
-
-    if (!out || !qap_mod || !payload) {
-        ERROR_MSG("Invalid Param");
-        return ret;
-    }
-
-    /* apply param for all active out sessions */
-    for (index = 0; index < MAX_QAP_MODULE_OUT; index++) {
-        new_out = qap_mod->stream_out[index];
-        if (!new_out) continue;
-
-        /*ADSP event is not supported for passthrough*/
-        if ((param_id == AUDIO_EXTN_PARAM_ADSP_STREAM_CMD)
-            && !(new_out->flags == AUDIO_OUTPUT_FLAG_DIRECT)) continue;
-        if (new_out->standby)
-            new_out->stream.write((struct audio_stream_out *)new_out, NULL, 0);
-        lock_output_stream_l(new_out);
-        ret = audio_extn_out_set_param_data(new_out, param_id, payload);
-        if (ret)
-            ERROR_MSG("audio_extn_out_set_param_data error %d", ret);
-        unlock_output_stream_l(new_out);
-    }
-    return ret;
-}
-
-int audio_extn_qap_out_get_param_data(struct stream_out *out,
-                             audio_extn_param_id param_id,
-                             audio_extn_param_payload *payload)
-{
-    int ret = -EINVAL, i;
-    struct stream_out *new_out = NULL;
-    struct qap_module *qap_mod = get_qap_module_for_input_stream_l(out);
-
-    if (!out || !qap_mod || !payload) {
-        ERROR_MSG("Invalid Param");
-        return ret;
-    }
-
-    if (!p_qap->hdmi_connect) {
-        ERROR_MSG("hdmi not connected");
-        return ret;
-    }
-
-    /* get session which is routed to hdmi*/
-    if (p_qap->passthrough_out)
-        new_out = p_qap->passthrough_out;
-    else {
-        for (i = 0; i < MAX_QAP_MODULE_OUT; i++) {
-            if (qap_mod->stream_out[i]) {
-                new_out = qap_mod->stream_out[i];
-                break;
-            }
-        }
-    }
-
-    if (!new_out) {
-        ERROR_MSG("No stream active.");
-        return ret;
-    }
-
-    if (new_out->standby)
-        new_out->stream.write((struct audio_stream_out *)new_out, NULL, 0);
-
-    lock_output_stream_l(new_out);
-    ret = audio_extn_out_get_param_data(new_out, param_id, payload);
-    if (ret)
-        ERROR_MSG("audio_extn_out_get_param_data error %d", ret);
-    unlock_output_stream_l(new_out);
-
-    return ret;
-}
-#endif
-
 int audio_extn_qap_open_output_stream(struct audio_hw_device *dev,
                                       audio_io_handle_t handle,
                                       audio_devices_t devices,
@@ -3357,17 +3273,6 @@ int audio_extn_qap_set_parameters(struct audio_device *adev, struct str_parms *p
             }
         //TODO else if: Need to consider other devices.
         }
-
-#if 0
-        /* does this need to be ported to QAP?*/
-        for (k = 0; k < MAX_MM_MODULE_TYPE; k++) {
-             kv_parirs = str_parms_to_str(parms);
-             if (p_qap->qap_mod[k].session_handle) {
-                 p_qap->qap_mod[k].qap_audio_session_set_param(
-                    p_qap->qap_mod[k].session_handle, kv_parirs);
-             }
-        }
-#endif
     }
 
     DEBUG_MSG("Exit");
