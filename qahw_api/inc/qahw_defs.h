@@ -458,7 +458,6 @@ typedef enum {
     QAHW_PARAM_HPCM,
 } qahw_param_id;
 
-
 typedef union {
     struct qahw_out_render_window_param render_window_params;
     struct qahw_stream_callback_param stream_callback_params;
