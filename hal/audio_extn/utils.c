@@ -886,7 +886,7 @@ void audio_extn_utils_update_stream_app_type_cfg_for_usecase(
         audio_extn_utils_update_stream_input_app_type_cfg(adev->platform,
                                                 &adev->streams_input_cfg_list,
                                                 usecase->stream.inout->in_config.devices,
-                                                0,
+                                                usecase->stream.inout->input_flags,
                                                 usecase->stream.inout->in_config.format,
                                                 usecase->stream.inout->in_config.sample_rate,
                                                 usecase->stream.inout->in_config.bit_width,
