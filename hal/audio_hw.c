@@ -138,6 +138,10 @@ struct pcm_config default_pcm_config_voip_copp = {
 #define STR(x) #x
 #endif
 
+#define IS_USB_HIFI (MAX_HIFI_CHANNEL_COUNT >= MAX_CHANNEL_COUNT) ? \
+                     true : false
+
+
 static unsigned int configured_low_latency_capture_period_size =
         LOW_LATENCY_CAPTURE_PERIOD_SIZE;
 
@@ -3701,9 +3705,12 @@ static size_t get_input_buffer_size(uint32_t sample_rate,
                                     int channel_count,
                                     bool is_low_latency)
 {
-    /* Don't know if USB HIFI in this context so use true to be conservative */
+    /* Don't know if USB HIFI in this context, so set it to true
+       based on max channel count */
+    bool is_usb_hifi = IS_USB_HIFI;
+
     if (check_input_parameters(sample_rate, format, channel_count,
-                               true /*is_usb_hifi */) != 0)
+                               is_usb_hifi) != 0)
         return 0;
 
     return get_stream_buffer_size(AUDIO_CAPTURE_PERIOD_DURATION_MSEC,
@@ -7773,10 +7780,12 @@ static size_t adev_get_input_buffer_size(const struct audio_hw_device *dev __unu
                                          const struct audio_config *config)
 {
     int channel_count = audio_channel_count_from_in_mask(config->channel_mask);
+    /* Don't know if USB HIFI in this context, so set it to true
+       based on max channel count */
+    bool is_usb_hifi = IS_USB_HIFI;
 
-    /* Don't know if USB HIFI in this context so use true to be conservative */
     if (check_input_parameters(config->sample_rate, config->format, channel_count,
-                               true /*is_usb_hifi */) != 0)
+                               is_usb_hifi) != 0)
         return 0;
 
     return get_input_buffer_size(config->sample_rate, config->format, channel_count,
