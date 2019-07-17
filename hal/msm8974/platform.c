@@ -2738,7 +2738,7 @@ void *platform_init(struct audio_device *adev)
     set_platform_defaults(my_data);
 
     /* Initialize ACDB ID's */
-    if (my_data->is_i2s_ext_modem)
+    if (my_data->is_i2s_ext_modem && !is_auto_snd_card(snd_card_name))
         platform_info_init(PLATFORM_INFO_XML_PATH_I2S, my_data, PLATFORM);
     else if (!strncmp(snd_card_name, "sdm660-snd-card-skush",
                sizeof("sdm660-snd-card-skush")))
