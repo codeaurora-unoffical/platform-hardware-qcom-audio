@@ -1653,6 +1653,10 @@ static int read_hdmi_sink_caps(struct stream_out *out)
         out->supported_channel_masks[i++] = AUDIO_CHANNEL_OUT_QUAD;
         out->supported_channel_masks[i++] = AUDIO_CHANNEL_OUT_SURROUND;
         out->supported_channel_masks[i++] = AUDIO_CHANNEL_OUT_2POINT1;
+    case 2:
+        ALOGV("%s: HDMI supports 2 channels", __func__);
+        out->supported_channel_masks[i++] = AUDIO_CHANNEL_OUT_STEREO;
+        out->supported_channel_masks[i++] = AUDIO_CHANNEL_OUT_MONO;
         break;
     default:
         ALOGE("invalid/nonstandard channal count[%d]",channels);
@@ -1663,10 +1667,12 @@ static int read_hdmi_sink_caps(struct stream_out *out)
     // check channel format caps
     i = 0;
     if (platform_is_edid_supported_format(out->dev->platform, AUDIO_FORMAT_AC3)) {
-        ALOGV(":%s HDMI supports AC3/EAC3 formats", __func__);
+        ALOGV(":%s HDMI supports AC3 formats", __func__);
         out->supported_formats[i++] = AUDIO_FORMAT_AC3;
-        //Adding EAC3/EAC3_JOC formats if AC3 is supported by the sink.
-        //EAC3/EAC3_JOC will be converted to AC3 for decoding if needed
+    }
+
+    if (platform_is_edid_supported_format(out->dev->platform, AUDIO_FORMAT_E_AC3)) {
+        ALOGV(":%s HDMI supports EAC3 formats", __func__);
         out->supported_formats[i++] = AUDIO_FORMAT_E_AC3;
         out->supported_formats[i++] = AUDIO_FORMAT_E_AC3_JOC;
     }
@@ -1691,6 +1697,21 @@ static int read_hdmi_sink_caps(struct stream_out *out)
         out->supported_formats[i++] = AUDIO_FORMAT_IEC61937;
     }
 
+
+    if (platform_is_edid_supported_format(out->dev->platform, AUDIO_FORMAT_PCM_16_BIT)) {
+        ALOGV(":%s HDMI supports LPCM_16_BIT format", __func__);
+        out->supported_formats[i++] = AUDIO_FORMAT_PCM_16_BIT;
+    }
+
+    if (platform_is_edid_supported_format(out->dev->platform, AUDIO_FORMAT_PCM_24_BIT_PACKED)) {
+        ALOGV(":%s HDMI supports LPCM_24_BIT format", __func__);
+        out->supported_formats[i++] = AUDIO_FORMAT_PCM_24_BIT_PACKED;
+     }
+
+    if (platform_is_edid_supported_format(out->dev->platform, AUDIO_FORMAT_PCM_8_24_BIT)) {
+        ALOGE(":%s HDMI supports LPCM_8_24_BIT format", __func__);
+        out->supported_formats[i++] = AUDIO_FORMAT_PCM_8_24_BIT;
+    }
 
     // check sample rate caps
     i = 0;
@@ -4254,6 +4275,9 @@ static char* out_get_parameters(const struct audio_stream *stream, const char *k
     size_t i, j;
     int ret;
     bool first = true;
+    audio_format_t format = AUDIO_FORMAT_DEFAULT;
+    bool is_hdmi = out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL;
+    audio_channel_mask_t out_hdmi_channel_mask[MAX_SUPPORTED_CHANNEL_MASKS + 1] = {0};
 
     if (!query || !reply) {
         if (reply) {
@@ -4269,20 +4293,48 @@ static char* out_get_parameters(const struct audio_stream *stream, const char *k
     ALOGV("%s: %s enter: keys - %s", __func__, use_case_table[out->usecase], keys);
     ret = str_parms_get_str(query, AUDIO_PARAMETER_STREAM_SUP_CHANNELS, value, sizeof(value));
     if (ret >= 0) {
+        ret = str_parms_get_str(query, "format", value, sizeof(value));
+        format = (audio_format_t)strtoul(value, NULL, 10);
+        ALOGD(":%s Supported channels request for format %d",__func__, format);
+
         value[0] = '\0';
-        i = 0;
-        while (out->supported_channel_masks[i] != 0) {
-            for (j = 0; j < ARRAY_SIZE(channels_name_to_enum_table); j++) {
-                if (channels_name_to_enum_table[j].value == out->supported_channel_masks[i]) {
-                    if (!first) {
-                        strlcat(value, "|", sizeof(value));
-                    }
-                    strlcat(value, channels_name_to_enum_table[j].name, sizeof(value));
-                    first = false;
-                    break;
-                }
+        if (is_hdmi) {
+            if (!platform_is_edid_supported_format(out->dev->platform, format))
+                return NULL;
+
+            first = true;
+            ret = platform_get_supported_channel_mask_for_format(out->dev->platform,
+                                                          &out_hdmi_channel_mask[0],
+                                                          format);
+            i = 0;
+            while (out_hdmi_channel_mask[i] != 0) {
+                   for (j = 0; j < ARRAY_SIZE(channels_name_to_enum_table); j++) {
+                        if (channels_name_to_enum_table[j].value == out_hdmi_channel_mask[i]) {
+                            if (!first) {
+                                strlcat(value, "|", sizeof(value));
+                            }
+                            strlcat(value, channels_name_to_enum_table[j].name, sizeof(value));
+                            first = false;
+                            break;
+                         }
+                   }
+                   i++;
             }
-            i++;
+        } else {
+            i = 0;
+            while (out->supported_channel_masks[i] != 0) {
+                for (j = 0; j < ARRAY_SIZE(channels_name_to_enum_table); j++) {
+                     if (channels_name_to_enum_table[j].value == out->supported_channel_masks[i]) {
+                         if (!first) {
+                             strlcat(value, "|", sizeof(value));
+                         }
+                         strlcat(value, channels_name_to_enum_table[j].name, sizeof(value));
+                         first = false;
+                         break;
+                     }
+                }
+                i++;
+            }
         }
         str_parms_add_str(reply, AUDIO_PARAMETER_STREAM_SUP_CHANNELS, value);
         str = str_parms_to_str(reply);
@@ -4335,21 +4387,48 @@ static char* out_get_parameters(const struct audio_stream *stream, const char *k
 
     ret = str_parms_get_str(query, AUDIO_PARAMETER_STREAM_SUP_SAMPLING_RATES, value, sizeof(value));
     if (ret >= 0) {
+        ret = str_parms_get_str(query, "format", value, sizeof(value));
+        format = (audio_format_t)strtoul(value, NULL, 10);
+        ALOGD(":%s Support sample rates request for format %d",__func__, format);
+
         value[0] = '\0';
-        i = 0;
-        first = true;
-        while (out->supported_sample_rates[i] != 0) {
-            for (j = 0; j < ARRAY_SIZE(out_sample_rates_name_to_enum_table); j++) {
-                if (out_sample_rates_name_to_enum_table[j].value == out->supported_sample_rates[i]) {
-                    if (!first) {
-                        strlcat(value, "|", sizeof(value));
+        if (is_hdmi) {
+            if (!platform_is_edid_supported_format(out->dev->platform, format))
+                return NULL;
+
+            first = true;
+            for (i = 0; i < MAX_SUPPORTED_SAMPLE_RATES; i++) {
+                if (platform_is_edid_supported_sample_rate_for_format(out->dev->platform,
+                                                                out_hdmi_sample_rates[i],
+                                                                format)) {
+                    for (j = 0; j < ARRAY_SIZE(out_sample_rates_name_to_enum_table); j++) {
+                          if (out_sample_rates_name_to_enum_table[j].value == (uint32_t)out_hdmi_sample_rates[i]) {
+                              if (!first) {
+                                  strlcat(value, "|", sizeof(value));
+                              }
+                              strlcat(value, out_sample_rates_name_to_enum_table[j].name, sizeof(value));
+                              first = false;
+                              break;
+                          }
                     }
-                    strlcat(value, out_sample_rates_name_to_enum_table[j].name, sizeof(value));
-                    first = false;
-                    break;
                 }
             }
-            i++;
+        } else {
+            i = 0;
+            first = true;
+            while (out->supported_sample_rates[i] != 0) {
+                   for (j = 0; j < ARRAY_SIZE(out_sample_rates_name_to_enum_table); j++) {
+                        if (out_sample_rates_name_to_enum_table[j].value == out->supported_sample_rates[i]) {
+                            if (!first) {
+                                strlcat(value, "|", sizeof(value));
+                            }
+                            strlcat(value, out_sample_rates_name_to_enum_table[j].name, sizeof(value));
+                            first = false;
+                            break;
+                        }
+                   }
+                   i++;
+            }
         }
         str_parms_add_str(reply, AUDIO_PARAMETER_STREAM_SUP_SAMPLING_RATES, value);
         if (str)
