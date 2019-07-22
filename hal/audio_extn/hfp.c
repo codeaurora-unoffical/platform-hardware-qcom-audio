@@ -386,7 +386,7 @@ int audio_extn_hfp_set_parameters(struct audio_device *adev, struct str_parms *p
                stop_hfp(adev);
            else {
                ALOGE("%s: concurrent start_hfp() and concurrent stop_hfp() is not valid", __func__);
-               ret_val = -EINVAL;
+               ret_val = -ENOSYS;
                goto exit;
            }
     }
