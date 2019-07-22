@@ -303,6 +303,7 @@ struct stream_config {
     audio_devices_t devices;
     unsigned int bit_width;
 };
+
 struct stream_inout {
     pthread_mutex_t lock; /* see note below on mutex acquisition order */
     pthread_mutex_t pre_lock; /* acquire before lock to avoid DOS by playback thread */
@@ -317,7 +318,10 @@ struct stream_inout {
     void *ip_hdlr_handle;
     stream_callback_t client_callback;
     void *client_cookie;
+    audio_input_flags_t input_flags;
+    audio_output_flags_t output_flags;
 };
+
 struct stream_out {
     struct audio_stream_out stream;
     pthread_mutex_t lock; /* see note below on mutex acquisition order */
@@ -707,6 +711,14 @@ size_t get_output_period_size(uint32_t sample_rate,
 #define CHECK(condition) LOG_ALWAYS_FATAL_IF(!(condition), "%s",\
             __FILE__ ":" LITERAL_TO_STRING(__LINE__)\
             " ASSERT_FATAL(" #condition ") failed.")
+
+static inline bool is_loopback_input_device(audio_devices_t device) {
+    if (!audio_is_output_device(device) &&
+         ((device & AUDIO_DEVICE_IN_LOOPBACK) == AUDIO_DEVICE_IN_LOOPBACK))
+        return true;
+    else
+        return false;
+}
 
 /*
  * NOTE: when multiple mutexes have to be acquired, always take the

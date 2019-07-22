@@ -471,6 +471,17 @@ int qahwi_loopback_set_param_data(audio_patch_handle_t handle,
     return ret;
 }
 
+int qahwi_create_audio_patch_v2(const struct audio_hw_device *dev,
+                        audio_extn_source_port_config_t *source_port_config,
+                        audio_extn_sink_port_config_t *sink_port_config,
+                        audio_patch_handle_t *handle)
+{
+    ALOGV("%s", __func__);
+
+    audio_extn_hw_loopback_create_audio_patch_v2(dev, source_port_config,
+                                sink_port_config, handle);
+}
+
 void qahwi_init(hw_device_t *device)
 {
     struct audio_device *adev = (struct audio_device *) device;

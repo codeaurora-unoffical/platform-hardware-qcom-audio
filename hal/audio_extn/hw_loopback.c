@@ -725,32 +725,24 @@ bool is_fmt_update_event_supported(int format)
     return false;
 }
 
-/* API to create audio patch */
-int audio_extn_hw_loopback_create_audio_patch(struct audio_hw_device *dev,
+static loopback_patch_t *create_active_loopback_patch(struct audio_hw_device *dev,
                                      unsigned int num_sources,
                                      const struct audio_port_config *sources,
                                      unsigned int num_sinks,
-                                     const struct audio_port_config *sinks,
-                                     audio_patch_handle_t *handle)
+                                     const struct audio_port_config *sinks)
 {
-    int status = 0;
     audio_patch_handle_t loopback_patch_id = 0x0;
     loopback_patch_t loopback_patch, *active_loopback_patch = NULL;
-    struct audio_adsp_event reg_evt_msg = { 0 };
-    int event_payload = 1;
 
-    ALOGV("%s : Create audio patch begin", __func__);
 
     if ((audio_loopback_mod == NULL) || (dev == NULL)) {
         ALOGE("%s, Loopback module not initialized orInvalid device", __func__);
-        status = -EINVAL;
-        return status;
+        goto exit_create_patch;
     }
 
     pthread_mutex_lock(&audio_loopback_mod->lock);
     if (audio_loopback_mod->patch_db.num_patches >= MAX_NUM_PATCHES ) {
         ALOGE("%s, Exhausted maximum possible patches per device", __func__);
-        status = -EINVAL;
         goto exit_create_patch;
     }
 
@@ -759,7 +751,6 @@ int audio_extn_hw_loopback_create_audio_patch(struct audio_hw_device *dev,
         num_sinks > MAX_SINK_PORTS_PER_PATCH) {
         ALOGE("%s, Unsupported patch configuration, sources %d sinks %d ",
                 __func__, num_sources, num_sources);
-        status = -EINVAL;
         goto exit_create_patch;
     }
 
@@ -777,13 +768,15 @@ int audio_extn_hw_loopback_create_audio_patch(struct audio_hw_device *dev,
         sizeof(struct audio_port_config));
     memcpy(&active_loopback_patch->loopback_sink, &sinks[0],
         sizeof(struct audio_port_config));
+    /* For loopback, the profile is always record_unprocessed */
+    memcpy(active_loopback_patch->patch_stream.profile,
+        "record_unprocessed", sizeof("record_unprocessed"));
 
     /* Get loopback patch type based on source and sink ports configuration */
     loopback_patch_id = get_loopback_patch_type(active_loopback_patch);
 
     if (loopback_patch_id == PATCH_HANDLE_INVALID) {
         ALOGE("%s, Unsupported patch type", __func__);
-        status = -EINVAL;
         goto exit_create_patch;
     }
 
@@ -794,14 +787,33 @@ int audio_extn_hw_loopback_create_audio_patch(struct audio_hw_device *dev,
     // Lock patch database, create patch handle and add patch handle to the list
 
     active_loopback_patch->patch_handle_id = loopback_patch_id;
+    ALOGV("%s : Create active audio patch end", __func__);
+    pthread_mutex_unlock(&audio_loopback_mod->lock);
 
+    return active_loopback_patch;
+
+exit_create_patch :
+    active_loopback_patch = NULL;
+    pthread_mutex_unlock(&audio_loopback_mod->lock);
+    return active_loopback_patch;
+}
+
+/* API to create audio patch */
+static int create_active_loopback_session(loopback_patch_t*  active_loopback_patch,
+                                   audio_patch_handle_t *handle)
+{
+    int status = 0;
+    struct audio_adsp_event reg_evt_msg = { 0 };
+    int event_payload = 1;
+
+    pthread_mutex_lock(&audio_loopback_mod->lock);
     /* Is usecase transcode loopback? If yes, invoke loopback driver */
     if ((active_loopback_patch->loopback_source.type == AUDIO_PORT_TYPE_DEVICE)
        &&
        (active_loopback_patch->loopback_sink.type == AUDIO_PORT_TYPE_DEVICE)) {
         status = create_loopback_session(active_loopback_patch);
         if (status != 0)
-            goto exit_create_patch;
+            return status;
     }
 
     if (is_fmt_update_event_supported(active_loopback_patch->loopback_source.format)) {
@@ -822,14 +834,83 @@ int audio_extn_hw_loopback_create_audio_patch(struct audio_hw_device *dev,
     }
 
     /* Fill unique handle ID generated based on active loopback patch */
-    *handle = audio_loopback_mod->patch_db.loopback_patch[audio_loopback_mod->
-                                        patch_db.num_patches].patch_handle_id;
+    *handle = active_loopback_patch->patch_handle_id;
     audio_loopback_mod->patch_db.num_patches++;
 
-exit_create_patch :
-    ALOGV("%s : Create audio patch end, status(%d)", __func__, status);
+    ALOGV("%s : exit", __func__);
     pthread_mutex_unlock(&audio_loopback_mod->lock);
     return status;
+}
+
+static void update_active_loopback_patch(loopback_patch_t*  active_loopback_patch,
+                                 audio_extn_source_port_config_t *source_port_config,
+                                 audio_extn_sink_port_config_t *sink_port_config)
+{
+
+    pthread_mutex_lock(&audio_loopback_mod->lock);
+
+    ALOGV("%s : input flags 0x%x, output flags 0x%x", __func__,
+          source_port_config->flags, sink_port_config->flags);
+    active_loopback_patch->patch_stream.input_flags = source_port_config->flags;
+    active_loopback_patch->patch_stream.output_flags = sink_port_config->flags;
+
+    pthread_mutex_unlock(&audio_loopback_mod->lock);
+}
+
+/* API to create audio patch */
+int audio_extn_hw_loopback_create_audio_patch(struct audio_hw_device *dev,
+                                     unsigned int num_sources,
+                                     const struct audio_port_config *sources,
+                                     unsigned int num_sinks,
+                                     const struct audio_port_config *sinks,
+                                     audio_patch_handle_t *handle)
+{
+    loopback_patch_t *active_loopback_patch = NULL;
+    int ret = 0;
+
+    active_loopback_patch = create_active_loopback_patch(dev, num_sources, sources, num_sinks, sinks);
+    if (active_loopback_patch == NULL) {
+        ALOGE("%s: Invalid patch", __func__);
+        ret = -EINVAL;
+        goto exit;
+    }
+    ret = create_active_loopback_session(active_loopback_patch, handle);
+    if (ret)
+        ALOGE("%s: unable to create loopback session", __func__);
+
+exit:
+    return ret;
+}
+
+/* API to create audio patch */
+int audio_extn_hw_loopback_create_audio_patch_v2(struct audio_hw_device *dev,
+                                     audio_extn_source_port_config_t *source_port_config,
+                                     audio_extn_sink_port_config_t *sink_port_config,
+                                     audio_patch_handle_t *handle)
+{
+    loopback_patch_t *active_loopback_patch = NULL;
+    int ret = 0;
+
+    if (source_port_config == NULL || sink_port_config == NULL)
+        return -EINVAL;
+
+    active_loopback_patch = create_active_loopback_patch(dev,
+                                         (unsigned int)source_port_config->num_sources,
+                                         source_port_config-> source_config,
+                                         (unsigned int)sink_port_config->num_sinks,
+                                         sink_port_config->sink_config);
+    if (active_loopback_patch == NULL) {
+        ALOGE("%s: Invalid patch", __func__);
+        ret = -EINVAL;
+        goto exit;
+    }
+    update_active_loopback_patch(active_loopback_patch, source_port_config, sink_port_config);
+    ret = create_active_loopback_session(active_loopback_patch, handle);
+    if (ret)
+        ALOGE("%s: unable to create loopback session", __func__);
+
+exit:
+    return ret;
 }
 
 /* API to release audio patch */

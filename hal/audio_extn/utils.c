@@ -144,6 +144,12 @@ const struct string_to_enum s_flag_name_to_enum_table[] = {
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_VOIP_RX),
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_BD),
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_INTERACTIVE),
+#ifdef AUDIO_EXTN_AUTO_HAL_ENABLED
+    STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_MEDIA),
+    STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_SYS_NOTIFICATION),
+    STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_NAV_GUIDANCE),
+    STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_PHONE),
+#endif
     STRING_TO_ENUM(AUDIO_INPUT_FLAG_NONE),
     STRING_TO_ENUM(AUDIO_INPUT_FLAG_FAST),
     STRING_TO_ENUM(AUDIO_INPUT_FLAG_HW_HOTWORD),
@@ -880,7 +886,7 @@ void audio_extn_utils_update_stream_app_type_cfg_for_usecase(
         audio_extn_utils_update_stream_input_app_type_cfg(adev->platform,
                                                 &adev->streams_input_cfg_list,
                                                 usecase->stream.inout->in_config.devices,
-                                                0,
+                                                usecase->stream.inout->input_flags,
                                                 usecase->stream.inout->in_config.format,
                                                 usecase->stream.inout->in_config.sample_rate,
                                                 usecase->stream.inout->in_config.bit_width,
@@ -1295,6 +1301,9 @@ static int audio_extn_utils_check_input_parameters(uint32_t sample_rate,
     case 4:
     case 6:
     case 8:
+    case 10:
+    case 12:
+    case 14:
         break;
     default:
         ret = -EINVAL;

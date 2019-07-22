@@ -469,6 +469,18 @@ void start_loopback(struct test_data *td)
     else
         td->loopback.sink_config.format = AUDIO_FORMAT_PCM_16_BIT;
 
+    qahw_source_port_config_t source_port_config;
+    qahw_sink_port_config_t sink_port_config;
+
+    source_port_config.source_config = &td->loopback.source_config;
+    sink_port_config.sink_config = &td->loopback.sink_config;
+
+    source_port_config.flags = td->flags;
+    sink_port_config.flags = td->flags;
+
+    source_port_config.num_sources = 1;
+    sink_port_config.num_sinks = 1;
+
     fprintf(log_file,"sink config id %d, rate %d, ch_mask %d, format %d, dev %d\n",
         td->loopback.sink_config.id,
         td->loopback.sink_config.sample_rate,
@@ -476,11 +488,9 @@ void start_loopback(struct test_data *td)
         td->loopback.sink_config.format,
         td->loopback.sink_config.ext.device.type);
 
-    rc = qahw_create_audio_patch(td->qahw_mod_handle,
-                        1,
-                        &td->loopback.source_config,
-                        1,
-                        &td->loopback.sink_config,
+    rc = qahw_create_audio_patch_v2(td->qahw_mod_handle,
+                        &source_port_config,
+                        &sink_port_config,
                         &td->loopback.patch_handle);
     fprintf(log_file,"\nCreate patch returned %d\n",rc);
     if(!rc) {
@@ -1085,8 +1095,8 @@ void fill_default_params(struct test_data *td) {
     td->loopback.ch_mask = AUDIO_CHANNEL_OUT_STEREO;
     td->loopback.gain = 1.0f;
     td->loopback.patch_handle = AUDIO_PATCH_HANDLE_NONE;
-    td->loopback.act_codec_format = AUDIO_FORMAT_AC3;
-    td->loopback.new_codec_format = AUDIO_FORMAT_AC3;
+    td->loopback.act_codec_format = AUDIO_FORMAT_MAT;
+    td->loopback.new_codec_format = AUDIO_FORMAT_MAT;
 }
 
 void usage() {

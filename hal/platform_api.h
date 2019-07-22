@@ -34,6 +34,8 @@
 #define LICENSE_STR_MAX_LEN  (64)
 #define PRODUCT_FFV      "ffv"
 #define PRODUCT_ALLPLAY  "allplay"
+#define MAX_IN_CHANNELS 32
+#define CUSTOM_MTRX_PARAMS_MAX_USECASE 8
 
 typedef enum {
     PLATFORM,
@@ -101,14 +103,35 @@ struct audio_custom_mtmx_params_info {
     uint32_t id;
     uint32_t ip_channels;
     uint32_t op_channels;
-    uint32_t usecase_id;
+    uint32_t usecase_id[CUSTOM_MTRX_PARAMS_MAX_USECASE];
     uint32_t snd_device;
+    uint32_t fe_id[CUSTOM_MTRX_PARAMS_MAX_USECASE];
 };
 
 struct audio_custom_mtmx_params {
     struct listnode list;
     struct audio_custom_mtmx_params_info info;
     uint32_t coeffs[0];
+};
+
+struct audio_custom_mtmx_in_params_info {
+    uint32_t op_channels;
+    uint32_t usecase_id[CUSTOM_MTRX_PARAMS_MAX_USECASE];
+};
+
+struct audio_custom_mtmx_params_in_ch_info {
+    uint32_t ch_count;
+    char device[128];
+    char hw_interface[128];
+};
+
+struct audio_custom_mtmx_in_params {
+    struct listnode list;
+    struct audio_custom_mtmx_in_params_info in_info;
+    uint32_t ip_channels;
+    uint32_t mic_ch;
+    uint32_t ec_ref_ch;
+    struct audio_custom_mtmx_params_in_ch_info in_ch_info[MAX_IN_CHANNELS];
 };
 
 enum card_status_t;
@@ -344,7 +367,12 @@ int platform_get_active_microphones(void *platform, unsigned int channels,
 int platform_get_license_by_product(void *platform, const char* product_name, int *product_id, char* product_license);
 struct audio_custom_mtmx_params *
     platform_get_custom_mtmx_params(void *platform,
-                                    struct audio_custom_mtmx_params_info *info);
+                                    struct audio_custom_mtmx_params_info *info,
+                                    uint32_t *idx);
 int platform_add_custom_mtmx_params(void *platform,
                                     struct audio_custom_mtmx_params_info *info);
+struct audio_custom_mtmx_in_params * platform_get_custom_mtmx_in_params(void *platform,
+                                    struct audio_custom_mtmx_in_params_info *info);
+int platform_add_custom_mtmx_in_params(void *platform,
+                                    struct audio_custom_mtmx_in_params_info *info);
 #endif // AUDIO_PLATFORM_API_H

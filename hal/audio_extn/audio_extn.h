@@ -1064,6 +1064,10 @@ int audio_extn_hw_loopback_create_audio_patch(struct audio_hw_device *dev,
                                      unsigned int num_sinks,
                                      const struct audio_port_config *sinks,
                                      audio_patch_handle_t *handle);
+int audio_extn_hw_loopback_create_audio_patch_v2(struct audio_hw_device *dev,
+                                     audio_extn_source_port_config_t *source_port_config,
+                                     audio_extn_sink_port_config_t *sink_port_config,
+                                     audio_patch_handle_t *handle);
 /* API to release audio patch */
 int audio_extn_hw_loopback_release_audio_patch(struct audio_hw_device *dev,
                                              audio_patch_handle_t handle);
@@ -1091,6 +1095,13 @@ static int __unused audio_extn_hw_loopback_create_audio_patch(struct audio_hw_de
                                      const struct audio_port_config *sources __unused,
                                      unsigned int num_sinks __unused,
                                      const struct audio_port_config *sinks __unused,
+                                    audio_patch_handle_t *handle __unused)
+{
+    return 0;
+}
+static int __unused audio_extn_hw_loopback_create_audio_patch_v2(struct audio_hw_device *dev __unused,
+                                     audio_extn_source_port_config_t *source_port_config __unused,
+                                     audio_extn_sink_port_config_t *sink_port_config __unused,
                                      audio_patch_handle_t *handle __unused)
 {
     return 0;
@@ -1189,6 +1200,10 @@ int audio_extn_utils_get_license_params(const struct audio_device *adev,  struct
 #define audio_extn_auto_hal_set_audio_port_config(dev, config) (0)
 #define audio_extn_auto_hal_set_parameters(adev, parms) (0)
 #else
+#define AUDIO_OUTPUT_FLAG_MEDIA 0x100000
+#define AUDIO_OUTPUT_FLAG_SYS_NOTIFICATION 0x200000
+#define AUDIO_OUTPUT_FLAG_NAV_GUIDANCE 0x400000
+#define AUDIO_OUTPUT_FLAG_PHONE 0x800000
 int32_t audio_extn_auto_hal_init(struct audio_device *adev);
 void audio_extn_auto_hal_deinit(void);
 int audio_extn_auto_hal_create_audio_patch(struct audio_hw_device *dev,
@@ -1236,7 +1251,7 @@ int audio_extn_ext_hw_plugin_set_audio_gain(void *plugin,
             struct audio_usecase *usecase, uint32_t gain);
 #endif
 
-void audio_extn_set_custom_mtmx_params(struct audio_device *adev,
+void audio_extn_set_custom_mtmx_params_v2(struct audio_device *adev,
                                         struct audio_usecase *usecase,
                                         bool enable);
 #ifdef DOLBY_MAT_THD_ENABLED
@@ -1274,4 +1289,10 @@ void audio_extn_send_dual_mono_mixing_coefficients(struct stream_out *out);
 #define isRunningWithVendorEnhancedFramework() (0)
 
 void audio_extn_set_cpu_affinity();
+void audio_extn_set_custom_mtmx_params_v1(struct audio_device *adev,
+                                        struct audio_usecase *usecase,
+                                        bool enable);
+snd_device_t audio_extn_get_loopback_snd_device(struct audio_device *adev,
+                                                struct audio_usecase *usecase,
+                                                int channel_count);
 #endif /* AUDIO_EXTN_H */
