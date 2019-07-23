@@ -162,6 +162,7 @@ extern void log_utils_init(void);
 extern void log_utils_deinit(void);
 #endif
 
+extern const uint32_t format_to_bitwidth_table[];
 char cal_name_info[WCD9XXX_MAX_CAL][MAX_CAL_NAME] = {
         [WCD9XXX_ANC_CAL] = "anc_cal",
         [WCD9XXX_MBHC_CAL] = "mbhc_cal",
@@ -7407,7 +7408,11 @@ int platform_set_channel_map(void *platform, int ch_count, char *ch_map, int snd
 unsigned char platform_map_to_edid_format(int audio_format)
 {
     unsigned char format;
-    switch (audio_format & AUDIO_FORMAT_MAIN_MASK) {
+    audio_format = (audio_format & AUDIO_FORMAT_MAIN_MASK) ?
+                        (audio_format & AUDIO_FORMAT_MAIN_MASK):
+                         audio_format;
+
+    switch (audio_format) {
     case AUDIO_FORMAT_AC3:
         ALOGV("%s: AC3", __func__);
         format = AC3;
@@ -7520,6 +7525,29 @@ bool platform_is_edid_supported_format(void *platform, int format)
               *  & DOLBY_DIGITAL_PLUS
               */
             if (info->audio_blocks_array[i].format_id == format_id) {
+                if (format == AUDIO_FORMAT_PCM_16_BIT ||
+                    format == AUDIO_FORMAT_PCM_24_BIT_PACKED ||
+                    format == AUDIO_FORMAT_PCM_8_24_BIT) {
+                    int bps_byte = info->audio_blocks_array[i].bits_per_sample_bitmask;
+                    int bps = (format_to_bitwidth_table[format] * 8);
+                    int result = 0;
+                    switch (bps) {
+                    case 24:
+                        result = (bps_byte & BIT(2));
+                        break;
+                    case 20:
+                        result = (bps_byte & BIT(1));
+                        break;
+                    case 16:
+                        result = (bps_byte & BIT(0));
+                        break;
+                    default:
+                        break;
+                    }
+
+                    if (!result)
+                        return false;
+                }
                 ALOGV("%s:returns true %x",
                       __func__, format);
                 return true;
@@ -7528,6 +7556,102 @@ bool platform_is_edid_supported_format(void *platform, int format)
     }
     ALOGV("%s:returns false %x",
            __func__, format);
+    return false;
+}
+
+int platform_get_supported_channel_mask_for_format(void *platform, audio_channel_mask_t *supported_channel_masks, audio_format_t format)
+{
+    struct platform_data *my_data = (struct platform_data *)platform;
+    edid_audio_info *info = NULL;
+    int ret = 0;
+    int channels = 0;
+    int i = 0, j = 0;
+    unsigned char format_id = platform_map_to_edid_format(format);
+
+    ALOGV(":%s format %d edid format %d", __func__, format, format_id);
+    ret = platform_get_edid_info(platform);
+    info = (edid_audio_info *)my_data->edid_info;
+    if (ret == 0 && info != NULL) {
+        for (i = 0; i < info->audio_blocks && i < MAX_EDID_BLOCKS; i++) {
+             if (info->audio_blocks_array[i].format_id == format_id) {
+                 channels = info->audio_blocks_array[i].channels;
+                 switch (channels) {
+                 case 8:
+                     ALOGV("%s: HDMI supports 7.1 channels", __func__);
+                     supported_channel_masks[j++] = AUDIO_CHANNEL_OUT_7POINT1;
+                     supported_channel_masks[j++] = AUDIO_CHANNEL_OUT_6POINT1;
+                 case 6:
+                     ALOGV("%s: HDMI supports 5.1 channels", __func__);
+                     supported_channel_masks[j++] = AUDIO_CHANNEL_OUT_5POINT1;
+                     supported_channel_masks[j++] = AUDIO_CHANNEL_OUT_PENTA;
+                     supported_channel_masks[j++] = AUDIO_CHANNEL_OUT_QUAD;
+                     supported_channel_masks[j++] = AUDIO_CHANNEL_OUT_SURROUND;
+                     supported_channel_masks[j++] = AUDIO_CHANNEL_OUT_2POINT1;
+                 case 2:
+                     ALOGV("%s: HDMI supports 2 channels", __func__);\
+                     supported_channel_masks[j++] = AUDIO_CHANNEL_OUT_STEREO;
+                     supported_channel_masks[j++] = AUDIO_CHANNEL_OUT_MONO;
+                     break;
+                 default:
+                     ALOGE("invalid/nonstandard channal count[%d]",channels);
+                     ret = -ENOSYS;
+                     break;
+                 }
+             }
+        }
+    }
+    return ret;
+}
+
+bool platform_is_edid_supported_sample_rate_for_format(void *platform, int sample_rate, audio_format_t format)
+{
+    struct platform_data *my_data = (struct platform_data *)platform;
+    edid_audio_info *info = NULL;
+    int ret = 0;
+    int result = 0;
+    int i = 0;
+    unsigned char sr_byte;
+    unsigned char format_id = platform_map_to_edid_format(format);
+
+    ALOGV(":%s format %d edid format %d", __func__, format, format_id);
+    ret = platform_get_edid_info(platform);
+    info = (edid_audio_info *)my_data->edid_info;
+    if (ret == 0 && info != NULL) {
+        for (i = 0; i < info->audio_blocks && i < MAX_EDID_BLOCKS; i++) {
+             if (info->audio_blocks_array[i].format_id == format_id) {
+                 sr_byte = info->audio_blocks_array[i].sampling_freq_bitmask;
+
+                 switch (sample_rate) {
+                 case 192000:
+                     result = (sr_byte & BIT(6));
+                     break;
+                 case 176400:
+                     result = (sr_byte & BIT(5));
+                     break;
+                 case 96000:
+                     result = (sr_byte & BIT(4));
+                     break;
+                 case 88200:
+                     result = (sr_byte & BIT(3));
+                     break;
+                 case 48000:
+                     result = (sr_byte & BIT(2));
+                     break;
+                 case 44100:
+                     result = (sr_byte & BIT(1));
+                     break;
+                 case 32000:
+                     result = (sr_byte & BIT(0));
+                     break;
+                 default:
+                     break;
+                 }
+
+                 if (result)
+                     return true;
+            }
+        }
+    }
     return false;
 }
 
