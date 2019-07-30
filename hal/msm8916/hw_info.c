@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2017, 2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -96,6 +96,8 @@ static void update_hardware_info_8x16(struct hardware_info *hw_info, const char 
                !strcmp(snd_card_name, "msm8939-tapan9302-snd-card")) {
         strlcpy(hw_info->name, "msm8939", sizeof(hw_info->name));
     } else if (!strcmp(snd_card_name, "msm8909-snd-card")) {
+        strlcpy(hw_info->name, "msm8909", sizeof(hw_info->name));
+    } else if (!strcmp(snd_card_name, "msm8909-fp-snd-card")) {
         strlcpy(hw_info->name, "msm8909", sizeof(hw_info->name));
     } else if (!strcmp(snd_card_name, "msm8909-skua-snd-card")) {
         strlcpy(hw_info->type, "skua", sizeof(hw_info->type));
