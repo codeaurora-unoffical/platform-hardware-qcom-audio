@@ -169,6 +169,9 @@ struct test_data {
 
 struct test_data tdata[MAX_RECORD_SESSIONS];
 
+int set_metadata_av_window_mat(qahw_module_handle_t *hw_module,
+                               audio_patch_handle_t handle);
+
 uint32_t check_audio_format(uint32_t audio_format)
 {
     if ((audio_format == AUDIO_FORMAT_AC3) ||
@@ -508,6 +511,10 @@ void start_loopback(struct test_data *td)
         sink_gain_config.role = td->loopback.sink_config.role;
         sink_gain_config.type = td->loopback.sink_config.type;
         sink_gain_config.config_mask = AUDIO_PORT_CONFIG_GAIN;
+
+        if (td->loopback.new_codec_format == AUDIO_FORMAT_MAT) {
+            set_metadata_av_window_mat(td->qahw_mod_handle, td->loopback.patch_handle);
+        }
 
         (void)qahw_set_audio_port_config(td->qahw_mod_handle,
                     &sink_gain_config);
@@ -1098,7 +1105,27 @@ void fill_default_params(struct test_data *td) {
     td->loopback.act_codec_format = AUDIO_FORMAT_MAT;
     td->loopback.new_codec_format = AUDIO_FORMAT_MAT;
 }
+int set_metadata_av_window_mat(qahw_module_handle_t *hw_module,
+                               audio_patch_handle_t handle)
+{
+    qahw_loopback_param_payload payload;
+    int ret = 0;
 
+    fprintf(log_file, "Set the AV sync meta data params using qahw_loopback_set_param_data\n");
+
+    payload.render_window_params.render_ws = 0xFFFFFFFFFFFE7960;
+    payload.render_window_params.render_we = 0x00000000000186A0;
+
+    ret = qahw_loopback_set_param_data(hw_module, handle,
+        QAHW_PARAM_LOOPBACK_RENDER_WINDOW, &payload);
+
+    if (ret < 0) {
+        fprintf(log_file, "qahw_loopback_set_param_data av render failed with err %d\n", ret);
+        goto done;
+    }
+done:
+    return ret;
+}
 void usage() {
     printf(" \n Command \n");
     printf(" \n fmt_change_test <options>\n");
