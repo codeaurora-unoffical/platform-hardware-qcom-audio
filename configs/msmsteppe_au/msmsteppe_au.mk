@@ -52,7 +52,7 @@ AUDIO_FEATURE_ENABLED_HFP := true
 AUDIO_FEATURE_ENABLED_INCALL_MUSIC := false
 AUDIO_FEATURE_ENABLED_MULTI_VOICE_SESSIONS := true
 AUDIO_FEATURE_ENABLED_KPI_OPTIMIZE := true
-AUDIO_FEATURE_ENABLED_SPKR_PROTECTION := true
+AUDIO_FEATURE_ENABLED_SPKR_PROTECTION := false
 AUDIO_FEATURE_ENABLED_ACDB_LICENSE := false
 AUDIO_FEATURE_ENABLED_DEV_ARBI := false
 AUDIO_FEATURE_ENABLED_DYNAMIC_LOG := true
@@ -80,20 +80,18 @@ AUDIO_FEATURE_ENABLED_FM_TUNER_EXT := true
 
 ifneq ($(strip $(TARGET_USES_RRO)), true)
 #Audio Specific device overlays
-DEVICE_PACKAGE_OVERLAYS += hardware/qcom/audio/configs/common_au/overlay
+DEVICE_PACKAGE_OVERLAYS += hardware/qcom/audio/configs/common/overlay
 endif
 
 #Automotive audio specific device overlays
-DEVICE_PACKAGE_OVERLAYS += hardware/qcom/audio/configs/msmsteppe_au/overlay
+DEVICE_PACKAGE_OVERLAYS += hardware/qcom/audio/configs/common_au/overlay
 
 PRODUCT_COPY_FILES += \
     hardware/qcom/audio/configs/msmsteppe_au/audio_io_policy.conf:$(TARGET_COPY_OUT_VENDOR)/etc/audio_io_policy.conf \
     hardware/qcom/audio/configs/msmsteppe_au/audio_effects.conf:$(TARGET_COPY_OUT_VENDOR)/etc/audio_effects.conf \
     hardware/qcom/audio/configs/msmsteppe_au/audio_effects.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_effects.xml \
     hardware/qcom/audio/configs/msmsteppe_au/mixer_paths_adp.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_adp.xml \
-    hardware/qcom/audio/configs/msmsteppe_au/audio_tuning_mixer_tavil.txt:$(TARGET_COPY_OUT_VENDOR)/etc/audio_tuning_mixer_tavil.txt \
     hardware/qcom/audio/configs/msmsteppe_au/audio_tuning_mixer.txt:$(TARGET_COPY_OUT_VENDOR)/etc/audio_tuning_mixer.txt \
-    hardware/qcom/audio/configs/msmsteppe_au/sound_trigger_mixer_paths_wcd9340.xml:$(TARGET_COPY_OUT_VENDOR)/etc/sound_trigger_mixer_paths_wcd9340.xml \
     hardware/qcom/audio/configs/msmsteppe_au/sound_trigger_platform_info.xml:$(TARGET_COPY_OUT_VENDOR)/etc/sound_trigger_platform_info.xml \
     hardware/qcom/audio/configs/msmsteppe_au/graphite_ipc_platform_info.xml:$(TARGET_COPY_OUT_VENDOR)/etc/graphite_ipc_platform_info.xml \
     hardware/qcom/audio/configs/msmsteppe_au/audio_platform_info.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info.xml \
