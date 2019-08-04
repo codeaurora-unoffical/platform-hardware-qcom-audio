@@ -483,6 +483,7 @@ static int pcm_device_table[AUDIO_USECASE_MAX][2] = {
     [USECASE_AUDIO_PLAYBACK_PHONE] = {PHONE_PCM_DEVICE,
                                       PHONE_PCM_DEVICE},
     [USECASE_AUDIO_FM_TUNER_EXT] = {-1, -1},
+    [USECASE_AUDIO_AFE_LOOPBACK] = {AFE_LOOPBACK_RX_DEV_ID, AFE_LOOPBACK_TX_DEV_ID},
 };
 
 /* Array to store sound devices */
@@ -4399,6 +4400,8 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
         snd_device = usecase->in_snd_device;
     else if (usecase->type == TRANSCODE_LOOPBACK_RX)
         snd_device = usecase->out_snd_device;
+    else if (usecase->type == AFE_LOOPBACK)
+        return 0;
 
     acdb_dev_id = acdb_device_table[platform_get_spkr_prot_snd_device(snd_device)];
     if (acdb_dev_id < 0) {
@@ -8379,7 +8382,8 @@ bool platform_check_and_set_codec_backend_cfg(struct audio_device* adev,
 
     backend_idx = platform_get_backend_index(snd_device);
 
-    if (usecase->type == TRANSCODE_LOOPBACK_RX) {
+    if ((usecase->type == TRANSCODE_LOOPBACK_RX)
+          || (usecase->type == AFE_LOOPBACK)) {
         backend_cfg.bit_width = usecase->stream.inout->out_config.bit_width;
         backend_cfg.sample_rate = usecase->stream.inout->out_config.sample_rate;
         backend_cfg.format = usecase->stream.inout->out_config.format;

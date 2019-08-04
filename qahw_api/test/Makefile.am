@@ -83,3 +83,12 @@ endif
 hal_voice_test_CFLAGS = $(VOICE_CFLAGS) $(VOICE_INCLUDES)
 hal_voice_test_CFLAGS += $(AM_CFLAGS) -DLINUX_ENABLED
 endif
+bin_PROGRAMS += afe_loopback_test
+
+afe_loopback_test_INCLUDES = -I $(top_srcdir)/qahw_api/inc
+
+afe_loopback_test_SOURCES = afe_loopback_test.c
+
+afe_loopback_test_CFLAGS  = $(AM_CFLAGS) -Wno-sign-compare -Werror
+afe_loopback_test_CFLAGS  += $(afe_loopback_test_INCLUDES)
+afe_loopback_test_LDADD = -llog  -lutils ../libqahw.la -lcutils

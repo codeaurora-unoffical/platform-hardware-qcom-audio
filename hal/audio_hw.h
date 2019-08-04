@@ -242,6 +242,7 @@ enum {
 
     /*Audio FM Tuner usecase*/
     USECASE_AUDIO_FM_TUNER_EXT,
+    USECASE_AUDIO_AFE_LOOPBACK,
     AUDIO_USECASE_MAX
 };
 
@@ -488,7 +489,8 @@ typedef enum {
     TRANSCODE_LOOPBACK_RX,
     TRANSCODE_LOOPBACK_TX,
     PCM_PASSTHROUGH,
-    USECASE_TYPE_MAX
+    USECASE_TYPE_MAX,
+    AFE_LOOPBACK,
 } usecase_type_t;
 
 union stream_ptr {
