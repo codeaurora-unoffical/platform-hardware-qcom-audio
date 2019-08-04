@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -378,6 +378,9 @@ enum {
 
 #define TRANSCODE_LOOPBACK_RX_DEV_ID 43
 #define TRANSCODE_LOOPBACK_TX_DEV_ID 44
+
+#define AFE_LOOPBACK_RX_DEV_ID 3
+#define AFE_LOOPBACK_TX_DEV_ID 16
 
 #define PLAYBACK_INTERACTIVE_STRM_DEVICE1 0
 #define PLAYBACK_INTERACTIVE_STRM_DEVICE2 1

@@ -59,3 +59,13 @@ trans_loopback_test_SOURCES = trans_loopback_test.c
 trans_loopback_test_CFLAGS  = $(AM_CFLAGS) -Wno-sign-compare -Werror
 trans_loopback_test_CFLAGS  += $(trans_loopback_test_INCLUDES)
 trans_loopback_test_LDADD = -llog  -lutils ../libqahw.la -lcutils -lm
+
+bin_PROGRAMS += afe_loopback_test
+
+afe_loopback_test_INCLUDES = -I $(top_srcdir)/qahw_api/inc
+
+afe_loopback_test_SOURCES = afe_loopback_test.c
+
+afe_loopback_test_CFLAGS  = $(AM_CFLAGS) -Wno-sign-compare -Werror
+afe_loopback_test_CFLAGS  += $(afe_loopback_test_INCLUDES)
+afe_loopback_test_LDADD = -llog  -lutils ../libqahw.la -lcutils
