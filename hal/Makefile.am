@@ -193,6 +193,11 @@ AM_CFLAGS += -DAUDIO_HW_LOOPBACK_ENABLED
 c_sources += audio_extn/hw_loopback.c
 endif
 
+if AUDIO_AFE_LOOPBACK
+AM_CFLAGS += -DAUDIO_AFE_LOOPBACK_ENABLED
+c_sources += audio_extn/afe_loopback.c
+endif
+
 if AUDIO_HW_FFV
 AM_CFLAGS += -DFFV_ENABLED \
              -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/ffv/

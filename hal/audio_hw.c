@@ -272,7 +272,8 @@ const char * const use_case_table[AUDIO_USECASE_MAX] = {
     [USECASE_AUDIO_PLAYBACK_INTERACTIVE_STREAM7] = "audio-interactive-stream7",
     [USECASE_AUDIO_PLAYBACK_INTERACTIVE_STREAM8] = "audio-interactive-stream8",
 
-    [USECASE_AUDIO_EC_REF_LOOPBACK] = "ec-ref-audio-capture"
+    [USECASE_AUDIO_EC_REF_LOOPBACK] = "ec-ref-audio-capture",
+    [USECASE_AUDIO_AFE_LOOPBACK] = "audio-afe-loopback",
 };
 
 static const audio_usecase_t offload_usecases[] = {
@@ -1035,6 +1036,7 @@ static snd_device_t derive_playback_snd_device(void * platform,
 
     switch (uc->type) {
         case TRANSCODE_LOOPBACK :
+        case AFE_LOOPBACK:
             a1 = uc->stream.inout->out_config.devices;
             a2 = new_uc->stream.inout->out_config.devices;
             break;
@@ -1140,7 +1142,7 @@ static void check_usecases_codec_backend(struct audio_device *adev,
               platform_get_snd_device_name(usecase->out_snd_device),
               platform_check_backends_match(snd_device, usecase->out_snd_device));
         if ((usecase->type != PCM_CAPTURE) && (usecase->type != TRANSCODE_LOOPBACK)
-                                                         && (usecase != uc_info)) {
+                      && (usecase != AFE_LOOPBACK) && (usecase != uc_info)) {
             uc_derive_snd_device = derive_playback_snd_device(adev->platform,
                                                usecase, uc_info, snd_device);
             if (((uc_derive_snd_device != usecase->out_snd_device) || force_routing) &&
@@ -1609,7 +1611,8 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
                                                         usecase->stream.out);
         in_snd_device = platform_get_input_snd_device(adev->platform, usecase->stream.out->devices);
         usecase->devices = usecase->stream.out->devices;
-    } else if (usecase->type == TRANSCODE_LOOPBACK ) {
+    } else if ((usecase->type == TRANSCODE_LOOPBACK )
+                  || (usecase->type == AFE_LOOPBACK)) {
         if (usecase->stream.inout == NULL) {
             ALOGE("%s: stream.inout is NULL", __func__);
             return -EINVAL;
@@ -5574,31 +5577,52 @@ int adev_create_audio_patch(struct audio_hw_device *dev,
                             audio_patch_handle_t *handle)
 {
 
-
+#ifdef AUDIO_AFE_LOOPBACK_ENABLED
+     return audio_extn_afe_loopback_create_audio_patch(dev,
+                                         num_sources,
+                                         sources,
+                                         num_sinks,
+                                         sinks,
+                                         handle);
+#else
      return audio_extn_hw_loopback_create_audio_patch(dev,
                                          num_sources,
                                          sources,
                                          num_sinks,
                                          sinks,
                                          handle);
+#endif
 
 }
 
 int adev_release_audio_patch(struct audio_hw_device *dev,
                            audio_patch_handle_t handle)
 {
+#ifdef AUDIO_AFE_LOOPBACK_ENABLED
+    return audio_extn_afe_loopback_release_audio_patch(dev, handle);
+#else
     return audio_extn_hw_loopback_release_audio_patch(dev, handle);
+#endif
 }
 
 int adev_get_audio_port(struct audio_hw_device *dev, struct audio_port *config)
 {
+#ifdef AUDIO_AFE_LOOPBACK_ENABLED
+    return audio_extn_afe_loopback_get_audio_port(dev, config);
+#else
     return audio_extn_hw_loopback_get_audio_port(dev, config);
+#endif
 }
 
 int adev_set_audio_port_config(struct audio_hw_device *dev,
                         const struct audio_port_config *config)
 {
+#ifdef AUDIO_AFE_LOOPBACK_ENABLED
+    return audio_extn_afe_loopback_set_audio_port_config(dev, config);
+#else
     return audio_extn_hw_loopback_set_audio_port_config(dev, config);
+#endif
+
 }
 
 static int adev_dump(const audio_hw_device_t *device __unused,
@@ -5633,6 +5657,7 @@ static int adev_close(hw_device_t *device)
         qahwi_deinit(device);
         audio_extn_adsp_hdlr_deinit();
         audio_extn_hw_loopback_deinit(adev);
+        audio_extn_afe_loopback_deinit(adev);
         audio_extn_ffv_deinit();
         if (adev->device_cfg_params) {
             free(adev->device_cfg_params);
@@ -5789,6 +5814,7 @@ static int adev_open(const hw_module_t *module, const char *name,
     audio_extn_sound_trigger_init(adev);
     audio_extn_gef_init(adev);
     audio_extn_hw_loopback_init(adev);
+    audio_extn_afe_loopback_init(adev);
     audio_extn_ffv_init(adev);
 
     if (access(OFFLOAD_EFFECTS_BUNDLE_LIBRARY_PATH, R_OK) == 0) {
