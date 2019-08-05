@@ -4290,7 +4290,7 @@ static char* out_get_parameters(const struct audio_stream *stream, const char *k
         return NULL;
     }
 
-    ALOGV("%s: %s enter: keys - %s", __func__, use_case_table[out->usecase], keys);
+    ALOGD("%s: %s enter: keys - %s", __func__, use_case_table[out->usecase], keys);
     ret = str_parms_get_str(query, AUDIO_PARAMETER_STREAM_SUP_CHANNELS, value, sizeof(value));
     if (ret >= 0) {
         ret = str_parms_get_str(query, "format", value, sizeof(value));
@@ -4448,7 +4448,7 @@ static char* out_get_parameters(const struct audio_stream *stream, const char *k
 
     str_parms_destroy(query);
     str_parms_destroy(reply);
-    ALOGV("%s: exit: returns - %s", __func__, str);
+    ALOGD("%s: exit: returns - %s", __func__, str);
     return str;
 }
 
