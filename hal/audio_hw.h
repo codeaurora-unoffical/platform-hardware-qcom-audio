@@ -177,6 +177,7 @@ enum {
 
     USECASE_AUDIO_EC_REF_LOOPBACK,
     USECASE_AUDIO_AFE_LOOPBACK,
+    USECASE_AUDIO_DTMF,
     AUDIO_USECASE_MAX
 };
 
@@ -357,7 +358,8 @@ typedef enum {
     VOIP_CALL,
     PCM_HFP_CALL,
     TRANSCODE_LOOPBACK,
-    AFE_LOOPBACK
+    AFE_LOOPBACK,
+    DTMF_PLAYBACK,
 } usecase_type_t;
 
 union stream_ptr {

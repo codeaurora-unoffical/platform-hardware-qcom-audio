@@ -999,20 +999,19 @@ int audio_extn_afe_loopback_create_audio_patch(struct audio_hw_device *dev,
 int audio_extn_afe_loopback_release_audio_patch(struct audio_hw_device *dev,
                                              audio_patch_handle_t handle);
 
-#define audio_extn_afe_loopback_set_audio_port_config(dev, config) (0)
-int audio_extn_afe_loopback_get_audio_port(struct audio_hw_device *dev,
-                                    struct audio_port *port_in);
 int audio_extn_afe_loopback_init(struct audio_device *adev);
 void audio_extn_afe_loopback_deinit(struct audio_device *adev);
+int audio_extn_afe_loopback_set_audio_port_config(struct audio_hw_device *dev,
+                        const struct audio_port_config *config);
 #else
 #define audio_extn_afe_loopback_create_audio_patch(dev, num_sources, sources,\
                                     num_sinks, sinks, handle) (0)
 #define audio_extn_afe_loopback_release_audio_patch(dev, handle) (0)
-#define audio_extn_afe_loopback_set_audio_port_config(dev, config) (0)
-#define audio_extn_afe_loopback_get_audio_port(dev, port_in) (0)
 #define audio_extn_afe_loopback_init(adev) (0)
 #define audio_extn_afe_loopback_deinit(adev) (0)
+#define audio_extn_afe_loopback_set_audio_port_config(dev, config) (0)
 #endif
+#define audio_extn_afe_loopback_get_audio_port(dev, port_in) (0)
 
 #endif /* AUDIO_EXTN_H */
 

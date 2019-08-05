@@ -28,7 +28,7 @@
 */
 
 /* Test app to capture event updates from kernel */
-/* #define LOG_NDEBUG 0 */
+#define LOG_NDEBUG 0
 #include <fcntl.h>
 #include <linux/netlink.h>
 #include <getopt.h>
@@ -65,10 +65,11 @@ const char *log_filename = NULL;
 uint32_t play_duration_in_seconds = 600,play_duration_elapsed_msec = 0,play_duration_in_msec = 0;
 uint32_t source_device = AUDIO_DEVICE_IN_WIRED_HEADSET;
 uint32_t sink_device = AUDIO_DEVICE_OUT_WIRED_HEADSET;
-uint32_t volume_in_millibels = 0;
+uint32_t dtmf_source_device = 0;
+static float loopback_gain = 1.0;
 
-#define AFE_LOOPBACK_SOURCE_PORT_ID 0x4C00
-#define AFE_LOOPBACK_SINK_PORT_ID 0x4D00
+#define AFE_SOURCE_PORT_ID 0
+#define DTMF_SOURCE_PORT_ID 1
 
 #define DEVICE_SOURCE 0
 #define DEVICE_SINK 1
@@ -146,10 +147,11 @@ void init_afe_loopback_config(afe_loopback_config_t **p_afe_loopback_config)
     audio_devices_t out_device = sink_device; // Get output device mask from connected device
     audio_devices_t in_device = source_device;
 
-    g_afe_loopback_config.devices = (out_device | in_device);
+    g_afe_loopback_config.devices = (sink_device | source_device);
+    fprintf(log_file,"\n sink_device (%08x) source_device ((%08x) device_mask (%08x)", sink_device, source_device, g_afe_loopback_config.devices);
 
     /* Patch source port config init */
-    g_afe_loopback_config.source_config.id = AFE_LOOPBACK_SOURCE_PORT_ID;
+    g_afe_loopback_config.source_config.id = AFE_SOURCE_PORT_ID;
     g_afe_loopback_config.source_config.role = AUDIO_PORT_ROLE_SOURCE;
     g_afe_loopback_config.source_config.type = AUDIO_PORT_TYPE_DEVICE;
     g_afe_loopback_config.source_config.config_mask =
@@ -161,10 +163,10 @@ void init_afe_loopback_config(afe_loopback_config_t **p_afe_loopback_config)
     /*TODO: add gain */
     g_afe_loopback_config.source_config.ext.device.hw_module =
                         AUDIO_MODULE_HANDLE_NONE;
-    g_afe_loopback_config.source_config.ext.device.type = in_device;
+    g_afe_loopback_config.source_config.ext.device.type = source_device;
 
     /* Patch sink port config init */
-    g_afe_loopback_config.sink_config.id = AFE_LOOPBACK_SINK_PORT_ID;
+    g_afe_loopback_config.sink_config.id = AFE_SOURCE_PORT_ID;
     g_afe_loopback_config.sink_config.role = AUDIO_PORT_ROLE_SINK;
     g_afe_loopback_config.sink_config.type = AUDIO_PORT_TYPE_DEVICE;
     g_afe_loopback_config.sink_config.config_mask =
@@ -176,7 +178,7 @@ void init_afe_loopback_config(afe_loopback_config_t **p_afe_loopback_config)
 
     g_afe_loopback_config.sink_config.ext.device.hw_module =
                             AUDIO_MODULE_HANDLE_NONE;
-    g_afe_loopback_config.sink_config.ext.device.type = out_device;
+    g_afe_loopback_config.sink_config.ext.device.type = sink_device;
 
     /* Init patch handle */
     g_afe_loopback_config.patch_handle = AUDIO_PATCH_HANDLE_NONE;
@@ -257,6 +259,9 @@ int create_run_afe_loopback(
         fprintf(log_file,"\nPatch already existing, release the patch before opening a new patch");
         return rc;
     }
+    if (dtmf_source_device) {
+        g_afe_loopback_config.source_config.id = DTMF_SOURCE_PORT_ID;
+    }
 
     rc = qahw_create_audio_patch(module_handle,
                         1,
@@ -266,15 +271,25 @@ int create_run_afe_loopback(
                         &afe_loopback_config->patch_handle);
     fprintf(log_file,"\nCreate patch returned %d",rc);
     if(!rc) {
-        struct audio_port_config sink_gain_config;
-        /* Convert loopback gain to millibels */
-        sink_gain_config.id = afe_loopback_config->sink_config.id;
-        sink_gain_config.role = afe_loopback_config->sink_config.role;
-        sink_gain_config.type = afe_loopback_config->sink_config.type;
-        sink_gain_config.config_mask = AUDIO_PORT_CONFIG_GAIN;
+        if (dtmf_source_device) {
+            struct audio_port_config sink_gain_config;
+            /* Convert loopback gain to millibels */
+            int loopback_gain_in_millibels = 2000 * log10(loopback_gain);
+            sink_gain_config.gain.index = 0;
+            sink_gain_config.gain.mode = AUDIO_GAIN_MODE_JOINT;
+            sink_gain_config.gain.channel_mask = 4;
+            sink_gain_config.gain.values[0] = 697;
+            sink_gain_config.gain.values[1] = 1209;
+            sink_gain_config.gain.values[2] = 0xFFFF;
+            sink_gain_config.gain.values[3] = loopback_gain_in_millibels;
+            sink_gain_config.id = afe_loopback_config->sink_config.id;
+            sink_gain_config.role = afe_loopback_config->sink_config.role;
+            sink_gain_config.type = afe_loopback_config->sink_config.type;
+            sink_gain_config.config_mask = AUDIO_PORT_CONFIG_GAIN;
 
-        (void)qahw_set_audio_port_config(afe_loopback_config->hal_handle,
+            (void)qahw_set_audio_port_config(afe_loopback_config->hal_handle,
                     &sink_gain_config);
+        }
     }
 
     return rc;
@@ -384,7 +399,9 @@ int main(int argc, char *argv[]) {
     struct option long_options[] = {
         /* These options set a flag. */
         {"sink-device", required_argument,    0, 's'},
+        {"dtmf-source-device", required_argument,    0, 'd'},
         {"play-duration",  required_argument,    0, 'p'},
+        {"play-volume",  required_argument,    0, 'v'},
         {"help",          no_argument,          0, 'h'},
         {0, 0, 0, 0}
     };
@@ -394,7 +411,7 @@ int main(int argc, char *argv[]) {
 
     while ((opt = getopt_long(argc,
                               argv,
-                              "-s:p:h",
+                              "-s:d:p:v:h",
                               long_options,
                               &option_index)) != -1) {
 
@@ -403,9 +420,27 @@ int main(int argc, char *argv[]) {
         switch (opt) {
         case 's':
             sink_device = atoi(optarg);
+
+            if (sink_device == AUDIO_DEVICE_OUT_SPEAKER)
+                source_device = AUDIO_DEVICE_IN_BACK_MIC;
+            else if (sink_device == AUDIO_DEVICE_OUT_WIRED_HEADSET)
+                source_device = AUDIO_DEVICE_IN_WIRED_HEADSET;
+            else if (sink_device == AUDIO_DEVICE_OUT_EARPIECE)
+                source_device = AUDIO_DEVICE_IN_BUILTIN_MIC;
+            else return -EINVAL;
+
+            /* Set devices */
+            set_device(DEVICE_SINK, sink_device);
+            set_device(DEVICE_SOURCE, source_device);
+            break;
+        case 'd':
+            dtmf_source_device = atoi(optarg);
             break;
         case 'p':
             play_duration_in_seconds = atoi(optarg);
+            break;
+        case 'v':
+            loopback_gain = atof(optarg);
             break;
         case 'h':
         default :
@@ -415,7 +450,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    fprintf(log_file,"\nTranscode loopback test begin");
+    fprintf(log_file,"\nAFE loopback test begin");
     if (play_duration_in_seconds < 0 | play_duration_in_seconds > 360000) {
             fprintf(log_file,
                     "\nPlayback duration %d invalid or unsupported(range : 1 to 360000, defaulting to 600 seconds )",
@@ -433,10 +468,6 @@ int main(int argc, char *argv[]) {
     /* Initialize global afe loopback struct */
     init_afe_loopback_config(&temp);
     afe_loopback_config = &g_afe_loopback_config;
-
-    /* Set devices */
-    set_device(DEVICE_SINK, sink_device);
-    set_device(DEVICE_SOURCE, source_device);
 
     /* Load HAL */
     fprintf(log_file,"\nLoading HAL for loopback usecase begin");
@@ -458,7 +489,6 @@ int main(int argc, char *argv[]) {
     fprintf(log_file,"\nData thread create");
     pthread_create(&data_event_th, &data_event_attr,
                        (void *) process_loopback_data, NULL);
-    fprintf(log_file,"\nMain thread loop");
     fprintf(log_file,"\nMain thread loop exit");
 
 exit_afe_loopback_test:
@@ -484,8 +514,14 @@ exit_afe_loopback_test:
 
 void usage()
 {
-    fprintf(log_file,"\nUsage : afe_loopback_test -p <duration_in_seconds> -s <source_device_id>");
-    fprintf(log_file,"\nExample to play for 1 minute on speaker device: afe_loopback_test -p 60 -s 0");
+    fprintf(log_file,"\nUsage : afe_loopback_test\n"
+                           " -s <sink_device_id>\n"
+                           " -d <dtmf as source(range 0 and 1)>\n"
+                           " -p <duration_in_seconds>\n"
+                           " -v <volume>\n"
+                           " -h <help>\n");
+    fprintf(log_file,"\nExample to play for 1 minute on speaker device with volume unity: afe_loopback_test -p 60 -s 2");
     fprintf(log_file,"\nExample to play for 5 minutes on headphone device: afe_loopback_test -p 300 -s 4 ");
+    fprintf(log_file,"\nExample to play dtmf tone for 5 minutes on headphone device: afe_loopback_test -p 300 -s 4 -d 1");
     fprintf(log_file,"\nHelp : afe_loopback_test -h");
  }
