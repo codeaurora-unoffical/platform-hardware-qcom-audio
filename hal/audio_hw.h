@@ -209,6 +209,7 @@ enum {
 
     USECASE_AUDIO_EC_REF_LOOPBACK,
     USECASE_AUDIO_AFE_LOOPBACK,
+    USECASE_AUDIO_DTMF,
     AUDIO_USECASE_MAX
 };
 
@@ -411,6 +412,7 @@ typedef enum {
     TRANSCODE_LOOPBACK_RX,
     TRANSCODE_LOOPBACK_TX,
     AFE_LOOPBACK,
+    DTMF_PLAYBACK,
 } usecase_type_t;
 
 union stream_ptr {

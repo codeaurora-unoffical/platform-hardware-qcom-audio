@@ -355,6 +355,7 @@ const char * const use_case_table[AUDIO_USECASE_MAX] = {
 
     [USECASE_AUDIO_EC_REF_LOOPBACK] = "ec-ref-audio-capture",
     [USECASE_AUDIO_AFE_LOOPBACK] = "audio-afe-loopback",
+    [USECASE_AUDIO_DTMF] = "audio-dtmf-playback",
 };
 
 static const audio_usecase_t offload_usecases[] = {
@@ -1277,6 +1278,7 @@ static snd_device_t derive_playback_snd_device(void * platform,
     switch (uc->type) {
         case TRANSCODE_LOOPBACK_RX :
         case AFE_LOOPBACK:
+        case DTMF_PLAYBACK:
             a1 = uc->stream.inout->out_config.devices;
             a2 = new_uc->stream.inout->out_config.devices;
             break;
@@ -1381,7 +1383,8 @@ static void check_usecases_codec_backend(struct audio_device *adev,
               platform_get_snd_device_name(snd_device),
               platform_get_snd_device_name(usecase->out_snd_device),
               platform_check_backends_match(snd_device, usecase->out_snd_device));
-        if ((usecase->type != PCM_CAPTURE) && (usecase->type != AFE_LOOPBACK) && (usecase != uc_info)) {
+        if ((usecase->type != PCM_CAPTURE)  && (usecase != uc_info)
+                      && (usecase->type != AFE_LOOPBACK) && (usecase->type != DTMF_PLAYBACK)) {
             uc_derive_snd_device = derive_playback_snd_device(adev->platform,
                                                usecase, uc_info, snd_device);
             if (((uc_derive_snd_device != usecase->out_snd_device) || force_routing) &&
@@ -2063,7 +2066,8 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
                                                         usecase->stream.out);
         in_snd_device = platform_get_input_snd_device(adev->platform, usecase->stream.out->devices);
         usecase->devices = usecase->stream.out->devices;
-    } else if (usecase->type == TRANSCODE_LOOPBACK_RX) {
+    } else if ((usecase->type == TRANSCODE_LOOPBACK_RX) 
+            || (usecase->type == DTMF_PLAYBACK)) {
         if (usecase->stream.inout == NULL) {
             ALOGE("%s: stream.inout is NULL", __func__);
             return -EINVAL;
@@ -2094,7 +2098,7 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
         out_snd_device = platform_get_output_snd_device(adev->platform,
                                                         &stream_out);
         in_snd_device = platform_get_input_snd_device(adev->platform, AUDIO_DEVICE_NONE);
-        usecase->devices = out_snd_device | in_snd_device;
+        usecase->devices = (out_snd_device | in_snd_device);
     } else {
         /*
          * If the voice call is active, use the sound devices of voice call usecase
