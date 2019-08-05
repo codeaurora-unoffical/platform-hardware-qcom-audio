@@ -67,6 +67,7 @@
 */
 typedef enum patch_handle_type {
     AUDIO_PATCH_MIC_IN_SPKR_OUT = 0x10,
+    AUDIO_PATCH_DTMF_IN_SPKR_OUT,
 } patch_handle_type_t;
 
 typedef enum patch_state {
@@ -156,7 +157,7 @@ bool is_supported_source_device(audio_devices_t sink_device_mask)
     if((sink_device_mask & AUDIO_DEVICE_IN_BUILTIN_MIC) ||
        (sink_device_mask & AUDIO_DEVICE_IN_WIRED_HEADSET)) {
            return true;
-       }
+    }
     return false;
 }
 
@@ -324,9 +325,15 @@ int create_loopback_session(loopback_patch_t *active_loopback_patch)
         ALOGE("%s: Failure to open loopback session", __func__);
         return -ENOMEM;
     }
-
-    uc_info->id = USECASE_AUDIO_AFE_LOOPBACK;
-    uc_info->type = AFE_LOOPBACK;
+    if (source_patch_config->id) {
+        uc_info->id = USECASE_AUDIO_DTMF;
+        uc_info->type = DTMF_PLAYBACK;
+        loopback_source_stream.source = AUDIO_SOURCE_UNPROCESSED;
+    } else {
+        uc_info->id = USECASE_AUDIO_AFE_LOOPBACK;
+        uc_info->type = AFE_LOOPBACK;
+        loopback_source_stream.source = AUDIO_SOURCE_MIC;
+    }
     uc_info->stream.inout = &active_loopback_patch->patch_stream;
     uc_info->devices = active_loopback_patch->patch_stream.out_config.devices;
     uc_info->in_snd_device = SND_DEVICE_NONE;
@@ -334,7 +341,6 @@ int create_loopback_session(loopback_patch_t *active_loopback_patch)
 
     list_add_tail(&adev->usecase_list, &uc_info->list);
 
-    loopback_source_stream.source = AUDIO_SOURCE_MIC;
     loopback_source_stream.device = inout->in_config.devices;
     loopback_source_stream.channel_mask = inout->in_config.channel_mask;
     loopback_source_stream.bit_width = inout->in_config.bit_width;
@@ -389,25 +395,31 @@ int create_loopback_session(loopback_patch_t *active_loopback_patch)
         ret = -EIO;
         goto exit;
     }
+
     ALOGV("%s: Opening PCM capture device card_id(%d) device_id(%d)",
-          __func__, adev->snd_card, pcm_dev_rx_id);
-    active_loopback_patch->source_stream = pcm_open(adev->snd_card,
+          __func__, adev->snd_card, pcm_dev_tx_id);
+    if (pcm_dev_rx_id != pcm_dev_tx_id) {
+        active_loopback_patch->source_stream = pcm_open(adev->snd_card,
                                pcm_dev_tx_id,
                                PCM_IN, &pcm_config);
-    if (active_loopback_patch->source_stream &&
-            !pcm_is_ready(active_loopback_patch->source_stream)) {
-        ALOGE("%s: %s", __func__, pcm_get_error(active_loopback_patch->source_stream));
-        ret = -EIO;
-        goto exit;
-    }
+        if (active_loopback_patch->source_stream &&
+                !pcm_is_ready(active_loopback_patch->source_stream)) {
+            ALOGE("%s: %s", __func__, pcm_get_error(active_loopback_patch->source_stream));
+            ret = -EIO;
+            goto exit;
+        }
+    } else
+        active_loopback_patch->source_stream = active_loopback_patch->sink_stream;
 
     active_loopback_patch->patch_state = PATCH_CREATED;
 
-    if (pcm_start(active_loopback_patch->source_stream) < 0) {
-        ALOGE("%s: Failure to start loopback stream in capture path",
-        __func__);
-        ret = -EINVAL;
-        goto exit;
+    if (pcm_dev_rx_id != pcm_dev_tx_id) {
+        if (pcm_start(active_loopback_patch->source_stream) < 0) {
+            ALOGE("%s: Failure to start loopback stream in capture path",
+            __func__);
+            ret = -EINVAL;
+            goto exit;
+        }
     }
 
     if (pcm_start(active_loopback_patch->sink_stream) < 0) {

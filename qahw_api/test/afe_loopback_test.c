@@ -65,10 +65,11 @@ const char *log_filename = NULL;
 uint32_t play_duration_in_seconds = 600,play_duration_elapsed_msec = 0,play_duration_in_msec = 0;
 uint32_t source_device = AUDIO_DEVICE_IN_WIRED_HEADSET;
 uint32_t sink_device = AUDIO_DEVICE_OUT_WIRED_HEADSET;
+uint32_t dtmf_source_device = 0;
 uint32_t volume_in_millibels = 0;
 
-#define AFE_LOOPBACK_SOURCE_PORT_ID 0x4C00
-#define AFE_LOOPBACK_SINK_PORT_ID 0x4D00
+#define AFE_SOURCE_PORT_ID 0
+#define DTMF_SOURCE_PORT_ID 1
 
 #define DEVICE_SOURCE 0
 #define DEVICE_SINK 1
@@ -149,7 +150,7 @@ void init_afe_loopback_config(afe_loopback_config_t **p_afe_loopback_config)
     g_afe_loopback_config.devices = (out_device | in_device);
 
     /* Patch source port config init */
-    g_afe_loopback_config.source_config.id = AFE_LOOPBACK_SOURCE_PORT_ID;
+    g_afe_loopback_config.source_config.id = AFE_SOURCE_PORT_ID;
     g_afe_loopback_config.source_config.role = AUDIO_PORT_ROLE_SOURCE;
     g_afe_loopback_config.source_config.type = AUDIO_PORT_TYPE_DEVICE;
     g_afe_loopback_config.source_config.config_mask =
@@ -164,7 +165,7 @@ void init_afe_loopback_config(afe_loopback_config_t **p_afe_loopback_config)
     g_afe_loopback_config.source_config.ext.device.type = in_device;
 
     /* Patch sink port config init */
-    g_afe_loopback_config.sink_config.id = AFE_LOOPBACK_SINK_PORT_ID;
+    g_afe_loopback_config.sink_config.id = AFE_SOURCE_PORT_ID;
     g_afe_loopback_config.sink_config.role = AUDIO_PORT_ROLE_SINK;
     g_afe_loopback_config.sink_config.type = AUDIO_PORT_TYPE_DEVICE;
     g_afe_loopback_config.sink_config.config_mask =
@@ -257,6 +258,9 @@ int create_run_afe_loopback(
         fprintf(log_file,"\nPatch already existing, release the patch before opening a new patch");
         return rc;
     }
+    if (dtmf_source_device) {
+        g_afe_loopback_config.source_config.id = DTMF_SOURCE_PORT_ID;
+    }
 
     rc = qahw_create_audio_patch(module_handle,
                         1,
@@ -265,17 +269,6 @@ int create_run_afe_loopback(
                         &afe_loopback_config->sink_config,
                         &afe_loopback_config->patch_handle);
     fprintf(log_file,"\nCreate patch returned %d",rc);
-    if(!rc) {
-        struct audio_port_config sink_gain_config;
-        /* Convert loopback gain to millibels */
-        sink_gain_config.id = afe_loopback_config->sink_config.id;
-        sink_gain_config.role = afe_loopback_config->sink_config.role;
-        sink_gain_config.type = afe_loopback_config->sink_config.type;
-        sink_gain_config.config_mask = AUDIO_PORT_CONFIG_GAIN;
-
-        (void)qahw_set_audio_port_config(afe_loopback_config->hal_handle,
-                    &sink_gain_config);
-    }
 
     return rc;
 }
@@ -384,6 +377,7 @@ int main(int argc, char *argv[]) {
     struct option long_options[] = {
         /* These options set a flag. */
         {"sink-device", required_argument,    0, 's'},
+        {"dtmf-source-device", required_argument,    0, 'd'},
         {"play-duration",  required_argument,    0, 'p'},
         {"help",          no_argument,          0, 'h'},
         {0, 0, 0, 0}
@@ -394,7 +388,7 @@ int main(int argc, char *argv[]) {
 
     while ((opt = getopt_long(argc,
                               argv,
-                              "-s:p:h",
+                              "-s:d:p:h",
                               long_options,
                               &option_index)) != -1) {
 
@@ -403,6 +397,9 @@ int main(int argc, char *argv[]) {
         switch (opt) {
         case 's':
             sink_device = atoi(optarg);
+            break;
+        case 'd':
+            dtmf_source_device = atoi(optarg);
             break;
         case 'p':
             play_duration_in_seconds = atoi(optarg);
@@ -484,8 +481,9 @@ exit_afe_loopback_test:
 
 void usage()
 {
-    fprintf(log_file,"\nUsage : afe_loopback_test -p <duration_in_seconds> -s <source_device_id>");
-    fprintf(log_file,"\nExample to play for 1 minute on speaker device: afe_loopback_test -p 60 -s 0");
+    fprintf(log_file,"\nUsage : afe_loopback_test -p <duration_in_seconds> -s <source_device_id> -d <dtmf as source(range 0 and 1)>");
+    fprintf(log_file,"\nExample to play for 1 minute on speaker device with volume unity: afe_loopback_test -p 60 -s 0");
     fprintf(log_file,"\nExample to play for 5 minutes on headphone device: afe_loopback_test -p 300 -s 4 ");
+    fprintf(log_file,"\nExample to play dtmf tone for 5 minutes on headphone device: afe_loopback_test -p 300 -s 4 -d 1");
     fprintf(log_file,"\nHelp : afe_loopback_test -h");
  }
