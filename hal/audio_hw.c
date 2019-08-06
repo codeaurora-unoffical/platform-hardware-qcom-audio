@@ -460,6 +460,12 @@ static void enable_gcov()
 }
 #endif
 
+#if ANDROID_PLATFORM_SDK_VERSION >= 29
+static int in_set_microphone_direction(const struct audio_stream_in *stream,
+                                           audio_microphone_direction_t dir);
+static int in_set_microphone_field_dimension(const struct audio_stream_in *stream, float zoom);
+#endif
+
 static bool may_use_noirq_mode(struct audio_device *adev, audio_usecase_t uc_id,
                                int flags __unused)
 {
@@ -1042,7 +1048,8 @@ int disable_audio_route(struct audio_device *adev,
     audio_extn_sound_trigger_update_stream_status(usecase, ST_EVENT_STREAM_FREE);
     audio_extn_listen_update_stream_status(usecase, LISTEN_EVENT_STREAM_FREE);
     audio_extn_set_custom_mtmx_params(adev, usecase, false);
-    if (usecase->stream.out != NULL)
+    if ((usecase->type == PCM_PLAYBACK) &&
+            (usecase->stream.out != NULL))
         usecase->stream.out->pspd_coeff_sent = false;
     ALOGV("%s: exit", __func__);
     return 0;
@@ -4149,6 +4156,25 @@ error:
     return ret;
 }
 
+#if ANDROID_PLATFORM_SDK_VERSION >= 29
+static int in_set_microphone_direction(const struct audio_stream_in *stream,
+                                           audio_microphone_direction_t dir) {
+    int ret_val = -ENOSYS;
+    (void)stream;
+    (void)dir;
+    ALOGV("---- in_set_microphone_direction()");
+    return ret_val;
+}
+
+static int in_set_microphone_field_dimension(const struct audio_stream_in *stream, float zoom) {
+    int ret_val = -ENOSYS;
+    (void)zoom;
+    (void)stream;
+    ALOGV("---- in_set_microphone_field_dimension()");
+    return ret_val;
+}
+#endif
+
 static bool stream_get_parameter_channels(struct str_parms *query,
                                           struct str_parms *reply,
                                           audio_channel_mask_t *supported_channel_masks) {
@@ -6815,6 +6841,8 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
     int val;
     int ret;
     int status = 0;
+    struct listnode *node;
+    struct audio_usecase *usecase = NULL;
 
     ALOGD("%s: enter: %s", __func__, kvpairs);
     parms = str_parms_create_str(kvpairs);
@@ -6822,16 +6850,30 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
     if (!parms)
         goto error;
 
+    pthread_mutex_lock(&adev->lock);
     ret = str_parms_get_str(parms, "BT_SCO", value, sizeof(value));
     if (ret >= 0) {
         /* When set to false, HAL should disable EC and NS */
-        if (strcmp(value, AUDIO_PARAMETER_VALUE_ON) == 0)
+        if (strcmp(value, AUDIO_PARAMETER_VALUE_ON) == 0){
             adev->bt_sco_on = true;
-        else
+        } else {
+            ALOGD("route device to handset/mic when sco is off");
             adev->bt_sco_on = false;
+            list_for_each(node, &adev->usecase_list) {
+                usecase = node_to_item(node, struct audio_usecase, list);
+                if ((usecase->type == PCM_PLAYBACK) && usecase->stream.out &&
+                    (usecase->stream.out->devices & AUDIO_DEVICE_OUT_ALL_SCO))
+                    usecase->stream.out->devices = AUDIO_DEVICE_OUT_EARPIECE;
+                else if ((usecase->type == PCM_CAPTURE) && usecase->stream.in &&
+                         (usecase->stream.in->device & AUDIO_DEVICE_IN_ALL_SCO))
+                    usecase->stream.in->device = AUDIO_DEVICE_IN_BUILTIN_MIC;
+                else
+                    continue;
+                select_devices(adev, usecase->id);
+            }
+        }
     }
 
-    pthread_mutex_lock(&adev->lock);
     status = voice_set_parameters(adev, parms);
     if (status != 0)
         goto done;
@@ -7108,7 +7150,9 @@ static int adev_set_mode(struct audio_hw_device *dev, audio_mode_t mode)
     if (adev->mode != mode) {
         ALOGD("%s: mode %d\n", __func__, mode);
         adev->mode = mode;
-        if ((mode == AUDIO_MODE_NORMAL) && voice_is_in_call(adev)) {
+        if (voice_is_in_call(adev) &&
+            (mode == AUDIO_MODE_NORMAL ||
+             (mode == AUDIO_MODE_IN_COMMUNICATION && !voice_is_call_state_active(adev)))) {
             list_for_each(node, &adev->usecase_list) {
                 usecase = node_to_item(node, struct audio_usecase, list);
                 if (usecase->type == VOICE_CALL)
@@ -7322,6 +7366,10 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
     in->stream.read = in_read;
     in->stream.get_input_frames_lost = in_get_input_frames_lost;
     in->stream.get_active_microphones = in_get_active_microphones;
+#if ANDROID_PLATFORM_SDK_VERSION >= 29
+    in->stream.set_microphone_direction = in_set_microphone_direction;
+    in->stream.set_microphone_field_dimension = in_set_microphone_field_dimension;
+#endif
 
     in->device = devices;
     in->source = source;
@@ -7675,6 +7723,8 @@ static int adev_close(hw_device_t *device)
         audio_extn_utils_release_streams_cfg_lists(
                       &adev->streams_output_cfg_list,
                       &adev->streams_input_cfg_list);
+        if (audio_extn_qap_is_enabled())
+            audio_extn_qap_deinit();
         if (audio_extn_qaf_is_enabled())
             audio_extn_qaf_deinit();
         audio_route_free(adev->audio_route);
@@ -7932,6 +7982,21 @@ static int adev_open(const hw_module_t *module, const char *name,
         *device = NULL;
         pthread_mutex_unlock(&adev_init_lock);
         return -EINVAL;
+    }
+
+    if (audio_extn_qap_is_enabled()) {
+        ret = audio_extn_qap_init(adev);
+        if (ret < 0) {
+            pthread_mutex_destroy(&adev->lock);
+            free(adev);
+            adev = NULL;
+            ALOGE("%s: Failed to init platform data, aborting.", __func__);
+            *device = NULL;
+            pthread_mutex_unlock(&adev_init_lock);
+            return ret;
+        }
+        adev->device.open_output_stream = audio_extn_qap_open_output_stream;
+        adev->device.close_output_stream = audio_extn_qap_close_output_stream;
     }
 
     if (audio_extn_qaf_is_enabled()) {
