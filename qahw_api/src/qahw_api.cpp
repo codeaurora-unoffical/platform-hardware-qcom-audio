@@ -76,7 +76,11 @@ typedef struct {
     char sess_id_call_state[QAHW_KV_PAIR_LENGTH];
     qahw_stream_callback_t *cb;
     void *cookie;
+    struct audio_port_config source_config;
+    struct audio_port_config sink_config;
+    audio_patch_handle_t patch_handle;
 } qahw_api_stream_t;
+
 
 /* Array to store sound devices */
 static const char * const stream_name_map[QAHW_AUDIO_STREAM_TYPE_MAX] = {
@@ -100,6 +104,8 @@ static const char * const stream_name_map[QAHW_AUDIO_STREAM_TYPE_MAX] = {
     [QAHW_AUDIO_HOST_PCM_TX]= "host-pcm-tx",
     [QAHW_AUDIO_HOST_PCM_RX]= "host-pcm-rx",
     [QAHW_AUDIO_HOST_PCM_TX_RX]= "host-pcm-tx-rx",
+    [QAHW_AUDIO_AFE_LOOPBACK] ="audio-afe-loopback",
+    [QAHW_AUDIO_TONE_RX] = "audio-tone-playback",
 };
 
 static const char * const tty_mode_map[QAHW_TTY_MODE_MAX] = {
@@ -1973,6 +1979,9 @@ int qahw_add_flags_source(struct qahw_stream_attributes attr,
     case QAHW_AUDIO_HOST_PCM_TX_RX:
         /*TODO*/
         break;
+    case QAHW_AUDIO_AFE_LOOPBACK:
+    case QAHW_AUDIO_TONE_RX:
+        break;
     default:
         rc = -EINVAL;
         break;
@@ -2111,6 +2120,61 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
                                     address,
                                     source);
         break;
+    case QAHW_STREAM_NONE:
+        if (num_of_devices > 2) {
+            ALOGE("%s: invalid num of streams %d for dir %d",
+                  __func__, num_of_devices, attr.direction);
+            return rc;
+        }
+        ALOGV("%s: num of streams %d for dir %d",
+                  __func__, num_of_devices, attr.direction);
+
+        if (!((stream->devices[0] & AUDIO_DEVICE_OUT_SPEAKER)
+            && (stream->devices[1] & AUDIO_DEVICE_IN_BACK_MIC))
+            || !((stream->devices[0] & AUDIO_DEVICE_OUT_WIRED_HEADSET)
+               && (stream->devices[1] & AUDIO_DEVICE_IN_WIRED_HEADSET))
+            || !((stream->devices[0] & AUDIO_DEVICE_OUT_EARPIECE)
+               && (stream->devices[1] = AUDIO_DEVICE_IN_BUILTIN_MIC)))
+            return -EINVAL;
+
+    /* Patch source port config init */
+        stream->source_config.id = 0;
+        stream->source_config.role = AUDIO_PORT_ROLE_SOURCE;
+        stream->source_config.type = AUDIO_PORT_TYPE_DEVICE;
+        stream->source_config.config_mask = (AUDIO_PORT_CONFIG_ALL ^ AUDIO_PORT_CONFIG_GAIN);
+        stream->source_config.sample_rate = 48000;
+        stream->source_config.channel_mask = AUDIO_CHANNEL_IN_STEREO;
+        stream->source_config.format = AUDIO_FORMAT_PCM_16_BIT;
+        stream->source_config.ext.device.hw_module = AUDIO_MODULE_HANDLE_NONE;
+        stream->source_config.ext.device.type = devices[1];
+
+    /* Patch sink port config init */
+        stream->sink_config.id = 0;
+        stream->sink_config.role = AUDIO_PORT_ROLE_SINK;
+        stream->sink_config.type = AUDIO_PORT_TYPE_DEVICE;
+        stream->sink_config.config_mask = (AUDIO_PORT_CONFIG_ALL ^ AUDIO_PORT_CONFIG_GAIN);
+        stream->sink_config.sample_rate = 48000;
+        stream->sink_config.channel_mask = AUDIO_CHANNEL_OUT_STEREO;
+        stream->sink_config.format = AUDIO_FORMAT_PCM_16_BIT;
+        stream->sink_config.ext.device.hw_module = AUDIO_MODULE_HANDLE_NONE;
+        stream->sink_config.ext.device.type = devices[0];
+
+    /* Init patch handle */
+        stream->patch_handle = AUDIO_PATCH_HANDLE_NONE;
+
+        if (attr.type == QAHW_AUDIO_TONE_RX) {
+            ALOGV("%s: QAHW_AUDIO_TONE_RX ", __func__);
+            /* Switch stream to DTMF source */
+            stream->source_config.id = 1;
+            return qahw_create_audio_patch(hw_module,
+                        1,
+                        &stream->source_config,
+                        1,
+                        &stream->sink_config,
+                        &stream->patch_handle);
+        }
+        rc = 0;
+        break;
     default:
         ALOGE("%s: invalid stream direction %d ", __func__, attr.direction);
         return rc;
@@ -2182,6 +2246,8 @@ int qahw_stream_start(qahw_stream_handle_t *stream_handle) {
         ALOGE("%d:%s invalid stream handle", __LINE__, __func__);
         return rc;
     }
+    if (stream->type == QAHW_AUDIO_TONE_RX)
+        return rc;
 
     /*set call state and call mode for voice */
     if (stream->type == QAHW_VOICE_CALL) {
@@ -2191,6 +2257,14 @@ int qahw_stream_start(qahw_stream_handle_t *stream_handle) {
             return rc;
         }
         rc = qahw_set_mode(stream->hw_module, AUDIO_MODE_IN_CALL);
+    } else if (stream->type == QAHW_AUDIO_AFE_LOOPBACK) {
+        return qahw_create_audio_patch(stream->hw_module,
+                        1,
+                        &stream->source_config,
+                        1,
+                        &stream->sink_config,
+                        &stream->patch_handle);
+        return rc;
     }
 
     memset(&devices[0], 0, sizeof(devices));
@@ -2205,11 +2279,18 @@ int qahw_stream_stop(qahw_stream_handle_t *stream_handle) {
     qahw_audio_stream_type type;
     qahw_api_stream_t *stream = (qahw_api_stream_t *)stream_handle;
 
+    if (stream->type == QAHW_AUDIO_TONE_RX)
+        return rc;
+
     ALOGV("%d:%s start",__LINE__, __func__);
+
     /*reset call state and call mode for voice */
     if (stream->type == QAHW_VOICE_CALL) {
         rc = qahw_set_parameters(stream->hw_module, "call_state=1");
         rc = qahw_set_mode(stream->hw_module, AUDIO_MODE_NORMAL);
+    } else if (stream->type == QAHW_AUDIO_AFE_LOOPBACK) {
+            rc = qahw_release_audio_patch(stream->hw_module,
+                                 stream->patch_handle);
     }
     ALOGV("%d:%s end",__LINE__, __func__);
     return rc;
@@ -2756,27 +2837,33 @@ int32_t qahw_stream_set_tone_gen_params(qahw_api_stream_t *stream,
     int32_t rc = -EINVAL;
     int32_t tone_low_freq = 0;
     int32_t tone_high_freq = 0;
+    int32_t duration_ms = 0;
+    int32_t gain = 0;
     char kv[QAHW_KV_PAIR_LENGTH];
 
-    if(stream->type == QAHW_AUDIO_PLAYBACK_DEEP_BUFFER) {
-        if(tone_params->enable) {
-           if (tone_params->nr_tone_freq == 1) {
-                tone_low_freq = tone_params->freq[0];
-                tone_high_freq = tone_params->freq[0];
-            } else if (tone_params->nr_tone_freq == 2) {
-                tone_low_freq = tone_params->freq[0];
-                tone_high_freq = tone_params->freq[1];
-            }
-            snprintf(kv, QAHW_KV_PAIR_LENGTH,
-               "tone_gain=%d;tone_low_freq=%d;tone_high_freq=%d;tone_duration_ms=%d",
-                tone_params->gain,
-                tone_low_freq,
-                tone_high_freq,
-                tone_params->duration_ms);
-        } else
-            snprintf(kv, QAHW_KV_PAIR_LENGTH, "tone_off");
-        ALOGV("%d:%s kv set is %s", __LINE__, __func__, kv);
-        rc = qahw_out_set_parameters(stream->out_stream, kv);
+    if (stream->type == QAHW_AUDIO_TONE_RX) {
+        if (tone_params->enable) {
+            tone_low_freq = tone_params->freq[0];
+            tone_high_freq = tone_params->freq[1];
+            duration_ms = tone_params->duration_ms;
+            gain = tone_params->gain;
+        } else {
+            tone_low_freq = 0;
+            tone_high_freq = 0;;
+            duration_ms = 0;
+            gain = 0;
+        }
+
+        stream->source_config.gain.index = 0;
+        stream->source_config.gain.mode = AUDIO_GAIN_MODE_JOINT;
+        stream->source_config.gain.channel_mask = 4;
+        stream->source_config.gain.values[0] = tone_low_freq;
+        stream->source_config.gain.values[1] = tone_high_freq;
+        stream->source_config.gain.values[2] = duration_ms;
+        stream->source_config.gain.values[3] = gain;
+        stream->source_config.config_mask = AUDIO_PORT_CONFIG_GAIN;
+        rc = qahw_set_audio_port_config(stream->hw_module,
+              &stream->source_config);
     } else
         ALOGE("%d:%s cannot set tone on non playback stream", __LINE__, __func__);
     return rc;
