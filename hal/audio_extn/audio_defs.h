@@ -73,6 +73,7 @@
 #define AUDIO_OFFLOAD_CODEC_APE_SEEK_TABLE_PRESENT "music_offload_seek_table_present"
 
 #define AUDIO_OFFLOAD_CODEC_VORBIS_BITSTREAM_FMT "music_offload_vorbis_bitstream_fmt"
+#define AUDIO_OFFLOAD_CODEC_AMR_WB_PLUS_BITSTREAM_FMT "music_offload_amrwbplus_bitstream_fmt"
 
 /* Query handle fm parameter*/
 #define AUDIO_PARAMETER_KEY_HANDLE_FM "handle_fm"

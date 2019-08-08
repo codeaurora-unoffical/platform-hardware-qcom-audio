@@ -1272,7 +1272,16 @@ int audio_extn_parse_compress_metadata(struct stream_out *out,
             out->is_compr_metadata_avail = true;
         }
     }
-
+#ifdef AMR_OFFLOAD_ENABLED
+    else if (out->format == AUDIO_FORMAT_AMR_WB_PLUS) {
+        ret = str_parms_get_str(parms, AUDIO_OFFLOAD_CODEC_AMR_WB_PLUS_BITSTREAM_FMT, value, sizeof(value));
+        if (ret >= 0) {
+        // transcoded bitstream mode
+            out->compr_config.codec->options.amrwbplus.bit_stream_fmt = atoi(value);
+            out->is_compr_metadata_avail = true;
+        }
+    }
+#endif
     else if (out->format == AUDIO_FORMAT_WMA || out->format == AUDIO_FORMAT_WMA_PRO) {
         ret = str_parms_get_str(parms, AUDIO_OFFLOAD_CODEC_WMA_FORMAT_TAG, value, sizeof(value));
         if (ret >= 0) {
