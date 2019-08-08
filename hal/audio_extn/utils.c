@@ -146,6 +146,10 @@ const struct string_to_enum s_flag_name_to_enum_table[] = {
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_VOIP_RX),
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_BD),
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_INTERACTIVE),
+    STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_MEDIA),
+    STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_SYS_NOTIFICATION),
+    STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_NAV_GUIDANCE),
+    STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_PHONE),
     STRING_TO_ENUM(AUDIO_INPUT_FLAG_NONE),
     STRING_TO_ENUM(AUDIO_INPUT_FLAG_FAST),
     STRING_TO_ENUM(AUDIO_INPUT_FLAG_HW_HOTWORD),
@@ -1134,6 +1138,7 @@ static int send_app_type_cfg_for_device(struct audio_device *adev,
         goto exit_send_app_type_cfg;
     }
     if ((usecase->id != USECASE_AUDIO_PLAYBACK_DEEP_BUFFER) &&
+        (usecase->id != USECASE_AUDIO_PLAYBACK_WITH_HAPTICS) &&
         (usecase->id != USECASE_AUDIO_PLAYBACK_LOW_LATENCY) &&
         (usecase->id != USECASE_AUDIO_PLAYBACK_MULTI_CH) &&
         (usecase->id != USECASE_AUDIO_PLAYBACK_ULL) &&
@@ -1857,6 +1862,27 @@ int audio_extn_utils_get_codec_version(const char *snd_card_name,
         ALOGD("%s: codec version %s", __func__, codec_version);
     }
 
+    return 0;
+}
+
+int audio_extn_utils_get_codec_variant(int card_num,
+                            char *codec_variant)
+{
+    char procfs_path[50];
+    FILE *fp;
+    snprintf(procfs_path, sizeof(procfs_path),
+             "/proc/asound/card%d/codecs/wcd938x/variant", card_num);
+    if ((fp = fopen(procfs_path, "r")) == NULL) {
+        snprintf(procfs_path, sizeof(procfs_path),
+                 "/proc/asound/card%d/codecs/wcd937x/variant", card_num);
+        if ((fp = fopen(procfs_path, "r")) == NULL) {
+            ALOGE("%s: ERROR. cannot open %s", __func__, procfs_path);
+            return -ENOENT;
+        }
+    }
+    fgets(codec_variant, CODEC_VARIANT_MAX_LENGTH, fp);
+    fclose(fp);
+    ALOGD("%s: codec variant is %s", __func__, codec_variant);
     return 0;
 }
 

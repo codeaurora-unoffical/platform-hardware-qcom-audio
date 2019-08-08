@@ -40,22 +40,9 @@
 #include "platform.h"
 #include "audio_hal_plugin.h"
 
-
-// - external function dependency -
-static fp_read_line_from_file_t fp_read_line_from_file;
-static fp_get_usecase_from_list_t fp_get_usecase_from_list;
-static fp_enable_disable_snd_device_t fp_disable_snd_device;
-static fp_enable_disable_snd_device_t  fp_enable_snd_device;
-static fp_enable_disable_audio_route_t fp_disable_audio_route;
-static fp_enable_disable_audio_route_t fp_enable_audio_route;
-static fp_platform_set_snd_device_backend_t fp_platform_set_snd_device_backend;
-static fp_platform_get_snd_device_name_extn_t fp_platform_get_snd_device_name_extn;
-static fp_platform_get_default_app_type_v2_t fp_platform_get_default_app_type_v2;
-static fp_platform_send_audio_calibration_t fp_platform_send_audio_calibration;
-
-fp_audio_route_apply_and_update_path_t fp_audio_route_apply_and_update_path;
-
-#ifdef EXT_HW_PLUGIN_ENABLED
+//external feature dependency
+static fp_b64decode_t fp_b64decode;
+static fp_b64encode_t fp_b64encode;
 
 typedef int32_t (*audio_hal_plugin_init_t)(void);
 typedef int32_t (*audio_hal_plugin_deinit_t)(void);
@@ -77,85 +64,6 @@ struct ext_hw_plugin_data {
 /* This can be defined in platform specific file or use compile flag */
 #define LIB_PLUGIN_DRIVER "libaudiohalplugin.so"
 
-/* Note: Due to ADP H/W design, SoC TERT/SEC TDM CLK and FSYNC lines are
- * both connected with CODEC and a single master is needed to provide
- * consistent CLK and FSYNC to slaves, hence configuring SoC TERT TDM as
- * single master and bring up a dummy hostless from TERT to SEC to ensure
- * both slave SoC SEC TDM and CODEC are driven upon system boot. */
-static void ext_hw_plugin_enable_adev_hostless(void *plugin)
-{
-    struct ext_hw_plugin_data *my_plugin =
-        (struct ext_hw_plugin_data *)plugin;
-    char mixer_path[MIXER_PATH_MAX_LENGTH];
-
-    ALOGI("%s: Enable TERT -> SEC Hostless", __func__);
-
-    strlcpy(mixer_path, "dummy-hostless", MIXER_PATH_MAX_LENGTH);
-    ALOGD("%s: apply mixer and update path: %s", __func__, mixer_path);
-    if (audio_route_apply_and_update_path(my_plugin->adev->audio_route,
-            mixer_path)) {
-        ALOGE("%s: %s not supported, continue", __func__, mixer_path);
-        return;
-    }
-
-    /* TERT TDM TX 7 HOSTLESS to SEC TDM RX 7 HOSTLESS */
-    int pcm_dev_rx = 48, pcm_dev_tx = 49;
-    struct pcm_config pcm_config_lb = {
-        .channels = 1,
-        .rate = 48000,
-        .period_size = 240,
-        .period_count = 2,
-        .format = PCM_FORMAT_S16_LE,
-        .start_threshold = 0,
-        .stop_threshold = INT_MAX,
-        .avail_min = 0,
-    };
-
-    my_plugin->adev_hostless.pcm_tx = pcm_open(my_plugin->adev->snd_card,
-                                   pcm_dev_tx,
-                                   PCM_IN, &pcm_config_lb);
-    if (my_plugin->adev_hostless.pcm_tx &&
-        !pcm_is_ready(my_plugin->adev_hostless.pcm_tx)) {
-        ALOGE("%s: %s", __func__,
-            pcm_get_error(my_plugin->adev_hostless.pcm_tx));
-        return;
-    }
-    my_plugin->adev_hostless.pcm_rx = pcm_open(my_plugin->adev->snd_card,
-                                   pcm_dev_rx,
-                                   PCM_OUT, &pcm_config_lb);
-    if (my_plugin->adev_hostless.pcm_rx &&
-        !pcm_is_ready(my_plugin->adev_hostless.pcm_rx)) {
-        ALOGE("%s: %s", __func__,
-            pcm_get_error(my_plugin->adev_hostless.pcm_rx));
-        return;
-    }
-
-    if (pcm_start(my_plugin->adev_hostless.pcm_tx) < 0) {
-        ALOGE("%s: pcm start for pcm tx failed", __func__);
-        return;
-    }
-    if (pcm_start(my_plugin->adev_hostless.pcm_rx) < 0) {
-        ALOGE("%s: pcm start for pcm rx failed", __func__);
-        return;
-    }
-}
-
-static void ext_hw_plugin_disable_adev_hostless(void *plugin)
-{
-    struct ext_hw_plugin_data *my_plugin = (struct ext_hw_plugin_data *)plugin;
-
-    ALOGI("%s: Disable TERT -> SEC Hostless", __func__);
-
-    if (my_plugin->adev_hostless.pcm_tx) {
-        pcm_close(my_plugin->adev_hostless.pcm_tx);
-        my_plugin->adev_hostless.pcm_tx = NULL;
-    }
-    if (my_plugin->adev_hostless.pcm_rx) {
-        pcm_close(my_plugin->adev_hostless.pcm_rx);
-        my_plugin->adev_hostless.pcm_rx = NULL;
-    }
-}
-
 void* ext_hw_plugin_init(struct audio_device *adev, ext_hw_plugin_init_config_t init_config)
 {
     int32_t ret = 0;
@@ -169,8 +77,9 @@ void* ext_hw_plugin_init(struct audio_device *adev, ext_hw_plugin_init_config_t 
     }
 
     my_plugin->adev = adev;
-    fp_audio_route_apply_and_update_path = init_config.fp_audio_route_apply_and_update_path;
-    (void)audio_extn_auto_hal_enable_hostless();
+
+    fp_b64decode = init_config.fp_b64decode;
+    fp_b64encode = init_config.fp_b64encode;
 
     my_plugin->plugin_handle = dlopen(LIB_PLUGIN_DRIVER, RTLD_NOW);
     if (my_plugin->plugin_handle == NULL) {
@@ -209,7 +118,6 @@ void* ext_hw_plugin_init(struct audio_device *adev, ext_hw_plugin_init_config_t 
             goto plugin_init_fail;
         }
     }
-    ext_hw_plugin_enable_adev_hostless(my_plugin);
     my_plugin->mic_mute = false;
     return my_plugin;
 
@@ -229,7 +137,6 @@ int32_t ext_hw_plugin_deinit(void *plugin)
         ALOGE("[%s] NULL plugin pointer",__func__);
         return -EINVAL;
     }
-    ext_hw_plugin_disable_adev_hostless(my_plugin);
     if (my_plugin->audio_hal_plugin_deinit) {
         ret = my_plugin->audio_hal_plugin_deinit();
         if (ret) {
@@ -239,8 +146,6 @@ int32_t ext_hw_plugin_deinit(void *plugin)
     }
     if(my_plugin->plugin_handle != NULL)
         dlclose(my_plugin->plugin_handle);
-
-    audio_extn_auto_hal_disable_hostless();
 
     free(my_plugin);
     return ret;
@@ -289,6 +194,9 @@ static int32_t ext_hw_plugin_check_plugin_usecase(audio_usecase_t hal_usecase,
     case USECASE_AUDIO_PLAYBACK_PHONE:
         *plugin_usecase = AUDIO_HAL_PLUGIN_USECASE_PHONE_PLAYBACK;
         break;
+    case USECASE_AUDIO_FM_TUNER_EXT:
+       *plugin_usecase = AUDIO_HAL_PLUGIN_USECASE_FM_TUNER;
+        break;
     default:
         ret = -EINVAL;
     }
@@ -331,7 +239,8 @@ int32_t ext_hw_plugin_usecase_start(void *plugin, struct audio_usecase *usecase)
         }
 
         if (((usecase->type == PCM_CAPTURE) || (usecase->type == VOICE_CALL) ||
-                (usecase->type == VOIP_CALL) || (usecase->type == PCM_HFP_CALL)) &&
+              (usecase->type == VOIP_CALL) || (usecase->type == PCM_HFP_CALL) ||
+              (usecase->type == PCM_PASSTHROUGH)) &&
             (usecase->in_snd_device != SND_DEVICE_NONE)) {
             codec_enable.snd_dev = usecase->in_snd_device;
             /* TODO - below should be related with in_snd_dev */
@@ -486,7 +395,8 @@ int32_t ext_hw_plugin_usecase_stop(void *plugin, struct audio_usecase *usecase)
             my_plugin->out_snd_dev[codec_disable.usecase] = 0;
         }
         if (((usecase->type == PCM_CAPTURE) || (usecase->type == VOICE_CALL) ||
-                (usecase->type == VOIP_CALL) || (usecase->type == PCM_HFP_CALL)) &&
+             (usecase->type == VOIP_CALL) || (usecase->type == PCM_HFP_CALL) ||
+             (usecase->type == PCM_PASSTHROUGH)) &&
             (usecase->in_snd_device != SND_DEVICE_NONE)) {
             codec_disable.snd_dev = usecase->in_snd_device;
 
@@ -548,7 +458,7 @@ static int32_t ext_hw_plugin_string_to_dword(char *string_value, void **dword_pt
         ALOGE("%s: memory allocation failed", __func__);
         return -ENOMEM;
     }
-    dlen = b64decode(string_value, strlen(string_value), dptr);
+    dlen = fp_b64decode(string_value, strlen(string_value), dptr);
     if ((dlen <= 0) || ((uint32_t)dlen != 4*dword_len)){
         ALOGE("%s: data decoding failed", __func__);
         ret = -EINVAL;
@@ -615,7 +525,7 @@ static int32_t ext_hw_plugin_dword_to_string(uint32_t *dword_ptr, uint32_t dword
         goto done_dword_to_string;
     }
 
-    ret = b64encode(dptr, dlen, outptr);
+    ret = fp_b64encode(dptr, dlen, outptr);
     if(ret < 0) {
         ALOGE("[%s] failed to convert data to string ret = %d", __func__, ret);
         free(outptr);
@@ -1647,4 +1557,3 @@ int ext_hw_plugin_set_audio_gain(void *plugin,
     }
     return ret;
 }
-#endif /* EXT_HW_PLUGIN_ENABLED */

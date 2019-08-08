@@ -380,6 +380,10 @@ persist.vendor.audio.voicecall.speaker.stereo=true
 PRODUCT_PROPERTY_OVERRIDES += \
 persist.vendor.bt.aac_frm_ctl.enabled=true
 
+#enable AAC frame ctl for A2DP sinks
+PRODUCT_PROPERTY_OVERRIDES += \
+persist.vendor.bt.aac_frm_ctl.enabled=true
+
 #add dynamic feature flags here
 PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.feature.a2dp_offload.enable=true \
@@ -390,7 +394,7 @@ vendor.audio.feature.compr_cap.enable=false \
 vendor.audio.feature.compress_in.enable=true \
 vendor.audio.feature.compress_meta_data.enable=true \
 vendor.audio.feature.compr_voip.enable=false \
-vendor.audio.feature.concurrent_capture.enable=false \
+vendor.audio.feature.concurrent_capture.enable=true \
 vendor.audio.feature.custom_stereo.enable=true \
 vendor.audio.feature.display_port.enable=true \
 vendor.audio.feature.dsm_feedback.enable=false \
@@ -407,6 +411,7 @@ vendor.audio.feature.hfp.enable=true \
 vendor.audio.feature.hifi_audio.enable=false \
 vendor.audio.feature.hwdep_cal.enable=false \
 vendor.audio.feature.incall_music.enable=true \
+vendor.audio.feature.multi_voice_session.enable=true \
 vendor.audio.feature.keep_alive.enable=true \
 vendor.audio.feature.kpi_optimize.enable=true \
 vendor.audio.feature.maxx_audio.enable=false \

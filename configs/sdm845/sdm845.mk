@@ -124,7 +124,9 @@ PRODUCT_COPY_FILES += \
     vendor/qcom/opensource/audio-hal/primary-hal/configs/sdm845/sound_trigger_platform_info.xml:$(TARGET_COPY_OUT_VENDOR)/etc/sound_trigger_platform_info.xml \
     vendor/qcom/opensource/audio-hal/primary-hal/configs/sdm845/graphite_ipc_platform_info.xml:$(TARGET_COPY_OUT_VENDOR)/etc/graphite_ipc_platform_info.xml \
     vendor/qcom/opensource/audio-hal/primary-hal/configs/sdm845/audio_platform_info.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info.xml \
-    vendor/qcom/opensource/audio-hal/primary-hal/configs/sdm845/audio_configs.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_configs.xml
+    vendor/qcom/opensource/audio-hal/primary-hal/configs/sdm845/audio_configs.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_configs.xml \
+    frameworks/native/data/etc/android.hardware.audio.pro.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.audio.pro.xml \
+    frameworks/native/data/etc/android.hardware.audio.low_latency.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.audio.low_latency.xml
 
 #XML Audio configuration files
 ifeq ($(USE_XML_AUDIO_POLICY_CONF), 1)
@@ -309,6 +311,11 @@ audio.volume.headset.gain.depcal=true
 PRODUCT_PROPERTY_OVERRIDES += \
 persist.audio.fluence.voicecomm=true
 
+#enable AAC frame ctl for A2DP sinks
+PRODUCT_PROPERTY_OVERRIDES += \
+persist.vendor.bt.aac_frm_ctl.enabled=true
+
+
 #add dynamic feature flags here
 PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.feature.a2dp_offload.enable=true \
@@ -336,6 +343,7 @@ vendor.audio.feature.hfp.enable=true \
 vendor.audio.feature.hifi_audio.enable=false \
 vendor.audio.feature.hwdep_cal.enable=false \
 vendor.audio.feature.incall_music.enable=false \
+vendor.audio.feature.multi_voice_session.enable=true \
 vendor.audio.feature.keep_alive.enable=false \
 vendor.audio.feature.kpi_optimize.enable=true \
 vendor.audio.feature.maxx_audio.enable=false \

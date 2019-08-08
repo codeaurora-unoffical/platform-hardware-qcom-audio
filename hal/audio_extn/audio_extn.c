@@ -475,7 +475,7 @@ void audio_extn_set_custom_mtmx_params_v2(struct audio_device *adev,
     int num_devices = 0, pcm_device_id = -1, i = 0, ret = 0;
     snd_device_t new_snd_devices[SND_DEVICE_OUT_END] = {0};
     struct audio_backend_cfg backend_cfg = {0};
-    uint32_t feature_id = 0;
+    uint32_t feature_id = 0, idx = 0;
 
     switch(usecase->type) {
     case PCM_PLAYBACK:
@@ -520,7 +520,7 @@ void audio_extn_set_custom_mtmx_params_v2(struct audio_device *adev,
      * if features like dual_mono is enabled and overrides the default(i.e. 0).
      */
     info.id = feature_id;
-    info.usecase_id = usecase->id;
+    info.usecase_id[0] = usecase->id;
     for (i = 0, ret = 0; i < num_devices; i++) {
         info.snd_device = new_snd_devices[i];
         platform_get_codec_backend_cfg(adev, info.snd_device, &backend_cfg);
@@ -533,7 +533,7 @@ void audio_extn_set_custom_mtmx_params_v2(struct audio_device *adev,
             info.op_channels = audio_channel_count_from_in_mask(
                                    usecase->stream.in->channel_mask);
         }
-        params = platform_get_custom_mtmx_params(adev->platform, &info);
+        params = platform_get_custom_mtmx_params(adev->platform, &info, &idx);
         if (params) {
             if (enable)
                 ret = update_custom_mtmx_coefficients_v2(adev, params,
@@ -678,7 +678,8 @@ static int update_custom_mtmx_coefficients_v1(struct audio_device *adev,
                                            struct audio_custom_mtmx_in_params *in_params,
                                            int pcm_device_id,
                                            usecase_type_t type,
-                                           bool enable)
+                                           bool enable,
+                                           uint32_t idx)
 {
     struct mixer_ctl *ctl = NULL;
     char mixer_ctl_name[128] = {0};
@@ -692,13 +693,13 @@ static int update_custom_mtmx_coefficients_v1(struct audio_device *adev,
           __func__, pinfo->ip_channels, pinfo->op_channels, pcm_device_id,
           type, enable);
 
-    if (!strcmp(pinfo->fe_name, "")) {
+    if (pinfo->fe_id[idx] == 0) {
         ALOGE("%s: Error. no front end defined", __func__);
         return -EINVAL;
     }
 
-    strlcpy(mixer_name_prefix, pinfo->fe_name, sizeof(mixer_name_prefix));
-
+    snprintf(mixer_name_prefix, sizeof(mixer_name_prefix), "%s%d",
+             "MultiMedia", pinfo->fe_id[idx]);
     /*
      * Enable/Disable channel mixer.
      * If enable, use params and in_params to configure mixer.
@@ -840,7 +841,7 @@ void audio_extn_set_custom_mtmx_params_v1(struct audio_device *adev,
     struct audio_custom_mtmx_in_params_info in_info = {0};
     struct audio_custom_mtmx_in_params *in_params = NULL;
     int pcm_device_id = -1, ret = 0;
-    uint32_t feature_id = 0;
+    uint32_t feature_id = 0, idx = 0;
 
     switch(usecase->type) {
     case PCM_CAPTURE:
@@ -862,26 +863,26 @@ void audio_extn_set_custom_mtmx_params_v1(struct audio_device *adev,
 
     ALOGD("%s: snd device %d", __func__, info.snd_device);
     info.id = feature_id;
-    info.usecase_id = usecase->id;
+    info.usecase_id[0] = usecase->id;
     info.op_channels = audio_channel_count_from_in_mask(
                                 usecase->stream.in->channel_mask);
 
-    in_info.usecase_id = info.usecase_id;
+    in_info.usecase_id[0] = info.usecase_id[0];
     in_info.op_channels = info.op_channels;
     in_params = platform_get_custom_mtmx_in_params(adev->platform, &in_info);
     if (!in_params) {
         ALOGE("%s: Could not get in params for usecase %d, channels %d",
-               __func__, in_info.usecase_id, in_info.op_channels);
+               __func__, in_info.usecase_id[0], in_info.op_channels);
         return;
     }
 
     info.ip_channels = in_params->ip_channels;
     ALOGD("%s: ip channels %d, op channels %d", __func__, info.ip_channels, info.op_channels);
 
-    params = platform_get_custom_mtmx_params(adev->platform, &info);
+    params = platform_get_custom_mtmx_params(adev->platform, &info, &idx);
     if (params) {
         ret = update_custom_mtmx_coefficients_v1(adev, params, in_params,
-                             pcm_device_id, usecase->type, enable);
+                             pcm_device_id, usecase->type, enable, idx);
         if (ret < 0)
             ALOGE("%s: error updating mtmx coeffs err:%d", __func__, ret);
     }
@@ -900,12 +901,12 @@ snd_device_t audio_extn_get_loopback_snd_device(struct audio_device *adev,
         return snd_device;
     }
 
-    in_info.usecase_id = usecase->id;
+    in_info.usecase_id[0] = usecase->id;
     in_info.op_channels = channel_count;
     in_params = platform_get_custom_mtmx_in_params(adev->platform, &in_info);
     if (!in_params) {
         ALOGE("%s: Could not get in params for usecase %d, channels %d",
-               __func__, in_info.usecase_id, in_info.op_channels);
+               __func__, in_info.usecase_id[0], in_info.op_channels);
         return snd_device;
     }
 
@@ -4638,8 +4639,8 @@ void* audio_extn_ext_hw_plugin_init(struct audio_device *adev)
 {
     if(ext_hw_plugin_init) {
         ext_hw_plugin_init_config_t ext_hw_plugin_init_config;
-        ext_hw_plugin_init_config.fp_audio_route_apply_and_update_path =
-                                              audio_route_apply_and_update_path;
+        ext_hw_plugin_init_config.fp_b64decode = b64decode;
+        ext_hw_plugin_init_config.fp_b64encode = b64encode;
         return ext_hw_plugin_init(adev, ext_hw_plugin_init_config);
     }
     else
@@ -5390,6 +5391,224 @@ bool audio_extn_ma_supported_usb()
 }
 // END: MAXX_AUDIO =====================================================================
 
+// START: AUTO_HAL ===================================================================
+#ifdef __LP64__
+#define AUTO_HAL_LIB_PATH "/vendor/lib64/libautohal.so"
+#else
+#define AUTO_HAL_LIB_PATH "/vendor/lib/libautohal.so"
+#endif
+
+static void *auto_hal_lib_handle = NULL;
+
+typedef int (*auto_hal_init_t)(struct audio_device*,
+                                auto_hal_init_config_t);
+static auto_hal_init_t auto_hal_init;
+
+typedef void (*auto_hal_deinit_t)();
+static auto_hal_deinit_t auto_hal_deinit;
+
+typedef int (*auto_hal_create_audio_patch_t)(struct audio_hw_device*,
+                                unsigned int,
+                                const struct audio_port_config*,
+                                unsigned int,
+                                const struct audio_port_config*,
+                                audio_patch_handle_t*);
+static auto_hal_create_audio_patch_t auto_hal_create_audio_patch;
+
+typedef int (*auto_hal_release_audio_patch_t)(struct audio_hw_device*,
+                                audio_patch_handle_t);
+static auto_hal_release_audio_patch_t auto_hal_release_audio_patch;
+
+typedef int (*auto_hal_get_car_audio_stream_from_address_t)(const char*);
+static auto_hal_get_car_audio_stream_from_address_t auto_hal_get_car_audio_stream_from_address;
+
+typedef int (*auto_hal_open_output_stream_t)(struct stream_out*);
+static auto_hal_open_output_stream_t auto_hal_open_output_stream;
+
+typedef bool (*auto_hal_is_bus_device_usecase_t)(audio_usecase_t);
+static auto_hal_is_bus_device_usecase_t auto_hal_is_bus_device_usecase;
+
+typedef snd_device_t (*auto_hal_get_snd_device_for_car_audio_stream_t)(
+                                struct stream_out*);
+static auto_hal_get_snd_device_for_car_audio_stream_t auto_hal_get_snd_device_for_car_audio_stream;
+
+typedef int (*auto_hal_get_audio_port_t)(struct audio_hw_device*,
+                                struct audio_port*);
+static auto_hal_get_audio_port_t auto_hal_get_audio_port;
+
+typedef int (*auto_hal_set_audio_port_config_t)(struct audio_hw_device*,
+                                const struct audio_port_config*);
+static auto_hal_set_audio_port_config_t auto_hal_set_audio_port_config;
+
+typedef void (*auto_hal_set_parameters_t)(struct audio_device*,
+                                struct str_parms*);
+static auto_hal_set_parameters_t auto_hal_set_parameters;
+
+int auto_hal_feature_init(bool is_feature_enabled)
+{
+    ALOGD("%s: Called with feature %s", __func__,
+                  is_feature_enabled ? "Enabled" : "NOT Enabled");
+    if (is_feature_enabled) {
+        // dlopen lib
+        auto_hal_lib_handle = dlopen(AUTO_HAL_LIB_PATH, RTLD_NOW);
+
+        if (!auto_hal_lib_handle) {
+            ALOGE("%s: dlopen failed", __func__);
+            goto feature_disabled;
+        }
+        if (!(auto_hal_init = (auto_hal_init_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_init")) ||
+            !(auto_hal_deinit =
+                 (auto_hal_deinit_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_deinit")) ||
+            !(auto_hal_create_audio_patch =
+                 (auto_hal_create_audio_patch_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_create_audio_patch")) ||
+            !(auto_hal_release_audio_patch =
+                 (auto_hal_release_audio_patch_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_release_audio_patch")) ||
+            !(auto_hal_get_car_audio_stream_from_address =
+                 (auto_hal_get_car_audio_stream_from_address_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_get_car_audio_stream_from_address")) ||
+            !(auto_hal_open_output_stream =
+                 (auto_hal_open_output_stream_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_open_output_stream")) ||
+            !(auto_hal_is_bus_device_usecase =
+                 (auto_hal_is_bus_device_usecase_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_is_bus_device_usecase")) ||
+            !(auto_hal_get_snd_device_for_car_audio_stream =
+                 (auto_hal_get_snd_device_for_car_audio_stream_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_get_snd_device_for_car_audio_stream")) ||
+            !(auto_hal_get_audio_port =
+                 (auto_hal_get_audio_port_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_get_audio_port")) ||
+            !(auto_hal_set_audio_port_config =
+                 (auto_hal_set_audio_port_config_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_set_audio_port_config")) ||
+            !(auto_hal_set_parameters =
+                 (auto_hal_set_parameters_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_set_parameters"))) {
+            ALOGE("%s: dlsym failed", __func__);
+            goto feature_disabled;
+        }
+        ALOGD("%s:: ---- Feature AUTO_HAL is Enabled ----", __func__);
+        return 0;
+    }
+
+feature_disabled:
+    if (auto_hal_lib_handle) {
+        dlclose(auto_hal_lib_handle);
+        auto_hal_lib_handle = NULL;
+    }
+
+    auto_hal_init = NULL;
+    auto_hal_deinit = NULL;
+    auto_hal_create_audio_patch = NULL;
+    auto_hal_release_audio_patch = NULL;
+    auto_hal_get_car_audio_stream_from_address = NULL;
+    auto_hal_open_output_stream = NULL;
+    auto_hal_is_bus_device_usecase = NULL;
+    auto_hal_get_snd_device_for_car_audio_stream = NULL;
+    auto_hal_get_audio_port = NULL;
+    auto_hal_set_audio_port_config = NULL;
+    auto_hal_set_parameters = NULL;
+
+    ALOGW(":: %s: ---- Feature AUTO_HAL is disabled ----", __func__);
+    return -ENOSYS;
+}
+
+int audio_extn_auto_hal_init(struct audio_device *adev)
+{
+    if(auto_hal_init) {
+        auto_hal_init_config_t auto_hal_init_config;
+        auto_hal_init_config.fp_in_get_stream = in_get_stream;
+        auto_hal_init_config.fp_out_get_stream = out_get_stream;
+        auto_hal_init_config.fp_audio_extn_ext_hw_plugin_usecase_start = audio_extn_ext_hw_plugin_usecase_start;
+        auto_hal_init_config.fp_audio_extn_ext_hw_plugin_usecase_stop = audio_extn_ext_hw_plugin_usecase_stop;
+        auto_hal_init_config.fp_get_usecase_from_list = get_usecase_from_list;
+        auto_hal_init_config.fp_get_output_period_size = get_output_period_size;
+        auto_hal_init_config.fp_audio_extn_ext_hw_plugin_set_audio_gain = audio_extn_ext_hw_plugin_set_audio_gain;
+        return auto_hal_init(adev, auto_hal_init_config);
+    }
+    else
+        return 0;
+}
+
+void audio_extn_auto_hal_deinit()
+{
+    if (auto_hal_deinit)
+        auto_hal_deinit();
+}
+
+int audio_extn_auto_hal_create_audio_patch(struct audio_hw_device *dev,
+                                unsigned int num_sources,
+                                const struct audio_port_config *sources,
+                                unsigned int num_sinks,
+                                const struct audio_port_config *sinks,
+                                audio_patch_handle_t *handle)
+{
+    return ((auto_hal_create_audio_patch) ?
+                            auto_hal_create_audio_patch(dev,
+                                num_sources,
+                                sources,
+                                num_sinks,
+                                sinks,
+                                handle): 0);
+}
+
+int audio_extn_auto_hal_release_audio_patch(struct audio_hw_device *dev,
+                                audio_patch_handle_t handle)
+{
+    return ((auto_hal_release_audio_patch) ?
+                            auto_hal_release_audio_patch(dev, handle): 0);
+}
+
+int audio_extn_auto_hal_get_car_audio_stream_from_address(const char *address)
+{
+    return ((auto_hal_get_car_audio_stream_from_address) ?
+                            auto_hal_get_car_audio_stream_from_address(address): 0);
+}
+
+int audio_extn_auto_hal_open_output_stream(struct stream_out *out)
+{
+    return ((auto_hal_open_output_stream) ?
+                            auto_hal_open_output_stream(out): 0);
+}
+
+bool audio_extn_auto_hal_is_bus_device_usecase(audio_usecase_t uc_id)
+{
+    return ((auto_hal_is_bus_device_usecase) ?
+                            auto_hal_is_bus_device_usecase(uc_id): 0);
+}
+
+snd_device_t audio_extn_auto_hal_get_snd_device_for_car_audio_stream(struct stream_out *out)
+{
+    return ((auto_hal_get_snd_device_for_car_audio_stream) ?
+                            auto_hal_get_snd_device_for_car_audio_stream(out): 0);
+}
+
+int audio_extn_auto_hal_get_audio_port(struct audio_hw_device *dev,
+                                struct audio_port *config)
+{
+    return ((auto_hal_get_audio_port) ?
+                            auto_hal_get_audio_port(dev, config): 0);
+}
+
+int audio_extn_auto_hal_set_audio_port_config(struct audio_hw_device *dev,
+                                const struct audio_port_config *config)
+{
+    return ((auto_hal_set_audio_port_config) ?
+                            auto_hal_set_audio_port_config(dev, config): 0);
+}
+
+void audio_extn_auto_hal_set_parameters(struct audio_device *adev,
+                                        struct str_parms *parms)
+{
+    if (auto_hal_set_parameters)
+        auto_hal_set_parameters(adev, parms);
+}
+// END: AUTO_HAL ===================================================================
+
 void audio_extn_feature_init()
 {
     is_running_vendor_enhanced_fwk = audio_extn_utils_is_vendor_enhanced_fwk();
@@ -5505,6 +5724,9 @@ void audio_extn_feature_init()
     audiozoom_feature_init(
         property_get_bool("vendor.audio.feature.audiozoom.enable",
                            true));
+    auto_hal_feature_init(
+        property_get_bool("vendor.audio.feature.auto_hal.enable",
+                           false));
 }
 
 void audio_extn_set_parameters(struct audio_device *adev,
