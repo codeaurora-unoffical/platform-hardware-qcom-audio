@@ -72,6 +72,7 @@
 #define PLATFORM_INFO_XML_PATH_TDM  "/etc/audio_platform_info_tdm.xml"
 #define PLATFORM_INFO_XML_PATH_CSRA6 "/etc/audio_platform_info_csra6.xml"
 #define PLATFORM_INFO_XML_PATH_CSRA8 "/etc/audio_platform_info_csra8.xml"
+#define PLATFORM_INFO_XML_PATH_CSRA8PLUS2 "/etc/audio_platform_info_csra8plus2.xml"
 #else
 #define PLATFORM_INFO_XML_PATH_INTCODEC  "/vendor/etc/audio_platform_info_intcodec.xml"
 #define PLATFORM_INFO_XML_PATH_SKUSH "/vendor/etc/audio_platform_info_skush.xml"
@@ -85,6 +86,7 @@
 #define PLATFORM_INFO_XML_PATH_TDM  "/vendor/etc/audio_platform_info_tdm.xml"
 #define PLATFORM_INFO_XML_PATH_CSRA6 "/vendor/etc/audio_platform_info_csra6.xml"
 #define PLATFORM_INFO_XML_PATH_CSRA8 "/vendor/etc/audio_platform_info_csra8.xml"
+#define PLATFORM_INFO_XML_PATH_CSRA8PLUS2 "/vendor/etc/audio_platform_info_csra8plus2.xml"
 #endif
 
 #include <linux/msm_audio.h>
@@ -2777,6 +2779,9 @@ void *platform_init(struct audio_device *adev)
     else if (!strncmp(snd_card_name, "qcs405-csra8-snd-card",
                sizeof("qcs405-csra8-snd-card")))
         platform_info_init(PLATFORM_INFO_XML_PATH_CSRA8, my_data, PLATFORM);
+    else if (!strncmp(snd_card_name, "qcs405-csra8plus2-snd-card",
+               sizeof("qcs405-csra8plus2-snd-card")))
+        platform_info_init(PLATFORM_INFO_XML_PATH_CSRA8PLUS2, my_data, PLATFORM);
     else if (!strncmp(snd_card_name, "qcs405-tdm-snd-card",
                sizeof("qcs405-tdm-snd-card")))
         platform_info_init(PLATFORM_INFO_XML_PATH_TDM, my_data, PLATFORM);
@@ -3086,12 +3091,30 @@ acdb_init_fail:
         if (!strncmp(snd_card_name, "qcs405", strlen("qcs405"))) {
 
             if (!strncmp(snd_card_name, "qcs405-csra", strlen("qcs405-csra"))) {
-               my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].bitwidth_mixer_ctl =
-                   strdup("PRIM_MI2S_RX Format");
-               my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].samplerate_mixer_ctl =
-                   strdup("PRIM_MI2S_RX SampleRate");
-               my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].channels_mixer_ctl =
-                   strdup("PRIM_MI2S_RX Channels");
+                if (!strncmp(platform_get_snd_device_backend_interface(SND_DEVICE_OUT_SPEAKER),
+                    "PRI_META_MI2S_RX", sizeof("PRI_META_MI2S_RX"))) {
+                    my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].bitwidth_mixer_ctl =
+                        strdup("PRIM_META_MI2S_RX Format");
+                    my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].samplerate_mixer_ctl =
+                        strdup("PRIM_META_MI2S_RX SampleRate");
+                    my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].channels_mixer_ctl =
+                        strdup("PRIM_META_MI2S_RX Channels");
+                } else if (!strncmp(platform_get_snd_device_backend_interface(SND_DEVICE_OUT_SPEAKER),
+                    "SEC_META_MI2S_RX", sizeof("SEC_META_MI2S_RX"))) {
+                    my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].bitwidth_mixer_ctl =
+                        strdup("SEC_META_MI2S_RX Format");
+                    my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].samplerate_mixer_ctl =
+                        strdup("SEC_META_MI2S_RX SampleRate");
+                    my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].channels_mixer_ctl =
+                        strdup("SEC_META_MI2S_RX Channels");
+                } else {
+                    my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].bitwidth_mixer_ctl =
+                        strdup("PRIM_MI2S_RX Format");
+                    my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].samplerate_mixer_ctl =
+                        strdup("PRIM_MI2S_RX SampleRate");
+                    my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].channels_mixer_ctl =
+                        strdup("PRIM_MI2S_RX Channels");
+                }
             } else {
                my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].bitwidth_mixer_ctl =
                    strdup("WSA_CDC_DMA_RX_0 Format");
@@ -8611,6 +8634,28 @@ int platform_set_stream_channel_map(void *platform, audio_channel_mask_t channel
                 channel_map[13] = PCM_CHANNEL_FRC;
                 channel_map[14] = PCM_CHANNEL_RLC;
                 channel_map[15] = PCM_CHANNEL_RRC;
+                break;
+            case 20:
+                channel_map[0] = PCM_CHANNEL_FL;
+                channel_map[1] = PCM_CHANNEL_FR;
+                channel_map[2] = PCM_CHANNEL_FC;
+                channel_map[3] = PCM_CHANNEL_LFE;
+                channel_map[4] = PCM_CHANNEL_LB;
+                channel_map[5] = PCM_CHANNEL_RB;
+                channel_map[6] = PCM_CHANNEL_LS;
+                channel_map[7] = PCM_CHANNEL_RS;
+                channel_map[8] = PCM_CHANNEL_SL;
+                channel_map[9] = PCM_CHANNEL_SR;
+                channel_map[10] = PCM_CHANNEL_TFL;
+                channel_map[11] = PCM_CHANNEL_TFR;
+                channel_map[12] = PCM_CHANNEL_TSL;
+                channel_map[13] = PCM_CHANNEL_TSR;
+                channel_map[14] = PCM_CHANNEL_TBL;
+                channel_map[15] = PCM_CHANNEL_TBR;
+                channel_map[16] = PCM_CHANNEL_FLC;
+                channel_map[17] = PCM_CHANNEL_FRC;
+                channel_map[18] = PCM_CHANNEL_RLC;
+                channel_map[19] = PCM_CHANNEL_RRC;
                 break;
             default:
                 ALOGE("unsupported channels %d for setting channel map", channels);
