@@ -238,6 +238,8 @@ int platform_set_stream_downmix_params(void *platform,
 int platform_set_edid_channels_configuration(void *platform, int channels, int backend_idx);
 unsigned char platform_map_to_edid_format(int format);
 bool platform_is_edid_supported_format(void *platform, int format);
+int platform_get_supported_channel_mask_for_format(void *platform, audio_channel_mask_t *supported_channel_masks, audio_format_t format);
+bool platform_is_edid_supported_sample_rate_for_format(void *platform, int sample_rate, audio_format_t format);
 bool platform_is_edid_supported_sample_rate(void *platform, int sample_rate);
 void platform_cache_edid(void * platform);
 void platform_invalidate_hdmi_config(void * platform);

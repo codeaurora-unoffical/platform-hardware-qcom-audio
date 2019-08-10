@@ -258,7 +258,7 @@ PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.qap.msmd=false
 
 PRODUCT_PROPERTY_OVERRIDES += \
-persist.vendor.audio.qap.ecref=false
+persist.vendor.audio.qap.ecref=off
 
 PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.qap.output.block.handling=true
