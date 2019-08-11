@@ -1144,7 +1144,7 @@ static void check_usecases_codec_backend(struct audio_device *adev,
               platform_get_snd_device_name(usecase->out_snd_device),
               platform_check_backends_match(snd_device, usecase->out_snd_device));
         if ((usecase->type != PCM_CAPTURE) && (usecase->type != TRANSCODE_LOOPBACK)
-                      && (usecase != AFE_LOOPBACK) && (usecase != DTMF_PLAYBACK)
+                      && (usecase->type != AFE_LOOPBACK) && (usecase->type != DTMF_PLAYBACK)
                                                            && (usecase != uc_info)) {
             uc_derive_snd_device = derive_playback_snd_device(adev->platform,
                                                usecase, uc_info, snd_device);

@@ -177,18 +177,18 @@ bool is_supported_sink_device(audio_devices_t sink_device_mask)
 
 /* Set loopback volume : for mute implementation */
 static int afe_loopback_set_volume(struct audio_device *adev,
-              uint16_t low_freq, uint16_t high_freq, uint16_t gain,
-              uint16_t duration_ms)
+              uint16_t low_freq, uint16_t high_freq,
+              uint16_t duration_ms, uint16_t gain)
 {
     int32_t ret = 0;
     struct mixer_ctl *ctl;
     char mixer_ctl_name[MAX_LENGTH_MIXER_CONTROL_IN_INT];
-    uint16_t mixer_values[4];
+    long mixer_values[4];
 
     mixer_values[0] = low_freq;
     mixer_values[1] = high_freq;
-    mixer_values[2] = gain;
-    mixer_values[3] = duration_ms;
+    mixer_values[2] = duration_ms;
+    mixer_values[3] = gain;
     snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
             "DTMF_Generate Rx Low High Duration Gain");
 
