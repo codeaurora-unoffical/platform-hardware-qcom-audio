@@ -172,6 +172,44 @@ bool is_supported_sink_device(audio_devices_t sink_device_mask)
     return false;
 }
 
+/* Set loopback volume : for mute implementation */
+static int afe_loopback_set_volume(struct audio_device *adev,
+              uint16_t low_freq, uint16_t high_freq,
+              uint16_t duration_ms, uint16_t gain)
+{
+    int32_t ret = 0;
+    struct mixer_ctl *ctl;
+    char mixer_ctl_name[MAX_LENGTH_MIXER_CONTROL_IN_INT];
+    long mixer_values[4];
+
+    mixer_values[0] = low_freq;
+    mixer_values[1] = high_freq;
+    mixer_values[2] = duration_ms;
+    mixer_values[3] = gain;
+    snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
+            "DTMF_Generate Rx Low High Duration Gain");
+
+    ALOGD("%s: (%d)\n", __func__, mixer_values[0]);
+    ALOGD("%s: (%d)\n", __func__, mixer_values[1]);
+    ALOGD("%s: (%d)\n", __func__, mixer_values[2]);
+    ALOGD("%s: (%d)\n", __func__, mixer_values[3]);
+
+    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+    if (!ctl) {
+        ALOGE("%s: Could not get ctl for mixer cmd - %s",
+              __func__, mixer_ctl_name);
+        return -EINVAL;
+    }
+
+    if (mixer_ctl_set_array(ctl, mixer_values, ARRAY_SIZE(mixer_values)) < 0) {
+        ALOGE("%s: Couldn't set HW Loopback Volume: [%d]", __func__, mixer_values[3]);
+        return -EINVAL;
+    }
+
+    ALOGV("%s: exit", __func__);
+    return ret;
+}
+
 /* Get patch type based on source and sink ports configuration */
 /* Only ports of type 'DEVICE' are supported */
 patch_handle_type_t get_loopback_patch_type(loopback_patch_t*  loopback_patch)

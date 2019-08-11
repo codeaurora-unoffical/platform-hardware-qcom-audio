@@ -2162,14 +2162,6 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
         ALOGV("%s: num of streams %d for dir %d",
                   __func__, num_of_devices, attr.direction);
 
-        if (!((stream->devices[0] & AUDIO_DEVICE_OUT_SPEAKER)
-            && (stream->devices[1] & AUDIO_DEVICE_IN_BACK_MIC))
-            || !((stream->devices[0] & AUDIO_DEVICE_OUT_WIRED_HEADSET)
-               && (stream->devices[1] & AUDIO_DEVICE_IN_WIRED_HEADSET))
-            || !((stream->devices[0] & AUDIO_DEVICE_OUT_EARPIECE)
-               && (stream->devices[1] = AUDIO_DEVICE_IN_BUILTIN_MIC)))
-            return -EINVAL;
-
     /* Patch source port config init */
         stream->source_config.id = 0;
         stream->source_config.role = AUDIO_PORT_ROLE_SOURCE;
@@ -2199,14 +2191,14 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
             ALOGV("%s: QAHW_AUDIO_TONE_RX ", __func__);
             /* Switch stream to DTMF source */
             stream->source_config.id = 1;
-            return qahw_create_audio_patch(hw_module,
+            rc = qahw_create_audio_patch(hw_module,
                         1,
                         &stream->source_config,
                         1,
                         &stream->sink_config,
                         &stream->patch_handle);
-        }
-        rc = 0;
+        } else
+            rc = 0;
         break;
     default:
         ALOGE("%s: invalid stream direction %d ", __func__, attr.direction);
