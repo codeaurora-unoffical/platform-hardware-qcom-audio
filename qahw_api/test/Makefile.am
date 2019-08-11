@@ -60,12 +60,19 @@ trans_loopback_test_CFLAGS  = $(AM_CFLAGS) -Wno-sign-compare -Werror
 trans_loopback_test_CFLAGS  += $(trans_loopback_test_INCLUDES)
 trans_loopback_test_LDADD = -llog  -lutils ../libqahw.la -lcutils -lm
 
+if QAHW_V1
 bin_PROGRAMS += afe_loopback_test
 
 afe_loopback_test_INCLUDES = -I $(top_srcdir)/qahw_api/inc
+afe_loopback_test_INCLUDES += -I $(top_srcdir)/qahw/inc
+afe_loopback_test_CFLAGS = -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/mm-audio/qahw/inc
 
 afe_loopback_test_SOURCES = afe_loopback_test.c
 
 afe_loopback_test_CFLAGS  = $(AM_CFLAGS) -Wno-sign-compare -Werror
 afe_loopback_test_CFLAGS  += $(afe_loopback_test_INCLUDES)
+afe_loopback_test_CFLAGS  += -D__unused=__attribute__\(\(__unused__\)\)
+afe_loopback_test_CFLAGS += $(AM_CFLAGS) -DLINUX_ENABLED
+
 afe_loopback_test_LDADD = -llog  -lutils ../libqahw.la -lcutils
+endif
