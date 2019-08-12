@@ -94,21 +94,25 @@ int open_afe_loopback() {
     int rc=0;
     struct qahw_stream_attributes attr;
     qahw_device_t devices[2];
+    int num_devices = 0;
 
     devices[0] = sink_device;
-    devices[1] = source_device;
 
     fprintf(log_file,"\nCreating audio patch");
-    if (dtmf_source_device)
+    if (dtmf_source_device) {
         attr.type = QAHW_AUDIO_TONE_RX;
-    else
+        num_devices = 1;
+    } else {
         attr.type = QAHW_AUDIO_AFE_LOOPBACK; 
+        num_devices = 2;
+        devices[1] = source_device;
+    }
 
     attr.direction = QAHW_STREAM_NONE;
     attr.attr.audio.config.format = AUDIO_FORMAT_PCM_16_BIT;
     rc = qahw_stream_open(primary_hal_handle,
                      attr,
-                     2,
+                     num_devices,
                      devices,
                      0,
                      NULL,
@@ -248,6 +252,7 @@ int main(int argc, char *argv[]) {
             break;
         case 'd':
             dtmf_source_device = atoi(optarg);
+            source_device = 0;
             break;
         case 'p':
             play_duration_in_seconds = atoi(optarg);
