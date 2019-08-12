@@ -2158,6 +2158,8 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
             ALOGV("%s: QAHW_AUDIO_TONE_RX ", __func__);
             /* Switch stream to DTMF source */
             stream->source_config.id = 1;
+            stream->source_config.role = AUDIO_PORT_ROLE_NONE;
+            stream->source_config.ext.device.type = AUDIO_DEVICE_NONE;
             rc = qahw_create_audio_patch(hw_module,
                         1,
                         &stream->source_config,
@@ -2215,6 +2217,12 @@ int qahw_stream_close(qahw_stream_handle_t *stream_handle) {
                     ALOGE("%s: closing output stream failed\n", __func__);
             }
             break;
+        case QAHW_STREAM_NONE:
+            if (stream->type == QAHW_AUDIO_TONE_RX) {
+                rc = qahw_release_audio_patch(stream->hw_module,
+                                 stream->patch_handle);
+            }
+            return 0;
         default:
             ALOGE("%s: invalid dir close failed\n", __func__);
         }
@@ -2249,8 +2257,11 @@ int qahw_stream_start(qahw_stream_handle_t *stream_handle) {
             return rc;
         }
         rc = qahw_set_mode(stream->hw_module, AUDIO_MODE_IN_CALL);
+        memset(&devices[0], 0, sizeof(devices));
+        memcpy(&devices[0], &stream->devices[0], stream->num_of_devices);
+        qahw_stream_set_device(stream, stream->num_of_devices, &devices[0]);
     } else if (stream->type == QAHW_AUDIO_AFE_LOOPBACK) {
-        return qahw_create_audio_patch(stream->hw_module,
+        rc = qahw_create_audio_patch(stream->hw_module,
                         1,
                         &stream->source_config,
                         1,
@@ -2258,10 +2269,6 @@ int qahw_stream_start(qahw_stream_handle_t *stream_handle) {
                         &stream->patch_handle);
         return rc;
     }
-
-    memset(&devices[0], 0, sizeof(devices));
-    memcpy(&devices[0], &stream->devices[0], stream->num_of_devices);
-    qahw_stream_set_device(stream, stream->num_of_devices, &devices[0]);
     ALOGV("%d:%s end",__LINE__, __func__);
     return rc;
 }

@@ -510,6 +510,7 @@ typedef enum {
     QAHW_STREAM_INPUT,
     QAHW_STREAM_OUTPUT,
     QAHW_STREAM_INPUT_OUTPUT,
+    QAHW_STREAM_NONE,
 } qahw_stream_direction;
 
 /** stream types */
@@ -537,6 +538,8 @@ typedef enum {
     QAHW_AUDIO_HOST_PCM_TX,
     QAHW_AUDIO_HOST_PCM_RX,
     QAHW_AUDIO_HOST_PCM_TX_RX,
+    QAHW_AUDIO_AFE_LOOPBACK,                 /* Assumption is device[0] is RX and device[1] is TX */
+    QAHW_AUDIO_TONE_RX,
     QAHW_AUDIO_STREAM_TYPE_MAX,
 } qahw_audio_stream_type;
 

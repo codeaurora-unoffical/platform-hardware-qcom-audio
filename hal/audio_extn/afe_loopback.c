@@ -239,15 +239,16 @@ patch_handle_type_t get_loopback_patch_type(loopback_patch_t*  loopback_patch)
                     default:
                     break;
                     }
-            } else {
+            } else
                 ALOGE("%s, Unsupported source port device %d", __func__,loopback_patch->loopback_sink.ext.device.type);
-            }
             break;
         default :
             break;
             //Unsupported as of now, need to extend for other source types
         }
-    }
+    } else if (loopback_patch->loopback_source.role == AUDIO_PORT_ROLE_NONE)
+        is_source_supported = true;
+
     if (loopback_patch->loopback_sink.role == AUDIO_PORT_ROLE_SINK) {
         switch (loopback_patch->loopback_sink.type) {
         case AUDIO_PORT_TYPE_DEVICE :
@@ -656,6 +657,15 @@ static struct audio_port_config* get_port_from_patch_db(port_info_t *port,
     } else if (port->role == AUDIO_PORT_ROLE_SINK) {
         for (n=0;n < audio_patch_db->num_patches;n++) {
             cur_port = &(audio_patch_db->loopback_patch[n].loopback_sink);
+            if ((cur_port->id == port->id) && (cur_port->type == port->type) && (
+               cur_port->role == port->role)) {
+                patch_index = n;
+                break;
+            }
+        }
+    } else if (port->role == AUDIO_PORT_ROLE_NONE) {
+        for (n=0;n < audio_patch_db->num_patches;n++) {
+            cur_port = &(audio_patch_db->loopback_patch[n].loopback_source);
             if ((cur_port->id == port->id) && (cur_port->type == port->type) && (
                cur_port->role == port->role)) {
                 patch_index = n;
