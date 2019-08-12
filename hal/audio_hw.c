@@ -2147,9 +2147,16 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
             ALOGE("%s: stream.out is NULL", __func__);
             return -EINVAL;
         }
-        out_snd_device = platform_get_output_snd_device(adev->platform,
-                                                        usecase->stream.out);
-        in_snd_device = platform_get_input_snd_device(adev->platform, usecase->stream.out->devices);
+        if (audio_extn_auto_hal_is_bus_device_usecase(usecase->stream.out->usecase)) {
+            out_snd_device = audio_extn_auto_hal_get_output_snd_device(adev,
+                                                                       uc_id);
+            in_snd_device = audio_extn_auto_hal_get_input_snd_device(adev,
+                                                                     uc_id);
+        } else {
+            out_snd_device = platform_get_output_snd_device(adev->platform,
+                                                            usecase->stream.out);
+            in_snd_device = platform_get_input_snd_device(adev->platform, usecase->stream.out->devices);
+        }
         usecase->devices = usecase->stream.out->devices;
     } else if (usecase->type == TRANSCODE_LOOPBACK_RX) {
         if (usecase->stream.inout == NULL) {
@@ -2227,8 +2234,11 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
             usecase->devices = usecase->stream.out->devices;
             in_snd_device = SND_DEVICE_NONE;
             if (out_snd_device == SND_DEVICE_NONE) {
-                out_snd_device = platform_get_output_snd_device(adev->platform,
-                                            usecase->stream.out);
+                if (audio_extn_auto_hal_is_bus_device_usecase(usecase->stream.out->usecase))
+                    out_snd_device = audio_extn_auto_hal_get_output_snd_device(adev, uc_id);
+                else
+                    out_snd_device = platform_get_output_snd_device(adev->platform,
+                                                usecase->stream.out);
                 voip_usecase = get_usecase_from_list(adev, USECASE_AUDIO_PLAYBACK_VOIP);
                 if (voip_usecase == NULL && adev->primary_output && !adev->primary_output->standby)
                     voip_usecase = get_usecase_from_list(adev, adev->primary_output->usecase);
@@ -2277,10 +2287,11 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
             return 0;
     }
 
-    if ((is_btsco_device(out_snd_device,in_snd_device) && !adev->bt_sco_on) ||
-         (is_a2dp_device(out_snd_device) && !audio_extn_a2dp_source_is_ready())) {
-          ALOGD("SCO/A2DP is selected but they are not connected/ready hence dont route");
-          return 0;
+    if (!audio_extn_auto_hal_is_bus_device_usecase(usecase->stream.out->usecase) &&
+        ((is_btsco_device(out_snd_device,in_snd_device) && !adev->bt_sco_on) ||
+            (is_a2dp_device(out_snd_device) && !audio_extn_a2dp_source_is_ready()))) {
+        ALOGD("SCO/A2DP is selected but they are not connected/ready hence dont route");
+        return 0;
     }
 
     if (out_snd_device != SND_DEVICE_NONE &&
@@ -4730,7 +4741,7 @@ static int out_set_volume(struct audio_stream_out *stream, float left,
             mixer_ctl_set_array(ctl, volume, sizeof(volume)/sizeof(volume[0]));
             return 0;
         } else if ((out->devices & AUDIO_DEVICE_OUT_BUS) &&
-                (audio_extn_auto_hal_get_snd_device_for_car_audio_stream(out) ==
+                (audio_extn_auto_hal_get_output_snd_device(out->dev, out->usecase) ==
                     SND_DEVICE_OUT_BUS_MEDIA)) {
             ALOGD("%s: Overriding offload set volume for media bus stream", __func__);
             struct listnode *node = NULL;
