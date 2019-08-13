@@ -2245,7 +2245,7 @@ int qahw_stream_close(qahw_stream_handle_t *stream_handle) {
                 rc = qahw_release_audio_patch(stream->hw_module,
                                  stream->patch_handle);
             }
-            return 0;
+            break;
         default:
             ALOGE("%s: invalid dir close failed\n", __func__);
         }
@@ -2290,7 +2290,6 @@ int qahw_stream_start(qahw_stream_handle_t *stream_handle) {
                         1,
                         &stream->sink_config,
                         &stream->patch_handle);
-        return rc;
     }
     ALOGV("%d:%s end",__LINE__, __func__);
     return rc;
