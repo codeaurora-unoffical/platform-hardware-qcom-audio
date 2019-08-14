@@ -128,6 +128,8 @@
 /* EDID format ID for LPCM audio */
 #define EDID_FORMAT_LPCM    1
 
+#define AFE_MIN_CHANNEL_COUNT     1
+#define AFE_MAX_CHANNEL_COUNT     16
 /* fallback app type if the default app type from acdb loader fails */
 #define DEFAULT_APP_TYPE_RX_PATH  69936
 #define DEFAULT_APP_TYPE_TX_PATH  69938
@@ -263,6 +265,10 @@ struct snd_device_to_mic_map {
     struct mic_info microphones[AUDIO_MICROPHONE_MAX_COUNT];
     size_t mic_count;
 };
+
+static const char *const ch_text[] = {"None", "One", "Two", "Three", "Four", "Five", "Six", "Seven",
+    "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen",
+    "Fourteen", "Fifteen", "Sixteen"};
 
 struct platform_data {
     struct audio_device *adev;
@@ -7314,6 +7320,7 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
     audio_format_t format = backend_cfg.format;
     bool passthrough_enabled = backend_cfg.passthrough_enabled;
     struct audio_device_config_param *adev_device_cfg_ptr = adev->device_cfg_params;
+    char channel_cnt_str[MIXER_PATH_MAX_LENGTH];
 
     /* Override the config params if client has already set them */
     adev_device_cfg_ptr += backend_idx;
@@ -7463,26 +7470,16 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
     if ((my_data->current_backend_cfg[backend_idx].channels_mixer_ctl) &&
         (channels != my_data->current_backend_cfg[backend_idx].channels)) {
         struct  mixer_ctl *ctl = NULL;
-        char *channel_cnt_str = NULL;
 
-        switch (channels) {
-        case 8:
-            channel_cnt_str = "Eight"; break;
-        case 7:
-            channel_cnt_str = "Seven"; break;
-        case 6:
-            channel_cnt_str = "Six"; break;
-        case 5:
-            channel_cnt_str = "Five"; break;
-        case 4:
-            channel_cnt_str = "Four"; break;
-        case 3:
-            channel_cnt_str = "Three"; break;
-        case 1:
-            channel_cnt_str = "One"; break;
-        case 2:
-        default:
-            channel_cnt_str = "Two"; break;
+        if (channels >= AFE_MIN_CHANNEL_COUNT && channels <= AFE_MAX_CHANNEL_COUNT) {
+            if (strlen(ch_text[channels]) < MIXER_PATH_MAX_LENGTH) {
+                strlcpy(channel_cnt_str, ch_text[channels], (strlen(ch_text[channels]) + 1));
+            } else {
+                ALOGE("%s: invalid channel string", __func__);
+                return -EINVAL;
+            }
+        } else {
+            strlcpy(channel_cnt_str, "Two", sizeof("Two"));
         }
 
         ctl = mixer_get_ctl_by_name(adev->mixer,
