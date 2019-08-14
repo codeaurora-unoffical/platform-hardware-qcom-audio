@@ -65,6 +65,14 @@
 #define AUDIO_DEVICE_OUT_FM_TX 0x8000000
 #endif
 
+#ifndef AUDIO_DEVICE_OUT_SPEAKER2
+#define AUDIO_DEVICE_OUT_SPEAKER2 0x10000000
+#endif
+
+#ifndef AUDIO_DEVICE_OUT_SPEAKER3
+#define AUDIO_DEVICE_OUT_SPEAKER3 0x20000000
+#endif
+
 #if 0
 // these formats should have been enabled by default now
 #ifndef FLAC_OFFLOAD_ENABLED
