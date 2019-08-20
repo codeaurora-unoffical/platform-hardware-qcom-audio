@@ -318,6 +318,9 @@ struct stream_inout {
     struct audio_device *dev;
     void *adsp_hdlr_stream_handle;
     void *ip_hdlr_handle;
+    bool adm_event_enable;
+    bool asm_event_enable;
+    bool ip_hdlr_enabled;
     stream_callback_t client_callback;
     void *client_cookie;
     audio_input_flags_t input_flags;
@@ -364,6 +367,9 @@ struct stream_out {
 
     void *adsp_hdlr_stream_handle;
     void *ip_hdlr_handle;
+    bool adm_event_enable;
+    bool asm_event_enable;
+    bool ip_hdlr_enabled;
 
     stream_callback_t client_callback;
     void *client_cookie;
@@ -643,6 +649,10 @@ struct audio_device {
     struct pcm_params *use_case_table[AUDIO_USECASE_MAX];
     struct listnode audio_patch_record_list;
     unsigned int audio_patch_index;
+    void *ip_hdlr_handle;
+    int ip_hdlr_asm_cnt;
+    int ip_hdlr_adm_cnt;
+
 };
 
 struct audio_patch_record {
