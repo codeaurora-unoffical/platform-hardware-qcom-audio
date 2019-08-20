@@ -221,6 +221,7 @@ struct qap {
     struct audio_stream_out hal_stream_ops;
 
     bool qap_output_block_handling;
+    int qap_active_api_count;
     //Handle of QAP input stream, which is routed as QAP passthrough.
     struct stream_out *passthrough_in;
     //Handle of QAP passthrough stream.
@@ -304,6 +305,45 @@ static void insert_wav_header(FILE *fp, struct audio_config *config) {
      hdr->riff_sz = 4 + (8 + hdr->fmt_sz) + (8 + hdr->data_sz);
      fseek(fp, 0, SEEK_SET);
      fwrite(hdr, 1, sizeof(*hdr), fp);
+}
+
+static void lock_session_output(struct qap_module *qap_mod)
+{
+    int ret = 0;
+
+    do {
+       usleep(1000);
+       ret = pthread_mutex_trylock(&qap_mod->session_output_lock);
+    } while(ret != 0);
+    DEBUG_MSG_VV("Session Output lock acquired %p", qap_mod);
+
+    return;
+}
+
+static void unlock_session_output(struct qap_module *qap_mod)
+{
+    pthread_mutex_unlock(&qap_mod->session_output_lock);
+    DEBUG_MSG_VV("Session Output lock released");
+    return;
+}
+
+static void check_and_activate_output_thread(bool awake)
+{
+    struct qap_module *qap_mod = &(p_qap->qap_mod[MS12]);
+
+    lock_session_output(qap_mod);
+
+    if (awake) {
+        if (qap_mod->is_session_output_active == false) {
+            pthread_cond_signal(&qap_mod->session_output_cond);
+        }
+        p_qap->qap_active_api_count++;
+    } else {
+        p_qap->qap_active_api_count--;
+    }
+    unlock_session_output(qap_mod);
+
+    return;
 }
 
 /* Gets the pointer to qap module for the qap input stream. */
@@ -577,6 +617,7 @@ static int qap_set_stream_volume(struct audio_stream_out *stream, float left, fl
         cmd_data[2] = 0;/* apply gain instantly*/
         cmd_data[3] = 0;/* apply gain linearly*/
 
+        check_and_activate_output_thread(true);
         if (qap_mod->session_handle != NULL) {
            ret = qap_session_cmd(qap_mod->session_handle,
                   QAP_SESSION_CMD_SET_PARAM,
@@ -589,6 +630,7 @@ static int qap_set_stream_volume(struct audio_stream_out *stream, float left, fl
            }
         } else
            DEBUG_MSG("qap module is not yet opened!!, vol cannot be applied");
+        check_and_activate_output_thread(false);
     } else {
         ret = p_qap->hal_stream_ops.set_volume(stream, left, right);
     }
@@ -679,6 +721,7 @@ static int audio_extn_qap_stream_stop(struct stream_out *out)
         return -EINVAL;
     }
 
+    check_and_activate_output_thread(true);
     ret = qap_module_cmd(out->qap_stream_handle,
                             QAP_MODULE_CMD_STOP,
                             sizeof(QAP_MODULE_CMD_STOP),
@@ -687,9 +730,9 @@ static int audio_extn_qap_stream_stop(struct stream_out *out)
                             NULL);
     if (QAP_STATUS_OK != ret) {
         ERROR_MSG("stop failed %d", ret);
-        return -EINVAL;
+        ret = -EINVAL;
     }
-
+    check_and_activate_output_thread(false);
     return ret;
 }
 
@@ -728,7 +771,9 @@ static int qap_out_drain(struct audio_stream_out* stream, audio_drain_type_t typ
           DEBUG_MSG("Queing EOS buffer %p flags %d size %d",
                     buffer, buffer->buffer_parms.input_buf_params.flags,
                     buffer->common_params.size);
+          check_and_activate_output_thread(true);
           status = qap_module_process(out->qap_stream_handle, buffer);
+          check_and_activate_output_thread(false);
           if (QAP_STATUS_OK != status) {
              ERROR_MSG("EOS buffer queing failed%d", status);
              return -EINVAL;
@@ -767,6 +812,7 @@ static int audio_extn_qap_stream_flush(struct stream_out *out)
         return -EINVAL;
     }
 
+    check_and_activate_output_thread(true);
     ret = qap_module_cmd(out->qap_stream_handle,
                             QAP_MODULE_CMD_FLUSH,
                             sizeof(QAP_MODULE_CMD_FLUSH),
@@ -775,9 +821,9 @@ static int audio_extn_qap_stream_flush(struct stream_out *out)
                             NULL);
     if (QAP_STATUS_OK != ret) {
         ERROR_MSG("flush failed %d", ret);
-        return -EINVAL;
+        ret = -EINVAL;
     }
-
+    check_and_activate_output_thread(false);
     return ret;
 }
 
@@ -927,8 +973,8 @@ static int qap_out_standby(struct audio_stream *stream)
           }
        }
 
+       qap_mod = get_qap_module_for_input_stream_l(out);
        if (p_qap->qap_output_block_handling) {
-           qap_mod = get_qap_module_for_input_stream_l(out);
            for (i = 0; i < MAX_QAP_MODULE_IN; i++) {
                if (qap_mod->stream_in[i] != NULL &&
                    check_stream_state_l(qap_mod->stream_in[i], RUN)) {
@@ -938,9 +984,9 @@ static int qap_out_standby(struct audio_stream *stream)
            if (i != MAX_QAP_MODULE_IN) {
                DEBUG_MSG("[%s] stream is still active.", use_case_table[qap_mod->stream_in[i]->usecase]);
            } else {
-               pthread_mutex_lock(&qap_mod->session_output_lock);
+               lock_session_output(qap_mod);
                qap_mod->is_session_output_active = false;
-               pthread_mutex_unlock(&qap_mod->session_output_lock);
+               unlock_session_output(qap_mod);
                DEBUG_MSG(" all the input streams are either closed or stopped(standby) block the MM module output");
            }
        }
@@ -970,6 +1016,7 @@ static int qap_stream_start_l(struct stream_out *out)
             qap_mod, qap_mod->session_handle);
         return -EINVAL;
     }
+    check_and_activate_output_thread(true);
     if (out->qap_stream_handle) {
         ret = qap_module_cmd(out->qap_stream_handle,
                              QAP_MODULE_CMD_START,
@@ -983,6 +1030,7 @@ static int qap_stream_start_l(struct stream_out *out)
         }
     } else
         ERROR_MSG("QAP stream not yet opened, drop this cmd");
+    check_and_activate_output_thread(false);
 
     DEBUG_MSG("exit");
     return ret;
@@ -1081,13 +1129,12 @@ static ssize_t qap_out_write(struct audio_stream_out *stream, const void *buffer
               if(p_qap->qap_output_block_handling) {
                  qap_mod = get_qap_module_for_input_stream_l(out);
 
-                 pthread_mutex_lock(&qap_mod->session_output_lock);
-                 if (qap_mod->is_session_output_active == false) {
-                     qap_mod->is_session_output_active = true;
+                 lock_session_output(qap_mod);
+                 if (!qap_mod->is_session_output_active) {
                      pthread_cond_signal(&qap_mod->session_output_cond);
-                     DEBUG_MSG("Wake up MM module output thread");
                  }
-                 pthread_mutex_unlock(&qap_mod->session_output_lock);
+                 qap_mod->is_session_output_active = true;
+                 unlock_session_output(qap_mod);
               }
            } else {
               goto exit;
@@ -1290,6 +1337,7 @@ static int qap_get_rendered_frames(struct stream_out *out, uint64_t *frames)
         }
     } else {
         uint32_t param_id = MS12_STREAM_GET_POSITION;
+        check_and_activate_output_thread(true);
         ret = qap_module_cmd(out->qap_stream_handle,
                                     QAP_MODULE_CMD_GET_PARAM,
                                     sizeof(param_id),
@@ -1306,6 +1354,7 @@ static int qap_get_rendered_frames(struct stream_out *out, uint64_t *frames)
             }
         } else 
             ret = -EINVAL;
+        check_and_activate_output_thread(false);
     }
     return ret;
 }
@@ -1451,9 +1500,11 @@ static int qap_session_cmd_l(audio_session_handle_t session_handle, qap_session_
     }
 
     no_of_outputs = outputs_config->num_output;
+    check_and_activate_output_thread(true);
     status = qap_session_cmd(session_handle, QAP_SESSION_CMD_SET_OUTPUTS,
                              sizeof(qap_session_outputs_config_t),
                              outputs_config, NULL, NULL);
+    check_and_activate_output_thread(false);
 
     return status;
 }
@@ -1568,21 +1619,21 @@ static void qap_session_callback(qap_session_handle_t session_handle __unused,
     qap_audio_buffer_t *buffer = (qap_audio_buffer_t *) data;
     uint32_t device = 0;
 
-    if (qap_mod->is_session_closing) {
-        DEBUG_MSG("Dropping event as session is closing."
-                "Event = 0x%X, Bytes to write %d", event_id, size);
-        return;
-    }
-
     if(p_qap->qap_output_block_handling) {
-        pthread_mutex_lock(&qap_mod->session_output_lock);
-        if (!qap_mod->is_session_output_active) {
+        lock_session_output(qap_mod);
+        if (!qap_mod->is_session_output_active && !p_qap->qap_active_api_count) {
             qap_close_all_output_streams(qap_mod);
             DEBUG_MSG("disabling MM module output by blocking the output thread");
             pthread_cond_wait(&qap_mod->session_output_cond, &qap_mod->session_output_lock);
             DEBUG_MSG("MM module output Enabled, output thread active");
         }
-        pthread_mutex_unlock(&qap_mod->session_output_lock);
+        unlock_session_output(qap_mod);
+    }
+
+    if (qap_mod->is_session_closing) {
+        DEBUG_MSG("Dropping event as session is closing."
+                "Event = 0x%X, Bytes to write %d", event_id, size);
+        return;
     }
 
     pthread_mutex_lock(&p_qap->lock);
@@ -2199,12 +2250,11 @@ static int qap_sess_close(struct qap_module* qap_mod)
 
     qap_mod->is_session_closing = true;
     if(p_qap->qap_output_block_handling) {
-        pthread_mutex_lock(&qap_mod->session_output_lock);
-        if (qap_mod->is_session_output_active == false) {
+        lock_session_output(qap_mod);
+        if (!qap_mod->is_session_output_active)
             pthread_cond_signal(&qap_mod->session_output_cond);
-            DEBUG_MSG("Wake up MM module output thread");
-        }
-        pthread_mutex_unlock(&qap_mod->session_output_lock);
+        qap_mod->is_session_output_active = true;
+        unlock_session_output(qap_mod);
     }
     pthread_mutex_lock(&p_qap->lock);
 
@@ -2252,25 +2302,22 @@ static int qap_stream_close(struct stream_out *out)
         return -EINVAL;
     }
 
-    pthread_mutex_lock(&p_qap->lock);
-
     set_stream_state_l(out,STOPPED);
-    qap_mod->stream_in[index] = NULL;
 
     lock_output_stream_l(out);
 
+    check_and_activate_output_thread(true);
     ret = qap_module_deinit(out->qap_stream_handle);
+    check_and_activate_output_thread(false);
     if (QAP_STATUS_OK != ret) {
         ERROR_MSG("deinit failed %d", ret);
         return -EINVAL;
     } else
         DEBUG_MSG("module(ox%x) closed successfully", (int)out->qap_stream_handle);
-
+    qap_mod->stream_in[index] = NULL;
 
     out->qap_stream_handle = NULL;
     unlock_output_stream_l(out);
-
-    pthread_mutex_unlock(&p_qap->lock);
 
     //If all streams are closed then close the session.
     qap_sess_close(qap_mod);
@@ -2714,6 +2761,7 @@ static int audio_extn_qap_session_open(mm_module_type mod_type, __unused struct 
     }
 
     qap_mod->is_session_output_active = true;
+    p_qap->qap_active_api_count = 0;
 
     if(p_qap->hdmi_connect)
         qap_set_hdmi_configuration_to_module();
@@ -2837,17 +2885,22 @@ static int qap_stream_open(struct stream_out *out,
     DEBUG_MSG("qap_stream_open sample_rate(%d) channels(%d) devices(%#x) flags(%#x) format(%#x)",
               input_config.sample_rate, input_config.channels, devices, flags, input_config.format);
 
+
+    check_and_activate_output_thread(true);
+
     if (input_config.format == QAP_AUDIO_FORMAT_PCM_16_BIT) {
         //If PCM stream is already opened then fail this stream open.
         if (qap_mod->stream_in[QAP_IN_PCM]) {
             ERROR_MSG("PCM input is already active.");
-            return -ENOTSUP;
+            status = -ENOTSUP;
+            goto exit;
         }
         input_config.flags = QAP_MODULE_FLAG_SYSTEM_SOUND;
         status = qap_module_init(qap_mod->session_handle, &input_config, &out->qap_stream_handle);
         if (QAP_STATUS_OK != status) {
             ERROR_MSG("Unable to open PCM(QAP_MODULE_FLAG_SYSTEM_SOUND) QAP module %d", status);
-            return -EINVAL;
+            status = -EINVAL;
+            goto exit;
         } else
             DEBUG_MSG("QAP_MODULE_FLAG_SYSTEM_SOUND, module(ox%x) opened successfully", (int)out->qap_stream_handle);
 
@@ -2855,13 +2908,15 @@ static int qap_stream_open(struct stream_out *out,
     } else if ((flags & AUDIO_OUTPUT_FLAG_MAIN) && (flags & AUDIO_OUTPUT_FLAG_ASSOCIATED)) {
         if (is_main_active_l(qap_mod) || is_dual_main_active_l(qap_mod)) {
             ERROR_MSG("Dual Main or Main already active. So, Cannot open main and associated stream");
-            return -EINVAL;
+            status = -EINVAL;
+            goto exit;
         } else {
             input_config.flags = QAP_MODULE_FLAG_PRIMARY;
             status = qap_module_init(qap_mod->session_handle, &input_config, &out->qap_stream_handle);
             if (QAP_STATUS_OK != status) {
                 ERROR_MSG("Unable to open QAP stream/module with QAP_MODULE_FLAG_PRIMARY flag %d", status);
-                return -EINVAL;
+                status = -EINVAL;
+                goto exit;
                 } else
                     DEBUG_MSG("QAP_MODULE_FLAG_PRIMARY, module opened successfully 0x%x", (int)out->qap_stream_handle);;
 
@@ -2871,19 +2926,23 @@ static int qap_stream_open(struct stream_out *out,
         /* Assume Main if no flag is set */
         if (is_dual_main_active_l(qap_mod)) {
             ERROR_MSG("Dual Main already active. So, Cannot open main stream");
-            return -EINVAL;
+            status = -EINVAL;
+            goto exit;
         } else if (is_main_active_l(qap_mod) && qap_mod->stream_in[QAP_IN_ASSOC]) {
             ERROR_MSG("Main and Associated already active. So, Cannot open main stream");
-            return -EINVAL;
+            status = -EINVAL;
+            goto exit;
         } else if (is_main_active_l(qap_mod) && (mmtype != MS12)) {
             ERROR_MSG("Main already active and Not an MS12 format. So, Cannot open another main stream");
-            return -EINVAL;
+            status = -EINVAL;
+            goto exit;
         } else {
             input_config.flags = QAP_MODULE_FLAG_PRIMARY;
             status = qap_module_init(qap_mod->session_handle, &input_config, &out->qap_stream_handle);
             if (QAP_STATUS_OK != status) {
                 ERROR_MSG("Unable to open QAP stream/module with QAP_MODULE_FLAG_PRIMARY flag %d", status);
-                return -EINVAL;
+                status = -EINVAL;
+                goto exit;
             } else
                 DEBUG_MSG("QAP_MODULE_FLAG_PRIMARY, module opened successfully 0x%x", (int)out->qap_stream_handle);
 
@@ -2896,19 +2955,23 @@ static int qap_stream_open(struct stream_out *out,
     } else if ((flags & AUDIO_OUTPUT_FLAG_ASSOCIATED)) {
         if (is_dual_main_active_l(qap_mod)) {
             ERROR_MSG("Dual Main already active. So, Cannot open associated stream");
-            return -EINVAL;
+            status = -EINVAL;
+            goto exit;
         } else if (!is_main_active_l(qap_mod)) {
             ERROR_MSG("Main not active. So, Cannot open associated stream");
-            return -EINVAL;
+            status = -EINVAL;
+            goto exit;
         } else if (qap_mod->stream_in[QAP_IN_ASSOC]) {
             ERROR_MSG("Associated already active. So, Cannot open associated stream");
-            return -EINVAL;
+            status = -EINVAL;
+            goto exit;
         }
         input_config.flags = QAP_MODULE_FLAG_SECONDARY;
         status = qap_module_init(qap_mod->session_handle, &input_config, &out->qap_stream_handle);
         if (QAP_STATUS_OK != status) {
             ERROR_MSG("Unable to open QAP stream/module with QAP_MODULE_FLAG_SECONDARY flag %d", status);
-            return -EINVAL;
+            status = -EINVAL;
+            goto exit;
         } else
             DEBUG_MSG("QAP_MODULE_FLAG_SECONDARY, module opened successfully 0x%x", (int)out->qap_stream_handle);
 
@@ -2919,7 +2982,8 @@ static int qap_stream_open(struct stream_out *out,
         status = qap_module_set_callback(out->qap_stream_handle, &qap_module_callback, out);
         if (QAP_STATUS_OK != status) {
             ERROR_MSG("Unable to register module callback %d", status);
-            return -EINVAL;
+            status = -EINVAL;
+            goto exit;
         } else
             DEBUG_MSG("Module call back registered 0x%x cookie 0x%x", (int)out->qap_stream_handle, (int)out);
     }
@@ -2927,7 +2991,8 @@ static int qap_stream_open(struct stream_out *out,
     if (status != 0) {
         //If no stream is active then close the session.
         qap_sess_close(qap_mod);
-        return 0;
+        status = 0;
+        goto exit;
     }
 
     //If Device is HDMI, QAP passthrough is enabled and there is no previous QAP passthrough input stream.
@@ -2944,7 +3009,7 @@ static int qap_stream_open(struct stream_out *out,
             if (status < 0) {
                 qap_stream_close(out);
                 ERROR_MSG("QAP passthrough stream creation failed with error %d", status);
-                return status;
+                goto exit;
             }
         }
         /*Else: since QAP passthrough input stream is already initialized,
@@ -2953,6 +3018,8 @@ static int qap_stream_open(struct stream_out *out,
          */
     }
 
+exit:
+    check_and_activate_output_thread(false);
     DEBUG_MSG();
     return status;
 }
@@ -3019,6 +3086,7 @@ static int qap_out_set_parameters(struct audio_stream *stream, const char *kvpai
          */
         out->devices = val;
 
+        check_and_activate_output_thread(true);
 #ifndef SPLIT_A2DP_ENABLED
         if (val == AUDIO_DEVICE_OUT_BLUETOOTH_A2DP) {
            //If device is BT then open the BT stream if not already opened.
@@ -3072,10 +3140,10 @@ static int qap_out_set_parameters(struct audio_stream *stream, const char *kvpai
            }
         }
         str_parms_destroy(parms);
+        check_and_activate_output_thread(false);
     } else {
         ret = p_qap->hal_stream_ops.common.set_parameters(stream, kvpairs);
     }
-
     return ret;
 }
 
