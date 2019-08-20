@@ -30,6 +30,7 @@ MM_AUDIO_ENABLED_SAFX := true
 AUDIO_FEATURE_ENABLED_HW_ACCELERATED_EFFECTS := false
 AUDIO_FEATURE_ENABLED_DS2_DOLBY_DAP := false
 AUDIO_FEATURE_ENABLED_AUDIOSPHERE := true
+AUDIO_FEATURE_ENABLED_SPLIT_A2DP := true
 DOLBY_ENABLE := false
 endif
 
@@ -254,6 +255,13 @@ ro.af.client_heap_size_kbyte=7168
 
 PRODUCT_PROPERTY_OVERRIDES += \
 persist.vendor.audio.hw.binder.size_kbyte=1024
+
+#Enable split a2dp
+PRODUCT_PROPERTY_OVERRIDES += \
+persist.vendor.bt.enable.splita2dp=true
+
+PRODUCT_PROPERTY_OVERRIDES += \
+persist.vendor.bt.a2dp_offload_cap=sbc
 
 # for HIDL related packages
 PRODUCT_PACKAGES += \
