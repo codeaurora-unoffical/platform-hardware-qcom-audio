@@ -925,24 +925,24 @@ static int qap_out_standby(struct audio_stream *stream)
              //Setting state to stopped as client not expecting drain_ready event.
              set_stream_state_l(out, STOPPED);
           }
-          if(p_qap->qap_output_block_handling) {
-            qap_mod = get_qap_module_for_input_stream_l(out);
-            for (i = 0; i < MAX_QAP_MODULE_IN; i++) {
-                if (qap_mod->stream_in[i] != NULL &&
-                    check_stream_state_l(qap_mod->stream_in[i], RUN)) {
-                    break;
-                }
-            }
+       }
 
-            if (i != MAX_QAP_MODULE_IN) {
-                DEBUG_MSG("[%s] stream is still active.", use_case_table[qap_mod->stream_in[i]->usecase]);
-            } else {
-                pthread_mutex_lock(&qap_mod->session_output_lock);
-                qap_mod->is_session_output_active = false;
-                pthread_mutex_unlock(&qap_mod->session_output_lock);
-                DEBUG_MSG(" all the input streams are either closed or stopped(standby) block the MM module output");
-            }
-          }
+       if (p_qap->qap_output_block_handling) {
+           qap_mod = get_qap_module_for_input_stream_l(out);
+           for (i = 0; i < MAX_QAP_MODULE_IN; i++) {
+               if (qap_mod->stream_in[i] != NULL &&
+                   check_stream_state_l(qap_mod->stream_in[i], RUN)) {
+                   break;
+               }
+           }
+           if (i != MAX_QAP_MODULE_IN) {
+               DEBUG_MSG("[%s] stream is still active.", use_case_table[qap_mod->stream_in[i]->usecase]);
+           } else {
+               pthread_mutex_lock(&qap_mod->session_output_lock);
+               qap_mod->is_session_output_active = false;
+               pthread_mutex_unlock(&qap_mod->session_output_lock);
+               DEBUG_MSG(" all the input streams are either closed or stopped(standby) block the MM module output");
+           }
        }
 
        if (!out->standby) {
@@ -1296,7 +1296,7 @@ static int qap_get_rendered_frames(struct stream_out *out, uint64_t *frames)
                                     &param_id,
                                     NULL,
                                     &position);
-        DEBUG_MSG_VV("Frames returned by MS12(%d)", position);
+        DEBUG_MSG_VV("Frames returned by MS12(%llu)", position);
         if (ret >= 0) {
             *frames = position;
             signed_frames = position - out->platform_latency;
@@ -2628,7 +2628,7 @@ static int enable_qap_bypass(bool bypass_qap) {
 
     if (p_qap) {
         if (p_qap->bypass_enable == bypass_qap) {
-            DEBUG_MSG_VV("Bypass %d request is already active", qap_path);
+            DEBUG_MSG_VV("Bypass %d request is already active", bypass_qap);
             return 0;
         }
 
