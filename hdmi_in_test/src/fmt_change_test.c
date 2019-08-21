@@ -66,16 +66,19 @@ const char hdmi_in_audio_sample_rate_sys_path[] = HDMI_SYS_PATH "audio_rate";
 const char hdmi_in_audio_layout_sys_path[] = HDMI_SYS_PATH "audio_layout";
 const char hdmi_in_audio_ch_count_sys_path[] = HDMI_SYS_PATH "audio_ch_count";
 const char hdmi_in_audio_ch_alloc_sys_path[] = HDMI_SYS_PATH "audio_ch_alloc";
+const char hdmi_in_audio_preemph_sys_path[] = HDMI_SYS_PATH "audio_preemph";
 
 #define SPDIF_SYS_PATH "/sys/devices/platform/soc/soc:qcom,msm-dai-q6-spdif-pri-tx/"
 const char spdif_in_audio_state_sys_path[] = SPDIF_SYS_PATH "audio_state";
 const char spdif_in_audio_format_sys_path[] = SPDIF_SYS_PATH "audio_format";
 const char spdif_in_audio_sample_rate_sys_path[] = SPDIF_SYS_PATH "audio_rate";
+const char spdif_in_audio_preemph_sys_path[] = SPDIF_SYS_PATH "audio_preemph";
 
 #define SPDIF_ARC_SYS_PATH "/sys/devices/platform/soc/soc:qcom,msm-dai-q6-spdif-sec-tx/"
 const char spdif_arc_in_audio_state_sys_path[] = SPDIF_ARC_SYS_PATH "audio_state";
 const char spdif_arc_in_audio_format_sys_path[] = SPDIF_ARC_SYS_PATH "audio_format";
 const char spdif_arc_in_audio_sample_rate_sys_path[] = SPDIF_ARC_SYS_PATH "audio_rate";
+const char spdif_arc_in_audio_preemph_sys_path[] = SPDIF_ARC_SYS_PATH "audio_preemph";
 
 #define TRANSCODE_LOOPBACK_SOURCE_PORT_ID 0x4C00
 #define TRANSCODE_LOOPBACK_SINK_PORT_ID 0x4D00
@@ -125,6 +128,7 @@ struct test_data {
     int spdif_audio_state;
     int spdif_audio_mode;
     int spdif_sample_rate;
+    int spdif_preemph;
     int spdif_num_channels;
 
     int hdmi_power_on;
@@ -135,6 +139,7 @@ struct test_data {
     int hdmi_audio_mode;
     int hdmi_audio_layout;
     int hdmi_sample_rate;
+    int hdmi_preemph;
     int hdmi_num_channels;
     int hdmi_audio_ch_count;
     int hdmi_audio_ch_alloc;
@@ -142,6 +147,7 @@ struct test_data {
     int spdif_arc_audio_state;
     int spdif_arc_audio_mode;
     int spdif_arc_sample_rate;
+    int spdif_arc_preemph;
     int spdif_arc_num_channels;
 
     audio_devices_t new_input_device;
@@ -151,6 +157,7 @@ struct test_data {
     int act_audio_state;    /* audio active */
     int act_audio_mode;     /* 0=LPCM, 1=Compr */
     int act_sample_rate;    /* transmission sample rate */
+    int act_preemph;        /* pcm signal has applied preemphase */
     int act_num_channels;   /* transmission channels */
 
     /* loopback only uses first session */
@@ -564,7 +571,7 @@ void *start_input(void *thread_param) {
             td->config.format = AUDIO_FORMAT_PCM_24_BIT_PACKED;
         else
             td->config.format = AUDIO_FORMAT_PCM_16_BIT;
-        td->flags = QAHW_INPUT_FLAG_COMPRESS;
+        td->flags = AUDIO_INPUT_FLAG_FAST | QAHW_INPUT_FLAG_COMPRESS;
     }
 
     td->config.frame_count = 0;
@@ -617,7 +624,10 @@ void *start_input(void *thread_param) {
         buffer_size, td->handle);
 
     /* set profile for the recording session */
-    qahw_in_set_parameters(in_handle, "audio_stream_profile=record_unprocessed");
+    if (td->act_preemph == 1)
+        qahw_in_set_parameters(in_handle, "audio_stream_profile=record_deemph");
+    else
+        qahw_in_set_parameters(in_handle, "audio_stream_profile=record_unprocessed");
 
     if (audio_is_linear_pcm(td->config.format))
         snprintf(file_name + name_len, sizeof(file_name) - name_len, "%d.wav",
@@ -782,12 +792,18 @@ void get_input_status(void)
             read_data_from_fd(spdif_in_audio_state_sys_path, &td->spdif_audio_state);
             read_data_from_fd(spdif_in_audio_format_sys_path, &td->spdif_audio_mode);
             read_data_from_fd(spdif_in_audio_sample_rate_sys_path, &td->spdif_sample_rate);
+            read_data_from_fd(spdif_in_audio_preemph_sys_path, &td->spdif_preemph);
             td->spdif_num_channels = 2;
             td->new_input_device = AUDIO_DEVICE_IN_SPDIF;
 
-            fprintf(log_file, "ses%d: spdif audio_state: %d, audio_format: %d, sample_rate: %d, num_channels: %d\n",
+            fprintf(log_file, "ses%d: spdif audio_state: %d, audio_format: %d, sample_rate: %d, num_channels: %d, preemph: %d\n",
                 td->session_idx, td->spdif_audio_state, td->spdif_audio_mode,
-                td->spdif_sample_rate, td->spdif_num_channels);
+                td->spdif_sample_rate, td->spdif_num_channels, td->spdif_preemph);
+            if ((td->spdif_audio_mode) && (td->spdif_preemph)) {
+                td->spdif_preemph = 0;
+                fprintf(log_file, "ses%d: ignore wrong preemph in compressed mode\n",
+                    td->session_idx);
+            }
             break;
         case AUDIO_DEVICE_IN_HDMI:
             read_data_from_fd(hdmi_in_power_on_sys_path, &td->hdmi_power_on);
@@ -798,6 +814,8 @@ void get_input_status(void)
             read_data_from_fd(hdmi_in_audio_format_sys_path, &td->hdmi_audio_mode);
             read_data_from_fd(hdmi_in_audio_sample_rate_sys_path, &td->hdmi_sample_rate);
             read_data_from_fd(hdmi_in_audio_layout_sys_path, &td->hdmi_audio_layout);
+            read_data_from_fd(hdmi_in_audio_preemph_sys_path, &td->hdmi_preemph);
+
             if (td->hdmi_audio_layout)
                 td->hdmi_num_channels = 8;
             else
@@ -810,6 +828,7 @@ void get_input_status(void)
             read_data_from_fd(spdif_arc_in_audio_state_sys_path, &td->spdif_arc_audio_state);
             read_data_from_fd(spdif_arc_in_audio_format_sys_path, &td->spdif_arc_audio_mode);
             read_data_from_fd(spdif_arc_in_audio_sample_rate_sys_path, &td->spdif_arc_sample_rate);
+            read_data_from_fd(spdif_arc_in_audio_preemph_sys_path, &td->spdif_arc_preemph);
             td->spdif_arc_num_channels = 2;
 
             if (td->hdmi_arc_enable ||
@@ -821,17 +840,28 @@ void get_input_status(void)
                 fprintf(log_file, "ses%d: hdmi audio interface MI2S\n", td->session_idx);
             }
 
-            fprintf(log_file, "ses%d: hdmi audio_state: %d, audio_format: %d, sample_rate: %d, num_channels: %d\n",
+            fprintf(log_file, "ses%d: hdmi audio_state: %d, audio_format: %d, sample_rate: %d, num_channels: %d, preemph: %d\n",
                 td->session_idx, td->hdmi_audio_state, td->hdmi_audio_mode,
-                td->hdmi_sample_rate, td->hdmi_num_channels);
+                td->hdmi_sample_rate, td->hdmi_num_channels, td->hdmi_preemph);
 
             if (!td->hdmi_audio_mode)
                 fprintf(log_file, "ses%d: hdmi pcm ch_count: %d, ch_alloc: %d\n",
                     td->session_idx, td->hdmi_audio_ch_count, td->hdmi_audio_ch_alloc);
 
-            fprintf(log_file, "ses%d: arc  audio_state: %d, audio_format: %d, sample_rate: %d, num_channels: %d\n",
+            fprintf(log_file, "ses%d: arc  audio_state: %d, audio_format: %d, sample_rate: %d, num_channels: %d, preemph: %d\n",
                 td->session_idx, td->spdif_arc_audio_state, td->spdif_arc_audio_mode,
-                td->spdif_arc_sample_rate, td->spdif_arc_num_channels);
+                td->spdif_arc_sample_rate, td->spdif_arc_num_channels, td->spdif_arc_preemph);
+
+            if ((td->hdmi_audio_mode) && (td->hdmi_preemph)) {
+                td->hdmi_preemph = 0;
+                fprintf(log_file, "ses%d: ignore wrong preemph in compressed mode\n",
+                    td->session_idx);
+            }
+            if ((td->spdif_arc_audio_mode) && (td->spdif_arc_preemph)) {
+                td->spdif_arc_preemph = 0;
+                fprintf(log_file, "ses%d: ignore wrong preemph in compressed mode\n",
+                    td->session_idx);
+            }
             break;
         }
         td++;
@@ -850,13 +880,14 @@ void input_restart_check(void)
         case AUDIO_DEVICE_IN_SPDIF:
             if ((td->act_input_device != td->new_input_device) ||
                 (td->spdif_audio_state == 2) ||
+                (td->spdif_preemph != td->act_preemph) ||
                 (td->is_loopback && td->loopback.act_codec_format != td->loopback.new_codec_format)) {
-                fprintf(log_file, "ses%d: old       audio_state: %d, audio_format: %d, rate: %d, channels: %d\n",
+                fprintf(log_file, "ses%d: old       audio_state: %d, audio_format: %d, rate: %d, channels: %d, preemph: %d\n",
                     td->session_idx, td->act_audio_state, td->act_audio_mode,
-                    td->act_sample_rate, td->act_num_channels);
-                fprintf(log_file, "ses%d: new spdif audio_state: %d, audio_format: %d, rate: %d, channels: %d\n",
+                    td->act_sample_rate, td->act_num_channels, td->act_preemph);
+                fprintf(log_file, "ses%d: new spdif audio_state: %d, audio_format: %d, rate: %d, channels: %d, preemph: %d\n",
                     td->session_idx, td->spdif_audio_state, td->spdif_audio_mode,
-                    td->spdif_sample_rate, td->spdif_num_channels);
+                    td->spdif_sample_rate, td->spdif_num_channels, td->spdif_preemph);
 
                 stop_rec_thread(td->session_idx);
 
@@ -865,6 +896,7 @@ void input_restart_check(void)
                 td->act_audio_mode = td->spdif_audio_mode;
                 td->act_sample_rate = td->spdif_sample_rate;
                 td->act_num_channels = td->spdif_num_channels;
+                td->act_preemph = td->spdif_preemph;
 
                 start_rec_thread(td->session_idx);
             }
@@ -874,47 +906,50 @@ void input_restart_check(void)
                 stop_rec_thread(td->session_idx);
 
                 if (td->new_input_device == AUDIO_DEVICE_IN_HDMI) {
-                    fprintf(log_file, "ses%d: old      audio_state: %d, audio_format: %d, rate: %d, channels: %d\n",
+                    fprintf(log_file, "ses%d: old      audio_state: %d, audio_format: %d, rate: %d, channels: %d, preemph: %d\n",
                         td->session_idx, td->act_audio_state, td->act_audio_mode,
-                        td->act_sample_rate, td->act_num_channels);
-                    fprintf(log_file, "ses%d: new hdmi audio_state: %d, audio_format: %d, rate: %d, channels: %d\n",
+                        td->act_sample_rate, td->act_num_channels, td->act_preemph);
+                    fprintf(log_file, "ses%d: new hdmi audio_state: %d, audio_format: %d, rate: %d, channels: %d, preemph: %d\n",
                         td->session_idx, td->hdmi_audio_state, td->hdmi_audio_mode,
-                        td->hdmi_sample_rate, td->hdmi_num_channels);
+                        td->hdmi_sample_rate, td->hdmi_num_channels, td->hdmi_preemph);
 
                     td->act_input_device = AUDIO_DEVICE_IN_HDMI;
                     td->act_audio_state = td->hdmi_audio_state;
                     td->act_audio_mode = td->hdmi_audio_mode;
                     td->act_sample_rate = td->hdmi_sample_rate;
                     td->act_num_channels = td->hdmi_num_channels;
+                    td->act_preemph = td->hdmi_preemph;
 
                     if (td->hdmi_audio_state)
                         start_rec_thread(td->session_idx);
                 } else {
                     td->act_input_device = AUDIO_DEVICE_IN_HDMI_ARC;
                     if (td->hdmi_arc_enable) {
-                        fprintf(log_file, "ses%d: old     audio_state: %d, audio_format: %d, rate: %d, channels: %d\n",
+                        fprintf(log_file, "ses%d: old     audio_state: %d, audio_format: %d, rate: %d, channels: %d, preemph: %d\n",
                             td->session_idx, td->act_audio_state, td->act_audio_mode,
-                            td->act_sample_rate, td->act_num_channels);
-                        fprintf(log_file, "ses%d: new arc audio_state: %d, audio_format: %d, rate: %d, channels: %d\n",
+                            td->act_sample_rate, td->act_num_channels, td->act_preemph);
+                        fprintf(log_file, "ses%d: new arc audio_state: %d, audio_format: %d, rate: %d, channels: %d, preemph: %d\n",
                             td->session_idx, td->spdif_arc_audio_state, td->spdif_arc_audio_mode,
-                            td->spdif_arc_sample_rate, td->spdif_arc_num_channels);
+                            td->spdif_arc_sample_rate, td->spdif_arc_num_channels, td->spdif_arc_preemph);
 
                         td->act_audio_state = 1;
                         td->act_audio_mode = td->spdif_arc_audio_mode;
                         td->act_sample_rate = td->spdif_arc_sample_rate;
                         td->act_num_channels = td->spdif_arc_num_channels;
+                        td->act_preemph = td->spdif_arc_preemph;
                     } else {
-                        fprintf(log_file, "ses%d: old      audio_state: %d, audio_format: %d, rate: %d, channels: %d\n",
+                        fprintf(log_file, "ses%d: old      audio_state: %d, audio_format: %d, rate: %d, channels: %d, preemph: %d\n",
                             td->session_idx, td->act_audio_state, td->act_audio_mode,
-                            td->act_sample_rate, td->act_num_channels);
-                        fprintf(log_file, "ses%d: new arc (from hdmi) audio_state: %d, audio_format: %d, rate: %d, channels: %d\n",
+                            td->act_sample_rate, td->act_num_channels, td->act_preemph);
+                        fprintf(log_file, "ses%d: new arc (from hdmi) audio_state: %d, audio_format: %d, rate: %d, channels: %d, preemph: %d\n",
                             td->session_idx, td->hdmi_audio_state, td->hdmi_audio_mode,
-                            td->hdmi_sample_rate, td->hdmi_num_channels);
+                            td->hdmi_sample_rate, td->hdmi_num_channels, td->hdmi_preemph);
 
                         td->act_audio_state = 1;
                         td->act_audio_mode = td->hdmi_audio_mode;
                         td->act_sample_rate = td->hdmi_sample_rate;
                         td->act_num_channels = td->hdmi_num_channels;
+                        td->act_preemph = td->hdmi_preemph;
                     }
                     start_rec_thread(td->session_idx);
                 }
@@ -924,14 +959,15 @@ void input_restart_check(void)
                         (td->act_audio_mode != td->hdmi_audio_mode) ||
                         (td->act_sample_rate != td->hdmi_sample_rate) ||
                         (td->act_num_channels != td->hdmi_num_channels) ||
+                        (td->act_preemph != td->hdmi_preemph) ||
                         (td->is_loopback && td->loopback.act_codec_format != td->loopback.new_codec_format)) {
 
-                        fprintf(log_file, "ses%d: old      audio_state: %d, audio_format: %d, rate: %d, channels: %d\n",
+                        fprintf(log_file, "ses%d: old      audio_state: %d, audio_format: %d, rate: %d, channels: %d, preemph: %d\n",
                             td->session_idx, td->act_audio_state, td->act_audio_mode,
-                            td->act_sample_rate, td->act_num_channels);
-                        fprintf(log_file, "ses%d: new hdmi audio_state: %d, audio_format: %d, rate: %d, channels: %d\n",
+                            td->act_sample_rate, td->act_num_channels, td->act_preemph);
+                        fprintf(log_file, "ses%d: new hdmi audio_state: %d, audio_format: %d, rate: %d, channels: %d, preemph: %d\n",
                             td->session_idx, td->hdmi_audio_state, td->hdmi_audio_mode,
-                            td->hdmi_sample_rate, td->hdmi_num_channels);
+                            td->hdmi_sample_rate, td->hdmi_num_channels, td->hdmi_preemph);
 
                         stop_rec_thread(td->session_idx);
 
@@ -945,13 +981,14 @@ void input_restart_check(void)
                         }
                 } else {
                     if ((td->spdif_arc_audio_state == 2) ||
+                        (td->act_preemph != td->spdif_arc_preemph) ||
                         (td->is_loopback && td->loopback.act_codec_format != td->loopback.new_codec_format)) {
-                        fprintf(log_file, "ses%d: old     audio_state: %d, audio_format: %d, rate: %d, channels: %d\n",
+                        fprintf(log_file, "ses%d: old     audio_state: %d, audio_format: %d, rate: %d, channels: %d, preemph: %d\n",
                             td->session_idx, td->act_audio_state, td->act_audio_mode,
-                            td->act_sample_rate, td->act_num_channels);
-                        fprintf(log_file, "ses%d: new arc audio_state: %d, audio_format: %d, rate: %d, channels: %d\n",
+                            td->act_sample_rate, td->act_num_channels, td->act_preemph);
+                        fprintf(log_file, "ses%d: new arc audio_state: %d, audio_format: %d, rate: %d, channels: %d, preemph: %d\n",
                             td->session_idx, td->spdif_arc_audio_state, td->spdif_arc_audio_mode,
-                            td->spdif_arc_sample_rate, td->spdif_arc_num_channels);
+                            td->spdif_arc_sample_rate, td->spdif_arc_num_channels, td->spdif_arc_preemph);
 
                         stop_rec_thread(td->session_idx);
 
@@ -959,6 +996,7 @@ void input_restart_check(void)
                         td->act_audio_mode = td->spdif_arc_audio_mode;
                         td->act_sample_rate = td->spdif_arc_sample_rate;
                         td->act_num_channels = td->spdif_arc_num_channels;
+                        td->act_preemph = td->spdif_arc_preemph;
 
                         start_rec_thread(td->session_idx);
                     }
