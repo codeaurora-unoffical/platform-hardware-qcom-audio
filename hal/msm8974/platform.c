@@ -129,7 +129,7 @@
 #define EDID_FORMAT_LPCM    1
 
 #define AFE_MIN_CHANNEL_COUNT     1
-#define AFE_MAX_CHANNEL_COUNT     16
+#define AFE_MAX_CHANNEL_COUNT     32
 /* fallback app type if the default app type from acdb loader fails */
 #define DEFAULT_APP_TYPE_RX_PATH  69936
 #define DEFAULT_APP_TYPE_TX_PATH  69938
@@ -268,7 +268,10 @@ struct snd_device_to_mic_map {
 
 static const char *const ch_text[] = {"None", "One", "Two", "Three", "Four", "Five", "Six", "Seven",
     "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen",
-    "Fourteen", "Fifteen", "Sixteen"};
+    "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen",
+    "Nineteen", "Twenty", "TwentyOne", "TwentyTwo", "TwentyThree",
+    "TwentyFour", "TwentyFive", "TwentySix", "TwentySeven", "TwentyEight",
+    "TwentyNine", "Thirty", "ThirtyOne", "ThirtyTwo"};
 
 struct platform_data {
     struct audio_device *adev;
