@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2017, 2019, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -971,4 +971,47 @@ void audio_extn_ffv_check_and_append_ec_ref_dev(char *device_name);
 snd_device_t audio_extn_ffv_get_capture_snd_device();
 void audio_extn_ffv_append_ec_ref_dev_name(char *device_name);
 #endif
+
+
+#ifdef TONE_ENABLED
+/* for Tone generation with reference of DTMF */
+int audio_extn_set_tone_parameters(struct stream_out *out,
+                                  struct str_parms *parms);
+#else
+static int __unused audio_extn_set_tone_parameters(
+                                   struct stream_out *out __unused,
+                                   struct str_parms *parms __unused)
+{
+    ALOGV("%s: TONE_ENABLED is not defined in tone generation", __func__);
+    return -ENOSYS;
+}
+#endif
+
+#ifdef AUDIO_AFE_LOOPBACK_ENABLED
+/* API to create audio patch */
+int audio_extn_afe_loopback_create_audio_patch(struct audio_hw_device *dev,
+                                     unsigned int num_sources,
+                                     const struct audio_port_config *sources,
+                                     unsigned int num_sinks,
+                                     const struct audio_port_config *sinks,
+                                     audio_patch_handle_t *handle);
+/* API to release audio patch */
+int audio_extn_afe_loopback_release_audio_patch(struct audio_hw_device *dev,
+                                             audio_patch_handle_t handle);
+
+int audio_extn_afe_loopback_init(struct audio_device *adev);
+void audio_extn_afe_loopback_deinit(struct audio_device *adev);
+int audio_extn_afe_loopback_set_audio_port_config(struct audio_hw_device *dev,
+                        const struct audio_port_config *config);
+#else
+#define audio_extn_afe_loopback_create_audio_patch(dev, num_sources, sources,\
+                                    num_sinks, sinks, handle) (0)
+#define audio_extn_afe_loopback_release_audio_patch(dev, handle) (0)
+#define audio_extn_afe_loopback_init(adev) (0)
+#define audio_extn_afe_loopback_deinit(adev) (0)
+#define audio_extn_afe_loopback_set_audio_port_config(dev, config) (0)
+#endif
+#define audio_extn_afe_loopback_get_audio_port(dev, port_in) (0)
+
 #endif /* AUDIO_EXTN_H */
+
