@@ -1203,12 +1203,13 @@ int audio_extn_utils_get_license_params(const struct audio_device *adev,  struct
 #define audio_extn_auto_hal_get_car_audio_stream_from_address(address) (-1)
 #define audio_extn_auto_hal_open_output_stream(out) (0)
 #define audio_extn_auto_hal_is_bus_device_usecase(uc_id) (0)
-#define audio_extn_auto_hal_get_snd_device_for_car_audio_stream(out) (0)
 #define audio_extn_auto_hal_get_audio_port(dev, config) (0)
 #define audio_extn_auto_hal_set_audio_port_config(dev, config) (0)
 #define audio_extn_auto_hal_set_parameters(adev, parms) (0)
 #define audio_extn_auto_hal_start_hfp_downlink(adev, uc_info) (0)
 #define audio_extn_auto_hal_stop_hfp_downlink(adev, uc_info) (0)
+#define audio_extn_auto_hal_get_input_snd_device(adev, uc_id) (0)
+#define audio_extn_auto_hal_get_output_snd_device(adev, uc_id) (0)
 #else
 #define AUDIO_OUTPUT_FLAG_MEDIA 0x100000
 #define AUDIO_OUTPUT_FLAG_SYS_NOTIFICATION 0x200000
@@ -1227,7 +1228,6 @@ int audio_extn_auto_hal_release_audio_patch(struct audio_hw_device *dev,
 int32_t audio_extn_auto_hal_get_car_audio_stream_from_address(const char *address);
 int32_t audio_extn_auto_hal_open_output_stream(struct stream_out *out);
 bool audio_extn_auto_hal_is_bus_device_usecase(audio_usecase_t uc_id);
-snd_device_t audio_extn_auto_hal_get_snd_device_for_car_audio_stream(struct stream_out *out);
 int audio_extn_auto_hal_get_audio_port(struct audio_hw_device *dev,
                                 struct audio_port *config);
 int audio_extn_auto_hal_set_audio_port_config(struct audio_hw_device *dev,
@@ -1238,6 +1238,10 @@ int audio_extn_auto_hal_start_hfp_downlink(struct audio_device *adev,
                                 struct audio_usecase *uc_info);
 int audio_extn_auto_hal_stop_hfp_downlink(struct audio_device *adev,
                                 struct audio_usecase *uc_info);
+snd_device_t audio_extn_auto_hal_get_input_snd_device(struct audio_device *adev,
+                                audio_usecase_t uc_id);
+snd_device_t audio_extn_auto_hal_get_output_snd_device(struct audio_device *adev,
+                                audio_usecase_t uc_id);
 #endif
 
 #ifndef EXT_HW_PLUGIN_ENABLED
