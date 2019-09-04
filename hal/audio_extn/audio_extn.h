@@ -895,8 +895,9 @@ int audio_extn_keep_alive_set_parameters(struct audio_device *adev,
 #ifndef AUDIO_GENERIC_EFFECT_FRAMEWORK_ENABLED
 
 #define audio_extn_gef_init(adev) (0)
-#define audio_extn_gef_deinit() (0)
-#define audio_extn_gef_notify_device_config(devices, cmask, sample_rate, acdb_id) (0)
+#define audio_extn_gef_deinit(adev) (0)
+#define audio_extn_gef_notify_device_config(devices, cmask, sample_rate, \
+        acdb_id, app_type) (0)
 
 #ifndef INSTANCE_ID_ENABLED
 #define audio_extn_gef_send_audio_cal(dev, acdb_dev_id, acdb_device_type,\
@@ -925,10 +926,10 @@ int audio_extn_keep_alive_set_parameters(struct audio_device *adev,
 #else
 
 void audio_extn_gef_init(struct audio_device *adev);
-void audio_extn_gef_deinit();
+void audio_extn_gef_deinit(struct audio_device *adev);
 
 void audio_extn_gef_notify_device_config(audio_devices_t audio_device,
-    audio_channel_mask_t channel_mask, int sample_rate, int acdb_id);
+    audio_channel_mask_t channel_mask, int sample_rate, int acdb_id, int app_type);
 #ifndef INSTANCE_ID_ENABLED
 int audio_extn_gef_send_audio_cal(void* adev, int acdb_dev_id, int acdb_device_type,
     int app_type, int topology_id, int sample_rate, uint32_t module_id,
@@ -1024,10 +1025,12 @@ int audio_extn_set_soundfocus_data(struct audio_device *adev,
 #ifndef FM_POWER_OPT
 #define audio_extn_fm_set_parameters(adev, parms) (0)
 #define audio_extn_fm_get_parameters(query, reply) (0)
+#define audio_extn_fm_route_on_selected_device(adev, device) (0)
 #else
 void audio_extn_fm_set_parameters(struct audio_device *adev,
                                    struct str_parms *parms);
 void audio_extn_fm_get_parameters(struct str_parms *query, struct str_parms *reply);
+void audio_extn_fm_route_on_selected_device(struct audio_device *adev, audio_devices_t device);
 #endif
 
 #ifndef APTX_DECODER_ENABLED
