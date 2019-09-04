@@ -417,6 +417,8 @@ static int pcm_device_table[AUDIO_USECASE_MAX][2] = {
     [USECASE_AUDIO_PLAYBACK_FM] = {FM_PLAYBACK_PCM_DEVICE, FM_CAPTURE_PCM_DEVICE},
     [USECASE_AUDIO_HFP_SCO] = {HFP_PCM_RX, HFP_SCO_RX},
     [USECASE_AUDIO_HFP_SCO_WB] = {HFP_PCM_RX, HFP_SCO_RX},
+    [USECASE_AUDIO_HFP_SCO_DOWNLINK] = {HFP_ASM_RX_TX, HFP_ASM_RX_TX},
+    [USECASE_AUDIO_HFP_SCO_WB_DOWNLINK] = {HFP_ASM_RX_TX, HFP_ASM_RX_TX},
     [USECASE_VOICE_CALL] = {VOICE_CALL_PCM_DEVICE, VOICE_CALL_PCM_DEVICE},
     [USECASE_AUDIO_PLAYBACK_MMAP] = {MMAP_PLAYBACK_PCM_DEVICE,
             MMAP_PLAYBACK_PCM_DEVICE},
@@ -1276,6 +1278,8 @@ static struct name_to_index usecase_name_index[AUDIO_USECASE_MAX] = {
     {TO_NAME_INDEX(USECASE_INCALL_REC_UPLINK_AND_DOWNLINK)},
     {TO_NAME_INDEX(USECASE_AUDIO_HFP_SCO)},
     {TO_NAME_INDEX(USECASE_AUDIO_HFP_SCO_WB)},
+    {TO_NAME_INDEX(USECASE_AUDIO_HFP_SCO_DOWNLINK)},
+    {TO_NAME_INDEX(USECASE_AUDIO_HFP_SCO_WB_DOWNLINK)},
     {TO_NAME_INDEX(USECASE_AUDIO_PLAYBACK_FM)},
     {TO_NAME_INDEX(USECASE_AUDIO_RECORD_FM_VIRTUAL)},
     {TO_NAME_INDEX(USECASE_AUDIO_SPKR_CALIB_RX)},
@@ -4981,9 +4985,13 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
     snd_device_t incall_rec_device;
     int sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
     struct audio_backend_cfg backend_cfg = {0};
+    bool is_bus_dev_usecase = false;
 
     if (voice_is_in_call(my_data->adev))
         is_incall_rec_usecase = voice_is_in_call_rec_stream(usecase->stream.in);
+
+    if (usecase->devices & AUDIO_DEVICE_OUT_BUS)
+        is_bus_dev_usecase = true;
 
     if (usecase->type == PCM_PLAYBACK)
         snd_device = usecase->out_snd_device;
@@ -5013,6 +5021,11 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
             new_snd_device[0] = snd_device;
         }
     }
+    if ((usecase->type == PCM_HFP_CALL) && is_bus_dev_usecase) {
+        num_devices = 2;
+        new_snd_device[0] = usecase->in_snd_device;
+        new_snd_device[1] = usecase->out_snd_device;
+    }
 
     for (i = 0; i < num_devices; i++) {
         if (!is_incall_rec_usecase) {
@@ -5032,6 +5045,17 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
         if ((usecase->type == PCM_CAPTURE) && (app_type == DEFAULT_APP_TYPE_RX_PATH)) {
             ALOGD("Resetting app type for Tx path to default");
             app_type  = DEFAULT_APP_TYPE_TX_PATH;
+        } else if ((usecase->type == PCM_HFP_CALL) && is_bus_dev_usecase) {
+            if (new_snd_device[i] >= SND_DEVICE_OUT_BEGIN &&
+                new_snd_device[i] < SND_DEVICE_OUT_END) {
+                app_type  = usecase->out_app_type_cfg.app_type;
+                sample_rate = usecase->out_app_type_cfg.sample_rate;
+            } else {
+                app_type  = usecase->in_app_type_cfg.app_type;
+                sample_rate = usecase->in_app_type_cfg.sample_rate;
+            }
+            ALOGD("%s: Updating to app type (%d) and sample rate (%d)",
+                  __func__, app_type, sample_rate);
         }
 
         /* Override backend cfg sample rate in calibration for vi feedback usecase */
@@ -6073,8 +6097,7 @@ snd_device_t platform_get_output_snd_device(void *platform, struct stream_out *o
                 snd_device = SND_DEVICE_OUT_BT_SCO_WB;
             else
                 snd_device = SND_DEVICE_OUT_BT_SCO;
-        } else if ((devices & (AUDIO_DEVICE_OUT_SPEAKER | AUDIO_DEVICE_OUT_SPEAKER_SAFE)) ||
-                   (devices & AUDIO_DEVICE_OUT_BUS)) {
+        } else if (devices & (AUDIO_DEVICE_OUT_SPEAKER | AUDIO_DEVICE_OUT_SPEAKER_SAFE)) {
             if (my_data->is_vbat_speaker || my_data->is_bcl_speaker) {
                 if (hw_info_is_stereo_spkr(my_data->hw_info)) {
                     if (my_data->mono_speaker == SPKR_1)
@@ -6250,7 +6273,7 @@ snd_device_t platform_get_output_snd_device(void *platform, struct stream_out *o
         snd_device = SND_DEVICE_OUT_AFE_PROXY;
         audio_extn_set_afe_proxy_channel_mixer(adev, channel_count, snd_device);
     } else if (devices & AUDIO_DEVICE_OUT_BUS) {
-        snd_device = audio_extn_auto_hal_get_snd_device_for_car_audio_stream(out);
+        snd_device = audio_extn_auto_hal_get_output_snd_device(adev, out->usecase);
     } else {
         ALOGE("%s: Unknown device(s) %#x", __func__, devices);
     }
@@ -6629,8 +6652,7 @@ snd_device_t platform_get_input_snd_device(void *platform,
         } else if (out_device & AUDIO_DEVICE_OUT_SPEAKER ||
                    out_device & AUDIO_DEVICE_OUT_SPEAKER_SAFE ||
                    out_device & AUDIO_DEVICE_OUT_WIRED_HEADPHONE ||
-                   out_device & AUDIO_DEVICE_OUT_LINE ||
-                   out_device & AUDIO_DEVICE_OUT_BUS) {
+                   out_device & AUDIO_DEVICE_OUT_LINE) {
             if (my_data->fluence_type != FLUENCE_NONE &&
                 (my_data->fluence_in_voice_call ||
                  my_data->fluence_in_hfp_call) &&
