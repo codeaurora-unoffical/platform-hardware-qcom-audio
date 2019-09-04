@@ -57,7 +57,7 @@
 #define QAHW_NUM_OF_SESSIONS 4
 #define QAHW_NAMES_PER_SESSION 2
 #define QAHW_SESSION_NAME_MAX_LEN 255
-#define QAHW_MAX_INT_STRING 12
+#define QAHW_MAX_INT_STRING 20
 #define QAHW_NUM_OF_MUTE_TYPES 4
 
 #define MAX_NUM_DEVICES 10
@@ -2076,7 +2076,8 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
     stream->hw_module = hw_module;
     stream->num_of_devices = num_of_devices;
     memset(&stream->devices[0], 0, sizeof(stream->devices));
-    memcpy(&stream->devices[0], devices, num_of_devices);
+    memcpy(&stream->devices[0], devices,
+           (num_of_devices*sizeof(audio_devices_t)));
     stream->type = attr.type;
     stream->vol.vol_pair = vols;
     /* if voice call stream, num_of_channels set to 1 */
@@ -2288,7 +2289,8 @@ int qahw_stream_start(qahw_stream_handle_t *stream_handle) {
         }
         rc = qahw_set_mode(stream->hw_module, AUDIO_MODE_IN_CALL);
         memset(&devices[0], 0, sizeof(devices));
-        memcpy(&devices[0], &stream->devices[0], stream->num_of_devices);
+        memcpy(&devices[0], &stream->devices[0],
+               (stream->num_of_devices*sizeof(audio_devices_t)));
         qahw_stream_set_device(stream, stream->num_of_devices, &devices[0]);
     } else if (stream->type == QAHW_AUDIO_AFE_LOOPBACK) {
         rc = qahw_create_audio_patch(stream->hw_module,
@@ -2362,7 +2364,7 @@ int qahw_stream_set_device(qahw_stream_handle_t *stream_handle,
                 return rc;
             }
 
-            snprintf(dev_s, QAHW_MAX_INT_STRING, "%d", devices[0]);
+            snprintf(dev_s, QAHW_MAX_INT_STRING, "%u", devices[0]);
             strlcat(device_route, dev_s, QAHW_MAX_INT_STRING);
             rc = qahw_out_set_parameters(stream->out_stream,
                                          device_route);
@@ -2373,7 +2375,7 @@ int qahw_stream_set_device(qahw_stream_handle_t *stream_handle,
                 return rc;
             }
 
-            snprintf(dev_s, QAHW_MAX_INT_STRING, "%d", devices[0]);
+            snprintf(dev_s, QAHW_MAX_INT_STRING, "%u", devices[0]);
             strlcat(device_route, dev_s, QAHW_MAX_INT_STRING);
             rc = qahw_in_set_parameters(stream->in_stream,
                                         device_route);
@@ -2383,7 +2385,7 @@ int qahw_stream_set_device(qahw_stream_handle_t *stream_handle,
                 ALOGE("%s: invalid device params\n", __func__);
                 return rc;
             }
-            snprintf(dev_s, QAHW_MAX_INT_STRING, "%d", devices[0]);
+            snprintf(dev_s, QAHW_MAX_INT_STRING, "%u", devices[0]);
             strlcat(device_route, dev_s, QAHW_MAX_INT_STRING);
             rc = qahw_out_set_parameters(stream->out_stream,
                                          device_route);
@@ -2392,7 +2394,7 @@ int qahw_stream_set_device(qahw_stream_handle_t *stream_handle,
             /*if not voice set input stream*/
             if (!is_voice) {
                 strlcpy(device_route, "routing=", QAHW_MAX_INT_STRING);
-                snprintf(dev_s, QAHW_MAX_INT_STRING, "%d", devices[1]);
+                snprintf(dev_s, QAHW_MAX_INT_STRING, "%u", devices[1]);
                 strlcat(device_route, dev_s, QAHW_MAX_INT_STRING);
                 rc = qahw_in_set_parameters(stream->in_stream,
                                             device_route);
@@ -2409,7 +2411,8 @@ int qahw_stream_set_device(qahw_stream_handle_t *stream_handle,
     {
         stream->num_of_devices = num_of_devices;
         memset(&stream->devices[0], 0, sizeof(stream->devices));
-        memcpy(&stream->devices[0], devices, num_of_devices);
+        memcpy(&stream->devices[0], devices,
+               (num_of_devices*sizeof(audio_devices_t)));
     }
 
     ALOGV("%d:%s end",__LINE__, __func__);
