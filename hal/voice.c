@@ -592,7 +592,7 @@ static int voice_set_mic_volume(struct audio_device *adev, float value)
 
     ALOGD("%s: Setting volume to %d (%s)\n", __func__, volume, mixer_ctl_name);
     if (mixer_ctl_set_value(ctl, 0, volume) < 0) {
-        ALOGE("%s: Couldn't set HFP Volume: [%d]", __func__, volume);
+        ALOGE("%s: Couldn't set Voice Call Volume: [%d]", __func__, volume);
         return -EINVAL;
     }
 
