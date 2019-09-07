@@ -333,10 +333,12 @@ int32_t release_loopback_session(loopback_patch_t *active_loopback_patch)
 
     adev->active_input = get_next_active_input(adev);
 
-    if (inout->ip_hdlr_handle) {
-        ret = audio_extn_ip_hdlr_intf_close(inout->ip_hdlr_handle, true, inout);
+    if (adev->ip_hdlr_handle) {
+        ret = audio_extn_ip_hdlr_intf_close(adev->ip_hdlr_handle, true, inout);
         if (ret < 0)
             ALOGE("%s: audio_extn_ip_hdlr_intf_close failed %d",__func__, ret);
+
+        inout->ip_hdlr_enabled = false;
     }
 
     /* close adsp hdrl session before standby */
@@ -347,9 +349,9 @@ int32_t release_loopback_session(loopback_patch_t *active_loopback_patch)
         inout->adsp_hdlr_stream_handle = NULL;
     }
 
-    if (inout->ip_hdlr_handle) {
-        audio_extn_ip_hdlr_intf_deinit(inout->ip_hdlr_handle);
-        inout->ip_hdlr_handle = NULL;
+    if (adev->ip_hdlr_handle) {
+        audio_extn_ip_hdlr_intf_deinit(adev->ip_hdlr_handle);
+        adev->ip_hdlr_handle = NULL;
     }
 
     ALOGD("%s: Release loopback session exit: status(%d)", __func__, ret);
@@ -576,16 +578,6 @@ int create_loopback_session(loopback_patch_t *active_loopback_patch)
         inout->adsp_hdlr_stream_handle = NULL;
         goto exit;
     }
-    if (audio_extn_ip_hdlr_intf_supported(source_patch_config->format,false, true) ||
-        audio_extn_ip_hdlr_intf_supported_for_copp(adev->platform)) {
-        ret = audio_extn_ip_hdlr_intf_init(&inout->ip_hdlr_handle, NULL, NULL, adev,
-                                           USECASE_AUDIO_TRANSCODE_LOOPBACK_RX);
-        if (ret < 0) {
-            ALOGE("%s: audio_extn_ip_hdlr_intf_init failed %d", __func__, ret);
-            inout->ip_hdlr_handle = NULL;
-            goto exit;
-        }
-    }
 
     /* Set config for compress stream open in capture path */
     codec.id = get_snd_codec_id(source_patch_config->format);
@@ -679,13 +671,14 @@ int create_loopback_session(loopback_patch_t *active_loopback_patch)
         ret = -EINVAL;
         goto exit;
     }
-    if (inout->ip_hdlr_handle) {
-        ret = audio_extn_ip_hdlr_intf_open(inout->ip_hdlr_handle, true, inout,
+    if (adev->ip_hdlr_handle) {
+        ret = audio_extn_ip_hdlr_intf_open(adev->ip_hdlr_handle, true, inout,
                                            USECASE_AUDIO_TRANSCODE_LOOPBACK_RX);
         if (ret < 0) {
             ALOGE("%s: audio_extn_ip_hdlr_intf_open failed %d",__func__, ret);
             goto exit;
         }
+        inout->ip_hdlr_enabled = true;
     }
 
     /* Move patch state to running, now that session is set up */
@@ -762,7 +755,6 @@ static loopback_patch_t *create_active_loopback_patch(struct audio_hw_device *de
 
     active_loopback_patch->patch_handle_id = PATCH_HANDLE_INVALID;
     active_loopback_patch->patch_state = PATCH_INACTIVE;
-    active_loopback_patch->patch_stream.ip_hdlr_handle = NULL;
     active_loopback_patch->patch_stream.adsp_hdlr_stream_handle = NULL;
     memcpy(&active_loopback_patch->loopback_source, &sources[0],
         sizeof(struct audio_port_config));
