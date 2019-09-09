@@ -175,6 +175,8 @@ enum {
     SND_DEVICE_OUT_BUS_SYS,
     SND_DEVICE_OUT_BUS_NAV,
     SND_DEVICE_OUT_BUS_PHN,
+    SND_DEVICE_OUT_SPEAKER2,
+    SND_DEVICE_OUT_SPEAKER3,
     SND_DEVICE_OUT_END,
 
     /*
@@ -326,6 +328,9 @@ enum {
     HDMI_TX_BACKEND,
     HDMI_ARC_TX_BACKEND,
     HEADSET_TX_BACKEND,
+    SEC_MI2S_RX_BACKEND,
+    TERT_MI2S_RX_BACKEND,
+    QUAT_MI2S_RX_BACKEND,
     MAX_CODEC_BACKENDS
 };
 
@@ -411,7 +416,7 @@ enum {
 #define FM_CAPTURE_PCM_DEVICE  6
 
 #ifdef PLATFORM_AUTO
-#define HFP_PCM_RX 36
+#define HFP_PCM_RX 29
 #else
 #define HFP_PCM_RX 5
 #endif
@@ -575,8 +580,8 @@ enum {
 #define HFP_SCO_RX 17
 #define HFP_ASM_RX_TX 18
 #elif PLATFORM_AUTO
-#define HFP_SCO_RX 36
-#define HFP_ASM_RX_TX 29
+#define HFP_SCO_RX 29
+#define HFP_ASM_RX_TX 36
 #else
 #define HFP_SCO_RX 23
 #define HFP_ASM_RX_TX 24

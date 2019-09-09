@@ -136,6 +136,9 @@
 /* EDID format ID for LPCM audio */
 #define EDID_FORMAT_LPCM    1
 
+#define AFE_MIN_CHANNEL_COUNT    1
+#define AFE_MAX_CHANNEL_COUNT    32
+
 /* fallback app type if the default app type from acdb loader fails */
 #define DEFAULT_APP_TYPE  0x11130
 #define DEFAULT_APP_TYPE_RX_PATH  0x11130
@@ -239,6 +242,13 @@ struct snd_device_to_mic_map {
     struct mic_info microphones[AUDIO_MICROPHONE_MAX_COUNT];
     size_t mic_count;
 };
+
+static const char *const ch_text[] = {"None", "One", "Two", "Three", "Four", "Five", "Six", "Seven",
+    "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen",
+    "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen",
+    "Nineteen", "Twenty", "TwentyOne", "TwentyTwo", "TwentyThree",
+    "TwentyFour", "TwentyFive", "TwentySix", "TwentySeven", "TwentyEight",
+    "TwentyNine", "Thirty", "ThirtyOne", "ThirtyTwo"};
 
 struct platform_data {
     struct audio_device *adev;
@@ -497,6 +507,8 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_OUT_VOIP_SPEAKER] = "voip-speaker",
     [SND_DEVICE_OUT_VOIP_HEADPHONES] = "voip-headphones",
 #endif
+    [SND_DEVICE_OUT_SPEAKER2] = "speaker2",
+    [SND_DEVICE_OUT_SPEAKER3] = "speaker3",
 
     /* Capture sound devices */
     [SND_DEVICE_IN_HANDSET_MIC] = "handset-mic",
@@ -678,6 +690,8 @@ static int acdb_device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_OUT_VOIP_SPEAKER] = 132,
     [SND_DEVICE_OUT_VOIP_HEADPHONES] = 134,
 #endif
+    [SND_DEVICE_OUT_SPEAKER2] = 14,
+    [SND_DEVICE_OUT_SPEAKER3] = 14,
 
     [SND_DEVICE_IN_HANDSET_MIC] = 4,
     [SND_DEVICE_IN_HANDSET_MIC_EXTERNAL] = 4,
@@ -839,6 +853,8 @@ static struct name_to_index snd_device_name_index[SND_DEVICE_MAX] = {
     {TO_NAME_INDEX(SND_DEVICE_OUT_VOIP_SPEAKER)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_VOIP_HEADPHONES)},
 #endif
+    {TO_NAME_INDEX(SND_DEVICE_OUT_SPEAKER2)},
+    {TO_NAME_INDEX(SND_DEVICE_OUT_SPEAKER3)},
     {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_MIC)},
     {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_MIC_EXTERNAL)},
     {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_MIC_AEC)},
@@ -1630,6 +1646,8 @@ static void set_platform_defaults(struct platform_data * my_data)
     backend_tag_table[SND_DEVICE_OUT_VOICE_SPEAKER_AND_VOICE_ANC_HEADSET] = strdup("speaker-and-headphones");
     backend_tag_table[SND_DEVICE_OUT_VOICE_SPEAKER_STEREO_AND_VOICE_HEADPHONES] = strdup("speaker-and-headphones");
     backend_tag_table[SND_DEVICE_OUT_VOICE_SPEAKER_STEREO_AND_VOICE_ANC_HEADSET] = strdup("speaker-and-headphones");
+    backend_tag_table[SND_DEVICE_OUT_SPEAKER2] = strdup("speaker2");
+    backend_tag_table[SND_DEVICE_OUT_SPEAKER3] = strdup("speaker3");
 
     hw_interface_table[SND_DEVICE_OUT_HANDSET] = strdup("SLIMBUS_0_RX");
     hw_interface_table[SND_DEVICE_OUT_SPEAKER] = strdup("SLIMBUS_0_RX");
@@ -1696,6 +1714,8 @@ static void set_platform_defaults(struct platform_data * my_data)
     hw_interface_table[SND_DEVICE_OUT_VOIP_SPEAKER] = strdup("SLIMBUS_0_RX");
     hw_interface_table[SND_DEVICE_OUT_VOIP_HEADPHONES] = strdup("SLIMBUS_6_RX");
 #endif
+    hw_interface_table[SND_DEVICE_OUT_SPEAKER2] = strdup("TERT_MI2S_RX");
+    hw_interface_table[SND_DEVICE_OUT_SPEAKER3] = strdup("QUAT_MI2S_RX");
     hw_interface_table[SND_DEVICE_IN_HANDSET_MIC] = strdup("SLIMBUS_0_TX");
     hw_interface_table[SND_DEVICE_IN_HANDSET_MIC_EXTERNAL] = strdup("SLIMBUS_0_TX");
     hw_interface_table[SND_DEVICE_IN_HANDSET_MIC_AEC] = strdup("SLIMBUS_0_TX");
@@ -2715,6 +2735,25 @@ acdb_init_fail:
     my_data->current_backend_cfg[HDMI_TX_BACKEND].channels_mixer_ctl =
         strdup("QUAT_MI2S_TX Channels");
 
+    my_data->current_backend_cfg[SEC_MI2S_RX_BACKEND].bitwidth_mixer_ctl =
+        strdup("SEC_MI2S_RX Format");
+    my_data->current_backend_cfg[SEC_MI2S_RX_BACKEND].samplerate_mixer_ctl =
+        strdup("SEC_MI2S_RX SampleRate");
+    my_data->current_backend_cfg[SEC_MI2S_RX_BACKEND].channels_mixer_ctl =
+        strdup("SEC_MI2S_RX Channels");
+    my_data->current_backend_cfg[TERT_MI2S_RX_BACKEND].bitwidth_mixer_ctl =
+        strdup("TERT_MI2S_RX Format");
+    my_data->current_backend_cfg[TERT_MI2S_RX_BACKEND].samplerate_mixer_ctl =
+        strdup("TERT_MI2S_RX SampleRate");
+    my_data->current_backend_cfg[TERT_MI2S_RX_BACKEND].channels_mixer_ctl =
+        strdup("TERT_MI2S_RX Channels");
+    my_data->current_backend_cfg[QUAT_MI2S_RX_BACKEND].bitwidth_mixer_ctl =
+        strdup("QUAT_MI2S_RX Format");
+    my_data->current_backend_cfg[QUAT_MI2S_RX_BACKEND].samplerate_mixer_ctl =
+        strdup("QUAT_MI2S_RX SampleRate");
+    my_data->current_backend_cfg[QUAT_MI2S_RX_BACKEND].channels_mixer_ctl =
+        strdup("QUAT_MI2S_RX Channels");
+
     for (idx = 0; idx < MAX_CODEC_BACKENDS; idx++) {
         if (my_data->current_backend_cfg[idx].bitwidth_mixer_ctl) {
             ctl = mixer_get_ctl_by_name(adev->mixer,
@@ -3635,6 +3674,15 @@ int platform_get_backend_index(snd_device_t snd_device)
                 else if ((strcmp(backend_tag_table[snd_device], "usb-headphones") == 0) ||
                             (strcmp(backend_tag_table[snd_device], "usb-headset") == 0))
                         port = USB_AUDIO_RX_BACKEND;
+                else if (!strncmp(platform_get_snd_device_backend_interface(snd_device),
+                         "SEC_MI2S_RX", sizeof("SEC_MI2S_RX")))
+                        port = SEC_MI2S_RX_BACKEND;
+                else if (!strncmp(platform_get_snd_device_backend_interface(snd_device),
+                         "TERT_MI2S_RX", sizeof("TERT_MI2S_RX")))
+                        port = TERT_MI2S_RX_BACKEND;
+                else if (!strncmp(platform_get_snd_device_backend_interface(snd_device),
+                         "QUAT_MI2S_RX", sizeof("QUAT_MI2S_RX")))
+                        port = QUAT_MI2S_RX_BACKEND;
         }
     } else if (snd_device >= SND_DEVICE_IN_BEGIN && snd_device < SND_DEVICE_IN_END) {
         port = DEFAULT_CODEC_TX_BACKEND;
@@ -4451,6 +4499,10 @@ snd_device_t platform_get_output_snd_device(void *platform, struct stream_out *o
                     snd_device = SND_DEVICE_OUT_SPEAKER;
             }
         }
+    } else if (devices & AUDIO_DEVICE_OUT_SPEAKER2) {
+            snd_device = SND_DEVICE_OUT_SPEAKER2;
+    } else if (devices & AUDIO_DEVICE_OUT_SPEAKER3) {
+            snd_device = SND_DEVICE_OUT_SPEAKER3;
     } else if (devices & AUDIO_DEVICE_OUT_ALL_SCO) {
         if (adev->bt_wb_speech_enabled)
             snd_device = SND_DEVICE_OUT_BT_SCO_WB;
@@ -6007,6 +6059,7 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
     audio_format_t format = backend_cfg.format;
     bool passthrough_enabled = backend_cfg.passthrough_enabled;
     struct audio_device_config_param *adev_device_cfg_ptr = adev->device_cfg_params;
+    char channel_cnt_str[MIXER_PATH_MAX_LENGTH];
 
     backend_idx = platform_get_backend_index(snd_device);
 
@@ -6019,11 +6072,14 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
               adev_device_cfg_ptr->dev_cfg_params.sample_rate,
               adev_device_cfg_ptr->dev_cfg_params.channels,
               adev_device_cfg_ptr->dev_cfg_params.format);
-
-        bit_width = adev_device_cfg_ptr->dev_cfg_params.bit_width;
-        sample_rate = adev_device_cfg_ptr->dev_cfg_params.sample_rate;
-        channels = adev_device_cfg_ptr->dev_cfg_params.channels;
-        format = adev_device_cfg_ptr->dev_cfg_params.format;
+        if (adev_device_cfg_ptr->dev_cfg_params.bit_width)
+            bit_width = adev_device_cfg_ptr->dev_cfg_params.bit_width;
+        if (adev_device_cfg_ptr->dev_cfg_params.sample_rate)
+            sample_rate = adev_device_cfg_ptr->dev_cfg_params.sample_rate;
+        if (adev_device_cfg_ptr->dev_cfg_params.channels)
+            channels = adev_device_cfg_ptr->dev_cfg_params.channels;
+        if (adev_device_cfg_ptr->dev_cfg_params.format)
+            format = adev_device_cfg_ptr->dev_cfg_params.format;
     }
 
     ALOGI("%s:becf: afe: bitwidth %d, samplerate %d channels %d format %d, backend_idx %d device (%s)",
@@ -6165,26 +6221,16 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
     if ((my_data->current_backend_cfg[backend_idx].channels_mixer_ctl) &&
         (channels != my_data->current_backend_cfg[backend_idx].channels)) {
         struct  mixer_ctl *ctl = NULL;
-        char *channel_cnt_str = NULL;
 
-        switch (channels) {
-        case 8:
-            channel_cnt_str = "Eight"; break;
-        case 7:
-            channel_cnt_str = "Seven"; break;
-        case 6:
-            channel_cnt_str = "Six"; break;
-        case 5:
-            channel_cnt_str = "Five"; break;
-        case 4:
-            channel_cnt_str = "Four"; break;
-        case 3:
-            channel_cnt_str = "Three"; break;
-        case 1:
-            channel_cnt_str = "One"; break;
-        case 2:
-        default:
-            channel_cnt_str = "Two"; break;
+        if (channels >= AFE_MIN_CHANNEL_COUNT && channels <= AFE_MAX_CHANNEL_COUNT) {
+            if (strlen(ch_text[channels]) < MIXER_PATH_MAX_LENGTH) {
+                strlcpy(channel_cnt_str, ch_text[channels], (strlen(ch_text[channels]) + 1));
+            } else {
+                ALOGE("%s: invalid channel string", __func__);
+                return -EINVAL;
+            }
+        } else {
+            strlcpy(channel_cnt_str, "Two", sizeof("Two"));
         }
 
         ctl = mixer_get_ctl_by_name(adev->mixer,
