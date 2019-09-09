@@ -1062,16 +1062,6 @@ int enable_audio_route(struct audio_device *adev,
             audio_extn_utils_compress_set_clk_rec_mode(usecase);
     }
 
-    if (usecase->type == PCM_CAPTURE) {
-        in = usecase->stream.in;
-        if (in && is_loopback_input_device(in->device)) {
-            ALOGD("%s: set custom mtmx params v1", __func__);
-            audio_extn_set_custom_mtmx_params_v1(adev, usecase, true);
-        }
-    } else {
-        audio_extn_set_custom_mtmx_params_v2(adev, usecase, true);
-    }
-
     strlcpy(mixer_path, use_case_table[usecase->id], MIXER_PATH_MAX_LENGTH);
     platform_add_backend_name(mixer_path, snd_device, usecase);
     ALOGD("%s: apply mixer and update path: %s", __func__, mixer_path);
@@ -1083,6 +1073,17 @@ int enable_audio_route(struct audio_device *adev,
             str_parms_destroy(parms);
         }
     }
+
+    if (usecase->type == PCM_CAPTURE) {
+        in = usecase->stream.in;
+        if (in && is_loopback_input_device(in->device)) {
+            ALOGD("%s: set custom mtmx params v1", __func__);
+            audio_extn_set_custom_mtmx_params_v1(adev, usecase, true);
+        }
+    } else {
+        audio_extn_set_custom_mtmx_params_v2(adev, usecase, true);
+    }
+
     ALOGV("%s: exit", __func__);
     return 0;
 }
