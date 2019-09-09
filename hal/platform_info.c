@@ -630,7 +630,7 @@ static void process_microphone_characteristic(const XML_Char **attr) {
         uint32_t idx = 0;
         while (token) {
             orientation[idx++] = atof(token);
-            if (idx > 3) {
+            if (idx >= 3) {
                 ALOGE("%s: orientation invalid", __func__);
                 goto done;
             }
@@ -660,7 +660,7 @@ static void process_microphone_characteristic(const XML_Char **attr) {
         uint32_t idx = 0;
         while (token) {
             geometric_location[idx++] = atof(token);
-            if (idx > 3) {
+            if (idx >= 3) {
                 ALOGE("%s: geometric_location invalid", __func__);
                 goto done;
             }
