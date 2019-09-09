@@ -4668,7 +4668,6 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
     struct stream_out *out = (struct stream_out *)stream;
     struct audio_device *adev = out->dev;
     ssize_t ret = 0;
-    int channels = 0;
     const size_t frame_size = audio_stream_out_frame_size(stream);
     const size_t frames = (frame_size != 0) ? bytes / frame_size : bytes;
 
@@ -4735,14 +4734,6 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
                     out->stream_config_changed = false;
                     out->is_iec61937_info_available = true;
                 }
-            }
-
-            if ((channels < (int)audio_channel_count_from_out_mask(out->channel_mask)) &&
-                (out->compr_config.codec->compr_passthr == PASSTHROUGH) &&
-                (out->is_iec61937_info_available == true)) {
-                    ALOGE("%s: ERROR: Unsupported channel config in passthrough mode", __func__);
-                    ret = -EINVAL;
-                    goto exit;
             }
         }
     }
