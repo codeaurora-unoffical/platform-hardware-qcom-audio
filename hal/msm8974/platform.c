@@ -3708,7 +3708,10 @@ void platform_add_operator_specific_device(snd_device_t snd_device,
     }
 
     device = (struct operator_specific_device *)calloc(1, sizeof(struct operator_specific_device));
-
+    if (device == NULL) {
+        ALOGE("%s: No memory allocated",__func__);
+        return;
+    }
     device->operator = strdup(operator);
     device->mixer_path = strdup(mixer_path);
     device->acdb_id = acdb_id;
@@ -6500,7 +6503,17 @@ int platform_set_parameters(void *platform, struct str_parms *parms)
 
         str_parms_del(parms, PLATFORM_CONFIG_KEY_OPERATOR_INFO);
         info = (struct operator_info *)calloc(1, sizeof(struct operator_info));
+        if (info == NULL) {
+            ALOGE("%s: No memory allocated",__func__);
+            ret = -ENOMEM;
+            goto done;
+        }
         name = strtok_r(str, ";", &str_endptr);
+        if (name == NULL) {
+            ALOGE("%s: Invalid string",__func__);
+            ret = -EINVAL;
+            goto done;
+        }
         info->name = strdup(name);
         info->mccmnc = strdup(str + strlen(name) + 1);
 
