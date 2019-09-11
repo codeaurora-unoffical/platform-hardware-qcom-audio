@@ -93,6 +93,7 @@
 #define CVD_VERSION_MIXER_CTL "CVD Version"
 
 #define FLAC_COMPRESS_OFFLOAD_FRAGMENT_SIZE (256 * 1024)
+#define AMR_COMPRESS_OFFLOAD_FRAGMENT_SIZE (4 * 1024)
 #define MAX_COMPRESS_OFFLOAD_FRAGMENT_SIZE (2 * 1024 * 1024)
 #define MIN_COMPRESS_OFFLOAD_FRAGMENT_SIZE (2 * 1024)
 #define COMPRESS_OFFLOAD_FRAGMENT_SIZE_FOR_AV_STREAMING (2 * 1024)
@@ -407,6 +408,8 @@ static int pcm_device_table[AUDIO_USECASE_MAX][2] = {
                      {PLAYBACK_INTERACTIVE_STRM_DEVICE7, PLAYBACK_INTERACTIVE_STRM_DEVICE7},
     [USECASE_AUDIO_PLAYBACK_INTERACTIVE_STREAM8] =
                      {PLAYBACK_INTERACTIVE_STRM_DEVICE8, PLAYBACK_INTERACTIVE_STRM_DEVICE8},
+    [USECASE_AUDIO_AFE_LOOPBACK] = {AFE_LOOPBACK_RX_DEV_ID, AFE_LOOPBACK_TX_DEV_ID},
+    [USECASE_AUDIO_DTMF] = {DTMF_TX_DEV_ID, DTMF_TX_DEV_ID},
 
 };
 
@@ -3430,6 +3433,8 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
         snd_device = usecase->in_snd_device;
     else if (usecase->type == TRANSCODE_LOOPBACK_RX)
         snd_device = usecase->out_snd_device;
+    else if ((usecase->type == AFE_LOOPBACK) || (usecase->type == DTMF_PLAYBACK))
+        snd_device = usecase->out_snd_device;
 
     acdb_dev_id = acdb_device_table[platform_get_spkr_prot_snd_device(snd_device)];
     if (acdb_dev_id < 0) {
@@ -5979,6 +5984,10 @@ uint32_t platform_get_compress_offload_buffer_size(audio_offload_info_t* info)
         } else if (info->format == AUDIO_FORMAT_FLAC) {
             fragment_size = FLAC_COMPRESS_OFFLOAD_FRAGMENT_SIZE;
             ALOGV("FLAC fragment size %d", fragment_size);
+        } else if (((info->format == AUDIO_FORMAT_AMR_NB) ||
+            (info->format == AUDIO_FORMAT_AMR_WB)  ||  (info->format == AUDIO_FORMAT_AMR_WB_PLUS))) {
+            fragment_size = AMR_COMPRESS_OFFLOAD_FRAGMENT_SIZE;
+            ALOGV("AMR fragment size %d", fragment_size);
         } else if (info->format == AUDIO_FORMAT_DSD) {
             fragment_size = MAX_COMPRESS_OFFLOAD_FRAGMENT_SIZE;
             if((property_get("vendor.audio.native.dsd.buffer.size.kb", value, "")) &&
@@ -6671,7 +6680,9 @@ bool platform_check_and_set_codec_backend_cfg(struct audio_device* adev,
 
     backend_idx = platform_get_backend_index(snd_device);
 
-    if (usecase->type == TRANSCODE_LOOPBACK_RX) {
+    if ((usecase->type == TRANSCODE_LOOPBACK_RX)
+         || (usecase->type == AFE_LOOPBACK)
+         || (usecase->type == DTMF_PLAYBACK)) {
         backend_cfg.bit_width = usecase->stream.inout->out_config.bit_width;
         backend_cfg.sample_rate = usecase->stream.inout->out_config.sample_rate;
         backend_cfg.format = usecase->stream.inout->out_config.format;

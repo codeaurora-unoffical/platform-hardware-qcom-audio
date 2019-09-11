@@ -202,6 +202,27 @@ __BEGIN_DECLS
 #define QAHW_PCM_CHANNEL_FRC  14  /* Front right of center.                        */
 #define QAHW_PCM_CHANNEL_RLC  15  /* Rear left of center.                          */
 #define QAHW_PCM_CHANNEL_RRC  16  /* Rear right of center.                         */
+#define QAHW_PCM_CHANNEL_LFE2 17  /* Secondary low frequency effect channel.       */
+#define QAHW_PCM_CHANNEL_SL   18  /*  Side left channel.                           */
+#define QAHW_PCM_CHANNEL_SR   19  /* Side right channel.                           */
+#define QAHW_PCM_CHANNEL_TFL  20  /* Top front left channel.                       */
+#define QAHW_PCM_CHANNEL_LVH  QAHW_PCM_CHANNEL_TFL /* Left vertical height channel.*/
+#define QAHW_PCM_CHANNEL_TFR 21   /* Top front right channel.                      */
+#define QAHW_PCM_CHANNEL_RVH QAHW_PCM_CHANNEL_TFR /* Right vertical height channel.*/
+#define QAHW_PCM_CHANNEL_TC   22  /* Top center channel.                           */
+#define QAHW_PCM_CHANNEL_TBL  23  /* Top back left channel.                        */
+#define QAHW_PCM_CHANNEL_TBR  24  /* Top back right channel.                       */
+#define QAHW_PCM_CHANNEL_TSL  25  /* Top side left channel.                        */
+#define QAHW_PCM_CHANNEL_TSR  26  /* Top side right channel.                       */
+#define QAHW_PCM_CHANNEL_TBC  27  /* Top back center channel.                      */
+#define QAHW_PCM_CHANNEL_BFC  28  /* Bottom front center channel.                  */
+#define QAHW_PCM_CHANNEL_BFL  29  /* Bottom front left channel.                    */
+#define QAHW_PCM_CHANNEL_BFR  30  /* Bottom front right channel.                   */
+#define QAHW_PCM_CHANNEL_LW   31  /* Left wide channel.                            */
+#define QAHW_PCM_CHANNEL_RW   32  /* Right wide channel.                           */
+#define QAHW_PCM_CHANNEL_LSD  33  /* Left side direct channel.                     */
+#define QAHW_PCM_CHANNEL_RSD  34  /* Right side direct channel.                    */
+#define QAHW_PCM_CHANNEL_UNUSED  47  /* Mark unused channel.                       */
 
 /* type of asynchronous write callback events. Mutually exclusive */
 typedef enum {
@@ -270,13 +291,13 @@ struct qahw_source_tracking_param {
     uint16_t  doa_speech;
     uint16_t  doa_noise[3];
     uint8_t   polar_activity[360];
-} __attribute__((packed));
+};
 
 struct qahw_sound_focus_param {
     uint16_t  start_angle[MAX_SECTORS];
     uint8_t   enable[MAX_SECTORS];
     uint16_t  gain_step;
-} __attribute__((packed));
+};
 
 struct aptx_dec_bt_addr {
     uint32_t nap;
@@ -367,9 +388,9 @@ typedef struct qahw_mix_matrix_params {
     uint16_t num_output_channels;
     uint16_t num_input_channels;
     uint8_t has_output_channel_map;
-    uint16_t output_channel_map[AUDIO_CHANNEL_COUNT_MAX];
+    uint32_t output_channel_map[AUDIO_CHANNEL_COUNT_MAX];
     uint8_t has_input_channel_map;
-    uint16_t input_channel_map[AUDIO_CHANNEL_COUNT_MAX];
+    uint32_t input_channel_map[AUDIO_CHANNEL_COUNT_MAX];
     uint8_t has_mixer_coeffs;
     float mixer_coeffs[AUDIO_CHANNEL_COUNT_MAX][AUDIO_CHANNEL_COUNT_MAX];
 } qahw_mix_matrix_params_t;
@@ -396,7 +417,7 @@ typedef struct qahw_dtmf_gen_params {
 
 typedef struct qahw_tone_gen_params {
    bool enable;
-   uint16_t nr_tone_freq; /* "1" for single tone, "2" for dual tone*/
+   uint16_t nr_tone_freq; /* "1" for single tone, "2" for dual tone */
    uint16_t freq[MAX_TONE_FREQ];
    uint16_t gain;
    uint16_t duration_ms;
@@ -508,7 +529,7 @@ typedef enum {
     QAHW_STREAM_TYPE_INVALID,
     QAHW_AUDIO_PLAYBACK_LOW_LATENCY,      /**< low latency, higher power*/
     QAHW_AUDIO_PLAYBACK_DEEP_BUFFER,          /**< low power, higher latency*/
-    QAHW_AUDIO_PLAYBACK_COMPRESSED,           /**< compresssed audio*/
+    QAHW_AUDIO_PLAYBACK_COMPRESSED,           /**< non-blocking, direct, compresssed audio*/
     QAHW_AUDIO_PLAYBACK_VOIP,                 /**< pcm voip audio*/
     QAHW_AUDIO_PLAYBACK_VOICE_CALL_MUSIC,     /**< pcm voip audio*/
 
@@ -537,7 +558,7 @@ typedef uint32_t qahw_device_t;
 
 /**< Key value pair to identify the topology of a usecase from default  */
 struct qahw_modifier_kv  {
-    uint32_t key;
+    char *key;
     uint32_t value;
 };
 

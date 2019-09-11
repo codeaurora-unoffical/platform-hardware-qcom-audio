@@ -529,7 +529,7 @@ typedef enum {
     QAHW_STREAM_TYPE_INVALID,
     QAHW_AUDIO_PLAYBACK_LOW_LATENCY,      /**< low latency, higher power*/
     QAHW_AUDIO_PLAYBACK_DEEP_BUFFER,          /**< low power, higher latency*/
-    QAHW_AUDIO_PLAYBACK_COMPRESSED,           /**< compresssed audio*/
+    QAHW_AUDIO_PLAYBACK_COMPRESSED,           /**< non-blocking, direct, compresssed audio*/
     QAHW_AUDIO_PLAYBACK_VOIP,                 /**< pcm voip audio*/
     QAHW_AUDIO_PLAYBACK_VOICE_CALL_MUSIC,     /**< pcm voip audio*/
 
@@ -558,7 +558,7 @@ typedef uint32_t qahw_device_t;
 
 /**< Key value pair to identify the topology of a usecase from default  */
 struct qahw_modifier_kv  {
-    uint32_t key;
+    char *key;
     uint32_t value;
 };
 
