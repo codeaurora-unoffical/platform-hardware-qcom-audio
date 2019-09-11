@@ -578,6 +578,8 @@ static void close_all_hdmi_output_l()
     close_all_pcm_hdmi_output_l();
 }
 
+#if SUPPORT_SET_STREAM_VOLUME
+
 #define DSD_VOLUME_MIN_DB (-96)
 static float AmpToDb(float amplification)
 {
@@ -638,6 +640,15 @@ static int qap_set_stream_volume(struct audio_stream_out *stream, float left, fl
     DEBUG_MSG("Exit");
     return ret;
 }
+#else
+static int qap_set_stream_volume(struct audio_stream_out *stream __unused,
+                                 float left __unused,
+                                 float right __unused)
+{
+    DEBUG_MSG("Support for set stream volume is not enabled");
+    return -ENOSYS;
+}
+#endif
 
 static int qap_out_callback(stream_callback_event_t event, void *param __unused, void *cookie)
 {
@@ -794,6 +805,7 @@ static int qap_out_drain(struct audio_stream_out* stream, audio_drain_type_t typ
     } else {
        status = p_qap->hal_stream_ops.drain(stream, type);
     }
+    DEBUG_MSG_VV("Exit");
     return status;
 }
 
@@ -824,6 +836,8 @@ static int audio_extn_qap_stream_flush(struct stream_out *out)
         ret = -EINVAL;
     }
     check_and_activate_output_thread(false);
+
+    DEBUG_MSG_VV("Exit");
     return ret;
 }
 
@@ -920,6 +934,7 @@ static int qap_out_pause(struct audio_stream_out* stream)
     } else {
        p_qap->hal_stream_ops.pause(stream);
     }
+    DEBUG_MSG_VV("Exit");
     return status;
 }
 
@@ -999,6 +1014,7 @@ static int qap_out_standby(struct audio_stream *stream)
     } else {
         status = p_qap->hal_stream_ops.common.standby(stream);
     }
+    DEBUG_MSG_VV("Exit");
     return status;
 }
 
@@ -3474,28 +3490,32 @@ int audio_extn_qap_init(struct audio_device *adev)
 
         if (i == MS12) {
             property_get("vendor.audio.qap.library", value, NULL);
-            snprintf(lib_name, PROPERTY_VALUE_MAX, "%s", value);
+            if (value[0] != 0) {
+                snprintf(lib_name, PROPERTY_VALUE_MAX, "%s", value);
 
-            DEBUG_MSG("Opening Ms12 library at %s", lib_name);
-           qap_mod->qap_lib = ( void *) qap_load_library(lib_name);
-            if (qap_mod->qap_lib == NULL) {
-                ERROR_MSG("qap load lib failed for MS12 %s", lib_name);
-                continue;
+                DEBUG_MSG("Opening Ms12 library at %s", lib_name);
+                qap_mod->qap_lib = ( void *) qap_load_library(lib_name);
+                if (qap_mod->qap_lib == NULL) {
+                    ERROR_MSG("qap load lib failed for MS12 %s", lib_name);
+                    continue;
+                }
+                DEBUG_MSG("Loaded QAP lib at %s", lib_name);
+                pthread_mutex_init(&qap_mod->session_output_lock, (const pthread_mutexattr_t *) NULL);
+                pthread_cond_init(&qap_mod->session_output_cond, (const pthread_condattr_t *)NULL);
             }
-            DEBUG_MSG("Loaded QAP lib at %s", lib_name);
-            pthread_mutex_init(&qap_mod->session_output_lock, (const pthread_mutexattr_t *) NULL);
-            pthread_cond_init(&qap_mod->session_output_cond, (const pthread_condattr_t *)NULL);
         } else if (i == DTS_M8) {
             property_get("vendor.audio.qap.m8.library", value, NULL);
-            snprintf(lib_name, PROPERTY_VALUE_MAX, "%s", value);
-            qap_mod->qap_lib = dlopen(lib_name, RTLD_NOW);
-            if (qap_mod->qap_lib == NULL) {
-                ERROR_MSG("DLOPEN failed for DTS M8 %s", lib_name);
-                continue;
+            if (value[0] != 0) {
+                snprintf(lib_name, PROPERTY_VALUE_MAX, "%s", value);
+                qap_mod->qap_lib = dlopen(lib_name, RTLD_NOW);
+                if (qap_mod->qap_lib == NULL) {
+                    ERROR_MSG("DLOPEN failed for DTS M8 %s", lib_name);
+                    continue;
+                }
+                DEBUG_MSG("DLOPEN successful for %s", lib_name);
+                pthread_mutex_init(&qap_mod->session_output_lock, (const pthread_mutexattr_t *) NULL);
+                pthread_cond_init(&qap_mod->session_output_cond, (const pthread_condattr_t *)NULL);
             }
-            DEBUG_MSG("DLOPEN successful for %s", lib_name);
-            pthread_mutex_init(&qap_mod->session_output_lock, (const pthread_mutexattr_t *) NULL);
-            pthread_cond_init(&qap_mod->session_output_cond, (const pthread_condattr_t *)NULL);
         } else {
             continue;
         }
