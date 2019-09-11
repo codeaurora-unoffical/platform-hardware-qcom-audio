@@ -224,6 +224,7 @@ int main(int argc, char *argv[]) {
         {"sink-device", required_argument,    0, 's'},
         {"dtmf-source-device", required_argument,    0, 'd'},
         {"play-duration",  required_argument,    0, 'p'},
+        {"volume",        required_argument,     0, 'v'},
         {"help",          no_argument,          0, 'h'},
         {0, 0, 0, 0}
     };
@@ -233,7 +234,7 @@ int main(int argc, char *argv[]) {
 
     while ((opt = getopt_long(argc,
                               argv,
-                              "-s:d:p:h",
+                              "-s:d:p:v:h",
                               long_options,
                               &option_index)) != -1) {
 
@@ -256,6 +257,9 @@ int main(int argc, char *argv[]) {
             break;
         case 'p':
             play_duration_in_seconds = atoi(optarg);
+            break;
+        case 'v':
+            loopback_gain = atoi(optarg);
             break;
         case 'h':
         default :
@@ -328,6 +332,6 @@ void usage() {
                            " -h <help>\n");
     fprintf(log_file,"\nExample to play for 1 minute on speaker device with volume unity: afe_loopback_test -p 60 -s 2");
     fprintf(log_file,"\nExample to play for 5 minutes on headphone device: afe_loopback_test -p 300 -s 4 ");
-    fprintf(log_file,"\nExample to play dtmf tone for 5 minutes on headphone device: afe_loopback_test -p 300 -s 4 -d 1");
+    fprintf(log_file,"\nExample to play dtmf tone for 5 minutes on headphone device: afe_loopback_test -p 300 -s 4 -d 1 -v 100");
     fprintf(log_file,"\nHelp : afe_loopback_test -h");
 }
