@@ -6121,7 +6121,12 @@ static uint32_t in_get_input_frames_lost(struct audio_stream_in *stream __unused
 {
     return 0;
 }
-
+#if 0
+/* HAL side new function(in_get_capture_position) is registered to
+ * "in->stream.get_capture_position" function pointer.
+ * "in_get_capture_position" function uses "pcm_get_htimestamp()" to get
+ * position ,but this returns always zero frames size, so falling back to default
+ */
 static int in_get_capture_position(const struct audio_stream_in *stream,
                                    int64_t *frames, int64_t *time)
 {
@@ -6153,7 +6158,7 @@ exit:
     pthread_mutex_unlock(&in->lock);
     return ret;
 }
-
+#endif
 static int add_remove_audio_effect(const struct audio_stream *stream,
                                    effect_handle_t effect,
                                    bool enable)
@@ -7905,7 +7910,7 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
     in->stream.set_gain = in_set_gain;
     in->stream.read = in_read;
     in->stream.get_input_frames_lost = in_get_input_frames_lost;
-    in->stream.get_capture_position = in_get_capture_position;
+    //in->stream.get_capture_position = in_get_capture_position;
     in->stream.get_active_microphones = in_get_active_microphones;
 
     in->device = devices;
