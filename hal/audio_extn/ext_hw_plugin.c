@@ -180,6 +180,8 @@ static int32_t ext_hw_plugin_check_plugin_usecase(audio_usecase_t hal_usecase,
         break;
     case USECASE_AUDIO_HFP_SCO:
     case USECASE_AUDIO_HFP_SCO_WB:
+    case USECASE_AUDIO_HFP_SCO_DOWNLINK:
+    case USECASE_AUDIO_HFP_SCO_WB_DOWNLINK:
         *plugin_usecase = AUDIO_HAL_PLUGIN_USECASE_HFP_VOICE_CALL;
         break;
     case USECASE_VOICE_CALL:
@@ -566,6 +568,12 @@ int32_t audio_extn_ext_hw_plugin_set_parameters(void *plugin, struct str_parms *
     if(val == AUDIO_HAL_PLUGIN_MSG_CODEC_TUNNEL_CMD ||
         val == AUDIO_HAL_PLUGIN_MSG_CODEC_SET_PP_EQ) {
         kv_pairs = str_parms_to_str(parms);
+        if (kv_pairs == NULL) {
+            ret = -EINVAL;
+            ALOGE("%s failed to get parameters",__func__);
+            goto done;
+        }
+
         len = strlen(kv_pairs);
         value = (char*)calloc(len, sizeof(char));
         if (value == NULL) {
@@ -1015,6 +1023,12 @@ int audio_extn_ext_hw_plugin_get_parameters(void *plugin,
 
     if(val == AUDIO_HAL_PLUGIN_MSG_CODEC_TUNNEL_GET_CMD) {
         kv_pairs = str_parms_to_str(query);
+        if (kv_pairs == NULL) {
+            ret = -EINVAL;
+            ALOGE("%s: failed to get parameters",__func__);
+            goto done_get_param;
+        }
+
         len = strlen(kv_pairs);
         value = (char*)calloc(len, sizeof(char));
         if (value == NULL) {
