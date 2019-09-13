@@ -209,6 +209,7 @@ typedef struct codec_backend_cfg {
     char     *bitwidth_mixer_ctl;
     char     *samplerate_mixer_ctl;
     char     *channels_mixer_ctl;
+    bool     passthrough_enabled;
 } codec_backend_cfg_t;
 
 static native_audio_prop na_props = {0, 0, NATIVE_AUDIO_MODE_INVALID};
@@ -6041,6 +6042,9 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
           sample_rate, channels, format, backend_idx,
           platform_get_snd_device_name(snd_device));
 
+    if (passthrough_enabled != my_data->current_backend_cfg[backend_idx].passthrough_enabled)
+        my_data->current_backend_cfg[backend_idx].passthrough_enabled = passthrough_enabled;
+
     if ((my_data->current_backend_cfg[backend_idx].bitwidth_mixer_ctl) &&
         (bit_width != my_data->current_backend_cfg[backend_idx].bit_width)) {
 
@@ -6606,7 +6610,11 @@ static bool platform_check_codec_backend_cfg(struct audio_device* adev,
     // is not same as current backend comfiguration
     if ((bit_width != my_data->current_backend_cfg[backend_idx].bit_width) ||
         (sample_rate != my_data->current_backend_cfg[backend_idx].sample_rate) ||
-         passthrough_enabled || channels_updated || service_interval_update ) {
+         passthrough_enabled ||
+         // Check if transistion is from passthrough to pcm or vice versa and reconfigure backend
+         ((backend_idx == HDMI_RX_BACKEND) &&
+         (passthrough_enabled != my_data->current_backend_cfg[backend_idx].passthrough_enabled)) ||
+         channels_updated || service_interval_update ) {
         backend_cfg->bit_width = bit_width;
         backend_cfg->sample_rate = sample_rate;
         backend_cfg->channels = channels;
