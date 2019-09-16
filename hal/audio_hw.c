@@ -8339,15 +8339,15 @@ static void adev_close_input_stream(struct audio_hw_device *dev,
         platform_set_echo_reference(adev, false, AUDIO_DEVICE_NONE);
     else
         audio_extn_sound_trigger_update_ec_ref_status(false);
+    if (in == NULL) {
+        ALOGE("%s: audio_stream_in ptr is NULL", __func__);
+        return;
+    }
 
 #ifndef LINUX_ENABLED
     error_log_destroy(in->error_log);
     in->error_log = NULL;
 #endif
-    if (in == NULL) {
-        ALOGE("%s: audio_stream_in ptr is NULL", __func__);
-        return;
-    }
 
     if (in->usecase == USECASE_COMPRESS_VOIP_CALL) {
         pthread_mutex_lock(&adev->lock);
