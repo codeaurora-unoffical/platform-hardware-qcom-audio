@@ -365,6 +365,7 @@ int platform_get_active_microphones(void *platform, unsigned int channels,
                                     size_t *mic_count);
 
 int platform_get_license_by_product(void *platform, const char* product_name, int *product_id, char* product_license);
+bool platform_get_eccarstate(void *platform);
 struct audio_custom_mtmx_params *
     platform_get_custom_mtmx_params(void *platform,
                                     struct audio_custom_mtmx_params_info *info,
