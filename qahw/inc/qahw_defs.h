@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2011 The Android Open Source Project *
@@ -18,6 +18,7 @@
 
 #include <sys/cdefs.h>
 #include <stdint.h>
+#include <system/audio.h>
 
 #ifndef QTI_AUDIO_HAL_DEFS_H
 #define QTI_AUDIO_HAL_DEFS_H
@@ -161,6 +162,7 @@ __BEGIN_DECLS
 #define QAHW_OFFLOAD_CODEC_APE_SEEK_TABLE_PRESENT "music_offload_seek_table_present"
 
 #define QAHW_OFFLOAD_CODEC_VORBIS_BITSTREAM_FMT "music_offload_vorbis_bitstream_fmt"
+#define QAHW_OFFLOAD_CODEC_AMRWBPLUS_BITSTREAM_FMT "music_offload_amrwbplus_bitstream_fmt"
 
 /* Set or Query stream profile type */
 #define QAHW_PARAMETER_STREAM_PROFILE "audio_stream_profile"
@@ -171,6 +173,9 @@ __BEGIN_DECLS
 #define QAHW_INPUT_FLAG_TIMESTAMP 0x80000000
 #define QAHW_INPUT_FLAG_COMPRESS  0x40000000
 #define QAHW_INPUT_FLAG_PASSTHROUGH 0x20000000
+#define QAHW_OUTPUT_FLAG_INCALL_MUSIC 0x80000000
+#define QAHW_AUDIO_FLAG_HPCM_TX 0x00020000
+#define QAHW_AUDIO_FLAG_HPCM_RX 0x00040000
 
 /* Query fm volume */
 #define QAHW_PARAMETER_KEY_FM_VOLUME "fm_volume"
@@ -197,6 +202,27 @@ __BEGIN_DECLS
 #define QAHW_PCM_CHANNEL_FRC  14  /* Front right of center.                        */
 #define QAHW_PCM_CHANNEL_RLC  15  /* Rear left of center.                          */
 #define QAHW_PCM_CHANNEL_RRC  16  /* Rear right of center.                         */
+#define QAHW_PCM_CHANNEL_LFE2 17  /* Secondary low frequency effect channel.       */
+#define QAHW_PCM_CHANNEL_SL   18  /*  Side left channel.                           */
+#define QAHW_PCM_CHANNEL_SR   19  /* Side right channel.                           */
+#define QAHW_PCM_CHANNEL_TFL  20  /* Top front left channel.                       */
+#define QAHW_PCM_CHANNEL_LVH  QAHW_PCM_CHANNEL_TFL /* Left vertical height channel.*/
+#define QAHW_PCM_CHANNEL_TFR 21   /* Top front right channel.                      */
+#define QAHW_PCM_CHANNEL_RVH QAHW_PCM_CHANNEL_TFR /* Right vertical height channel.*/
+#define QAHW_PCM_CHANNEL_TC   22  /* Top center channel.                           */
+#define QAHW_PCM_CHANNEL_TBL  23  /* Top back left channel.                        */
+#define QAHW_PCM_CHANNEL_TBR  24  /* Top back right channel.                       */
+#define QAHW_PCM_CHANNEL_TSL  25  /* Top side left channel.                        */
+#define QAHW_PCM_CHANNEL_TSR  26  /* Top side right channel.                       */
+#define QAHW_PCM_CHANNEL_TBC  27  /* Top back center channel.                      */
+#define QAHW_PCM_CHANNEL_BFC  28  /* Bottom front center channel.                  */
+#define QAHW_PCM_CHANNEL_BFL  29  /* Bottom front left channel.                    */
+#define QAHW_PCM_CHANNEL_BFR  30  /* Bottom front right channel.                   */
+#define QAHW_PCM_CHANNEL_LW   31  /* Left wide channel.                            */
+#define QAHW_PCM_CHANNEL_RW   32  /* Right wide channel.                           */
+#define QAHW_PCM_CHANNEL_LSD  33  /* Left side direct channel.                     */
+#define QAHW_PCM_CHANNEL_RSD  34  /* Right side direct channel.                    */
+#define QAHW_PCM_CHANNEL_UNUSED  47  /* Mark unused channel.                       */
 
 /* type of asynchronous write callback events. Mutually exclusive */
 typedef enum {
@@ -213,6 +239,11 @@ typedef enum {
 typedef int qahw_stream_callback_t(qahw_stream_callback_event_t event,
                                    void *param,
                                    void *cookie);
+
+struct qahw_stream_callback_param {
+    qahw_stream_callback_t *cb;    /* callback function */
+    void *cookie;                  /* callback context */
+};
 
 /* type of drain requested to audio_stream_out->drain(). Mutually exclusive */
 typedef enum {
@@ -244,6 +275,14 @@ typedef struct {
     int64_t *timestamp;    /* timestmap */
     uint32_t reserved[64]; /*reserved for future */
 } qahw_in_buffer_t;
+
+typedef struct {
+    void *buffer;    /* write buffer pointer */
+    size_t size;          /* size of buffer */
+    size_t offset;         /* offset in buffer from where valid byte starts */
+    int64_t *timestamp;    /* timestmap */
+    qahw_meta_data_flags_t flags; /* meta data flags */
+} qahw_buffer_t;
 
 #define MAX_SECTORS 8
 
@@ -318,6 +357,7 @@ struct qahw_out_correct_drift {
 typedef enum {
     QAHW_STREAM_PP_EVENT = 0,
     QAHW_STREAM_ENCDEC_EVENT = 1,
+    QAHW_STREAM_IEC_61937_FMT_UPDATE_EVENT = 2,
 } qahw_event_id;
 
 /* payload format for HAL parameter
@@ -363,6 +403,64 @@ typedef struct qahw_license_params {
     char license[QAHW_LICENCE_STR_MAX_LENGTH + 1];
 } qahw_license_params_t;
 
+typedef struct qahw_dtmf_gen_params {
+   bool enable;
+   uint16_t low_freq;
+   uint16_t high_freq;
+   uint16_t gain;
+   uint16_t duration_ms;
+   /* ToDo: Direction flag, framework does not support. Do we add later
+      Currently supported on Rx only */
+} qahw_dtmf_gen_params_t;
+
+#define MAX_TONE_FREQ 2
+
+typedef struct qahw_tone_gen_params {
+   bool enable;
+   uint16_t nr_tone_freq;  /* "1" for single tone, "2" for dual tone */
+   uint16_t freq[MAX_TONE_FREQ];
+   uint16_t gain;
+   uint16_t duration_ms;
+   /* ToDo: Direction flag, framework does not support. Do we add later
+      Currently supported on Rx only */
+} qahw_tone_gen_params_t;
+
+enum {
+    QAHW_TTY_MODE_OFF,
+    QAHW_TTY_MODE_FULL,
+    QAHW_TTY_MODE_VCO,
+    QAHW_TTY_MODE_HCO,
+    QAHW_TTY_MODE_MAX,
+};
+
+typedef struct qahw_tty_params {
+   uint32_t mode;
+} qahw_tty_params_t;
+
+typedef enum {
+    QAHW_HPCM_TAP_POINT_RX = 1,
+    QAHW_HPCM_TAP_POINT_TX = 2,
+    QAHW_HPCM_TAP_POINT_RX_TX = 3,
+} qahw_hpcm_tap_point;
+
+typedef enum {
+    QAHW_HPCM_DIRECTION_OUT,
+    QAHW_HPCM_DIRECTION_IN,
+    QAHW_HPCM_DIRECTION_OUT_IN,
+} qahw_hpcm_direction;
+
+typedef struct qahw_hpcm_params {
+   qahw_hpcm_tap_point tap_point;
+   qahw_hpcm_direction direction;
+} qahw_hpcm_params_t;
+
+/* Session ID for detect implicit derived from voice session */
+typedef struct qahw_dtmf_detect_params {
+   bool enable;
+   /* ToDo: Direction flag, framework does not support. Do we add later
+      Currently supported on Rx only */
+} qahw_dtmf_detect_params_t;
+
 typedef union {
     struct qahw_source_tracking_param st_params;
     struct qahw_sound_focus_param sf_params;
@@ -377,6 +475,11 @@ typedef union {
     struct qahw_device_cfg_param device_cfg_params;
     struct qahw_mix_matrix_params mix_matrix_params;
     struct qahw_license_params license_params;
+    struct qahw_dtmf_gen_params dtmf_gen_params;
+    struct qahw_tty_params tty_mode_params;
+    struct qahw_hpcm_params hpcm_params;
+    struct qahw_dtmf_detect_params dtmf_detect_params;
+    struct qahw_tone_gen_params tone_gen_params;
 } qahw_param_payload;
 
 typedef enum {
@@ -396,7 +499,113 @@ typedef enum {
     QAHW_PARAM_OUT_MIX_MATRIX_PARAMS,
     QAHW_PARAM_CH_MIX_MATRIX_PARAMS,
     QAHW_PARAM_LICENSE_PARAMS,
+    QAHW_PARAM_DTMF_GEN,
+    QAHW_PARAM_TTY_MODE,
+    QAHW_PARAM_HPCM,
+    QAHW_PARAM_DTMF_DETECT,
+    QAHW_PARAM_TONE_GEN,
 } qahw_param_id;
+
+typedef union {
+    struct qahw_out_render_window_param render_window_params;
+    struct qahw_stream_callback_param stream_callback_params;
+} qahw_loopback_param_payload;
+
+typedef enum {
+    QAHW_PARAM_LOOPBACK_RENDER_WINDOW, /* PARAM to set render window */
+    QAHW_PARAM_LOOPBACK_SET_CALLBACK
+} qahw_loopback_param_id;
+
+/** stream direction enumeration */
+typedef enum {
+    QAHW_STREAM_INPUT,
+    QAHW_STREAM_OUTPUT,
+    QAHW_STREAM_INPUT_OUTPUT,
+    QAHW_STREAM_NONE,
+} qahw_stream_direction;
+
+/** stream types */
+typedef enum {
+    QAHW_STREAM_TYPE_INVALID,
+    QAHW_AUDIO_PLAYBACK_LOW_LATENCY,      /**< low latency, higher power*/
+    QAHW_AUDIO_PLAYBACK_DEEP_BUFFER,          /**< low power, higher latency*/
+    QAHW_AUDIO_PLAYBACK_COMPRESSED,           /**< non-blocking, direct, compresssed audio*/
+    QAHW_AUDIO_PLAYBACK_VOIP,                 /**< pcm voip audio*/
+    QAHW_AUDIO_PLAYBACK_VOICE_CALL_MUSIC,     /**< pcm voip audio*/
+
+    QAHW_AUDIO_CAPTURE_LOW_LATENCY,           /**< low latency, higher power*/
+    QAHW_AUDIO_CAPTURE_DEEP_BUFFER,           /**< low power, higher latency*/
+    QAHW_AUDIO_CAPTURE_COMPRESSED,            /**< compresssed audio*/
+    QAHW_AUDIO_CAPTURE_RAW,                   /**< pcm no post processing*/
+    QAHW_AUDIO_CAPTURE_VOIP,                  /**< pcm voip audio*/
+    QAHW_AUDIO_CAPTURE_VOICE_ACTIVATION,      /**< voice activation*/
+    QAHW_AUDIO_CAPTURE_VOICE_CALL_RX,         /**< incall record, downlink */
+    QAHW_AUDIO_CAPTURE_VOICE_CALL_TX,         /**< incall record, uplink */
+    QAHW_AUDIO_CAPTURE_VOICE_CALL_RX_TX,      /**< incall record, uplink & Downlink */
+
+    QAHW_VOICE_CALL,                          /**< voice call */
+
+    QAHW_AUDIO_TRANSCODE,                     /**< audio transcode */
+    QAHW_AUDIO_HOST_PCM_TX,
+    QAHW_AUDIO_HOST_PCM_RX,
+    QAHW_AUDIO_HOST_PCM_TX_RX,
+    QAHW_AUDIO_AFE_LOOPBACK,                 /* Assumption is device[0] is RX and device[1] is TX */
+    QAHW_AUDIO_TONE_RX,
+    QAHW_AUDIO_STREAM_TYPE_MAX,
+} qahw_audio_stream_type;
+
+typedef uint32_t qahw_device_t;
+
+/**< Key value pair to identify the topology of a usecase from default  */
+struct qahw_modifier_kv  {
+    char *key;
+    uint32_t value;
+};
+
+struct qahw_shared_attributes{
+     audio_config_t config;
+};
+struct qahw_voice_attributes{
+     audio_config_t config;
+     const char *vsid;
+};
+
+struct qahw_audio_attributes{
+    audio_config_t config;
+};
+
+typedef union {
+    struct qahw_shared_attributes shared;
+    struct qahw_voice_attributes voice;
+    struct qahw_audio_attributes audio;
+} qahw_stream_attributes_config;
+
+struct qahw_stream_attributes {
+     qahw_audio_stream_type type;
+     qahw_stream_direction direction;
+     qahw_stream_attributes_config attr;
+};
+
+typedef enum {
+    QAHW_CHANNEL_L = 0, /*left channel*/
+    QAHW_CHANNEL_R = 1, /*right channel*/
+    QAHW_CHANNELS_MAX = 2, /*max number of supported streams*/
+} qahw_channel_map;
+
+struct qahw_channel_vol {
+    qahw_channel_map channel;
+    float vol;
+};
+
+struct qahw_volume_data {
+    uint32_t num_of_channels;
+    struct qahw_channel_vol *vol_pair;
+};
+
+struct qahw_mute_data {
+    bool enable;
+    qahw_stream_direction direction;
+};
 
 __END_DECLS
 

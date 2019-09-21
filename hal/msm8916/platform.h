@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -183,6 +183,7 @@ enum {
     SND_DEVICE_IN_BT_SCO_MIC_NREC,
     SND_DEVICE_IN_BT_SCO_MIC_WB,
     SND_DEVICE_IN_BT_SCO_MIC_WB_NREC,
+    SND_DEVICE_IN_BT_A2DP,
     SND_DEVICE_IN_CAMCORDER_MIC,
     SND_DEVICE_IN_VOICE_DMIC,
     SND_DEVICE_IN_VOICE_SPEAKER_DMIC,
@@ -377,6 +378,10 @@ enum {
 
 #define TRANSCODE_LOOPBACK_RX_DEV_ID 43
 #define TRANSCODE_LOOPBACK_TX_DEV_ID 44
+
+#define AFE_LOOPBACK_RX_DEV_ID 3
+#define AFE_LOOPBACK_TX_DEV_ID 16
+#define DTMF_TX_DEV_ID 7
 
 #define PLAYBACK_INTERACTIVE_STRM_DEVICE1 0
 #define PLAYBACK_INTERACTIVE_STRM_DEVICE2 1

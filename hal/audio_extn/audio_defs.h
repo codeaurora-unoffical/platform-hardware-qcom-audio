@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2015, 2017-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2015, 2017-2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -73,6 +73,7 @@
 #define AUDIO_OFFLOAD_CODEC_APE_SEEK_TABLE_PRESENT "music_offload_seek_table_present"
 
 #define AUDIO_OFFLOAD_CODEC_VORBIS_BITSTREAM_FMT "music_offload_vorbis_bitstream_fmt"
+#define AUDIO_OFFLOAD_CODEC_AMR_WB_PLUS_BITSTREAM_FMT "music_offload_amrwbplus_bitstream_fmt"
 
 /* Query handle fm parameter*/
 #define AUDIO_PARAMETER_KEY_HANDLE_FM "handle_fm"
@@ -212,11 +213,21 @@ typedef enum {
                                                  */
 } audio_extn_callback_id;
 
+typedef int audio_stream_callback_t(audio_extn_callback_id event,
+                                    void *param,
+                                    void *cookie);
+
+struct audio_stream_callback_param {
+    audio_stream_callback_t *cb;    /* callback function */
+    void *cookie;                   /* callback context */
+};
+
 #define AUDIO_MAX_ADSP_STREAM_CMD_PAYLOAD_LEN 504
 
 typedef enum {
     AUDIO_STREAM_PP_EVENT = 0,
     AUDIO_STREAM_ENCDEC_EVENT = 1,
+    AUDIO_STREAM_IEC_61937_FMT_UPDATE_EVENT = 2,
 } audio_event_id;
 
 /* payload format for HAL parameter
@@ -305,5 +316,15 @@ typedef enum {
     /* License information */
     AUDIO_EXTN_PARAM_LICENSE_PARAMS,
 } audio_extn_param_id;
+
+typedef union {
+    struct audio_out_render_window_param render_window_params;
+    struct audio_stream_callback_param stream_callback_params;
+} audio_extn_loopback_param_payload;
+
+typedef enum {
+    AUDIO_EXTN_PARAM_LOOPBACK_RENDER_WINDOW, /* PARAM to set render window */
+    AUDIO_EXTN_PARAM_LOOPBACK_SET_CALLBACK
+} audio_extn_loopback_param_id;
 
 #endif /* AUDIO_DEFS_H */

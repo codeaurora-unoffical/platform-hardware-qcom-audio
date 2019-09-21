@@ -260,7 +260,7 @@ void *start_input(void *thread_param)
   double time_elapsed = 0;
   ssize_t bytes_read = -1;
   char param[100] = "audio_stream_profile=";
-  char file_name[256] = "/data/rec";
+  char file_name[256] = "/data/audio/rec";
   int data_sz = 0, name_len = strlen(file_name);
   qahw_in_buffer_t in_buf;
   static int64_t timestamp = 1;
@@ -926,10 +926,10 @@ sourcetrack_error:
     /* Caution: Below ADL log shouldnt be altered without notifying automation APT since it used
      * for automation testing
      */
-    fprintf(log_file, "\n ADL: Done with hal record test \n");
-    if (log_file != stdout) {
-        fprintf(stdout, "\n ADL: Done with hal record test \n");
-        if (log_file) {
+    if (log_file != NULL) {
+        fprintf(log_file, "\n ADL: Done with hal record test \n");
+        if (log_file != stdout) {
+          fprintf(stdout, "\n ADL: Done with hal record test \n");
           fclose(log_file);
           log_file = NULL;
         }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -52,6 +52,8 @@
 #include "platform.h"
 #include "platform_api.h"
 #include "edid.h"
+#include "voice_extn.h"
+#include "adsp_hdlr.h"
 
 #include "sound/compress_params.h"
 
@@ -65,6 +67,15 @@
 #define WIFI_INIT_WAIT_SLEEP 50
 #define MAX_NUM_CHANNELS 8
 #define Q14_GAIN_UNITY 0x4000
+
+/* TONE Generation Keys */
+/* tone_low_freq and tone_high_freq must be paired */
+#define AUDIO_PARAMETER_KEY_TONE_LOW_FREQ "tone_low_freq"
+#define AUDIO_PARAMETER_KEY_TONE_HIGH_FREQ "tone_high_freq"
+#define AUDIO_PARAMETER_KEY_TONE_DURATION_MS "tone_duration_ms"
+#define AUDIO_PARAMETER_KEY_TONE_GAIN "tone_gain"
+#define AUDIO_PARAMETER_KEY_TONE_OFF "tone_off"
+
 
 struct audio_extn_module {
     bool anc_enabled;
@@ -369,6 +380,160 @@ exit:
     return;
 }
 #endif /* CUSTOM_STEREO_ENABLED */
+
+static int update_custom_mtmx_coefficients(struct audio_device *adev,
+                                           struct audio_custom_mtmx_params *params,
+                                           int pcm_device_id)
+{
+    struct mixer_ctl *ctl = NULL;
+    char *mixer_name_prefix = "AudStr";
+    char *mixer_name_suffix = "ChMixer Weight Ch";
+    char mixer_ctl_name[128] = {0};
+    struct audio_custom_mtmx_params_info *pinfo = &params->info;
+    int i = 0, err = 0;
+
+    ALOGI("%s: ip_channels %d, op_channels %d, pcm_device_id %d",
+          __func__, pinfo->ip_channels, pinfo->op_channels, pcm_device_id);
+
+    for (i = 0; i < (int)pinfo->op_channels; i++) {
+         snprintf(mixer_ctl_name, sizeof(mixer_ctl_name), "%s %d %s %d",
+                  mixer_name_prefix, pcm_device_id, mixer_name_suffix, i+1);
+         ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+         if (!ctl) {
+             ALOGE("%s: ERROR. Could not get ctl for mixer cmd - %s",
+                   __func__, mixer_ctl_name);
+             return -EINVAL;
+         }
+
+         err = mixer_ctl_set_array(ctl,
+                                   &params->coeffs[pinfo->ip_channels * i],
+                                   pinfo->ip_channels);
+         if (err) {
+             ALOGE("%s: ERROR. Mixer ctl set failed", __func__);
+             return -EINVAL;
+         }
+    }
+    return 0;
+}
+
+static void set_custom_mtmx_params(struct audio_device *adev,
+                                   struct audio_custom_mtmx_params_info *pinfo,
+                                   int pcm_device_id, bool enable)
+{
+    struct mixer_ctl *ctl = NULL;
+    char *mixer_name_prefix = "AudStr";
+    char *mixer_name_suffix = "ChMixer Cfg";
+    char mixer_ctl_name[128] = {0};
+    int chmixer_cfg[5] = {0}, len = 0;
+    int be_id = -1, err = 0;
+
+    be_id = platform_get_snd_device_backend_index(pinfo->snd_device);
+
+    ALOGI("%s: ip_channels %d,op_channels %d,pcm_device_id %d,be_id %d",
+          __func__, pinfo->ip_channels, pinfo->op_channels, pcm_device_id, be_id);
+
+    snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
+             "%s %d %s", mixer_name_prefix, pcm_device_id, mixer_name_suffix);
+    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+    if (!ctl) {
+        ALOGE("%s: ERROR. Could not get ctl for mixer cmd - %s",
+              __func__, mixer_ctl_name);
+        return;
+    }
+    chmixer_cfg[len++] = enable ? 1 : 0;
+    chmixer_cfg[len++] = 0; /* rule index */
+    chmixer_cfg[len++] = pinfo->ip_channels;
+    chmixer_cfg[len++] = pinfo->op_channels;
+    chmixer_cfg[len++] = be_id + 1;
+
+    err = mixer_ctl_set_array(ctl, chmixer_cfg, len);
+    if (err)
+        ALOGE("%s: ERROR. Mixer ctl set failed", __func__);
+}
+
+void audio_extn_set_custom_mtmx_params(struct audio_device *adev,
+                                        struct audio_usecase *usecase,
+                                        bool enable)
+{
+    struct audio_custom_mtmx_params_info info;
+    struct audio_custom_mtmx_params *params = NULL;
+    int num_devices = 0, pcm_device_id = -1, i = 0, ret = 0;
+    snd_device_t new_snd_devices[SND_DEVICE_OUT_END] = {0};
+    struct audio_backend_cfg backend_cfg;
+    uint32_t feature_id = 0;
+
+    memset(&info, 0, sizeof(info));
+    memset(&backend_cfg, 0, sizeof(backend_cfg));
+
+    switch(usecase->type) {
+    case PCM_PLAYBACK:
+        if (usecase->stream.out) {
+            pcm_device_id =
+                platform_get_pcm_device_id(usecase->id, PCM_PLAYBACK);
+            if (platform_split_snd_device(adev->platform,
+                                          usecase->out_snd_device,
+                                          &num_devices, new_snd_devices)) {
+                new_snd_devices[0] = usecase->out_snd_device;
+                num_devices = 1;
+            }
+        } else {
+            ALOGE("%s: invalid output stream for playback usecase id:%d",
+                  __func__, usecase->id);
+            return;
+        }
+        break;
+    case PCM_CAPTURE:
+        if (usecase->stream.in) {
+            pcm_device_id =
+                platform_get_pcm_device_id(usecase->id, PCM_CAPTURE);
+            if (platform_split_snd_device(adev->platform,
+                                          usecase->in_snd_device,
+                                          &num_devices, new_snd_devices)) {
+                new_snd_devices[0] = usecase->in_snd_device;
+                num_devices = 1;
+            }
+        } else {
+            ALOGE("%s: invalid input stream for capture usecase id:%d",
+                  __func__, usecase->id);
+            return;
+        }
+        break;
+    default:
+        ALOGV("%s: unsupported usecase id:%d", __func__, usecase->id);
+        return;
+    }
+
+    /*
+     * check and update feature_id before this assignment,
+     * if features like dual_mono is enabled and overrides the default(i.e. 0).
+     */
+    info.id = feature_id;
+    info.usecase_id = usecase->id;
+    for (i = 0, ret = 0; i < num_devices; i++) {
+         info.snd_device = new_snd_devices[i];
+         platform_get_codec_backend_cfg(adev, info.snd_device, &backend_cfg);
+         if (usecase->type == PCM_PLAYBACK) {
+             info.ip_channels = audio_channel_count_from_out_mask(
+                                    usecase->stream.out->channel_mask);
+             info.op_channels = backend_cfg.channels;
+         } else {
+             info.ip_channels = backend_cfg.channels;
+             info.op_channels = audio_channel_count_from_in_mask(
+                                    usecase->stream.in->channel_mask);
+         }
+
+         params = platform_get_custom_mtmx_params(adev->platform, &info);
+         if (params) {
+             if (enable)
+                 ret = update_custom_mtmx_coefficients(adev, params,
+                                                       pcm_device_id);
+             if (ret < 0)
+                 ALOGE("%s: error updating mtmx coeffs err:%d", __func__, ret);
+             else
+                 set_custom_mtmx_params(adev, &info, pcm_device_id, enable);
+         }
+    }
+}
 
 #ifndef DTS_EAGLE
 #define audio_extn_hpx_set_parameters(adev, parms)         (0)
@@ -1118,7 +1283,16 @@ int audio_extn_parse_compress_metadata(struct stream_out *out,
             out->is_compr_metadata_avail = true;
         }
     }
-
+#ifdef AMR_OFFLOAD_ENABLED
+    else if (out->format == AUDIO_FORMAT_AMR_WB_PLUS) {
+        ret = str_parms_get_str(parms, AUDIO_OFFLOAD_CODEC_AMR_WB_PLUS_BITSTREAM_FMT, value, sizeof(value));
+        if (ret >= 0) {
+        // transcoded bitstream mode
+            out->compr_config.codec->options.amrwbplus.bit_stream_fmt = atoi(value);
+            out->is_compr_metadata_avail = true;
+        }
+    }
+#endif
     else if (out->format == AUDIO_FORMAT_WMA || out->format == AUDIO_FORMAT_WMA_PRO) {
         ret = str_parms_get_str(parms, AUDIO_OFFLOAD_CODEC_WMA_FORMAT_TAG, value, sizeof(value));
         if (ret >= 0) {
@@ -1478,6 +1652,36 @@ int audio_extn_out_set_param_data(struct stream_out *out,
     return ret;
 }
 
+#ifdef AUDIO_HW_LOOPBACK_ENABLED
+int audio_extn_hw_loopback_set_param_data(audio_patch_handle_t handle,
+                                          audio_extn_loopback_param_id param_id,
+                                          audio_extn_loopback_param_payload *payload) {
+    int ret = -EINVAL;
+
+    if (!payload) {
+        ALOGE("%s:: Invalid Param",__func__);
+        return ret;
+    }
+
+    ALOGD("%d: %s: param id is %d\n", __LINE__, __func__, param_id);
+
+    switch(param_id) {
+        case AUDIO_EXTN_PARAM_LOOPBACK_RENDER_WINDOW:
+            ret = audio_extn_hw_loopback_set_render_window(handle, payload);
+            break;
+        case AUDIO_EXTN_PARAM_LOOPBACK_SET_CALLBACK:
+            ret = audio_extn_hw_loopback_set_callback(handle, payload);
+            break;
+        default:
+            ALOGE("%s: unsupported param id %d", __func__, param_id);
+            break;
+    }
+
+    return ret;
+}
+#endif
+
+
 /* API to get playback stream specific config parameters */
 int audio_extn_out_get_param_data(struct stream_out *out,
                              audio_extn_param_id param_id,
@@ -1564,4 +1768,61 @@ int audio_extn_set_device_cfg_params(struct audio_device *adev,
     return 0;
 }
 
+#ifdef TONE_ENABLED
+int audio_extn_set_tone_parameters(struct stream_out *out,
+                                  struct str_parms *parms)
+{
+    int value = 0;
+    int ret = 0, err = 0;
+    char *kv_pairs = str_parms_to_str(parms);
+    char str_value[256] = {0};
 
+    ALOGV_IF(kv_pairs != NULL, "%s: enter: %s", __func__, kv_pairs);
+
+    err = str_parms_get_int(parms, AUDIO_PARAMETER_KEY_TONE_GAIN, &value);
+    if (err >= 0) {
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_TONE_GAIN);
+        int32_t tone_gain = value;
+
+        voice_extn_dtmf_set_rx_tone_gain(out, tone_gain);
+    }
+    err = str_parms_get_int(parms, AUDIO_PARAMETER_KEY_TONE_LOW_FREQ, &value);
+    if (err >= 0) {
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_TONE_LOW_FREQ);
+        uint32_t tone_low_freq = value;
+        uint32_t tone_high_freq = 0;
+        uint32_t tone_duration_ms = 0;
+        err = str_parms_get_int(parms, AUDIO_PARAMETER_KEY_TONE_HIGH_FREQ, &value);
+        if (err >= 0) {
+            tone_high_freq = value;
+            str_parms_del(parms, AUDIO_PARAMETER_KEY_TONE_HIGH_FREQ);
+        } else {
+            ALOGE("%s: tone_high_freq key not found", __func__);
+            ret = -EINVAL;
+            goto done;
+        }
+        err = str_parms_get_int(parms, AUDIO_PARAMETER_KEY_TONE_DURATION_MS, &value);
+        if (err >= 0) {
+            tone_duration_ms = value;
+            str_parms_del(parms, AUDIO_PARAMETER_KEY_TONE_DURATION_MS);
+        } else {
+            ALOGE("%s: tone duration key not found, setting to default infinity",
+                  __func__);
+            tone_duration_ms = 0xFFFF;
+        }
+        voice_extn_dtmf_generate_rx_tone(out, tone_low_freq, tone_high_freq,
+                                         tone_duration_ms);
+    }
+    err = str_parms_has_key(parms, AUDIO_PARAMETER_KEY_TONE_OFF);
+    if (err > 0) {
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_TONE_OFF);
+        voice_extn_dtmf_set_rx_tone_off(out);
+    }
+
+done:
+    ALOGV("%s: exit with code(%d)", __func__, ret);
+    free(kv_pairs);
+    return ret;
+}
+
+#endif

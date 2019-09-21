@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2017, The Linux Foundation. All rights reserved.
+* Copyright (c) 2017, 2019, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -46,6 +46,7 @@
 #include <cutils/sched_policy.h>
 #include <system/thread_defs.h>
 #include <sound/asound.h>
+#include <sound/compress_params.h>
 #include <linux/msm_audio.h>
 
 #include "audio_hw.h"
@@ -371,6 +372,35 @@ static void *event_callback_thread_loop(void *context)
                     /* Call appropriate event type client callback */
                     if (param_avail && event_info->event_type == received_evt->event_type) {
                         struct adsp_hdlr_stream_data *stream_data = event_info->stream_handle;
+                        uint32_t *ptr = (uint32_t *)received_evt->payload;
+                        if (received_evt->event_type == AUDIO_STREAM_IEC_61937_FMT_UPDATE_EVENT) {
+                            switch (ptr[0]) {
+                            case SND_AUDIOCODEC_AC3:
+                                ptr[0] = AUDIO_FORMAT_AC3;
+                                ALOGD("%s: Event AUDIO_FORMAT_AC3\n", __func__);
+                                break;
+                            case SND_AUDIOCODEC_EAC3:
+                                ptr[0] = AUDIO_FORMAT_E_AC3;
+                                ALOGD("%s: Event AUDIO_FORMAT_E_AC3\n", __func__);
+                                break;
+                            case SND_AUDIOCODEC_DTS:
+                                ptr[0] = AUDIO_FORMAT_DTS;
+                                ALOGD("%s: Event AUDIO_FORMAT_DTS\n", __func__);
+                                break;
+                            case SND_AUDIOCODEC_TRUEHD:
+                                ptr[0] = AUDIO_FORMAT_DOLBY_TRUEHD;
+                                ALOGD("%s: Event AUDIO_FORMAT_DOLBY_TRUEHD\n", __func__);
+                                break;
+                            case SND_AUDIOCODEC_AAC:
+                                ptr[0] = AUDIO_FORMAT_AAC;
+                                ALOGD("%s: Event AUDIO_FORMAT_AAC\n", __func__);
+                                break;
+                            default:
+                                ALOGD("%s: Event with unknown SND_AUDIOCODEC type %u\n",
+                                    __func__, ptr[0]);
+                                ptr[0] = AUDIO_FORMAT_INVALID;
+                            }
+                        }
                         if (event_info->cb != NULL) {
                             ALOGVV("%s: calling event callback function", __func__);
                             event_info->cb(event_info->stream_handle,

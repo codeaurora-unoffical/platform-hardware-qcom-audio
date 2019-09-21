@@ -195,7 +195,8 @@ enum {
 
     USECASE_AUDIO_PLAYBACK_SILENCE,
 
-    USECASE_AUDIO_TRANSCODE_LOOPBACK,
+    USECASE_AUDIO_TRANSCODE_LOOPBACK_RX,
+    USECASE_AUDIO_TRANSCODE_LOOPBACK_TX,
 
     USECASE_AUDIO_PLAYBACK_INTERACTIVE_STREAM1,
     USECASE_AUDIO_PLAYBACK_INTERACTIVE_STREAM2,
@@ -207,6 +208,8 @@ enum {
     USECASE_AUDIO_PLAYBACK_INTERACTIVE_STREAM8,
 
     USECASE_AUDIO_EC_REF_LOOPBACK,
+    USECASE_AUDIO_AFE_LOOPBACK,
+    USECASE_AUDIO_DTMF,
     AUDIO_USECASE_MAX
 };
 
@@ -350,6 +353,7 @@ struct stream_out {
     bool a2dp_compress_mute;
     float volume_l;
     float volume_r;
+    bool apply_volume;
 
     char pm_qos_mixer_path[MAX_MIXER_PATH_LEN];
     int hal_output_suspend_supported;
@@ -358,6 +362,7 @@ struct stream_out {
     mix_matrix_params_t pan_scale_params;
     mix_matrix_params_t downmix_params;
     bool set_dual_mono;
+    int rx_dtmf_tone_gain;
 };
 
 struct stream_in {
@@ -404,7 +409,10 @@ typedef enum {
     VOICE_CALL,
     VOIP_CALL,
     PCM_HFP_CALL,
-    TRANSCODE_LOOPBACK
+    TRANSCODE_LOOPBACK_RX,
+    TRANSCODE_LOOPBACK_TX,
+    AFE_LOOPBACK,
+    DTMF_PLAYBACK,
 } usecase_type_t;
 
 union stream_ptr {

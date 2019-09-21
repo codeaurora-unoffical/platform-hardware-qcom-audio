@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2016-2017, The Linux Foundation. All rights reserved.
+* Copyright (c) 2016-2017, 2018, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -188,6 +188,27 @@ int qahwi_set_param_data(struct audio_hw_device *adev,
              break;
     }
     return ret;
+}
+
+int qahwi_in_stop(struct audio_stream_in* stream) {
+    struct stream_in *in = (struct stream_in *)stream;
+    struct audio_device *adev = in->dev;
+
+    ALOGD("%s processing, in %p", __func__, in);
+
+    pthread_mutex_lock(&adev->lock);
+
+    if (!in->standby) {
+        if (in->pcm != NULL ) {
+            pcm_stop(in->pcm);
+        } else if (audio_extn_cin_format_supported(in->format)) {
+            audio_extn_cin_stop_input_stream(in);
+        }
+    }
+
+    pthread_mutex_unlock(&adev->lock);
+
+    return 0;
 }
 
 ssize_t qahwi_in_read_v2(struct audio_stream_in *stream, void* buffer,
@@ -420,6 +441,19 @@ static int qahwi_open_output_stream(struct audio_hw_device *dev,
         ALOGD("%s: obuf %p, buff_size %zd",
               __func__, out->qahwi_out.obuf, buf_size);
     }
+    return ret;
+}
+
+int qahwi_loopback_set_param_data(audio_patch_handle_t handle,
+                                  audio_extn_loopback_param_id param_id,
+                                  audio_extn_loopback_param_payload *payload) {
+    int ret = 0;
+
+    ret = audio_extn_hw_loopback_set_param_data(
+                                             handle,
+                                             param_id,
+                                             payload);
+
     return ret;
 }
 

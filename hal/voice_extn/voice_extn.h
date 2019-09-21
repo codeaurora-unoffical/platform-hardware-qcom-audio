@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2014, 2016-2017, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2014, 2016-2018, The Linux Foundation. All rights reserved.
  * Not a contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -20,6 +20,8 @@
 #ifndef VOICE_EXTN_H
 #define VOICE_EXTN_H
 
+#include "adsp_hdlr.h"
+
 #ifdef MULTI_VOICE_SESSION_ENABLED
 int voice_extn_start_call(struct audio_device *adev);
 int voice_extn_stop_call(struct audio_device *adev);
@@ -29,6 +31,8 @@ int voice_extn_get_session_from_use_case(struct audio_device *adev,
 void voice_extn_init(struct audio_device *adev);
 int voice_extn_set_parameters(struct audio_device *adev,
                               struct str_parms *parms);
+int voice_extn_out_set_parameters(struct stream_out *out,
+                                  struct str_parms *parms);
 void voice_extn_get_parameters(const struct audio_device *adev,
                                struct str_parms *query,
                                struct str_parms *reply);
@@ -70,6 +74,12 @@ static int __unused voice_extn_set_parameters(struct audio_device *adev __unused
     return -ENOSYS;
 }
 
+static int __unused voice_extn_out_set_parameters(struct stream_out *out __unused,
+                                  struct str_parms *parms __unused)
+{
+    return -ENOSYS;
+}
+
 static void __unused voice_extn_get_parameters(const struct audio_device *adev __unused,
                                       struct str_parms *query __unused,
                                       struct str_parms *reply __unused)
@@ -101,13 +111,8 @@ static void __unused voice_extn_out_get_parameters(struct stream_out *out __unus
 }
 #endif
 
-#ifdef INCALL_MUSIC_ENABLED
 int voice_extn_check_and_set_incall_music_usecase(struct audio_device *adev,
                                                   struct stream_out *out);
-#else
-#define voice_extn_check_and_set_incall_music_usecase(adev, out) -ENOSYS
-#endif
-
 #ifdef COMPRESS_VOIP_ENABLED
 int voice_extn_compress_voip_close_output_stream(struct audio_stream *stream);
 int voice_extn_compress_voip_open_output_stream(struct stream_out *out);
@@ -287,6 +292,55 @@ static bool __unused voice_extn_compress_voip_is_started(
 {
     ALOGV("%s: COMPRESS_VOIP_ENABLED is not defined", __func__);
     return false;
+}
+
+#endif
+
+#ifdef DTMF_ENABLED
+int voice_extn_dtmf_generate_rx_tone(struct stream_out *out,
+                                     uint32_t dtmf_low_freq,
+                                     uint32_t dtmf_high_freq);
+
+int voice_extn_dtmf_set_rx_tone_gain(struct stream_out *out,
+                                     int32_t gain);
+
+int voice_extn_dtmf_set_rx_tone_off(struct stream_out *out);
+
+int voice_extn_dtmf_set_rx_detection(struct stream_out *out,
+                                     uint32_t session_id,
+                                     bool enable);
+#else
+static int __unused voice_extn_dtmf_generate_rx_tone(
+                            struct stream_out *out __unused,
+                            uint32_t dtmf_low_freq __unused,
+                            uint32_t dtmf_high_freq __unused)
+{
+    ALOGV("%s: DTMF_ENABLED is not defined", __func__);
+    return -ENOSYS;
+}
+
+static int __unused voice_extn_dtmf_set_rx_tone_gain(
+                            struct stream_out *out __unused,
+                            int32_t gain __unused)
+{
+    ALOGV("%s: DTMF_ENABLED is not defined", __func__);
+    return -ENOSYS;
+}
+
+static int __unused voice_extn_dtmf_set_rx_tone_off(
+                            struct stream_out *out __unused)
+{
+    ALOGV("%s: DTMF_ENABLED is not defined", __func__);
+    return -ENOSYS;
+}
+
+static int __unused voice_extn_dtmf_set_rx_detection(
+                            struct stream_out *out __unused,
+                            uint32_t session_id __unused,
+                            bool enable __unused)
+{
+    ALOGV("%s: DTMF_ENABLED is not defined", __func__);
+    return -ENOSYS;
 }
 
 #endif
