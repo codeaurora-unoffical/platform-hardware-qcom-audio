@@ -45,6 +45,7 @@
 #include <tinyalsa/asoundlib.h>
 #include "qahw_api.h"
 #include "qahw_defs.h"
+#include "qahw_playback_test.h"
 
 #define MAX_VOICE_TEST_DEVICES 2
 
@@ -71,6 +72,12 @@ typedef struct {
     int dtmf_freq_low;
     int dtmf_freq_high;
     int dtmf_gain;
+    uint32_t file_type;
+    pthread_cond_t write_cond;
+    pthread_mutex_t write_lock;
+    pthread_cond_t drain_cond;
+    pthread_mutex_t drain_lock;
+    bool drain_received;
 }voice_stream_config;
 
 #endif /* QAHW_VOICE_TEST_H */
