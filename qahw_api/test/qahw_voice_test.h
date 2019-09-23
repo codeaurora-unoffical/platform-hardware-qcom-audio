@@ -45,6 +45,7 @@
 #include <tinyalsa/asoundlib.h>
 #include "qahw_api.h"
 #include "qahw_defs.h"
+#include "qahw_playback_test.h"
 
 #define MAX_VOICE_TEST_DEVICES 2
 
