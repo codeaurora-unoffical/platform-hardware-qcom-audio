@@ -3321,6 +3321,7 @@ struct audio_custom_mtmx_params *
             params->info.ip_channels == info->ip_channels &&
             params->info.op_channels == info->op_channels &&
             params->info.snd_device == info->snd_device) {
+            i = 0;
             while (params->info.usecase_id[i] != 0) {
                 if (params->info.usecase_id[i] == info->usecase_id[0]) {
                     ALOGV("%s: found params with ip_ch %d op_ch %d uc_id %d snd_dev %d",
