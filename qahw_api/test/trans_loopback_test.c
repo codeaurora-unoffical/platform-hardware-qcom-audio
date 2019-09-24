@@ -142,6 +142,7 @@ qahw_sink_port_config_t sink_port_config;
 static int poll_data_event_exit()
 {
    close(sock_event_fd);
+   return 0 ;
 }
 
 void break_signal_handler(int signal __attribute__((unused)))
