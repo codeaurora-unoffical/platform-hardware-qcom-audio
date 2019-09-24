@@ -68,7 +68,7 @@
 #define MAX_NUM_CHANNELS 8
 #define Q14_GAIN_UNITY 0x4000
 
-static int is_running_vendor_enhanced_fwk = 0;
+static int  vendor_enhanced_info = 0;
 static bool is_compress_meta_data_enabled = false;
 
 struct snd_card_split cur_snd_card_split = {
@@ -192,6 +192,7 @@ static bool audio_extn_compress_in_enabled = false;
 static bool audio_extn_battery_listener_enabled = false;
 static bool audio_extn_maxx_audio_enabled = false;
 static bool audio_extn_audiozoom_enabled = false;
+static bool audio_extn_hifi_filter_enabled = false;
 
 #define AUDIO_PARAMETER_KEY_AANC_NOISE_LEVEL "aanc_noise_level"
 #define AUDIO_PARAMETER_KEY_ANC        "anc_enabled"
@@ -1774,10 +1775,10 @@ void audio_extn_usb_set_reconfig(bool is_required)
 
 //START: SPEAKER_PROTECTION ==========================================================
 #ifdef __LP64__
-#define SPKR_PROT_LIB_PATH  "/vendor/lib64/libspkrprot.so"
+#define SPKR_PROT_LIB_PATH         "/vendor/lib64/libspkrprot.so"
 #define CIRRUS_SPKR_PROT_LIB_PATH  "/vendor/lib64/libcirrusspkrprot.so"
 #else
-#define SPKR_PROT_LIB_PATH  "/vendor/lib/libspkrprot.so"
+#define SPKR_PROT_LIB_PATH         "/vendor/lib/libspkrprot.so"
 #define CIRRUS_SPKR_PROT_LIB_PATH  "/vendor/lib/libcirrusspkrprot.so"
 #endif
 
@@ -1817,22 +1818,22 @@ static get_spkr_prot_snd_device_t get_spkr_prot_snd_device;
 
 void spkr_prot_feature_init(bool is_feature_enabled)
 {
-    ALOGD("%s: Called with feature %s, is_running_with_enhanced_fwk %d", __func__,
-            is_feature_enabled?"Enabled":"NOT Enabled", is_running_vendor_enhanced_fwk);
+    ALOGD("%s: Called with feature %s, vendor_enhanced_info 0x%x", __func__,
+            is_feature_enabled ? "Enabled" : "NOT Enabled", vendor_enhanced_info);
     if (is_feature_enabled) {
-        //dlopen lib
-        if (is_running_vendor_enhanced_fwk)
-            spkr_prot_lib_handle = dlopen(SPKR_PROT_LIB_PATH, RTLD_NOW);
-        else
+        // dlopen lib
+        if ((vendor_enhanced_info & 0x3) == 0x0) // Pure AOSP
             spkr_prot_lib_handle = dlopen(CIRRUS_SPKR_PROT_LIB_PATH, RTLD_NOW);
+        else
+            spkr_prot_lib_handle = dlopen(SPKR_PROT_LIB_PATH, RTLD_NOW);
 
         if (spkr_prot_lib_handle == NULL) {
             ALOGE("%s: dlopen failed", __func__);
             goto feature_disabled;
         }
-        //map each function
-        //if mandatoy functions are not found, disble feature
 
+        // map each function
+        // if mandatoy functions are not found, disble feature
         // Mandatory functions
         if (((spkr_prot_init =
              (spkr_prot_init_t)dlsym(spkr_prot_lib_handle, "spkr_prot_init")) == NULL) ||
@@ -1853,7 +1854,6 @@ void spkr_prot_feature_init(bool is_feature_enabled)
         }
 
         // optional functions, can be NULL
-
         spkr_prot_set_parameters = NULL;
         fbsp_set_parameters = NULL;
         fbsp_get_parameters = NULL;
@@ -4511,6 +4511,10 @@ int hfp_feature_init(bool is_feature_enabled)
         init_config.fp_disable_audio_route = disable_audio_route;
         init_config.fp_disable_snd_device = disable_snd_device;
         init_config.fp_voice_get_mic_mute = voice_get_mic_mute;
+        init_config.fp_audio_extn_auto_hal_start_hfp_downlink =
+                                        audio_extn_auto_hal_start_hfp_downlink;
+        init_config.fp_audio_extn_auto_hal_stop_hfp_downlink =
+                                        audio_extn_auto_hal_stop_hfp_downlink;
 
         hfp_init(init_config);
         ALOGD("%s:: ---- Feature HFP is Enabled ----", __func__);
@@ -5200,6 +5204,87 @@ bool audio_extn_battery_properties_is_charging()
 }
 // END: BATTERY_LISTENER ================================================================
 
+// START: HiFi Filter Feature ============================================================
+void audio_extn_enable_hifi_filter(struct audio_device *adev, bool value)
+{
+    const char *mixer_ctl_name = "HiFi Filter";
+    struct mixer_ctl *ctl = NULL;
+    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+    if (!ctl) {
+        ALOGE("%s: Could not get ctl for mixer cmd - %s, using default control",
+              __func__, mixer_ctl_name);
+        return;
+    } else {
+        mixer_ctl_set_value(ctl, 0, value);
+        ALOGD("%s: mixer_value set %d", __func__, value);
+    }
+    return;
+}
+
+void audio_extn_hifi_filter_set_params(struct str_parms *parms,
+                                        char *value, int len)
+{
+    int ret = 0;
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_HIFI_AUDIO_FILTER, value,len);
+    if (ret >= 0) {
+        if (value && !strncmp(value, "true", sizeof("true")))
+            audio_extn_hifi_filter_enabled = true;
+        else
+            audio_extn_hifi_filter_enabled = false;
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_HIFI_AUDIO_FILTER);
+    }
+}
+
+bool audio_extn_hifi_check_usecase_params(int sample_rate, int usecase)
+{
+    if (sample_rate != 48000 && sample_rate != 44100)
+        return false;
+    if (usecase == USECASE_AUDIO_PLAYBACK_LOW_LATENCY || usecase == USECASE_AUDIO_PLAYBACK_ULL)
+        return false;
+    return true;
+}
+
+bool audio_extn_is_hifi_filter_enabled(struct audio_device* adev, struct stream_out *out,
+                                   snd_device_t snd_device, char *codec_variant,
+                                   int channels, int usecase_init)
+{
+    int na_mode = platform_get_native_support();
+    struct audio_usecase *uc = NULL;
+    struct listnode *node = NULL;
+    bool hifi_active = false;
+
+    if (audio_extn_hifi_filter_enabled) {
+        /*Restricting the feature for Tavil and WCD9375 codecs only*/
+        if ((strstr(codec_variant, "WCD9385") || strstr(codec_variant, "WCD9375"))
+            && (na_mode == NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_DSP) && channels <=2) {
+            /*Upsampling 8 time should be restricited to headphones playback only */
+            if (snd_device == SND_DEVICE_OUT_HEADPHONES
+                || snd_device == SND_DEVICE_OUT_HEADPHONES_44_1
+                || snd_device == SND_DEVICE_OUT_HEADPHONES_HIFI_FILTER
+                || usecase_init) {
+                if (audio_extn_hifi_check_usecase_params(out->sample_rate,
+                    out->usecase) && !usecase_init)
+                    return true;
+
+                list_for_each(node, &adev->usecase_list) {
+                    /* checking if hifi_filter is already active to set */
+                    /* concurrent playback sessions with hifi_filter enabled*/
+                    uc = node_to_item(node, struct audio_usecase, list);
+                    struct stream_out *curr_out = (struct stream_out*) uc->stream.out;
+                    if (uc->type == PCM_PLAYBACK && curr_out
+                        && audio_extn_hifi_check_usecase_params(
+                        curr_out->sample_rate, curr_out->usecase) &&
+                        (curr_out->channel_mask == AUDIO_CHANNEL_OUT_STEREO ||
+                        curr_out->channel_mask == AUDIO_CHANNEL_OUT_MONO))
+                            hifi_active = true;
+                }
+            }
+        }
+    }
+    return hifi_active;
+}
+// END: HiFi Filter Feature ==============================================================
+
 // START: AUDIOZOOM_FEATURE =====================================================================
 #ifdef __LP64__
 #define AUDIOZOOM_LIB_PATH "/vendor/lib64/libaudiozoom.so"
@@ -5463,10 +5548,6 @@ static auto_hal_open_output_stream_t auto_hal_open_output_stream;
 typedef bool (*auto_hal_is_bus_device_usecase_t)(audio_usecase_t);
 static auto_hal_is_bus_device_usecase_t auto_hal_is_bus_device_usecase;
 
-typedef snd_device_t (*auto_hal_get_snd_device_for_car_audio_stream_t)(
-                                struct stream_out*);
-static auto_hal_get_snd_device_for_car_audio_stream_t auto_hal_get_snd_device_for_car_audio_stream;
-
 typedef int (*auto_hal_get_audio_port_t)(struct audio_hw_device*,
                                 struct audio_port*);
 static auto_hal_get_audio_port_t auto_hal_get_audio_port;
@@ -5478,6 +5559,22 @@ static auto_hal_set_audio_port_config_t auto_hal_set_audio_port_config;
 typedef void (*auto_hal_set_parameters_t)(struct audio_device*,
                                 struct str_parms*);
 static auto_hal_set_parameters_t auto_hal_set_parameters;
+
+typedef int (*auto_hal_start_hfp_downlink_t)(struct audio_device*,
+                                struct audio_usecase*);
+static auto_hal_start_hfp_downlink_t auto_hal_start_hfp_downlink;
+
+typedef int (*auto_hal_stop_hfp_downlink_t)(struct audio_device*,
+                                struct audio_usecase*);
+static auto_hal_stop_hfp_downlink_t auto_hal_stop_hfp_downlink;
+
+typedef snd_device_t (*auto_hal_get_input_snd_device_t)(struct audio_device*,
+                                audio_usecase_t);
+static auto_hal_get_input_snd_device_t auto_hal_get_input_snd_device;
+
+typedef snd_device_t (*auto_hal_get_output_snd_device_t)(struct audio_device*,
+                                audio_usecase_t);
+static auto_hal_get_output_snd_device_t auto_hal_get_output_snd_device;
 
 int auto_hal_feature_init(bool is_feature_enabled)
 {
@@ -5511,9 +5608,6 @@ int auto_hal_feature_init(bool is_feature_enabled)
             !(auto_hal_is_bus_device_usecase =
                  (auto_hal_is_bus_device_usecase_t)dlsym(
                             auto_hal_lib_handle, "auto_hal_is_bus_device_usecase")) ||
-            !(auto_hal_get_snd_device_for_car_audio_stream =
-                 (auto_hal_get_snd_device_for_car_audio_stream_t)dlsym(
-                            auto_hal_lib_handle, "auto_hal_get_snd_device_for_car_audio_stream")) ||
             !(auto_hal_get_audio_port =
                  (auto_hal_get_audio_port_t)dlsym(
                             auto_hal_lib_handle, "auto_hal_get_audio_port")) ||
@@ -5522,7 +5616,19 @@ int auto_hal_feature_init(bool is_feature_enabled)
                             auto_hal_lib_handle, "auto_hal_set_audio_port_config")) ||
             !(auto_hal_set_parameters =
                  (auto_hal_set_parameters_t)dlsym(
-                            auto_hal_lib_handle, "auto_hal_set_parameters"))) {
+                            auto_hal_lib_handle, "auto_hal_set_parameters")) ||
+            !(auto_hal_start_hfp_downlink =
+                 (auto_hal_start_hfp_downlink_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_start_hfp_downlink")) ||
+            !(auto_hal_stop_hfp_downlink =
+                 (auto_hal_stop_hfp_downlink_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_stop_hfp_downlink")) ||
+            !(auto_hal_get_input_snd_device =
+                 (auto_hal_get_input_snd_device_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_get_input_snd_device")) ||
+            !(auto_hal_get_output_snd_device =
+                 (auto_hal_get_output_snd_device_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_get_output_snd_device"))) {
             ALOGE("%s: dlsym failed", __func__);
             goto feature_disabled;
         }
@@ -5543,10 +5649,13 @@ feature_disabled:
     auto_hal_get_car_audio_stream_from_address = NULL;
     auto_hal_open_output_stream = NULL;
     auto_hal_is_bus_device_usecase = NULL;
-    auto_hal_get_snd_device_for_car_audio_stream = NULL;
     auto_hal_get_audio_port = NULL;
     auto_hal_set_audio_port_config = NULL;
     auto_hal_set_parameters = NULL;
+    auto_hal_start_hfp_downlink = NULL;
+    auto_hal_stop_hfp_downlink = NULL;
+    auto_hal_get_input_snd_device = NULL;
+    auto_hal_get_output_snd_device = NULL;
 
     ALOGW(":: %s: ---- Feature AUTO_HAL is disabled ----", __func__);
     return -ENOSYS;
@@ -5563,6 +5672,11 @@ int audio_extn_auto_hal_init(struct audio_device *adev)
         auto_hal_init_config.fp_get_usecase_from_list = get_usecase_from_list;
         auto_hal_init_config.fp_get_output_period_size = get_output_period_size;
         auto_hal_init_config.fp_audio_extn_ext_hw_plugin_set_audio_gain = audio_extn_ext_hw_plugin_set_audio_gain;
+        auto_hal_init_config.fp_select_devices = select_devices;
+        auto_hal_init_config.fp_disable_audio_route = disable_audio_route;
+        auto_hal_init_config.fp_disable_snd_device = disable_snd_device;
+        auto_hal_init_config.fp_adev_get_active_input = adev_get_active_input;
+        auto_hal_init_config.fp_platform_set_echo_reference = platform_set_echo_reference;
         return auto_hal_init(adev, auto_hal_init_config);
     }
     else
@@ -5601,25 +5715,19 @@ int audio_extn_auto_hal_release_audio_patch(struct audio_hw_device *dev,
 int audio_extn_auto_hal_get_car_audio_stream_from_address(const char *address)
 {
     return ((auto_hal_get_car_audio_stream_from_address) ?
-                            auto_hal_get_car_audio_stream_from_address(address): 0);
+                            auto_hal_get_car_audio_stream_from_address(address): -ENOSYS);
 }
 
 int audio_extn_auto_hal_open_output_stream(struct stream_out *out)
 {
     return ((auto_hal_open_output_stream) ?
-                            auto_hal_open_output_stream(out): 0);
+                            auto_hal_open_output_stream(out): -ENOSYS);
 }
 
 bool audio_extn_auto_hal_is_bus_device_usecase(audio_usecase_t uc_id)
 {
     return ((auto_hal_is_bus_device_usecase) ?
-                            auto_hal_is_bus_device_usecase(uc_id): 0);
-}
-
-snd_device_t audio_extn_auto_hal_get_snd_device_for_car_audio_stream(struct stream_out *out)
-{
-    return ((auto_hal_get_snd_device_for_car_audio_stream) ?
-                            auto_hal_get_snd_device_for_car_audio_stream(out): 0);
+                            auto_hal_is_bus_device_usecase(uc_id): false);
 }
 
 int audio_extn_auto_hal_get_audio_port(struct audio_hw_device *dev,
@@ -5642,18 +5750,46 @@ void audio_extn_auto_hal_set_parameters(struct audio_device *adev,
     if (auto_hal_set_parameters)
         auto_hal_set_parameters(adev, parms);
 }
+
+int audio_extn_auto_hal_start_hfp_downlink(struct audio_device *adev,
+                                struct audio_usecase *uc_info)
+{
+    return ((auto_hal_start_hfp_downlink) ?
+                            auto_hal_start_hfp_downlink(adev, uc_info): 0);
+}
+
+int audio_extn_auto_hal_stop_hfp_downlink(struct audio_device *adev,
+                                struct audio_usecase *uc_info)
+{
+    return ((auto_hal_stop_hfp_downlink) ?
+                            auto_hal_stop_hfp_downlink(adev, uc_info): 0);
+}
+
+snd_device_t audio_extn_auto_hal_get_input_snd_device(struct audio_device *adev,
+                                audio_usecase_t uc_id)
+{
+    return ((auto_hal_get_input_snd_device) ?
+                            auto_hal_get_input_snd_device(adev, uc_id): SND_DEVICE_NONE);
+}
+
+snd_device_t audio_extn_auto_hal_get_output_snd_device(struct audio_device *adev,
+                                audio_usecase_t uc_id)
+{
+    return ((auto_hal_get_output_snd_device) ?
+                            auto_hal_get_output_snd_device(adev, uc_id): SND_DEVICE_NONE);
+}
 // END: AUTO_HAL ===================================================================
 
 void audio_extn_feature_init()
 {
-    is_running_vendor_enhanced_fwk = audio_extn_utils_is_vendor_enhanced_fwk();
+    vendor_enhanced_info = audio_extn_utils_get_vendor_enhanced_info();
 
     // register feature init functions here
     // each feature needs a vendor property
     // default value added is for GSI (non vendor modified images)
     snd_mon_feature_init(
         property_get_bool("vendor.audio.feature.snd_mon.enable",
-                           true));
+                           false));
     compr_cap_feature_init(
         property_get_bool("vendor.audio.feature.compr_cap.enable",
                            false));
@@ -5683,7 +5819,7 @@ void audio_extn_feature_init()
                            false));
     usb_offload_feature_init(
         property_get_bool("vendor.audio.feature.usb_offload.enable",
-                           true));
+                           false));
     usb_offload_burst_mode_feature_init(
         property_get_bool("vendor.audio.feature.usb_offload_burst_mode.enable",
                            false));
@@ -5716,25 +5852,25 @@ void audio_extn_feature_init()
                            false));
     spkr_prot_feature_init(
         property_get_bool("vendor.audio.feature.spkr_prot.enable",
-                           true));
+                           false));
     fm_feature_init(
         property_get_bool("vendor.audio.feature.fm.enable",
                            false));
     external_qdsp_feature_init(
         property_get_bool("vendor.audio.feature.external_dsp.enable",
-                           true));
+                           false));
     external_speaker_feature_init(
         property_get_bool("vendor.audio.feature.external_speaker.enable",
-                           true));
+                           false));
     external_speaker_tfa_feature_init(
         property_get_bool("vendor.audio.feature.external_speaker_tfa.enable",
                            false));
     hwdep_cal_feature_init(
         property_get_bool("vendor.audio.feature.hwdep_cal.enable",
-                           true));
+                           false));
     hfp_feature_init(
         property_get_bool("vendor.audio.feature.hfp.enable",
-                           true));
+                           false));
     ext_hw_plugin_feature_init(
         property_get_bool("vendor.audio.feature.ext_hw_plugin.enable",
                            false));
@@ -5746,7 +5882,7 @@ void audio_extn_feature_init()
                            false));
     concurrent_capture_feature_init(
         property_get_bool("vendor.audio.feature.concurrent_capture.enable",
-                           true));
+                           false));
     compress_in_feature_init(
         property_get_bool("vendor.audio.feature.compress_in.enable",
                            false));
@@ -5755,10 +5891,10 @@ void audio_extn_feature_init()
                            false));
     maxx_audio_feature_init(
         property_get_bool("vendor.audio.feature.maxx_audio.enable",
-                           true));
+                           false));
     audiozoom_feature_init(
         property_get_bool("vendor.audio.feature.audiozoom.enable",
-                           true));
+                           false));
     auto_hal_feature_init(
         property_get_bool("vendor.audio.feature.auto_hal.enable",
                            false));

@@ -117,6 +117,8 @@ int audio_extn_parse_compress_metadata(struct stream_out *out,
 #define MAX_LENGTH_MIXER_CONTROL_IN_INT                  (128)
 #define HW_INFO_ARRAY_MAX_SIZE 32
 
+#define AUDIO_PARAMETER_KEY_HIFI_AUDIO_FILTER "hifi_filter"
+
 struct snd_card_split {
     char device[HW_INFO_ARRAY_MAX_SIZE];
     char snd_card[HW_INFO_ARRAY_MAX_SIZE];
@@ -261,6 +263,14 @@ int32_t audio_extn_set_afe_proxy_channel_mixer(struct audio_device *adev,
 int32_t audio_extn_read_afe_proxy_channel_masks(struct stream_out *out);
 int32_t audio_extn_get_afe_proxy_channel_count();
 //END: AFE_PROXY_FEATURE
+
+//START: HIFI FILTER
+void audio_extn_enable_hifi_filter(struct audio_device *adev, bool value);
+void audio_extn_hifi_filter_set_params(struct str_parms *parms, char *value, int len);
+bool audio_extn_is_hifi_filter_enabled(struct audio_device* adev,struct stream_out *out,
+                                   snd_device_t snd_device, char *codec_variant,
+                                   int channels, int usecase_init);
+//END: HIFI FILTER
 
 /// ---- USB feature ---------------------------------------------------------------
 void audio_extn_usb_init(void *adev);
@@ -682,6 +692,10 @@ typedef int (*fp_disable_audio_route_t)(struct audio_device *,
                                                 struct audio_usecase *);
 typedef int (*fp_disable_snd_device_t)(struct audio_device *, snd_device_t);
 typedef bool (*fp_voice_get_mic_mute_t)(struct audio_device *);
+typedef int (*fp_audio_extn_auto_hal_start_hfp_downlink_t)(struct audio_device *,
+                                                        struct audio_usecase *);
+typedef int (*fp_audio_extn_auto_hal_stop_hfp_downlink_t)(struct audio_device *,
+                                                        struct audio_usecase *);
 
 typedef struct hfp_init_config {
     fp_platform_set_mic_mute_t                   fp_platform_set_mic_mute;
@@ -694,6 +708,8 @@ typedef struct hfp_init_config {
     fp_disable_audio_route_t                     fp_disable_audio_route;
     fp_disable_snd_device_t                      fp_disable_snd_device;
     fp_voice_get_mic_mute_t                      fp_voice_get_mic_mute;
+    fp_audio_extn_auto_hal_start_hfp_downlink_t  fp_audio_extn_auto_hal_start_hfp_downlink;
+    fp_audio_extn_auto_hal_stop_hfp_downlink_t   fp_audio_extn_auto_hal_stop_hfp_downlink;
 } hfp_init_config_t;
 
 
@@ -814,7 +830,8 @@ int audio_extn_utils_get_bit_width_from_string(const char *);
 int audio_extn_utils_get_sample_rate_from_string(const char *);
 int audio_extn_utils_get_channels_from_string(const char *);
 void audio_extn_utils_release_snd_device(snd_device_t snd_device);
-int audio_extn_utils_is_vendor_enhanced_fwk();
+bool audio_extn_utils_is_vendor_enhanced_fwk();
+int audio_extn_utils_get_vendor_enhanced_info();
 int audio_extn_utils_get_app_sample_rate_for_device(struct audio_device *adev,
                                     struct audio_usecase *usecase, int snd_device);
 
@@ -1309,18 +1326,26 @@ int audio_extn_auto_hal_release_audio_patch(struct audio_hw_device *dev,
 int audio_extn_auto_hal_get_car_audio_stream_from_address(const char *address);
 int audio_extn_auto_hal_open_output_stream(struct stream_out *out);
 bool audio_extn_auto_hal_is_bus_device_usecase(audio_usecase_t uc_id);
-snd_device_t audio_extn_auto_hal_get_snd_device_for_car_audio_stream(struct stream_out *out);
 int audio_extn_auto_hal_get_audio_port(struct audio_hw_device *dev,
                                 struct audio_port *config);
 int audio_extn_auto_hal_set_audio_port_config(struct audio_hw_device *dev,
                                 const struct audio_port_config *config);
 void audio_extn_auto_hal_set_parameters(struct audio_device *adev,
                                 struct str_parms *parms);
+int audio_extn_auto_hal_start_hfp_downlink(struct audio_device *adev,
+                                struct audio_usecase *uc_info);
+int audio_extn_auto_hal_stop_hfp_downlink(struct audio_device *adev,
+                                struct audio_usecase *uc_info);
+snd_device_t audio_extn_auto_hal_get_input_snd_device(struct audio_device *adev,
+                                audio_usecase_t uc_id);
+snd_device_t audio_extn_auto_hal_get_output_snd_device(struct audio_device *adev,
+                                audio_usecase_t uc_id);
 
 typedef streams_input_ctxt_t* (*fp_in_get_stream_t)(struct audio_device*, audio_io_handle_t);
 typedef streams_output_ctxt_t* (*fp_out_get_stream_t)(struct audio_device*, audio_io_handle_t);
 typedef size_t (*fp_get_output_period_size_t)(uint32_t, audio_format_t, int, int);
 typedef int (*fp_audio_extn_ext_hw_plugin_set_audio_gain_t)(void*, struct audio_usecase*, uint32_t);
+typedef struct stream_in* (*fp_adev_get_active_input_t)(const struct audio_device*);
 
 typedef struct auto_hal_init_config {
     fp_in_get_stream_t                           fp_in_get_stream;
@@ -1330,6 +1355,11 @@ typedef struct auto_hal_init_config {
     fp_get_usecase_from_list_t                   fp_get_usecase_from_list;
     fp_get_output_period_size_t                  fp_get_output_period_size;
     fp_audio_extn_ext_hw_plugin_set_audio_gain_t fp_audio_extn_ext_hw_plugin_set_audio_gain;
+    fp_select_devices_t                          fp_select_devices;
+    fp_disable_audio_route_t                     fp_disable_audio_route;
+    fp_disable_snd_device_t                      fp_disable_snd_device;
+    fp_adev_get_active_input_t                   fp_adev_get_active_input;
+    fp_platform_set_echo_reference_t             fp_platform_set_echo_reference;
 } auto_hal_init_config_t;
 // END: AUTO_HAL FEATURE ==================================================
 
