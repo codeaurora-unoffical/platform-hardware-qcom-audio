@@ -218,13 +218,23 @@ bool audio_extn_ip_hdlr_intf_supported_for_copp(void *platform, void *stream_han
     struct stream_inout *inout = NULL;
     struct audio_device *dev = NULL;
     struct audio_usecase *uc = NULL;
+    bool ret = false;
 
     trumpet_enabled = property_get_bool("ro.vendor.audio.trumpet.enable", false);
+    if (!trumpet_enabled) {
+        ALOGV("%s: trumpet is disabled", __func__);
+        return ret;
+    }
+
     uc = (struct audio_usecase *)calloc(1, sizeof(struct audio_usecase));
     if (usecase == USECASE_AUDIO_TRANSCODE_LOOPBACK_RX) {
         inout = (struct stream_inout *)stream_handle;
         dev = inout->dev;
         uc = get_usecase_from_list(dev, usecase);
+        if (uc == NULL) {
+            ALOGE("%s: Could not find the usecase (%d)", __func__, usecase);
+            return ret;
+        }
         acdb_id = platform_get_snd_device_acdb_id(uc->out_snd_device);
         ip_hdlr->out_snd_device = uc->out_snd_device;
 
@@ -236,6 +246,10 @@ bool audio_extn_ip_hdlr_intf_supported_for_copp(void *platform, void *stream_han
         out = (struct stream_out *)stream_handle;
         dev = out->dev;
         uc = get_usecase_from_list(dev, usecase);
+        if (uc == NULL) {
+            ALOGE("%s: could not find the usecase (%d)", __func__, usecase);
+            return ret;
+        }
         acdb_id = platform_get_snd_device_acdb_id(uc->out_snd_device);
         ip_hdlr->out_snd_device = uc->out_snd_device;
 
