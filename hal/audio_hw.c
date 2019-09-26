@@ -388,6 +388,7 @@ struct string_to_enum {
 };
 
 static const struct string_to_enum channels_name_to_enum_table[] = {
+    STRING_TO_ENUM(AUDIO_CHANNEL_OUT_MONO),
     STRING_TO_ENUM(AUDIO_CHANNEL_OUT_STEREO),
     STRING_TO_ENUM(AUDIO_CHANNEL_OUT_2POINT1),
     STRING_TO_ENUM(AUDIO_CHANNEL_OUT_QUAD),
