@@ -462,12 +462,13 @@ static int usb_get_capability(int type,
         goto done;
     }
 
-    if(read(fd, read_buf, USB_BUFF_SIZE) < 0) {
+    if((read(fd, read_buf, USB_BUFF_SIZE) < 0) || (strlen(read_buf) > USB_BUFF_SIZE)) {
         ALOGE("file read error\n");
         goto done;
     }
     str_start = strstr(read_buf, ((type == USB_PLAYBACK) ?
                        PLAYBACK_PROFILE_STR : CAPTURE_PROFILE_STR));
+
     if (str_start == NULL) {
         ALOGE("%s: error %s section not found in usb config file",
                __func__, ((type == USB_PLAYBACK) ?

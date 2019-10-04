@@ -1160,7 +1160,7 @@ void get_file_format(stream_config *stream_info)
             memcpy(&stream_info->config.offload_info.sample_rate, &header[24], 4);
             memcpy(&stream_info->config.offload_info.bit_width, &header[34], 2);
             /*Check if it's a data chunk*/
-            if (0 == strncmp (header + wav_header_len - 8 , "data", 4)) {
+            if (wav_header_len >=8 && (0 == strncmp (header + wav_header_len - 8 , "data", 4))) {
                 memcpy(&stream_info->raw_data_len_in_bytes, header + wav_header_len - 4, 4);
                 fprintf(log_file, "wav data length is:%d bytes\n", stream_info->raw_data_len_in_bytes);
             } else {
