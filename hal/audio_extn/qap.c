@@ -1833,6 +1833,8 @@ static void qap_session_callback(qap_session_handle_t session_handle __unused,
 
                 if (!p_qap->hdmi_connect) {
                     DEBUG_MSG("HDMI not connected, DROPPING DATA!");
+                    close_all_hdmi_output_l();
+                    close_qap_passthrough_stream_l();
                     pthread_mutex_unlock(&p_qap->lock);
                     return;
                 }
@@ -2034,6 +2036,12 @@ static void qap_session_callback(qap_session_handle_t session_handle __unused,
             else {
                 /* CASE 3: PCM output.
                  */
+
+                if (!p_qap->hdmi_connect) {
+                    close_all_hdmi_output_l();
+                    close_qap_passthrough_stream_l();
+                }
+
                 /* If Media format was changed for this stream then need to re-create the stream. */
                 if (need_to_recreate_stream && qap_mod->stream_out[QAP_OUT_OFFLOAD]) {
                     DEBUG_MSG("closing PCM session ox%x", (int)qap_mod->stream_out[QAP_OUT_OFFLOAD]);
@@ -3422,8 +3430,6 @@ int audio_extn_qap_set_parameters(struct audio_device *adev, struct str_parms *p
                         return -EINVAL;
                     }
                 }
-                close_all_hdmi_output_l();
-                close_qap_passthrough_stream_l();
             } else if (val & AUDIO_DEVICE_OUT_BLUETOOTH_A2DP) {
                 DEBUG_MSG("AUDIO_DEVICE_OUT_BLUETOOTH_A2DP disconnected");
                 p_qap->bt_connect = 0;
