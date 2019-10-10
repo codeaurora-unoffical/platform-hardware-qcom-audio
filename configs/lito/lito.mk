@@ -32,6 +32,7 @@ AUDIO_FEATURE_ENABLED_WMA_OFFLOAD := true
 AUDIO_FEATURE_ENABLED_ALAC_OFFLOAD := true
 AUDIO_FEATURE_ENABLED_APE_OFFLOAD := true
 AUDIO_FEATURE_ENABLED_AAC_ADTS_OFFLOAD := true
+AUDIO_FEATURE_ENABLED_MPEGH_SW_DECODER := true
 AUDIO_FEATURE_ENABLED_PROXY_DEVICE := true
 AUDIO_FEATURE_ENABLED_SSR := true
 AUDIO_FEATURE_ENABLED_DTS_EAGLE := false
@@ -54,6 +55,7 @@ BOARD_SUPPORTS_GCS := false
 AUDIO_FEATURE_ENABLED_INSTANCE_ID := true
 AUDIO_USE_DEEP_AS_PRIMARY_OUTPUT := false
 AUDIO_FEATURE_ENABLED_VBAT_MONITOR := true
+AUDIO_FEATURE_ENABLED_NT_PAUSE_TIMEOUT := true
 AUDIO_FEATURE_ENABLED_ANC_HEADSET := true
 AUDIO_FEATURE_ENABLED_CUSTOMSTEREO := true
 AUDIO_FEATURE_ENABLED_FLUENCE := true
@@ -206,6 +208,14 @@ PRODUCT_PROPERTY_OVERRIDES += \
 # Low latency audio buffer size in frames
 PRODUCT_PROPERTY_OVERRIDES += \
     vendor.audio_hal.period_size=192
+
+##Ambisonic Capture
+PRODUCT_PROPERTY_OVERRIDES += \
+persist.vendor.audio.ambisonic.capture=false \
+persist.vendor.audio.ambisonic.auto.profile=false
+
+PRODUCT_PROPERTY_OVERRIDES += \
+persist.vendor.audio.apptype.multirec.enabled=false
 
 ##fluencetype can be "fluence" or "fluencepro" or "none"
 PRODUCT_PROPERTY_OVERRIDES += \

@@ -3185,11 +3185,11 @@ void *platform_init(struct audio_device *adev)
         }
     }
     /* Check for Ambisonic Capture Enablement */
-    if (property_get_bool("vendor.audio.ambisonic.capture",false))
+    if (property_get_bool("persist.vendor.audio.ambisonic.capture",false))
         my_data->ambisonic_capture = true;
 
     /* Check for Ambisonic Profile Assignment*/
-    if (property_get_bool("vendor.audio.ambisonic.auto.profile",false))
+    if (property_get_bool("persist.vendor.audio.ambisonic.auto.profile",false))
         my_data->ambisonic_profile = true;
 
     if (audio_extn_is_wsa_enabled()
@@ -3642,10 +3642,6 @@ acdb_init_fail:
         strdup("USB_AUDIO_TX SampleRate");
     my_data->current_backend_cfg[USB_AUDIO_TX_BACKEND].channels_mixer_ctl =
         strdup("USB_AUDIO_TX Channels");
-    my_data->current_backend_cfg[SLIMBUS_0_TX].bitwidth_mixer_ctl =
-        strdup("SLIM_0_TX Format");
-    my_data->current_backend_cfg[SLIMBUS_0_TX].samplerate_mixer_ctl =
-        strdup("SLIM_0_TX SampleRate");
 
     if (!strncmp(platform_get_snd_device_backend_interface(SND_DEVICE_IN_HDMI_MIC),
         "SEC_MI2S_TX", sizeof("SEC_MI2S_TX"))) {
@@ -3765,7 +3761,7 @@ acdb_init_fail:
         }
     }
 
-    if (property_get_bool("vendor.audio.apptype.multirec.enabled", false))
+    if (property_get_bool("persist.vendor.audio.apptype.multirec.enabled", false))
         my_data->use_generic_handset = true;
 
     /* Initialize keep alive for HDMI/loopback silence */
@@ -6223,8 +6219,6 @@ snd_device_t platform_get_output_snd_device(void *platform, struct stream_out *o
         } else if (audio_extn_is_hifi_filter_enabled(adev, out, snd_device,
              my_data->codec_variant, channel_count, 1)) {
                 snd_device = SND_DEVICE_OUT_HEADPHONES_HIFI_FILTER;
-        } else if (devices & SND_DEVICE_OUT_HEADPHONES_HIFI_FILTER) {
-                snd_device = SND_DEVICE_OUT_HEADPHONES_HIFI_FILTER;
         } else if (devices & AUDIO_DEVICE_OUT_LINE) {
                 snd_device = SND_DEVICE_OUT_LINE;
         } else
@@ -8441,7 +8435,8 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
     int controller = -1;
     int stream = -1;
 
-    if (usecase) {
+    if (usecase != NULL && usecase->stream.out &&
+            usecase->type == PCM_PLAYBACK) {
         controller = usecase->stream.out->extconn.cs.controller;
         stream = usecase->stream.out->extconn.cs.stream;
     }
@@ -11062,7 +11057,6 @@ int platform_set_swap_mixer(struct audio_device *adev, bool swap_channels)
 {
     const char *mixer_ctl_name = "Swap channel";
     struct mixer_ctl *ctl;
-    const char *mixer_path;
     struct platform_data *my_data = (struct platform_data *)adev->platform;
 
     // forced to set to swap, but device not rotated ... ignore set
@@ -11070,14 +11064,6 @@ int platform_set_swap_mixer(struct audio_device *adev, bool swap_channels)
         return 0;
 
     ALOGV("%s:", __func__);
-
-    if (swap_channels) {
-        mixer_path = platform_get_snd_device_name(SND_DEVICE_OUT_SPEAKER_REVERSE);
-        audio_route_apply_and_update_path(adev->audio_route, mixer_path);
-    } else {
-        mixer_path = platform_get_snd_device_name(SND_DEVICE_OUT_SPEAKER);
-        audio_route_apply_and_update_path(adev->audio_route, mixer_path);
-    }
 
     ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
     if (!ctl) {

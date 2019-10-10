@@ -104,8 +104,7 @@
 /* ToDo: Check and update a proper value in msec */
 #define COMPRESS_OFFLOAD_PLAYBACK_LATENCY  50
 #define PCM_OFFLOAD_PLAYBACK_DSP_PATHDELAY 62
-#define PCM_OFFLOAD_PLAYBACK_LATENCY \
-    (PCM_OFFLOAD_BUFFER_DURATION + PCM_OFFLOAD_PLAYBACK_DSP_PATHDELAY)
+#define PCM_OFFLOAD_PLAYBACK_LATENCY PCM_OFFLOAD_PLAYBACK_DSP_PATHDELAY
 
 #ifndef MAX_CHANNELS_SUPPORTED
 #define MAX_CHANNELS_SUPPORTED 8
@@ -1173,7 +1172,10 @@ int audio_extn_utils_get_app_sample_rate_for_device(
             }
             sample_rate = usecase->stream.in->app_type_cfg.sample_rate;
         } else if (usecase->id == USECASE_AUDIO_SPKR_CALIB_TX) {
-            sample_rate = SAMPLE_RATE_8000;
+            if ((property_get("vendor.audio.spkr_prot.tx.sampling_rate", value, NULL) > 0))
+                sample_rate = atoi(value);
+            else
+                sample_rate = SAMPLE_RATE_8000;
         }
     } else if (usecase->type == TRANSCODE_LOOPBACK_RX) {
         sample_rate = usecase->stream.inout->out_config.sample_rate;
