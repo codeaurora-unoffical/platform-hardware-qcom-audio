@@ -1584,6 +1584,42 @@ int qap_wrapper_session_close ()
     }
 }
 
+/* Returns the number of decoder output frames and elapsed time in msec. */
+int get_decoder_output_frames(void* stream_data, uint64_t *frames,  double *timestamp)
+{
+    int ret = 0, i;
+    unsigned long long bytes_consumed = 0;
+    qap_module_handle_t qap_module_handle = NULL;
+
+    if (NULL == stream_data) {
+        fprintf(stderr, "!!!! Error Stream config is NULL \n");
+        return -EINVAL;
+    }
+
+    stream_config *stream_info = (stream_config *)stream_data;
+    qap_module_handle = stream_info->qap_module_handle;
+
+    uint32_t param_id = MS12_STREAM_GET_DECODER_OUTPUT_FRAME;
+    ret = qap_module_cmd(qap_module_handle,
+            QAP_MODULE_CMD_GET_PARAM,
+            sizeof(param_id),
+            &param_id,
+            NULL,
+            &bytes_consumed);
+
+    *timestamp = (((double)bytes_consumed / (double)stream_info->config.sample_rate) * 1000);
+
+    if (ret >= 0) {
+        *frames = bytes_consumed;
+        ALOGV("Frames returned by MS12(%lld) elapsed time %f millisecond", bytes_consumed, *timestamp);
+    } else {
+        ret = -EINVAL;
+        *frames = 0;
+        ALOGV("Frames returned by MS12(0) elapsed time %f millisecond", *timestamp);
+    }
+    return ret;
+}
+
 void *qap_wrapper_start_stream (void* stream_data)
 {
     int ret = 0;
@@ -1599,6 +1635,8 @@ void *qap_wrapper_start_stream (void* stream_data)
     char *temp_str = NULL;
     void *reply_data;
     char* temp_ptr = NULL;
+    uint64_t frames = 0;
+    double timestamp;
     qap_audio_format_t format;
 
     if (fp_input == NULL) {
@@ -1679,6 +1717,9 @@ void *qap_wrapper_start_stream (void* stream_data)
         if (bytes_read <= 0 || stop_playback) {
             buffer->buffer_parms.input_buf_params.flags = QAP_BUFFER_EOS;
             bytes_consumed = qap_module_process(qap_module_handle, buffer);
+
+            get_decoder_output_frames(stream_data, &frames, &timestamp);
+
             if (stop_playback)
                 qap_module_cmd(qap_module_handle, QAP_MODULE_CMD_FLUSH, sizeof(QAP_MODULE_CMD_FLUSH), NULL, NULL, NULL);
 
@@ -1705,6 +1746,9 @@ void *qap_wrapper_start_stream (void* stream_data)
         }
         do {
             bytes_consumed = qap_module_process(qap_module_handle, buffer);
+
+            get_decoder_output_frames(stream_data, &frames, &timestamp);
+
             if (bytes_consumed > 0) {
                 buffer->common_params.data += bytes_consumed;
                 buffer->common_params.size -= bytes_consumed;
