@@ -234,7 +234,7 @@ PRODUCT_PROPERTY_OVERRIDES += \
 persist.vendor.audio.hw.binder.size_kbyte=1024
 
 PRODUCT_PROPERTY_OVERRIDES += \
-vendor.audio.qap.enabled=false
+vendor.audio.qap.enabled=true
 
 PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.qap.dts_m8=false
