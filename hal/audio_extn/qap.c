@@ -1308,6 +1308,11 @@ static int qap_get_rendered_frames(struct stream_out *out, uint64_t *frames)
         }
     }
 
+    if (i < 0) {
+        ALOGI("%s: No streams are active, it seems qap is in standby mode", __func__);
+        return -ENODATA;
+    }
+
     //Get DSP latency
     if ((qap_mod->stream_out[QAP_OUT_OFFLOAD] != NULL)
         || (qap_mod->stream_out[QAP_OUT_OFFLOAD_MCH] != NULL)) {
@@ -1346,10 +1351,9 @@ static int qap_get_rendered_frames(struct stream_out *out, uint64_t *frames)
 
     if (out->format & AUDIO_FORMAT_PCM_16_BIT) {
         *frames = 0;
-        signed_frames = out->written - out->platform_latency;
-        // It would be unusual for this value to be negative, but check just in case ...
-        if (signed_frames >= 0) {
-            *frames = signed_frames;
+        if(out->written > out->platform_latency) {
+           signed_frames = out->written - out->platform_latency;
+           *frames = signed_frames;
         }
     } else {
         uint32_t param_id = MS12_STREAM_GET_POSITION;
@@ -1363,11 +1367,11 @@ static int qap_get_rendered_frames(struct stream_out *out, uint64_t *frames)
         DEBUG_MSG_VV("Frames returned by MS12(%llu)", position);
         if (ret >= 0) {
             *frames = position;
-            signed_frames = position - out->platform_latency;
-            // It would be unusual for this value to be negative, but check just in case ...
-            if (signed_frames >= 0) {
-                *frames = signed_frames;
-            }
+            if(position > out->platform_latency) {
+               signed_frames = position - out->platform_latency;
+               *frames = signed_frames;
+            } else
+               *frames = 0;
         } else 
             ret = -EINVAL;
         check_and_activate_output_thread(false);
