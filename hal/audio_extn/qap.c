@@ -1032,7 +1032,6 @@ static int qap_stream_start_l(struct stream_out *out)
             qap_mod, qap_mod->session_handle);
         return -EINVAL;
     }
-    check_and_activate_output_thread(true);
     if (out->qap_stream_handle) {
         ret = qap_module_cmd(out->qap_stream_handle,
                              QAP_MODULE_CMD_START,
@@ -1046,7 +1045,6 @@ static int qap_stream_start_l(struct stream_out *out)
         }
     } else
         ERROR_MSG("QAP stream not yet opened, drop this cmd");
-    check_and_activate_output_thread(false);
 
     DEBUG_MSG("exit");
     return ret;
@@ -1137,24 +1135,29 @@ static ssize_t qap_out_write(struct audio_stream_out *stream, const void *buffer
            unlock_output_stream_l(out);
            return ret;
         } else if (out->standby) {
+           qap_mod = get_qap_module_for_input_stream_l(out);
+           lock_session_output(qap_mod);
+           if (qap_mod->is_session_output_active == false) {
+               pthread_cond_signal(&qap_mod->session_output_cond);
+           }
+           p_qap->qap_active_api_count++;
            pthread_mutex_lock(&adev->lock);
            ret = qap_start_output_stream(out);
            pthread_mutex_unlock(&adev->lock);
+           p_qap->qap_active_api_count--;
            if (ret == 0) {
               out->standby = false;
               if(p_qap->qap_output_block_handling) {
-                 qap_mod = get_qap_module_for_input_stream_l(out);
-
-                 lock_session_output(qap_mod);
                  if (!qap_mod->is_session_output_active) {
                      pthread_cond_signal(&qap_mod->session_output_cond);
                  }
                  qap_mod->is_session_output_active = true;
-                 unlock_session_output(qap_mod);
               }
            } else {
+              unlock_session_output(qap_mod);
               goto exit;
            }
+           unlock_session_output(qap_mod);
         }
 
         if ((adev->is_channel_status_set == false) && (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL)) {
