@@ -90,7 +90,7 @@
     defined (PLATFORM_KONA) || defined (PLATFORM_MSMSTEPPE) || \
     defined (PLATFORM_QCS405) || defined (PLATFORM_TRINKET) || \
     defined (PLATFORM_LITO) || defined (PLATFORM_MSMFALCON) || \
-    defined (PLATFORM_ATOLL)
+    defined (PLATFORM_ATOLL) || defined (PLATFORM_BENGAL)
 
 #include <sound/devdep_params.h>
 #endif
@@ -3408,6 +3408,8 @@ void *platform_init(struct audio_device *adev)
         } else {
             my_data->is_acdb_initialized = false;
             ALOGD("ACDB initialization failed");
+            if (my_data->acdb_deallocate)
+                my_data->acdb_deallocate();
         }
     }
     /* init keep-alive for compress passthru */
@@ -11245,7 +11247,7 @@ int platform_get_supported_copp_sampling_rate(uint32_t stream_sr)
     defined (PLATFORM_KONA) || defined (PLATFORM_MSMSTEPPE) || \
     defined (PLATFORM_QCS405) || defined (PLATFORM_TRINKET) || \
     defined (PLATFORM_LITO) || defined (PLATFORM_MSMFALCON) || \
-    defined (PLATFORM_ATOLL)
+    defined (PLATFORM_ATOLL) || defined (PLATFORM_BENGAL)
 int platform_get_mmap_data_fd(void *platform, int fe_dev, int dir, int *fd,
                               uint32_t *size)
 {
