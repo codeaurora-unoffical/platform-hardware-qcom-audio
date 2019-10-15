@@ -176,6 +176,11 @@ __BEGIN_DECLS
 #define QAHW_AUDIO_FLAG_HPCM_TX 0x00020000
 #define QAHW_AUDIO_FLAG_HPCM_RX 0x00040000
 
+/* similar defination added into audio_defs.h and audio_extn.h
+ * AUDIO_OUTPUT_FLAG_VOICE_CAL
+ */
+#define QAHW_AUDIO_OUTPUT_FLAG_VOICE_CALL 0x2000000
+
 /* Query fm volume */
 #define QAHW_PARAMETER_KEY_FM_VOLUME "fm_volume"
 

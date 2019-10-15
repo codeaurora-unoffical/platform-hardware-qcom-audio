@@ -119,6 +119,10 @@
 #define AUDIO_OUTPUT_FLAG_INTERACTIVE 0x4000000
 #endif
 
+#ifndef AUDIO_OUTPUT_FLAG_VOICE_CALL
+#define AUDIO_OUTPUT_FLAG_VOICE_CALL 0x2000000
+#endif
+
 #ifndef COMPRESS_METADATA_NEEDED
 #define audio_extn_parse_compress_metadata(out, parms) (0)
 #else
