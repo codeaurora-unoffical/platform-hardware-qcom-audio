@@ -283,6 +283,15 @@ void *start_input(void *thread_param)
   case 8:
       params->config.channel_mask = AUDIO_CHANNEL_INDEX_MASK_8;
       break;
+  case 10:
+      params->config.channel_mask = AUDIO_CHANNEL_INDEX_MASK_10;
+      break;
+  case 12:
+      params->config.channel_mask = AUDIO_CHANNEL_INDEX_MASK_12;
+      break;
+  case 14:
+      params->config.channel_mask = AUDIO_CHANNEL_INDEX_MASK_14;
+      break;
   default:
       fprintf(log_file, "ERROR :::: channle count %d not supported, handle(%d)", params->channels, params->handle);
       if (log_file != stdout)
@@ -551,13 +560,15 @@ void *start_input(void *thread_param)
 }
 
 int read_config_params_from_user(struct audio_config_params *thread_param) {
+    char usr_input[3] = {0};
     printf(" \n Enter input device (4->built-in mic, 16->wired_headset .. etc) ::::: ");
     scanf(" %d", &thread_param->input_device);
     thread_param->input_device |= AUDIO_DEVICE_BIT_IN;
 
     if (thread_param->input_device == AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET) {
          printf(" \n Enable wbs for BT sco?? (1 - Enable 0 - Disable) ::::: ");
-         scanf("%d", &thread_param->bt_wbs);
+         fgets(usr_input, sizeof(usr_input), stdin);
+         thread_param->bt_wbs = (int)strtol(usr_input, NULL, 10);
     }
 
     printf(" \n Enter the format (1 ->16 bit pcm recording, 6 -> 24 bit packed pcm recording) ::::: ");

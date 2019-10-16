@@ -219,6 +219,26 @@ __BEGIN_DECLS
 #define QAHW_PCM_CHANNEL_RSD  34  /* Right side direct channel.                    */
 #define QAHW_PCM_CHANNEL_UNUSED  47  /* Mark unused channel.                       */
 
+#define QAHW_AUDIO_DEVICE_OUT_SPEAKER2 0x10000000
+#define QAHW_AUDIO_DEVICE_OUT_SPEAKER3 0x20000000
+
+#define QAHW_PCM_CUSTOM_CHANNEL_MAP_1   48
+#define QAHW_PCM_CUSTOM_CHANNEL_MAP_2   49
+#define QAHW_PCM_CUSTOM_CHANNEL_MAP_3   50
+#define QAHW_PCM_CUSTOM_CHANNEL_MAP_4   51
+#define QAHW_PCM_CUSTOM_CHANNEL_MAP_5   52
+#define QAHW_PCM_CUSTOM_CHANNEL_MAP_6   53
+#define QAHW_PCM_CUSTOM_CHANNEL_MAP_7   54
+#define QAHW_PCM_CUSTOM_CHANNEL_MAP_8   55
+#define QAHW_PCM_CUSTOM_CHANNEL_MAP_9   56
+#define QAHW_PCM_CUSTOM_CHANNEL_MAP_10  57
+#define QAHW_PCM_CUSTOM_CHANNEL_MAP_11  58
+#define QAHW_PCM_CUSTOM_CHANNEL_MAP_12  59
+#define QAHW_PCM_CUSTOM_CHANNEL_MAP_13  60
+#define QAHW_PCM_CUSTOM_CHANNEL_MAP_14  61
+#define QAHW_PCM_CUSTOM_CHANNEL_MAP_15  62
+#define QAHW_PCM_CUSTOM_CHANNEL_MAP_16  63
+
 /* type of asynchronous write callback events. Mutually exclusive */
 typedef enum {
     QAHW_STREAM_CBK_EVENT_WRITE_READY, /* non blocking write completed */
@@ -476,6 +496,18 @@ typedef enum {
     QAHW_PARAM_LOOPBACK_RENDER_WINDOW, /* PARAM to set render window */
     QAHW_PARAM_LOOPBACK_SET_CALLBACK
 } qahw_loopback_param_id;
+
+typedef struct {
+    uint32_t num_sources;
+    audio_input_flags_t flags;
+    struct audio_port_config *source_config;
+} qahw_source_port_config_t;
+
+typedef struct {
+    uint32_t num_sinks;
+    audio_output_flags_t flags;
+    struct audio_port_config *sink_config;
+} qahw_sink_port_config_t;
 
 __END_DECLS
 

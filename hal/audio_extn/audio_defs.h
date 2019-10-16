@@ -369,4 +369,16 @@ typedef enum {
     AUDIO_EXTN_PARAM_LOOPBACK_SET_CALLBACK
 } audio_extn_loopback_param_id;
 
+typedef struct {
+    uint32_t num_sources;
+    audio_input_flags_t flags;
+    struct audio_port_config *source_config;
+} audio_extn_source_port_config_t;
+
+typedef struct {
+    uint32_t num_sinks;
+    audio_output_flags_t flags;
+    struct audio_port_config *sink_config;
+} audio_extn_sink_port_config_t;
+
 #endif /* AUDIO_DEFS_H */

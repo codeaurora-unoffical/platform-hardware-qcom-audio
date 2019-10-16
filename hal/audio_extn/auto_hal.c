@@ -159,6 +159,11 @@ int audio_extn_auto_hal_create_audio_patch(struct audio_hw_device *dev,
         } else {
             address = (char *)calloc(1, 1);
         }
+        if (address == NULL) {
+            ALOGE("%s: failed to get address",__func__);
+            ret = -EFAULT;
+            goto error;
+        }
         parms = str_parms_create_str(address);
         if (!parms) {
             ALOGE("%s: failed to allocate mem for parms", __func__);
@@ -192,6 +197,11 @@ int audio_extn_auto_hal_create_audio_patch(struct audio_hw_device *dev,
                                                 sinks->ext.device.address);
         } else {
             address = (char *)calloc(1, 1);
+        }
+        if (address == NULL) {
+            ALOGE("%s: failed to get address",__func__);
+            ret = -EFAULT;
+            goto error;
         }
         parms = str_parms_create_str(address);
         if (!parms) {
@@ -446,11 +456,16 @@ int32_t audio_extn_auto_hal_open_output_stream(struct stream_out *out)
             ret = -EINVAL;
             goto error;
         }
+        if (out->flags == AUDIO_OUTPUT_FLAG_NONE ||
+            out->flags == AUDIO_OUTPUT_FLAG_PRIMARY)
+            out->flags |= AUDIO_OUTPUT_FLAG_MEDIA;
         break;
     case CAR_AUDIO_STREAM_SYS_NOTIFICATION:
         /* sys notification bus stream shares pcm device with low-latency */
         out->usecase = USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION;
         out->config = pcm_config_low_latency;
+        if (out->flags == AUDIO_OUTPUT_FLAG_NONE)
+            out->flags |= AUDIO_OUTPUT_FLAG_SYS_NOTIFICATION;
         break;
     case CAR_AUDIO_STREAM_NAV_GUIDANCE:
         out->usecase = USECASE_AUDIO_PLAYBACK_NAV_GUIDANCE;
@@ -462,10 +477,14 @@ int32_t audio_extn_auto_hal_open_output_stream(struct stream_out *out)
             ret = -EINVAL;
             goto error;
         }
+        if (out->flags == AUDIO_OUTPUT_FLAG_NONE)
+            out->flags |= AUDIO_OUTPUT_FLAG_NAV_GUIDANCE;
         break;
     case CAR_AUDIO_STREAM_PHONE:
         out->usecase = USECASE_AUDIO_PLAYBACK_PHONE;
         out->config = pcm_config_low_latency;
+        if (out->flags == AUDIO_OUTPUT_FLAG_NONE)
+            out->flags |= AUDIO_OUTPUT_FLAG_PHONE;
         break;
     default:
         ALOGE("%s: Car audio stream %x not supported", __func__,
@@ -486,30 +505,6 @@ bool audio_extn_auto_hal_is_bus_device_usecase(audio_usecase_t uc_id)
             return true;
     }
     return false;
-}
-
-snd_device_t audio_extn_auto_hal_get_snd_device_for_car_audio_stream(struct stream_out *out)
-{
-    snd_device_t snd_device = SND_DEVICE_NONE;
-
-    switch(out->car_audio_stream) {
-    case CAR_AUDIO_STREAM_MEDIA:
-        snd_device = SND_DEVICE_OUT_BUS_MEDIA;
-        break;
-    case CAR_AUDIO_STREAM_SYS_NOTIFICATION:
-        snd_device = SND_DEVICE_OUT_BUS_SYS;
-        break;
-    case CAR_AUDIO_STREAM_NAV_GUIDANCE:
-        snd_device = SND_DEVICE_OUT_BUS_NAV;
-        break;
-    case CAR_AUDIO_STREAM_PHONE:
-        snd_device = SND_DEVICE_OUT_BUS_PHN;
-        break;
-    default:
-        ALOGE("%s: Unknown car audio stream (%x)",
-            __func__, out->car_audio_stream);
-    }
-    return snd_device;
 }
 
 int audio_extn_auto_hal_get_audio_port(struct audio_hw_device *dev __unused,
@@ -663,6 +658,251 @@ void audio_extn_auto_hal_set_parameters(struct audio_device *adev __unused,
     }
 
     ALOGV("%s: exit", __func__);
+}
+
+int audio_extn_auto_hal_start_hfp_downlink(struct audio_device *adev,
+                                struct audio_usecase *uc_info)
+{
+    int32_t ret = 0;
+    struct audio_usecase *uc_downlink_info;
+
+    ALOGD("%s: enter", __func__);
+
+    uc_downlink_info = (struct audio_usecase *)calloc(1, sizeof(struct audio_usecase));
+
+    if (!uc_downlink_info)
+        return -ENOMEM;
+
+    uc_downlink_info->type = PCM_HFP_CALL;
+    uc_downlink_info->stream.out = adev->primary_output;
+    uc_downlink_info->devices = adev->primary_output->devices;
+    uc_downlink_info->in_snd_device = SND_DEVICE_NONE;
+    uc_downlink_info->out_snd_device = SND_DEVICE_NONE;
+
+    switch (uc_info->id) {
+    case USECASE_AUDIO_HFP_SCO:
+        uc_downlink_info->id = USECASE_AUDIO_HFP_SCO_DOWNLINK;
+        break;
+    case USECASE_AUDIO_HFP_SCO_WB:
+        uc_downlink_info->id = USECASE_AUDIO_HFP_SCO_WB_DOWNLINK;
+        break;
+    default:
+        ALOGE("%s: Invalid usecase %d", __func__, uc_info->id);
+        free(uc_downlink_info);
+        return -EINVAL;
+    }
+
+    list_add_tail(&adev->usecase_list, &uc_downlink_info->list);
+
+    ret = select_devices(adev, uc_downlink_info->id);
+    if (ret) {
+        ALOGE("%s: Select devices failed %d", __func__, ret);
+        goto exit;
+    }
+
+    ALOGD("%s: exit: status(%d)", __func__, ret);
+    return 0;
+
+exit:
+    audio_extn_auto_hal_stop_hfp_downlink(adev, uc_info);
+    ALOGE("%s: Problem in start hfp downlink: status(%d)", __func__, ret);
+    return ret;
+}
+
+int audio_extn_auto_hal_stop_hfp_downlink(struct audio_device *adev,
+                                struct audio_usecase *uc_info)
+{
+    int32_t ret = 0;
+    struct audio_usecase *uc_downlink_info;
+    audio_usecase_t ucid;
+
+    ALOGD("%s: enter", __func__);
+
+    switch (uc_info->id) {
+    case USECASE_AUDIO_HFP_SCO:
+        ucid = USECASE_AUDIO_HFP_SCO_DOWNLINK;
+        break;
+    case USECASE_AUDIO_HFP_SCO_WB:
+        ucid = USECASE_AUDIO_HFP_SCO_WB_DOWNLINK;
+        break;
+    default:
+        ALOGE("%s: Invalid usecase %d", __func__, uc_info->id);
+        return -EINVAL;
+    }
+
+    uc_downlink_info = get_usecase_from_list(adev, ucid);
+    if (uc_downlink_info == NULL) {
+        ALOGE("%s: Could not find the usecase (%d) in the list",
+              __func__, ucid);
+        return -EINVAL;
+    }
+
+    /* Get and set stream specific mixer controls */
+    disable_audio_route(adev, uc_downlink_info);
+
+    /* Disable the rx and tx devices */
+    disable_snd_device(adev, uc_downlink_info->out_snd_device);
+    disable_snd_device(adev, uc_downlink_info->in_snd_device);
+
+    list_remove(&uc_downlink_info->list);
+    free(uc_downlink_info);
+
+    ALOGD("%s: exit: status(%d)", __func__, ret);
+    return ret;
+}
+
+snd_device_t audio_extn_auto_hal_get_input_snd_device(struct audio_device *adev,
+                                audio_usecase_t uc_id)
+{
+    snd_device_t snd_device = SND_DEVICE_NONE;
+    audio_devices_t out_device = AUDIO_DEVICE_NONE;
+    struct audio_usecase *usecase = NULL;
+    audio_devices_t in_device = ((adev->active_input == NULL) ?
+                                    AUDIO_DEVICE_NONE : adev->active_input->device)
+                                & ~AUDIO_DEVICE_BIT_IN;
+
+    if (uc_id == USECASE_INVALID) {
+        ALOGE("%s: Invalid usecase (%d)", __func__, uc_id);
+        return -EINVAL;
+    }
+
+    usecase = get_usecase_from_list(adev, uc_id);
+    if (usecase == NULL) {
+        ALOGE("%s: Could not find the usecase (%d)", __func__, uc_id);
+        return -EINVAL;
+    }
+
+    if (usecase->stream.out == NULL) {
+        ALOGE("%s: stream.out is NULL", __func__);
+        return -EINVAL;
+    }
+
+    out_device = usecase->stream.out->devices;
+    if (out_device == AUDIO_DEVICE_NONE ||
+        out_device & AUDIO_DEVICE_BIT_IN) {
+        ALOGE("%s: Invalid output devices (%#x)", __func__, out_device);
+        return -EINVAL;
+    }
+
+    ALOGV("%s: output device(%#x), input device(%#x), usecase(%d)",
+        __func__, out_device, in_device, uc_id);
+
+    if (out_device & AUDIO_DEVICE_OUT_BUS) {
+        /* usecase->id is token as judgement for HFP calls */
+        switch (usecase->id) {
+        case USECASE_AUDIO_HFP_SCO:
+        case USECASE_AUDIO_HFP_SCO_WB:
+            if (platform_get_eccarstate((void *) adev->platform)) {
+                snd_device = SND_DEVICE_IN_VOICE_SPEAKER_MIC_HFP_MMSECNS;
+            } else {
+                snd_device = SND_DEVICE_IN_VOICE_SPEAKER_MIC_HFP;
+            }
+            if (adev->enable_hfp)
+                platform_set_echo_reference(adev, true, out_device);
+            break;
+        case USECASE_AUDIO_HFP_SCO_DOWNLINK:
+            snd_device = SND_DEVICE_IN_BT_SCO_MIC;
+            break;
+        case USECASE_AUDIO_HFP_SCO_WB_DOWNLINK:
+            snd_device = SND_DEVICE_IN_BT_SCO_MIC_WB;
+            break;
+        case USECASE_VOICE_CALL:
+            snd_device = SND_DEVICE_IN_VOICE_SPEAKER_MIC;
+            break;
+        default:
+            ALOGE("%s: Usecase (%d) not supported", __func__, uc_id);
+            return -EINVAL;
+        }
+    } else {
+        ALOGE("%s: Output devices (%#x) not supported", __func__, out_device);
+        return -EINVAL;
+    }
+
+    return snd_device;
+}
+
+snd_device_t audio_extn_auto_hal_get_output_snd_device(struct audio_device *adev,
+                                audio_usecase_t uc_id)
+{
+    snd_device_t snd_device = SND_DEVICE_NONE;
+    audio_devices_t devices = AUDIO_DEVICE_NONE;
+    struct audio_usecase *usecase = NULL;
+
+    if (uc_id == USECASE_INVALID) {
+        ALOGE("%s: Invalid usecase (%d)", __func__, uc_id);
+        return -EINVAL;
+    }
+
+    usecase = get_usecase_from_list(adev, uc_id);
+    if (usecase == NULL) {
+        ALOGE("%s: Could not find the usecase (%d)", __func__, uc_id);
+        return -EINVAL;
+    }
+
+    if (usecase->stream.out == NULL) {
+        ALOGE("%s: stream.out is NULL", __func__);
+        return -EINVAL;
+    }
+
+    devices = usecase->stream.out->devices;
+    if (devices == AUDIO_DEVICE_NONE ||
+        devices & AUDIO_DEVICE_BIT_IN) {
+        ALOGE("%s: Invalid output devices (%#x)", __func__, devices);
+        return -EINVAL;
+    }
+
+    ALOGV("%s: output devices(%#x), usecase(%d)", __func__, devices, uc_id);
+
+    if (devices & AUDIO_DEVICE_OUT_BUS) {
+        /* usecase->id is token as judgement for HFP calls */
+        switch (usecase->id) {
+        case USECASE_AUDIO_HFP_SCO:
+            snd_device = SND_DEVICE_OUT_BT_SCO;
+            break;
+        case USECASE_AUDIO_HFP_SCO_WB:
+            snd_device = SND_DEVICE_OUT_BT_SCO_WB;
+            break;
+        case USECASE_AUDIO_HFP_SCO_DOWNLINK:
+        case USECASE_AUDIO_HFP_SCO_WB_DOWNLINK:
+            snd_device = SND_DEVICE_OUT_VOICE_SPEAKER_HFP;
+            break;
+        case USECASE_VOICE_CALL:
+            snd_device = SND_DEVICE_OUT_VOICE_SPEAKER;
+            break;
+        case USECASE_AUDIO_PLAYBACK_MEDIA:
+        case USECASE_AUDIO_PLAYBACK_OFFLOAD:
+        case USECASE_AUDIO_PLAYBACK_OFFLOAD2:
+        case USECASE_AUDIO_PLAYBACK_OFFLOAD3:
+        case USECASE_AUDIO_PLAYBACK_OFFLOAD4:
+        case USECASE_AUDIO_PLAYBACK_OFFLOAD5:
+        case USECASE_AUDIO_PLAYBACK_OFFLOAD6:
+        case USECASE_AUDIO_PLAYBACK_OFFLOAD7:
+        case USECASE_AUDIO_PLAYBACK_OFFLOAD8:
+        case USECASE_AUDIO_PLAYBACK_OFFLOAD9:
+        case USECASE_AUDIO_PLAYBACK_ULL:
+        case USECASE_AUDIO_PLAYBACK_MMAP:
+        case USECASE_AUDIO_PLAYBACK_VOIP:
+            snd_device = SND_DEVICE_OUT_BUS_MEDIA;
+            break;
+        case USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION:
+            snd_device = SND_DEVICE_OUT_BUS_SYS;
+            break;
+        case USECASE_AUDIO_PLAYBACK_NAV_GUIDANCE:
+            snd_device = SND_DEVICE_OUT_BUS_NAV;
+            break;
+        case USECASE_AUDIO_PLAYBACK_PHONE:
+            snd_device = SND_DEVICE_OUT_BUS_PHN;
+            break;
+        default:
+            ALOGE("%s: Usecase (%d) not supported", __func__, uc_id);
+            return -EINVAL;
+        }
+    } else {
+        ALOGE("%s: Output devices (%#x) not supported", __func__, devices);
+        return -EINVAL;
+    }
+
+    return snd_device;
 }
 
 int32_t audio_extn_auto_hal_init(struct audio_device *adev)
