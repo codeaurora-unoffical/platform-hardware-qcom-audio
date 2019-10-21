@@ -1414,7 +1414,7 @@ static void *offload_thread_loop(void *context)
             break;
         }
 
-        if (out->compr == NULL) {
+        if (out->compr == NULL && cmd->cmd != OFFLOAD_CMD_ERROR ) {
             ALOGE("%s: Compress handle is NULL", __func__);
             pthread_cond_signal(&out->cond);
             continue;
@@ -1460,6 +1460,11 @@ static void *offload_thread_loop(void *context)
             ALOGD("copl(%p):calling compress_drain", out);
             send_callback = true;
             event = STREAM_CBK_EVENT_DRAIN_READY;
+            break;
+        case OFFLOAD_CMD_ERROR:
+            ALOGD("copl(%p): sending error callback to AudioFlinger", out);
+            send_callback = true;
+            event = STREAM_CBK_EVENT_ERROR;
             break;
         default:
             ALOGE("%s unknown command received: %d", __func__, cmd->cmd);
@@ -2379,6 +2384,31 @@ static int out_set_volume(struct audio_stream_out *stream, float left,
     return -ENOSYS;
 }
 
+static int out_on_error(struct audio_stream *stream)
+{
+    struct stream_out *out = (struct stream_out *)stream;
+    int status = 0;
+
+    lock_output_stream(out);
+    // always send CMD_ERROR for offload streams, this
+    // is needed e.g. when SSR happens within compress_open
+    // since the stream is active, offload_callback_thread is also active.
+    if (out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) {
+        stop_compressed_output_l(out);
+    }
+    pthread_mutex_unlock(&out->lock);
+
+    status = out_standby(&out->stream.common);
+
+    lock_output_stream(out);
+    if (out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) {
+        send_offload_cmd_l(out, OFFLOAD_CMD_ERROR);
+    }
+    pthread_mutex_unlock(&out->lock);
+
+    return status;
+}
+
 static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
                          size_t bytes)
 {
@@ -2559,7 +2589,8 @@ exit:
             pthread_mutex_unlock(&adev->lock);
             out->standby = true;
         }
-        out_standby(&out->stream.common);
+        adev->offload_error = true;
+        out_on_error(&out->stream.common);
         usleep(bytes * 1000000 / audio_stream_out_frame_size(stream) /
                         out_get_sample_rate(&out->stream.common));
 
@@ -3334,6 +3365,11 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
         }
     } else if ((out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) ||
                (out->flags & AUDIO_OUTPUT_FLAG_DIRECT_PCM)) {
+            if (adev->offload_error == true) {
+                adev->offload_error = false;
+                ret = -ENODEV;
+                goto error_open;
+            }
 
         if (config->offload_info.version != AUDIO_INFO_INITIALIZER.version ||
             config->offload_info.size != AUDIO_INFO_INITIALIZER.size) {
@@ -4740,6 +4776,7 @@ static int adev_open(const hw_module_t *module, const char *name,
     adev->out_device = AUDIO_DEVICE_NONE;
     adev->bluetooth_nrec = true;
     adev->acdb_settings = TTY_MODE_OFF;
+    adev->offload_error = false;
     /* adev->cur_hdmi_channels = 0;  by calloc() */
     adev->snd_dev_ref_cnt = calloc(SND_DEVICE_MAX, sizeof(int));
     voice_init(adev);
