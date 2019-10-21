@@ -471,6 +471,53 @@ bool AudioPolicyManagerCustom::isOffloadSupported(const audio_offload_info_t& of
         return false;
     }
 
+   // check against wma std bit rate restriction
+    if ((offloadInfo.format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_WMA) {
+        int32_t sr_id = -1;
+        uint32_t min_bitrate, max_bitrate;
+        for (int i = 0; i < WMA_STD_NUM_FREQ; i++) {
+            if (offloadInfo.sample_rate == wmaStdSampleRateTbl[i]) {
+                sr_id = i;
+                break;
+            }
+        }
+        if ((sr_id < 0) || (popcount(offloadInfo.channel_mask) > 6)
+                || (popcount(offloadInfo.channel_mask) <= 0)) {
+            ALOGE("invalid sample rate or channel count");
+            return false;
+        }
+
+        min_bitrate = wmaStdMinAvgByteRateTbl[sr_id][popcount(offloadInfo.channel_mask) - 1];
+        max_bitrate = wmaStdMaxAvgByteRateTbl[sr_id][popcount(offloadInfo.channel_mask) - 1];
+        if ((offloadInfo.bit_rate > max_bitrate) || (offloadInfo.bit_rate < min_bitrate)) {
+            ALOGD("offload disabled for WMA clips with unsupported bit rate");
+            ALOGD("bit_rate %d, max_bitrate %d, min_bitrate %d", offloadInfo.bit_rate, max_bitrate, min_bitrate);
+            return false;
+        }
+    }
+
+    if ((offloadInfo.format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_WMA_PRO) {
+        int32_t sr_id = -1;
+        uint32_t min_bitrate, max_bitrate;
+        for (int i = 0; i < WMA_STD_NUM_FREQ; i++) {
+            if (offloadInfo.sample_rate == wmaStdSampleRateTbl[i]) {
+                sr_id = i;
+                break;
+            }
+        }
+        if ((sr_id < 0) || (popcount(offloadInfo.channel_mask) > 6)
+                || (popcount(offloadInfo.channel_mask) <= 0)) {
+            ALOGE("invalid sample rate or channel count");
+            return false;
+        }
+
+        if ((offloadInfo.bit_rate > MAX_BITRATE_WMA_PRO)){
+            ALOGD("offload disabled for WMA_PRO clips with unsupported bit rate");
+            ALOGD("bit_rate %d, max_bitrate %d", offloadInfo.bit_rate, max_bitrate);
+            return false;
+        }
+    }
+
 #ifdef AUDIO_FEATURE_ENABLED_WMA_OFFLOAD
     if ((((offloadInfo.format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_WMA) && (offloadInfo.bit_rate > MAX_BITRATE_WMA)) ||
         (((offloadInfo.format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_WMA_PRO) && (offloadInfo.bit_rate > MAX_BITRATE_WMA_PRO)) ||
