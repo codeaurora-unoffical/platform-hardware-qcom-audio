@@ -496,6 +496,7 @@ struct audio_device {
     bool bt_sco_on;
     struct audio_device_config_param *device_cfg_params;
     unsigned int interactive_usecase_state;
+    bool sec_mi2s_headset_enable;
 };
 
 int select_devices(struct audio_device *adev,
