@@ -1795,7 +1795,7 @@ static void qap_session_callback(qap_session_handle_t session_handle __unused,
                 }
                 if (ec.proxy_out_ptr == NULL && ec.ch) {
                     memset(ec.file_dump, 0, 40);
-                    snprintf(ec.file_dump, 40, "/data/vendor/misc/audio/ecref%d.wav", audio_channel_count_from_out_mask(config.channel_mask));
+                    snprintf(ec.file_dump, 40, "/mnt/vendor/persist/audio/ecref%d.wav", audio_channel_count_from_out_mask(config.channel_mask));
                     ec.proxy_out_ptr = fopen(ec.file_dump, "w+");
                     if (!ec.proxy_out_ptr)
                         ERROR_MSG("unable to open proxy dump file %s", ec.file_dump);
