@@ -6388,6 +6388,10 @@ static int platform_get_hfp_zone(struct platform_data *my_data)
     cal.param_id = fluence_mmsecns_config.param_id;
 
     dptr = (uint8_t*)calloc(param_len, sizeof(uint8_t));
+    if (!dptr) {
+        ALOGE("%s: Failed to allocate memory.", __func__);
+        return -ENOMEM;
+    }
 
     if (my_data->acdb_get_audio_cal) {
         ret = my_data->acdb_get_audio_cal((void *)&cal, (void *)dptr, &param_len);
