@@ -462,6 +462,7 @@ struct stream_in {
     struct stream_app_type_cfg app_type_cfg;
     void *cin_extn;
     qahwi_stream_in_t qahwi_in;
+    dsd_format_t dsd_format;
 
     struct audio_device *dev;
     card_status_t card_status;

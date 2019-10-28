@@ -602,6 +602,7 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_VOICE_HEADSET_MIC] = "voice-headset-mic",
     [SND_DEVICE_IN_SPDIF] = "spdif-in",
     [SND_DEVICE_IN_HDMI_MIC] = "hdmi-in",
+    [SND_DEVICE_IN_HDMI_MIC_DSD] = "hdmi-in-dsd",
     [SND_DEVICE_IN_HDMI_ARC] = "hdmi-arc-in",
     [SND_DEVICE_IN_BT_SCO_MIC] = "bt-sco-mic",
     [SND_DEVICE_IN_BT_SCO_MIC_NREC] = "bt-sco-mic",
@@ -1031,6 +1032,7 @@ static struct name_to_index snd_device_name_index[SND_DEVICE_MAX] = {
     {TO_NAME_INDEX(SND_DEVICE_IN_VOICE_HEADSET_MIC)},
     {TO_NAME_INDEX(SND_DEVICE_IN_SPDIF)},
     {TO_NAME_INDEX(SND_DEVICE_IN_HDMI_MIC)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_HDMI_MIC_DSD)},
     {TO_NAME_INDEX(SND_DEVICE_IN_HDMI_ARC)},
     {TO_NAME_INDEX(SND_DEVICE_IN_BT_SCO_MIC)},
     {TO_NAME_INDEX(SND_DEVICE_IN_BT_SCO_MIC_NREC)},
@@ -1859,6 +1861,7 @@ static void set_platform_defaults(struct platform_data * my_data)
     backend_tag_table[SND_DEVICE_IN_BT_SCO_MIC_WB_NREC] = strdup("bt-sco-wb");
     backend_tag_table[SND_DEVICE_IN_SPDIF] = strdup("spdif-in");
     backend_tag_table[SND_DEVICE_IN_HDMI_MIC] = strdup("hdmi-in");
+    backend_tag_table[SND_DEVICE_IN_HDMI_MIC_DSD] = strdup("hdmi-in-dsd");
     backend_tag_table[SND_DEVICE_IN_HDMI_ARC] = strdup("hdmi-arc-in");
     backend_tag_table[SND_DEVICE_OUT_BT_SCO] = strdup("bt-sco");
     backend_tag_table[SND_DEVICE_OUT_BT_SCO_WB] = strdup("bt-sco-wb");
@@ -2029,6 +2032,7 @@ static void set_platform_defaults(struct platform_data * my_data)
     hw_interface_table[SND_DEVICE_IN_SPDIF] = strdup("PRI_SPDIF_TX");
     hw_interface_table[SND_DEVICE_IN_HDMI_MIC] = strdup("SEC_MI2S_TX");
     hw_interface_table[SND_DEVICE_IN_HDMI_ARC] = strdup("SEC_SPDIF_TX");
+    hw_interface_table[SND_DEVICE_IN_HDMI_MIC_DSD] = strdup("QUAT_MI2S_TX");
     hw_interface_table[SND_DEVICE_IN_BT_SCO_MIC] = strdup("SLIMBUS_7_TX");
     hw_interface_table[SND_DEVICE_IN_BT_SCO_MIC_NREC] = strdup("SLIMBUS_7_TX");
     hw_interface_table[SND_DEVICE_IN_BT_SCO_MIC_WB] = strdup("SLIMBUS_7_TX");
@@ -3220,6 +3224,13 @@ acdb_init_fail:
             strdup("QUAT_MI2S_TX Channels");
     }
 
+    my_data->current_backend_cfg[HDMI_DSD_TX_BACKEND].bitwidth_mixer_ctl =
+        strdup("QUAT_MI2S_TX Format");
+    my_data->current_backend_cfg[HDMI_DSD_TX_BACKEND].samplerate_mixer_ctl =
+        strdup("QUAT_MI2S_TX SampleRate");
+    my_data->current_backend_cfg[HDMI_DSD_TX_BACKEND].channels_mixer_ctl =
+        strdup("QUAT_MI2S_TX Channels");
+
     my_data->current_backend_cfg[SEC_MI2S_RX_BACKEND].bitwidth_mixer_ctl =
         strdup("SEC_MI2S_RX Format");
     my_data->current_backend_cfg[SEC_MI2S_RX_BACKEND].samplerate_mixer_ctl =
@@ -4361,6 +4372,8 @@ int platform_get_backend_index(snd_device_t snd_device)
                         port = SPDIF_TX_BACKEND;
                 else if (strcmp(backend_tag_table[snd_device], "hdmi-in") == 0)
                         port = HDMI_TX_BACKEND;
+                else if (strcmp(backend_tag_table[snd_device], "hdmi-in-dsd") == 0)
+                        port = HDMI_DSD_TX_BACKEND;
                 else if (strcmp(backend_tag_table[snd_device], "hdmi-arc-in") == 0)
                         port = HDMI_ARC_TX_BACKEND;
                 else if (strcmp(backend_tag_table[snd_device], "headset-mic") == 0)
@@ -5639,6 +5652,8 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
 {
     struct platform_data *my_data = (struct platform_data *)platform;
     struct audio_device *adev = my_data->adev;
+    int format = (adev->active_input == NULL) ? AUDIO_FORMAT_DEFAULT : adev->active_input->format;
+
     /*
      * TODO: active_input always points to last opened input. Source returned will
      * be wrong if more than one active inputs are present.
@@ -6141,7 +6156,10 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
         } else if (in_device & AUDIO_DEVICE_IN_BLUETOOTH_A2DP) {
             snd_device = SND_DEVICE_IN_BT_A2DP;
         } else if (in_device & AUDIO_DEVICE_IN_AUX_DIGITAL) {
-            snd_device = SND_DEVICE_IN_HDMI_MIC;
+            if (format ==  AUDIO_FORMAT_DSD)
+                snd_device = SND_DEVICE_IN_HDMI_MIC_DSD;
+            else
+                snd_device = SND_DEVICE_IN_HDMI_MIC;
         } else if (in_device & AUDIO_DEVICE_IN_HDMI_ARC) {
             snd_device = SND_DEVICE_IN_HDMI_ARC;
         } else if (in_device & AUDIO_DEVICE_IN_ANLG_DOCK_HEADSET ||
@@ -7931,6 +7949,9 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
         else
             ext_disp_format = "QUAT MI2S TX Format";
         set_mi2s_tx_data_format = true;
+    } else if (backend_idx == HDMI_DSD_TX_BACKEND) {
+        ext_disp_format = "QUAT MI2S TX Format";
+        set_mi2s_tx_data_format = true;
     } else if (backend_idx == HDMI_ARC_TX_BACKEND) {
         ext_disp_format = "SEC SPDIF TX Format";
         set_mi2s_tx_data_format = true;
@@ -8613,7 +8634,8 @@ bool platform_check_and_set_capture_codec_backend_cfg(struct audio_device* adev,
     }
 
     if ((my_data->capture_ch_map != NULL) &&
-        (platform_get_backend_index(snd_device) == HDMI_TX_BACKEND))
+        ((platform_get_backend_index(snd_device) == HDMI_TX_BACKEND) ||
+        (platform_get_backend_index(snd_device) == HDMI_DSD_TX_BACKEND)))
         platform_set_channel_map(my_data, my_data->capture_ch_map->num_ch,
                                  my_data->capture_ch_map->chmap, -2);
 

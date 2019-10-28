@@ -159,7 +159,7 @@ static void free_cin_usecase(audio_usecase_t uc_id)
 
 bool audio_extn_cin_format_supported(audio_format_t format)
 {
-    if (format == AUDIO_FORMAT_IEC61937)
+    if ((format == AUDIO_FORMAT_IEC61937) || (format == AUDIO_FORMAT_DSD))
         return true;
     else
         return false;
@@ -330,6 +330,8 @@ int audio_extn_cin_configure_input_stream(struct stream_in *in, struct audio_con
         cin_data->compr_config.codec->compr_passthr = LEGACY_PCM;
     else if (cin_data->compr_config.codec->id == SND_AUDIOCODEC_IEC61937)
         cin_data->compr_config.codec->compr_passthr = PASSTHROUGH_IEC61937;
+    else if (cin_data->compr_config.codec->id == SND_AUDIOCODEC_DSD)
+        cin_data->compr_config.codec->compr_passthr = PASSTHROUGH_DSD;
     else
         cin_data->compr_config.codec->compr_passthr = PASSTHROUGH_GEN;
 

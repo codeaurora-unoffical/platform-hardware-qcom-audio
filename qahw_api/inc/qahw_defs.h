@@ -166,6 +166,16 @@ __BEGIN_DECLS
 /* Set or Query stream profile type */
 #define QAHW_PARAMETER_STREAM_PROFILE "audio_stream_profile"
 
+/* Set DSD format (DSD64/DSD128/DSD256/DSD512) */
+#define QAHW_PARAMETER_STREAM_DSD_FMT "dsd_format" /* dsd_format_t */
+
+typedef enum {
+    DSD_FORMAT_64             = 0,
+    DSD_FORMAT_128            = 1,
+    DSD_FORMAT_256            = 2,
+    DSD_FORMAT_512            = 3,
+} dsd_format_t;
+
 /* audio input flags for compress and timestamp mode.
  * check other input flags defined in audio.h for conflicts
  */
