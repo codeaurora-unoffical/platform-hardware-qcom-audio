@@ -106,6 +106,16 @@
 /* Set or Query stream profile type */
 #define AUDIO_PARAMETER_STREAM_PROFILE "audio_stream_profile"
 
+/* Set DSD format (DSD64/DSD128/DSD256/DSD512) */
+#define AUDIO_PARAMETER_STREAM_DSD_FMT "dsd_format" /* dsd_format_t */
+
+typedef enum {
+    DSD_FORMAT_64             = 0,
+    DSD_FORMAT_128            = 1,
+    DSD_FORMAT_256            = 2,
+    DSD_FORMAT_512            = 3,
+} dsd_format_t;
+
 #define AUDIO_PARAMETER_KEY_VR_AUDIO_MODE "vr_audio_mode_on"
 
 /* audio input flags for compress and timestamp mode.

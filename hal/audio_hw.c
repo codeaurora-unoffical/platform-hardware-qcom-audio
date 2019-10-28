@@ -2672,8 +2672,24 @@ int start_input_stream(struct stream_in *in)
     audio_extn_perf_lock_acquire(&adev->perf_lock_handle, 0,
                                  adev->perf_lock_opts,
                                  adev->perf_lock_opts_size);
-    select_devices(adev, in->usecase);
 
+    /*
+     *  In case of MI2S backend, DSD data comes in 32bit and each data line of MI2S
+     *  holds one channel of DSD. The number of channels are multiplied by 2 to properly
+     *  configure the MI2S data lines and FE should also have same number of channels to
+     *  avoid processing in ADSP.
+    */
+    if (in->format == AUDIO_FORMAT_DSD) {
+        if (strstr(platform_get_snd_device_backend_interface(
+            platform_get_input_snd_device(adev->platform, in->device)), "MI2S")) {
+            in->bit_width = 32;
+            in->config.channels = in->config.channels << 1;
+            in->channel_mask = audio_extn_get_dsd_in_ch_mask(in->config.channels);
+            in->config.rate = in->config.rate * audio_extn_get_dsd_rate_mul_factor(in->dsd_format);
+        }
+    }
+
+    select_devices(adev, in->usecase);
     if (audio_extn_ext_hw_plugin_usecase_start(adev->ext_hw_plugin, uc_info))
         ALOGE("%s: failed to start ext hw plugin", __func__);
 
@@ -5968,6 +5984,11 @@ static int in_set_parameters(struct audio_stream *stream, const char *kvpairs)
                                                           in->device, in->flags, in->format,
                                                           in->sample_rate, in->bit_width,
                                                           in->profile, &in->app_type_cfg);
+    }
+
+    err = str_parms_get_int(parms, AUDIO_PARAMETER_STREAM_DSD_FMT, &val);
+    if (err >= 0) {
+        in->dsd_format = val;
     }
 
     pthread_mutex_unlock(&adev->lock);
