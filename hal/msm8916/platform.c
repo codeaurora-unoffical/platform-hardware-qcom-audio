@@ -165,6 +165,8 @@
 #define MAX_CAL_NAME 20
 #define MAX_MIME_TYPE_LENGTH 30
 
+#define AUDIO_PARAMETER_KEY_SEC_MI2S_HEADSET "sec_mi2s_headset_enable"
+
 char cal_name_info[WCD9XXX_MAX_CAL][MAX_CAL_NAME] = {
         [WCD9XXX_ANC_CAL] = "anc_cal",
         [WCD9XXX_MBHC_CAL] = "mbhc_cal",
@@ -880,6 +882,7 @@ static struct name_to_index usecase_name_index[AUDIO_USECASE_MAX] = {
     {TO_NAME_INDEX(USECASE_AUDIO_SPKR_CALIB_RX)},
     {TO_NAME_INDEX(USECASE_AUDIO_PLAYBACK_AFE_PROXY)},
     {TO_NAME_INDEX(USECASE_AUDIO_RECORD_AFE_PROXY)},
+    {TO_NAME_INDEX(USECASE_AUDIO_AFE_LOOPBACK)},
     {TO_NAME_INDEX(USECASE_AUDIO_EC_REF_LOOPBACK)},
 };
 
@@ -1420,6 +1423,24 @@ void platform_set_gsm_mode(void *platform, bool enable)
          my_data->gsm_mode_enabled = true;
          ALOGD("%s: enabling gsm mode", __func__);
          audio_route_apply_and_update_path(adev->audio_route, "gsm-mode");
+    }
+}
+
+static void platform_set_sec_mi2s_headset_params(void *platform, struct str_parms *parms, char *value, int len)
+{
+    struct platform_data *my_data = (struct platform_data *)platform;
+    struct audio_device *adev = my_data->adev;
+    int err;
+
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_SEC_MI2S_HEADSET, value, len);
+
+    if (err >= 0) {
+
+        if (!strncmp("true", value, sizeof("true")))
+            adev->sec_mi2s_headset_enable = true;
+        else
+            adev->sec_mi2s_headset_enable = false;
+
     }
 }
 
@@ -4821,6 +4842,8 @@ int platform_set_parameters(void *platform, struct str_parms *parms)
         my_data->max_mic_count = atoi(value);
         ALOGV("%s: max_mic_count %d", __func__, my_data->max_mic_count);
     }
+
+    platform_set_sec_mi2s_headset_params(platform, parms, value, len);
 
     /* handle audio calibration parameters */
     set_audiocal(platform, parms, value, len);
