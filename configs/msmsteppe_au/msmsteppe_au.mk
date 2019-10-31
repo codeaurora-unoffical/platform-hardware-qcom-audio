@@ -258,7 +258,9 @@ vendor.audio.use.sw.ape.decoder=true
 PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.hw.aac.encoder=true
 
-#force offload using hardware decoders for FLAC, WMA & APE
+#force offload using hardware decoders for ALAC, FLAC, WMA & APE
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.use.hw.alac.decoder=true
 PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.use.hw.flac.decoder=true
 PRODUCT_PROPERTY_OVERRIDES += \
