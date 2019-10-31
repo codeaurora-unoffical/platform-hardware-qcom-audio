@@ -6389,7 +6389,7 @@ static int platform_get_hfp_zone(struct platform_data *my_data)
 
     dptr = (uint8_t*)calloc(param_len, sizeof(uint8_t));
 
-    if (my_data->acdb_get_audio_cal) {
+    if (my_data->acdb_get_audio_cal && dptr) {
         ret = my_data->acdb_get_audio_cal((void *)&cal, (void *)dptr, &param_len);
         if (ret == 0) {
             if ((param_len == 0) || (param_len == MAX_SET_CAL_BYTE_SIZE)) {

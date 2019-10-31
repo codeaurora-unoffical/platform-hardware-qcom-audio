@@ -808,6 +808,12 @@ static int update_custom_mtmx_coefficients_v1(struct audio_device *adev,
         return -EINVAL;
     }
 
+    if (mtrx_row_cnt > AUDIO_MAX_DSP_CHANNELS) {
+        ALOGE("%s: unsupported channels(%d) for setting channel map",
+              __func__, mtrx_row_cnt);
+        return -EINVAL;
+    }
+
     /* To keep output channel map in sync with asm driver channel mapping */
     err  = set_custom_mtmx_output_channel_map(adev, mixer_name_prefix, mtrx_row_cnt,
                                        enable);
