@@ -186,6 +186,9 @@ typedef enum {
 #define QAHW_AUDIO_FLAG_HPCM_TX 0x00020000
 #define QAHW_AUDIO_FLAG_HPCM_RX 0x00040000
 
+/* audio output flag for timestamp mode */
+#define QAHW_OUTPUT_FLAG_TIMESTAMP 0x20000000
+
 /* Query fm volume */
 #define QAHW_PARAMETER_KEY_FM_VOLUME "fm_volume"
 
@@ -486,6 +489,10 @@ typedef struct qahw_dtmf_detect_params {
       Currently supported on Rx only */
 } qahw_dtmf_detect_params_t;
 
+struct qahw_in_ttp_offset_param {
+   uint64_t        ttp_offset; /* TTP value is derived from ttp offset*/
+};
+
 typedef union {
     struct qahw_source_tracking_param st_params;
     struct qahw_sound_focus_param sf_params;
@@ -508,6 +515,7 @@ typedef union {
     struct qahw_hpcm_params hpcm_params;
     struct qahw_dtmf_detect_params dtmf_detect_params;
     struct qahw_tone_gen_params tone_gen_params;
+    struct qahw_in_ttp_offset_param ttp_offset;
 } qahw_param_payload;
 
 typedef enum {
@@ -535,6 +543,7 @@ typedef enum {
     QAHW_PARAM_HPCM,
     QAHW_PARAM_DTMF_DETECT,
     QAHW_PARAM_TONE_GEN,
+    QAHW_PARAM_IN_TTP_OFFSET,
 } qahw_param_id;
 
 typedef union {

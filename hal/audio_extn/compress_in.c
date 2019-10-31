@@ -32,6 +32,7 @@
 #define LOG_NDDEBUG 0
 
 #ifdef COMPRESS_INPUT_ENABLED
+#include <inttypes.h>
 #include <cutils/log.h>
 #include <cutils/properties.h>
 #include <cutils/str_parms.h>
@@ -50,6 +51,7 @@
 #include "audio_extn.h"
 #include "audio_defs.h"
 #include "sound/compress_params.h"
+#include <sound/compress_offload.h>
 
 #ifdef DYNAMIC_LOG_ENABLED
 #include <log_xml_parser.h>
@@ -354,4 +356,54 @@ err_config:
     audio_extn_cin_free_input_stream_resources(in);
     return ret;
 }
+
+#ifdef SNDRV_COMPRESS_IN_TTP_OFFSET
+int audio_extn_compress_in_set_ttp_offset(
+            struct stream_in *in,
+            struct audio_in_ttp_offset_param *offset_param)
+{
+    struct snd_compr_metadata metadata;
+    int ret = -EINVAL;
+    cin_private_data_t *cin_data = (cin_private_data_t *) in->cin_extn;
+
+    if (offset_param == NULL) {
+        ALOGE("%s: Invalid param", __func__);
+        goto exit;
+    }
+
+    ALOGD("%s: ttp offset 0x%"PRIx64" ", __func__, offset_param->ttp_offset);
+
+    if (!audio_extn_cin_attached_usecase(in->usecase)) {
+        ALOGE("%s:: not supported for non offload session", __func__);
+        goto exit;
+    }
+
+    if (!cin_data->compr) {
+        ALOGW("%s: offload session not yet opened", __func__);
+        goto exit;
+    }
+
+    metadata.key = SNDRV_COMPRESS_IN_TTP_OFFSET;
+    metadata.value[0] = 0xFFFFFFFF & offset_param->ttp_offset; /* LSB */
+    metadata.value[1] = \
+            (0xFFFFFFFF00000000 & offset_param->ttp_offset) >> 32; /* MSB*/
+
+    ret = compress_set_metadata(cin_data->compr, &metadata);
+    if(ret) {
+        ALOGE("%s: error %s", __func__, compress_get_error(cin_data->compr));
+    }
+
+exit:
+    return ret;
+}
+#else
+int audio_extn_compress_in_set_ttp_offset(
+            struct stream_in *in __unused,
+            struct audio_in_ttp_offset_param *offset_param __unused)
+{
+    ALOGD("%s: configuring ttp offset not supported", __func__);
+    return 0;
+}
+#endif
+
 #endif /* COMPRESS_INPUT_ENABLED end */
