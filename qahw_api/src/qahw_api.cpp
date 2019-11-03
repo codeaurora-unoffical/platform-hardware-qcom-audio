@@ -2954,7 +2954,8 @@ int32_t qahw_stream_get_buffer_size(const qahw_stream_handle_t *stream_handle,
         ALOGE("%d:%s invalid stream direction, cannot get size", __LINE__, __func__);
         break;
     }
-    ALOGV("%d:%s inSz %d outSz %d ret 0x%8x", __LINE__, __func__, *in_buffer, *out_buffer, rc);
+    ALOGV("%d:%s inSz %d outSz %d ret 0x%8x", __LINE__, __func__,((in_buffer)? *in_buffer : NULL),
+                                              ((out_buffer)? *out_buffer : NULL), rc);
     return rc;
 }
 

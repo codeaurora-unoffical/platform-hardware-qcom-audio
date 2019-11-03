@@ -1654,7 +1654,7 @@ static void check_usecases_capture_codec_backend(struct audio_device *adev,
     struct listnode *node;
     struct audio_usecase *usecase;
     snd_device_t uc_derive_snd_device;
-    snd_device_t derive_snd_device[AUDIO_USECASE_MAX];
+    snd_device_t derive_snd_device[AUDIO_USECASE_MAX] = {0};
     bool switch_device[AUDIO_USECASE_MAX];
     int i, num_uc_to_switch = 0;
     int backend_check_cond = AUDIO_DEVICE_OUT_ALL_CODEC_BACKEND;
