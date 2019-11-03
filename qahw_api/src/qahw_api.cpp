@@ -2192,12 +2192,14 @@ int qahw_stream_close(qahw_stream_handle_t *stream_handle) {
             break;
         default:
             ALOGE("%s: invalid dir close failed\n", __func__);
-        }
-    } else
-        ALOGE("%s: null stream handle\n", __func__);
 
-    free(stream->vol.vol_pair);
-    free(stream);
+        free(stream->vol.vol_pair);
+        free(stream);
+        }
+    } else {
+        ALOGE("%s: null stream handle\n", __func__);
+    }
+
     ALOGV("%d:%s end",__LINE__, __func__);
     return rc;
 }
@@ -2751,7 +2753,8 @@ int32_t qahw_stream_get_buffer_size(const qahw_stream_handle_t *stream_handle,
               , __LINE__, __func__);
         rc = -EINVAL;
     }
-    ALOGV("%d:%s inSz %d outSz %d ret 0x%8x", __LINE__, __func__, *in_buffer, *out_buffer, rc);
+    ALOGV("%d:%s inSz %d outSz %d ret 0x%8x", __LINE__, __func__,((in_buffer)? *in_buffer : NULL),
+                                              ((out_buffer)? *out_buffer : NULL), rc);
     return rc;
 }
 
