@@ -4742,6 +4742,17 @@ int adev_open_output_stream(struct audio_hw_device *dev,
                 ret = -EINVAL;
                 goto error_open;
             }
+        } else if (out->flags & AUDIO_OUTPUT_FLAG_VOICE_CALL) {
+            /* Voice call should not use primary path */
+            out->usecase = USECASE_VOICEMMODE1_CALL;
+            out->config = PCM_CONFIG_AUDIO_PLAYBACK_PRIMARY;
+            if(adev->voice_tx_output == NULL) {
+                adev->voice_tx_output = out;
+            } else {
+                ALOGE("%s: Voice output is already opened", __func__);
+                ret = -EEXIST;
+                goto error_open;
+            }
         } else {
             /* primary path is the default path selected if no other outputs are available/suitable */
             out->usecase = USECASE_AUDIO_PLAYBACK_PRIMARY;
