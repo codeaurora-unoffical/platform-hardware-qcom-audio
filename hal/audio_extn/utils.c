@@ -721,7 +721,8 @@ void audio_extn_utils_update_stream_output_app_type_cfg(void *platform,
     struct stream_format *sf_info;
     char value[PROPERTY_VALUE_MAX] = {0};
 
-    if (devices & AUDIO_DEVICE_OUT_SPEAKER) {
+     if ((devices & AUDIO_DEVICE_OUT_SPEAKER) &&
+         (format != AUDIO_FORMAT_DSD)) {
         int bw = platform_get_snd_device_bit_width(SND_DEVICE_OUT_SPEAKER);
         if ((-ENOSYS != bw) && (bit_width > (uint32_t)bw))
             bit_width = (uint32_t)bw;
@@ -3135,7 +3136,7 @@ int audio_extn_get_dsd_in_ch_mask(int channels)
     switch (channels) {
         case 4:
             ch_mask = AUDIO_CHANNEL_IN_LEFT | AUDIO_CHANNEL_IN_RIGHT |
-            AUDIO_CHANNEL_IN_FRONT | AUDIO_CHANNEL_IN_BACK ;
+            AUDIO_CHANNEL_IN_FRONT | AUDIO_CHANNEL_IN_BACK;
         break;
         case 10:
             ch_mask = AUDIO_CHANNEL_IN_LEFT | AUDIO_CHANNEL_IN_RIGHT |
@@ -3156,5 +3157,35 @@ int audio_extn_get_dsd_in_ch_mask(int channels)
             ALOGE("%s: unsupported DSD channels %d", __func__, channels);
     }
 
+    return ch_mask;
+}
+
+int audio_extn_get_dsd_out_ch_mask(int channels)
+{
+    int ch_mask = 0;
+
+    switch (channels) {
+        case 4:
+            AUDIO_CHANNEL_OUT_FRONT_LEFT | AUDIO_CHANNEL_OUT_FRONT_RIGHT |
+            AUDIO_CHANNEL_OUT_FRONT_CENTER | AUDIO_CHANNEL_OUT_LOW_FREQUENCY;
+        break;
+        case 10:
+            ch_mask = AUDIO_CHANNEL_OUT_FRONT_LEFT | AUDIO_CHANNEL_OUT_FRONT_RIGHT |
+            AUDIO_CHANNEL_OUT_FRONT_CENTER | AUDIO_CHANNEL_OUT_LOW_FREQUENCY |
+            AUDIO_CHANNEL_OUT_BACK_LEFT | AUDIO_CHANNEL_OUT_BACK_RIGHT |
+            AUDIO_CHANNEL_OUT_FRONT_LEFT_OF_CENTER | AUDIO_CHANNEL_OUT_FRONT_RIGHT_OF_CENTER |
+            AUDIO_CHANNEL_OUT_BACK_CENTER | AUDIO_CHANNEL_OUT_SIDE_LEFT;
+        break;
+        case 12:
+            ch_mask = AUDIO_CHANNEL_OUT_FRONT_LEFT | AUDIO_CHANNEL_OUT_FRONT_RIGHT |
+            AUDIO_CHANNEL_OUT_FRONT_CENTER | AUDIO_CHANNEL_OUT_LOW_FREQUENCY |
+            AUDIO_CHANNEL_OUT_BACK_LEFT | AUDIO_CHANNEL_OUT_BACK_RIGHT |
+            AUDIO_CHANNEL_OUT_FRONT_LEFT_OF_CENTER | AUDIO_CHANNEL_OUT_FRONT_RIGHT_OF_CENTER |
+            AUDIO_CHANNEL_OUT_BACK_CENTER | AUDIO_CHANNEL_OUT_SIDE_LEFT |
+            AUDIO_CHANNEL_OUT_SIDE_RIGHT | AUDIO_CHANNEL_OUT_TOP_CENTER;
+        break;
+        default:
+            ALOGE("%s: unsupported DSD channels %d", __func__, channels);
+    }
     return ch_mask;
 }

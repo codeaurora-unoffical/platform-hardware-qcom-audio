@@ -1417,3 +1417,9 @@ int platform_get_active_microphones(void *platform __unused, unsigned int channe
                                     size_t *mic_count __unused) {
     return -ENOSYS;
 }
+
+void platform_set_native_dsd_speaker_cfg(struct stream_out *out)
+{
+     ALOGE("%s: Not implemented", __func__);
+     return;
+}
