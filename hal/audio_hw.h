@@ -377,6 +377,7 @@ struct stream_out {
     bool adm_event_enable;
     bool asm_event_enable;
     bool ip_hdlr_enabled;
+    dsd_format_t dsd_format;
 
     stream_callback_t client_callback;
     void *client_cookie;

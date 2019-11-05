@@ -497,6 +497,7 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_OUT_SPEAKER_SAFE] = "speaker-safe",
     [SND_DEVICE_OUT_HEADPHONES] = "headphones",
     [SND_DEVICE_OUT_HEADPHONES_DSD] = "headphones-dsd",
+    [SND_DEVICE_OUT_SPEAKER_DSD] = "speaker-dsd",
     [SND_DEVICE_OUT_HEADPHONES_44_1] = "headphones-44.1",
     [SND_DEVICE_OUT_LINE] = "line",
     [SND_DEVICE_OUT_SPEAKER_AND_HEADPHONES] = "speaker-and-headphones",
@@ -927,6 +928,7 @@ static struct name_to_index snd_device_name_index[SND_DEVICE_MAX] = {
     {TO_NAME_INDEX(SND_DEVICE_OUT_SPEAKER_SAFE)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_HEADPHONES)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_HEADPHONES_DSD)},
+    {TO_NAME_INDEX(SND_DEVICE_OUT_SPEAKER_DSD)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_HEADPHONES_44_1)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_LINE)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_SPEAKER_AND_HEADPHONES)},
@@ -1569,6 +1571,24 @@ void platform_set_gsm_mode(void *platform, bool enable)
          ALOGD("%s: enabling gsm mode", __func__);
          audio_route_apply_and_update_path(adev->audio_route, "gsm-mode");
     }
+}
+
+void platform_set_native_dsd_speaker_cfg(struct stream_out *out)
+{
+    struct audio_device *adev = NULL;
+    char spkr_mixer_path[MIXER_PATH_MAX_LENGTH];
+
+    if (out == NULL)
+        return;
+
+    adev = out->dev;
+    snprintf(spkr_mixer_path, MIXER_PATH_MAX_LENGTH, "speaker-native-dsd-%dch",
+                               out->config.channels);
+
+    audio_route_apply_and_update_path(adev->audio_route, spkr_mixer_path);
+
+    ALOGD("%s: applying DSD speaker configuration %s", __func__, spkr_mixer_path);
+    return;
 }
 
 void platform_set_echo_reference(struct audio_device *adev, bool enable,
@@ -3145,6 +3165,13 @@ acdb_init_fail:
                     my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].channels_mixer_ctl =
                         strdup("PRIM_MI2S_RX Channels");
                 }
+                    my_data->current_backend_cfg[DSD_NATIVE_BACKEND].bitwidth_mixer_ctl =
+                        strdup("PRIM_MI2S_RX Format");
+                    my_data->current_backend_cfg[DSD_NATIVE_BACKEND].samplerate_mixer_ctl =
+                        strdup("PRIM_MI2S_RX SampleRate");
+                    my_data->current_backend_cfg[DSD_NATIVE_BACKEND].channels_mixer_ctl =
+                        strdup("PRIM_MI2S_RX Channels");
+
             } else {
                my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].bitwidth_mixer_ctl =
                    strdup("WSA_CDC_DMA_RX_0 Format");
@@ -3316,6 +3343,11 @@ acdb_init_fail:
             my_data->is_asrc_supported = true;
             platform_set_native_support(NATIVE_AUDIO_MODE_MULTIPLE_44_1);
         }
+    }
+
+    if (strstr(snd_card_name, "csra8plus2")) {
+        ALOGD("%s:DSD playback is supported", __func__);
+        my_data->is_dsd_supported = true;
     }
 
     if (property_get_bool("vendor.audio.apptype.multirec.enabled", false))
@@ -5353,6 +5385,8 @@ snd_device_t platform_get_output_snd_device(void *platform, struct stream_out *o
                 snd_device = SND_DEVICE_OUT_SPEAKER;
         } else if (my_data->is_vbat_speaker || my_data->is_bcl_speaker)
             snd_device = SND_DEVICE_OUT_SPEAKER_VBAT;
+        else if (out->format == AUDIO_FORMAT_DSD)
+            snd_device = SND_DEVICE_OUT_SPEAKER_DSD;
         else
             snd_device = SND_DEVICE_OUT_SPEAKER;
     } else if (devices & AUDIO_DEVICE_OUT_SPEAKER2) {
@@ -7657,6 +7691,11 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
             format = adev_device_cfg_ptr->dev_cfg_params.format;
     }
 
+    /*TODO: Need to get backend idx using platform_get_backend_idx*/
+    if (snd_device == SND_DEVICE_OUT_SPEAKER_DSD) {
+        backend_idx = DSD_NATIVE_BACKEND;
+    }
+
     ALOGI("%s:becf: afe: bitwidth %d, samplerate %d channels %d format %d"
           ", backend_idx %d device (%s)", __func__,  bit_width,
           sample_rate, channels, format, backend_idx,
@@ -8097,7 +8136,7 @@ static bool platform_check_codec_backend_cfg(struct audio_device* adev,
     }
 
     /* Native playback is preferred for Headphone/HS device over 192Khz */
-    if (!voice_call_active && codec_device_supports_native_playback(snd_device)) {
+    if (!voice_call_active && codec_device_supports_native_playback(usecase->devices)) {
         if (audio_is_true_native_stream_active(adev)) {
             if (check_hdset_combo_device(usecase->devices)) {
                 /*
@@ -9214,6 +9253,10 @@ void platform_check_and_update_copp_sample_rate(void* platform, snd_device_t snd
     struct platform_data* my_data = (struct platform_data *)platform;
     int backend_idx = platform_get_backend_index(snd_device);
     int device_sr = my_data->current_backend_cfg[backend_idx].sample_rate;
+
+    /* TODO: Need to set DSD_NATIVE_BACKEND for DSD speaker */
+    if (snd_device == SND_DEVICE_OUT_SPEAKER_DSD)
+        device_sr = my_data->current_backend_cfg[DSD_NATIVE_BACKEND].sample_rate;
     /*
      *Check if device SR is multiple of 8K or 11.025 Khz
      *check if the stream SR is multiple of same base, if yes

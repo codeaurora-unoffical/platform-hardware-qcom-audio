@@ -3313,6 +3313,21 @@ int start_output_stream(struct stream_out *out)
         }
     }
 
+/*
+   In case of MI2S backend, DSD data comes in 32bit and each data line of MI2S
+   holds one channel of DSD. The number of channels are multiplied by 2 to properly
+   configure the MI2S data lines and FE should also have same number of channels to
+   avoid processing in ADSP.
+*/
+    if (out->format == AUDIO_FORMAT_DSD) {
+        if (strstr(platform_get_snd_device_backend_interface(platform_get_output_snd_device(adev->platform, out)), "MI2S")) {
+            out->bit_width = 32;
+            out->config.channels = out->config.channels << 1;
+            out->channel_mask = audio_extn_get_dsd_out_ch_mask(out->config.channels);
+            out->config.rate = out->config.rate * audio_extn_get_dsd_rate_mul_factor(out->dsd_format);
+        }
+    }
+
     if ((out->devices & AUDIO_DEVICE_OUT_ALL_A2DP) &&
         (!audio_extn_a2dp_source_is_ready())) {
         if (!a2dp_combo) {
@@ -3328,6 +3343,11 @@ int start_output_stream(struct stream_out *out)
         }
     } else {
          select_devices(adev, out->usecase);
+    }
+
+    if (out->format == AUDIO_FORMAT_DSD) {
+        /* set extra config to output device in DSD format to mute unused speakers */
+        platform_set_native_dsd_speaker_cfg(out);
     }
 
     if (out->usecase == USECASE_INCALL_MUSIC_UPLINK)
@@ -4432,6 +4452,12 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
             pthread_mutex_unlock(&out->lock);
         }
     }
+
+    err = str_parms_get_int(parms, AUDIO_PARAMETER_STREAM_DSD_FMT, &val);
+    if (err >= 0) {
+        out->dsd_format = val;
+    }
+
     //end suspend, resume handling block
     str_parms_destroy(parms);
 error:
@@ -7025,6 +7051,7 @@ int adev_open_output_stream(struct audio_hw_device *dev,
         if (config->format == AUDIO_FORMAT_DSD) {
             out->flags |= AUDIO_OUTPUT_FLAG_COMPRESS_PASSTHROUGH;
             out->compr_config.codec->compr_passthr = PASSTHROUGH_DSD;
+            out->config.channels = audio_channel_count_from_out_mask(out->channel_mask);
         }
 
         create_offload_callback_thread(out);
