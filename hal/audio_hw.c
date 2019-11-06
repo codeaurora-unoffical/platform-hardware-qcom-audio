@@ -2797,9 +2797,15 @@ static void *offload_thread_loop(void *context)
         if (cmd->cmd != OFFLOAD_CMD_ERROR &&
             out->compr == NULL) {
             ALOGE("%s: Compress handle is NULL", __func__);
-            free(cmd);
-            pthread_cond_signal(&out->cond);
-            continue;
+
+            if (CARD_STATUS_OFFLINE == out->card_status) {
+                ALOGV("%s: snd card already offline", __func__);
+                cmd->cmd = OFFLOAD_CMD_ERROR;
+            } else {
+                free(cmd);
+                pthread_cond_signal(&out->cond);
+                continue;
+            }
         }
         out->offload_thread_blocked = true;
         pthread_mutex_unlock(&out->lock);
