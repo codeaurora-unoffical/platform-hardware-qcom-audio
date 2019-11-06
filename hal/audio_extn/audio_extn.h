@@ -141,10 +141,13 @@
 #define AUDIO_OUTPUT_FLAG_INTERACTIVE 0x4000000
 #endif
 
+#ifndef AUDIO_OUTPUT_FLAG_VOICE_CALL
+#define AUDIO_OUTPUT_FLAG_VOICE_CALL 0x2000000
+#endif
+
 #ifndef AUDIO_FORMAT_MAT
 #define AUDIO_FORMAT_MAT 0x30000000UL
 #endif
-
 
 int audio_extn_parse_compress_metadata(struct stream_out *out,
                                        struct str_parms *parms);

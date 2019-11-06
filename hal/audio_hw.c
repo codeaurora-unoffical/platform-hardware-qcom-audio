@@ -7348,6 +7348,17 @@ int adev_open_output_stream(struct audio_hw_device *dev,
         } else if (flags & AUDIO_OUTPUT_FLAG_TTS) {
             out->usecase = USECASE_AUDIO_PLAYBACK_TTS;
             out->config = pcm_config_deep_buffer;
+        } else if (out->flags & AUDIO_OUTPUT_FLAG_VOICE_CALL) {
+            /* Voice call should not use primary path */
+            out->usecase = USECASE_VOICEMMODE1_CALL;
+            out->config = GET_PCM_CONFIG_AUDIO_PLAYBACK_PRIMARY(use_db_as_primary);
+            if(adev->voice_tx_output == NULL) {
+                adev->voice_tx_output = out;
+            } else {
+                ALOGE("%s: Voice output is already opened", __func__);
+                ret = -EEXIST;
+                goto error_open;
+            }
         } else {
             /* primary path is the default path selected if no other outputs are available/suitable */
             out->usecase = GET_USECASE_AUDIO_PLAYBACK_PRIMARY(use_db_as_primary);
