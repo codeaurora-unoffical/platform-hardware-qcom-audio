@@ -180,6 +180,11 @@ __BEGIN_DECLS
 /* audio output flag for timestamp mode */
 #define QAHW_OUTPUT_FLAG_TIMESTAMP 0x20000000
 
+/* similar defination added into audio_defs.h and audio_extn.h
+ * AUDIO_OUTPUT_FLAG_VOICE_CAL
+ */
+#define QAHW_AUDIO_OUTPUT_FLAG_VOICE_CALL 0x2000000
+
 /* Query fm volume */
 #define QAHW_PARAMETER_KEY_FM_VOLUME "fm_volume"
 
