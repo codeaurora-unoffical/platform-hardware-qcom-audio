@@ -44,7 +44,7 @@
 #else
 #define ALOGVV(a...) do { } while(0)
 #endif
-
+#include <limits.h>
 #include <errno.h>
 #include <pthread.h>
 #include <stdint.h>
@@ -1128,7 +1128,9 @@ int enable_audio_route(struct audio_device *adev,
                 in->ec_opened = true;
             }
         }
-    } else if (usecase->type == TRANSCODE_LOOPBACK_TX) {
+    } else if ((usecase->type == TRANSCODE_LOOPBACK_TX) || ((usecase->type == PCM_HFP_CALL) &&
+        ((usecase->id == USECASE_AUDIO_HFP_SCO) || (usecase->id == USECASE_AUDIO_HFP_SCO_WB)) &&
+        (usecase->in_snd_device == SND_DEVICE_IN_VOICE_SPEAKER_MIC_HFP_MMSECNS))) {
         snd_device = usecase->in_snd_device;
     } else {
         snd_device = usecase->out_snd_device;
@@ -6363,7 +6365,8 @@ static int in_standby(struct audio_stream *stream)
     if (!in->standby && in->is_st_session) {
         ALOGD("%s: sound trigger pcm stop lab", __func__);
         audio_extn_sound_trigger_stop_lab(in);
-        adev->num_va_sessions--;
+        if (adev->num_va_sessions > 0)
+            adev->num_va_sessions--;
         in->standby = 1;
     }
 
@@ -6404,8 +6407,10 @@ static int in_standby(struct audio_stream *stream)
         if (do_stop)
             status = stop_input_stream(in);
 
-        if (in->source == AUDIO_SOURCE_VOICE_RECOGNITION)
-            adev->num_va_sessions--;
+        if (in->source == AUDIO_SOURCE_VOICE_RECOGNITION) {
+            if (adev->num_va_sessions > 0)
+                adev->num_va_sessions--;
+        }
 
         pthread_mutex_unlock(&adev->lock);
     }
@@ -6659,7 +6664,8 @@ static ssize_t in_read(struct audio_stream_in *stream, void *buffer,
         /* Read from sound trigger HAL */
         audio_extn_sound_trigger_read(in, buffer, bytes);
         if (in->standby) {
-            adev->num_va_sessions++;
+            if (adev->num_va_sessions < UINT_MAX)
+                adev->num_va_sessions++;
             in->standby = 0;
         }
         pthread_mutex_unlock(&in->lock);
@@ -6683,8 +6689,10 @@ static ssize_t in_read(struct audio_stream_in *stream, void *buffer,
             ret = voice_extn_compress_voip_start_input_stream(in);
         else
             ret = start_input_stream(in);
-        if (!ret && in->source == AUDIO_SOURCE_VOICE_RECOGNITION)
-            adev->num_va_sessions++;
+        if (!ret && in->source == AUDIO_SOURCE_VOICE_RECOGNITION) {
+            if (adev->num_va_sessions < UINT_MAX)
+                adev->num_va_sessions++;
+        }
         pthread_mutex_unlock(&adev->lock);
         if (ret != 0) {
             goto exit;
@@ -7651,9 +7659,11 @@ int adev_open_output_stream(struct audio_hw_device *dev,
 
             out->compr_config.fragments = DIRECT_PCM_NUM_FRAGMENTS;
 
-            if ((config->offload_info.duration_us >= MIN_OFFLOAD_BUFFER_DURATION_MS * 1000) &&
-                   (config->offload_info.duration_us <= MAX_OFFLOAD_BUFFER_DURATION_MS * 1000))
-                out->info.duration_us = (int64_t)config->offload_info.duration_us;
+            if (property_get_bool("vendor.audio.offload.buffer.duration.enabled", false)) {
+                if ((config->offload_info.duration_us >= MIN_OFFLOAD_BUFFER_DURATION_MS * 1000) &&
+                       (config->offload_info.duration_us <= MAX_OFFLOAD_BUFFER_DURATION_MS * 1000))
+                    out->info.duration_us = (int64_t)config->offload_info.duration_us;
+            }
 
             /* Check if alsa session is configured with the same format as HAL input format,
              * if not then derive correct fragment size needed to accomodate the
