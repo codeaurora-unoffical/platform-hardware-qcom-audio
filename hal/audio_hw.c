@@ -2753,6 +2753,25 @@ int start_input_stream(struct stream_in *in)
         goto error_config;
     }
 
+    if (in->format == AUDIO_FORMAT_DSD) {
+        if (strstr(platform_get_snd_device_backend_interface(
+            platform_get_input_snd_device(adev->platform, in->device)), "MI2S")) {
+            in->bit_width = 32;
+           /*
+            *  In case of MI2S backend, DSD data comes in 32bit and each data line of MI2S
+            *  holds one channel of DSD. The number of channels are multiplied by 2 to properly
+            *  configure the MI2S data lines and FE should also have same number of channels to
+            *  avoid processing in ADSP.
+            */
+            in->config.channels = in->config.channels << 1;
+            in->channel_mask = audio_extn_get_dsd_in_ch_mask(in->config.channels);
+            /* sampling rate of backend should be DSD bit rate / (bitwidth of BE * 2).
+             * In case of DSD128, 44.1KHz DSD  backend sampling rate would be 44.1K * 128/64
+             */
+            in->sample_rate = in->sample_rate * audio_extn_get_mi2s_be_dsd_rate_mul_factor(in->dsd_format);
+        }
+    }
+
     uc_info->id = in->usecase;
     uc_info->type = PCM_CAPTURE;
     uc_info->stream.in = in;
@@ -2764,22 +2783,6 @@ int start_input_stream(struct stream_in *in)
     audio_extn_perf_lock_acquire(&adev->perf_lock_handle, 0,
                                  adev->perf_lock_opts,
                                  adev->perf_lock_opts_size);
-
-    /*
-     *  In case of MI2S backend, DSD data comes in 32bit and each data line of MI2S
-     *  holds one channel of DSD. The number of channels are multiplied by 2 to properly
-     *  configure the MI2S data lines and FE should also have same number of channels to
-     *  avoid processing in ADSP.
-    */
-    if (in->format == AUDIO_FORMAT_DSD) {
-        if (strstr(platform_get_snd_device_backend_interface(
-            platform_get_input_snd_device(adev->platform, in->device)), "MI2S")) {
-            in->bit_width = 32;
-            in->config.channels = in->config.channels << 1;
-            in->channel_mask = audio_extn_get_dsd_in_ch_mask(in->config.channels);
-            in->config.rate = in->config.rate * audio_extn_get_dsd_rate_mul_factor(in->dsd_format);
-        }
-    }
 
     select_devices(adev, in->usecase);
     if (audio_extn_ext_hw_plugin_usecase_start(adev->ext_hw_plugin, uc_info))
@@ -3377,6 +3380,29 @@ int start_output_stream(struct stream_out *out)
         goto error_config;
     }
 
+
+    if (out->format == AUDIO_FORMAT_DSD) {
+        if (strstr(platform_get_snd_device_backend_interface(platform_get_output_snd_device(adev->platform, out)), "MI2S")) {
+            out->bit_width = 32;
+            /*
+             * In case of MI2S backend, DSD data comes in 32bit and each data line of MI2S
+             * holds one channel of DSD. The number of channels are multiplied by 2 to properly
+             * configure the MI2S data lines and FE should also have same number of channels to
+             * avoid processing in ADSP.
+             */
+            out->config.channels = out->config.channels << 1;
+            out->channel_mask = audio_extn_get_dsd_out_ch_mask(out->config.channels);
+            /* sampling rate of backend should be DSD bit rate / (bitwidth of BE * 2).
+             * In case of DSD128, 44.1KHz DSD  backend sampling rate would be 44.1K * 128/64
+             */
+            out->sample_rate = out->sample_rate * audio_extn_get_mi2s_be_dsd_rate_mul_factor(out->dsd_format);
+            /* sampling rate of frontend still expects as DSD bit rate.
+             * In case of DSD128, 44.1KHz DSD  backend sampling rate would be 44.1K * 128
+             */
+            out->compr_config.codec->sample_rate = out->compr_config.codec->sample_rate * audio_extn_get_fe_dsd_rate_mul_factor(out->dsd_format);
+        }
+    }
+
     uc_info->id = out->usecase;
     uc_info->type = PCM_PLAYBACK;
     uc_info->stream.out = out;
@@ -3405,20 +3431,6 @@ int start_output_stream(struct stream_out *out)
         }
     }
 
-/*
-   In case of MI2S backend, DSD data comes in 32bit and each data line of MI2S
-   holds one channel of DSD. The number of channels are multiplied by 2 to properly
-   configure the MI2S data lines and FE should also have same number of channels to
-   avoid processing in ADSP.
-*/
-    if (out->format == AUDIO_FORMAT_DSD) {
-        if (strstr(platform_get_snd_device_backend_interface(platform_get_output_snd_device(adev->platform, out)), "MI2S")) {
-            out->bit_width = 32;
-            out->config.channels = out->config.channels << 1;
-            out->channel_mask = audio_extn_get_dsd_out_ch_mask(out->config.channels);
-            out->config.rate = out->config.rate * audio_extn_get_dsd_rate_mul_factor(out->dsd_format);
-        }
-    }
 
     if ((out->devices & AUDIO_DEVICE_OUT_ALL_A2DP) &&
         (!audio_extn_a2dp_source_is_ready())) {

@@ -3106,7 +3106,7 @@ int audio_extn_utils_send_app_type_gain(struct audio_device *adev,
                                sizeof(gain_cfg)/sizeof(gain_cfg[0]));
 }
 
-int audio_extn_get_dsd_rate_mul_factor(int dsd_format)
+int audio_extn_get_mi2s_be_dsd_rate_mul_factor(int dsd_format)
 {
     int mul_factor = 0;
 
@@ -3126,6 +3126,31 @@ int audio_extn_get_dsd_rate_mul_factor(int dsd_format)
         default:
             ALOGE("%s: invalid DSD format %d", __func__, dsd_format);
     }
+
+    return mul_factor;
+}
+
+int audio_extn_get_fe_dsd_rate_mul_factor(int dsd_format)
+{
+    int mul_factor = 0;
+
+    switch (dsd_format) {
+        case DSD_FORMAT_64:
+            mul_factor = 64;
+        break;
+        case DSD_FORMAT_128:
+            mul_factor = 128;
+        break;
+        case DSD_FORMAT_256:
+            mul_factor = 256;
+        break;
+        case DSD_FORMAT_512:
+            mul_factor = 512;
+        break;
+        default:
+            ALOGE("%s: invalid DSD format %d", __func__, dsd_format);
+    }
+
     return mul_factor;
 }
 
@@ -3187,5 +3212,6 @@ int audio_extn_get_dsd_out_ch_mask(int channels)
         default:
             ALOGE("%s: unsupported DSD channels %d", __func__, channels);
     }
+
     return ch_mask;
 }
