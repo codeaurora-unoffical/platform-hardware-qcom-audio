@@ -590,7 +590,6 @@ enum {
 #elif PLATFORM_AUTO
 #define HFP_SCO_RX 29
 #define HFP_ASM_RX_TX 36
-#define HFP_EXT_EC_REF_TX 1
 #else
 #define HFP_SCO_RX 23
 #define HFP_ASM_RX_TX 24
