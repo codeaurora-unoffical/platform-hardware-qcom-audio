@@ -3140,7 +3140,7 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
         pthread_mutex_unlock(&out->lock);
     }
 
-    if (out == adev->primary_output) {
+    if (output_drives_call(adev, out)) {
         lock_output_stream(out);
         pthread_mutex_lock(&adev->lock);
         audio_extn_set_parameters(adev, parms);
