@@ -334,7 +334,7 @@ static void check_and_activate_output_thread(bool awake)
     lock_session_output(qap_mod);
 
     if (awake) {
-        if (qap_mod->is_session_output_active == false) {
+        if (qap_mod->is_session_output_active == false && !p_qap->qap_active_api_count) {
             pthread_cond_signal(&qap_mod->session_output_cond);
         }
         p_qap->qap_active_api_count++;
@@ -1164,7 +1164,7 @@ static ssize_t qap_out_write(struct audio_stream_out *stream, const void *buffer
         } else if (out->standby) {
            qap_mod = get_qap_module_for_input_stream_l(out);
            lock_session_output(qap_mod);
-           if (qap_mod->is_session_output_active == false) {
+           if (qap_mod->is_session_output_active == false && !p_qap->qap_active_api_count) {
                pthread_cond_signal(&qap_mod->session_output_cond);
            }
            p_qap->qap_active_api_count++;
@@ -1175,10 +1175,10 @@ static ssize_t qap_out_write(struct audio_stream_out *stream, const void *buffer
            if (ret == 0) {
               out->standby = false;
               if(p_qap->qap_output_block_handling) {
-                 if (!qap_mod->is_session_output_active) {
+                 if (!qap_mod->is_session_output_active && !p_qap->qap_active_api_count) {
+                     qap_mod->is_session_output_active = true;
                      pthread_cond_signal(&qap_mod->session_output_cond);
                  }
-                 qap_mod->is_session_output_active = true;
               }
            } else {
               unlock_session_output(qap_mod);
@@ -1688,7 +1688,9 @@ static void qap_session_callback(qap_session_handle_t session_handle __unused,
         if (!qap_mod->is_session_output_active && !p_qap->qap_active_api_count) {
             qap_close_all_output_streams(qap_mod);
             DEBUG_MSG("disabling MM module output by blocking the output thread");
-            pthread_cond_wait(&qap_mod->session_output_cond, &qap_mod->session_output_lock);
+            /*is_session_output_active & qap_active_api_count used as predicate to safe gaurd against the spurious wakeups */
+            while(!qap_mod->is_session_output_active && !p_qap->qap_active_api_count)
+                pthread_cond_wait(&qap_mod->session_output_cond, &qap_mod->session_output_lock);
             DEBUG_MSG("MM module output Enabled, output thread active");
         }
         unlock_session_output(qap_mod);
@@ -2323,9 +2325,10 @@ static int qap_sess_close(struct qap_module* qap_mod)
     qap_mod->is_session_closing = true;
     if(p_qap->qap_output_block_handling) {
         lock_session_output(qap_mod);
-        if (!qap_mod->is_session_output_active)
+        if (!qap_mod->is_session_output_active && !p_qap->qap_active_api_count) {
+            qap_mod->is_session_output_active = true;
             pthread_cond_signal(&qap_mod->session_output_cond);
-        qap_mod->is_session_output_active = true;
+        }
         unlock_session_output(qap_mod);
     }
     pthread_mutex_lock(&p_qap->lock);
