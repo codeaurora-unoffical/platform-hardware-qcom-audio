@@ -76,7 +76,7 @@
 
 /* Flags used to initialize acdb_settings variable that goes to ACDB library */
 #define NONE_FLAG            0x00000000
-#define ANC_FLAG	     0x00000001
+#define ANC_FLAG             0x00000001
 #define DMIC_FLAG            0x00000002
 #define QMIC_FLAG            0x00000004
 /* Include TMIC Flag after existing QMIC flag to avoid backward compatibility
@@ -427,6 +427,7 @@ struct stream_out {
 
     char address[AUDIO_DEVICE_MAX_ADDRESS_LEN];
     int car_audio_stream;
+    bool dsd_config_updated;
 
 #ifndef LINUX_ENABLED
     error_log_t *error_log;
@@ -476,6 +477,8 @@ struct stream_in {
 
     int64_t frames_read; /* total frames read, not cleared when entering standby */
     int64_t frames_muted; /* total frames muted, not cleared when entering standby */
+
+    bool dsd_config_updated;
 #ifndef LINUX_ENABLED
     error_log_t *error_log;
 #endif
