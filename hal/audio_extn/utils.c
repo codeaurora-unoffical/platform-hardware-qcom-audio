@@ -3191,7 +3191,7 @@ int audio_extn_get_dsd_out_ch_mask(int channels)
 
     switch (channels) {
         case 4:
-            AUDIO_CHANNEL_OUT_FRONT_LEFT | AUDIO_CHANNEL_OUT_FRONT_RIGHT |
+            ch_mask = AUDIO_CHANNEL_OUT_FRONT_LEFT | AUDIO_CHANNEL_OUT_FRONT_RIGHT |
             AUDIO_CHANNEL_OUT_FRONT_CENTER | AUDIO_CHANNEL_OUT_LOW_FREQUENCY;
         break;
         case 10:
