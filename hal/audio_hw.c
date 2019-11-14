@@ -953,7 +953,7 @@ static int update_effect_param_ecns(struct audio_device *adev, unsigned int modu
 }
 
 static int enable_disable_effect(struct audio_device *adev, int effect_type, bool enable)
-{ 
+{
     struct audio_effect_config effect_config;
     struct audio_usecase *usecase = NULL;
     int ret = 0;
@@ -2753,7 +2753,7 @@ int start_input_stream(struct stream_in *in)
         goto error_config;
     }
 
-    if (in->format == AUDIO_FORMAT_DSD) {
+    if ((in->format == AUDIO_FORMAT_DSD) && (in->dsd_config_updated == false)) {
         if (strstr(platform_get_snd_device_backend_interface(
             platform_get_input_snd_device(adev->platform, in->device)), "MI2S")) {
             in->bit_width = 32;
@@ -2769,6 +2769,7 @@ int start_input_stream(struct stream_in *in)
              * In case of DSD128, 44.1KHz DSD  backend sampling rate would be 44.1K * 128/64
              */
             in->sample_rate = in->sample_rate * audio_extn_get_mi2s_be_dsd_rate_mul_factor(in->dsd_format);
+            in->dsd_config_updated = true;
         }
     }
 
@@ -3381,7 +3382,7 @@ int start_output_stream(struct stream_out *out)
     }
 
 
-    if (out->format == AUDIO_FORMAT_DSD) {
+    if ((out->format == AUDIO_FORMAT_DSD) && (out->dsd_config_updated == false)) {
         if (strstr(platform_get_snd_device_backend_interface(platform_get_output_snd_device(adev->platform, out)), "MI2S")) {
             out->bit_width = 32;
             /*
@@ -3400,6 +3401,7 @@ int start_output_stream(struct stream_out *out)
              * In case of DSD128, 44.1KHz DSD  backend sampling rate would be 44.1K * 128
              */
             out->compr_config.codec->sample_rate = out->compr_config.codec->sample_rate * audio_extn_get_fe_dsd_rate_mul_factor(out->dsd_format);
+            out->dsd_config_updated = true;
         }
     }
 
@@ -6757,6 +6759,8 @@ int adev_open_output_stream(struct audio_hw_device *dev,
     out->prev_card_status_offline = false;
     out->pspd_coeff_sent = false;
 
+    out->dsd_config_updated = false;
+
     if ((flags & AUDIO_OUTPUT_FLAG_BD) &&
         (property_get_bool("vendor.audio.matrix.limiter.enable", false)))
         platform_set_device_params(out, DEVICE_PARAM_LIMITER_ID, 1);
@@ -8157,6 +8161,8 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
     in->flags = flags;
     in->bit_width = 16;
     in->af_period_multiplier = 1;
+
+    in->dsd_config_updated = false;
 
     ALOGV("%s: source = %d, config->channel_mask = %d", __func__, source, config->channel_mask);
     if (source == AUDIO_SOURCE_VOICE_UPLINK ||
