@@ -507,6 +507,7 @@ struct audio_usecase {
     struct stream_app_type_cfg out_app_type_cfg;
     struct stream_app_type_cfg in_app_type_cfg;
     union stream_ptr stream;
+    bool is_persistent_cal;
 };
 
 struct stream_format {
