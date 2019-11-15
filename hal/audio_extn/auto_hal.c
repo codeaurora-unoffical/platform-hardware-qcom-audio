@@ -158,11 +158,11 @@ int audio_extn_auto_hal_create_audio_patch(struct audio_hw_device *dev,
                                                 sources->ext.device.address);
         } else {
             address = (char *)calloc(1, 1);
-            if (address == NULL) {
-                ALOGE("%s: failed to get address",__func__);
-                ret = -EFAULT;
-                goto error;
-            }
+        }
+        if (address == NULL) {
+            ALOGE("%s: failed to get address",__func__);
+            ret = -EFAULT;
+            goto error;
         }
         parms = str_parms_create_str(address);
         if (!parms) {
@@ -197,11 +197,11 @@ int audio_extn_auto_hal_create_audio_patch(struct audio_hw_device *dev,
                                                 sinks->ext.device.address);
         } else {
             address = (char *)calloc(1, 1);
-            if (address == NULL) {
-                ALOGE("%s: failed to get address",__func__);
-                ret = -EFAULT;
-                goto error;
-            }
+        }
+        if (address == NULL) {
+            ALOGE("%s: failed to get address",__func__);
+            ret = -EFAULT;
+            goto error;
         }
         parms = str_parms_create_str(address);
         if (!parms) {
@@ -792,7 +792,11 @@ snd_device_t audio_extn_auto_hal_get_input_snd_device(struct audio_device *adev,
         switch (usecase->id) {
         case USECASE_AUDIO_HFP_SCO:
         case USECASE_AUDIO_HFP_SCO_WB:
-            snd_device = SND_DEVICE_IN_VOICE_SPEAKER_MIC_HFP;
+            if (platform_get_eccarstate((void *) adev->platform)) {
+                snd_device = SND_DEVICE_IN_VOICE_SPEAKER_MIC_HFP_MMSECNS;
+            } else {
+                snd_device = SND_DEVICE_IN_VOICE_SPEAKER_MIC_HFP;
+            }
             if (adev->enable_hfp)
                 platform_set_echo_reference(adev, true, out_device);
             break;
@@ -866,6 +870,18 @@ snd_device_t audio_extn_auto_hal_get_output_snd_device(struct audio_device *adev
             snd_device = SND_DEVICE_OUT_VOICE_SPEAKER;
             break;
         case USECASE_AUDIO_PLAYBACK_MEDIA:
+        case USECASE_AUDIO_PLAYBACK_OFFLOAD:
+        case USECASE_AUDIO_PLAYBACK_OFFLOAD2:
+        case USECASE_AUDIO_PLAYBACK_OFFLOAD3:
+        case USECASE_AUDIO_PLAYBACK_OFFLOAD4:
+        case USECASE_AUDIO_PLAYBACK_OFFLOAD5:
+        case USECASE_AUDIO_PLAYBACK_OFFLOAD6:
+        case USECASE_AUDIO_PLAYBACK_OFFLOAD7:
+        case USECASE_AUDIO_PLAYBACK_OFFLOAD8:
+        case USECASE_AUDIO_PLAYBACK_OFFLOAD9:
+        case USECASE_AUDIO_PLAYBACK_ULL:
+        case USECASE_AUDIO_PLAYBACK_MMAP:
+        case USECASE_AUDIO_PLAYBACK_VOIP:
             snd_device = SND_DEVICE_OUT_BUS_MEDIA;
             break;
         case USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION:

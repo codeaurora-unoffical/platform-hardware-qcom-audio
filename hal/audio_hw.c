@@ -1042,7 +1042,10 @@ int enable_audio_route(struct audio_device *adev,
 
     ALOGV("%s: enter: usecase(%d)", __func__, usecase->id);
 
-    if (usecase->type == PCM_CAPTURE || usecase->type == TRANSCODE_LOOPBACK_TX)
+    if ((usecase->type == PCM_CAPTURE || usecase->type == TRANSCODE_LOOPBACK_TX) ||
+        ((usecase->type == PCM_HFP_CALL) &&
+        ((usecase->id == USECASE_AUDIO_HFP_SCO) || (usecase->id == USECASE_AUDIO_HFP_SCO_WB)) &&
+        (usecase->in_snd_device == SND_DEVICE_IN_VOICE_SPEAKER_MIC_HFP_MMSECNS)))
         snd_device = usecase->in_snd_device;
     else
         snd_device = usecase->out_snd_device;
@@ -2658,6 +2661,25 @@ int start_input_stream(struct stream_in *in)
         goto error_config;
     }
 
+    if (in->format == AUDIO_FORMAT_DSD) {
+        if (strstr(platform_get_snd_device_backend_interface(
+            platform_get_input_snd_device(adev->platform, in->device)), "MI2S")) {
+            in->bit_width = 32;
+           /*
+            *  In case of MI2S backend, DSD data comes in 32bit and each data line of MI2S
+            *  holds one channel of DSD. The number of channels are multiplied by 2 to properly
+            *  configure the MI2S data lines and FE should also have same number of channels to
+            *  avoid processing in ADSP.
+            */
+            in->config.channels = in->config.channels << 1;
+            in->channel_mask = audio_extn_get_dsd_in_ch_mask(in->config.channels);
+            /* sampling rate of backend should be DSD bit rate / (bitwidth of BE * 2).
+             * In case of DSD128, 44.1KHz DSD  backend sampling rate would be 44.1K * 128/64
+             */
+            in->sample_rate = in->sample_rate * audio_extn_get_mi2s_be_dsd_rate_mul_factor(in->dsd_format);
+        }
+    }
+
     uc_info->id = in->usecase;
     uc_info->type = PCM_CAPTURE;
     uc_info->stream.in = in;
@@ -2669,8 +2691,8 @@ int start_input_stream(struct stream_in *in)
     audio_extn_perf_lock_acquire(&adev->perf_lock_handle, 0,
                                  adev->perf_lock_opts,
                                  adev->perf_lock_opts_size);
-    select_devices(adev, in->usecase);
 
+    select_devices(adev, in->usecase);
     if (audio_extn_ext_hw_plugin_usecase_start(adev->ext_hw_plugin, uc_info))
         ALOGE("%s: failed to start ext hw plugin", __func__);
 
@@ -3266,6 +3288,29 @@ int start_output_stream(struct stream_out *out)
         goto error_config;
     }
 
+
+    if (out->format == AUDIO_FORMAT_DSD) {
+        if (strstr(platform_get_snd_device_backend_interface(platform_get_output_snd_device(adev->platform, out)), "MI2S")) {
+            out->bit_width = 32;
+            /*
+             * In case of MI2S backend, DSD data comes in 32bit and each data line of MI2S
+             * holds one channel of DSD. The number of channels are multiplied by 2 to properly
+             * configure the MI2S data lines and FE should also have same number of channels to
+             * avoid processing in ADSP.
+             */
+            out->config.channels = out->config.channels << 1;
+            out->channel_mask = audio_extn_get_dsd_out_ch_mask(out->config.channels);
+            /* sampling rate of backend should be DSD bit rate / (bitwidth of BE * 2).
+             * In case of DSD128, 44.1KHz DSD  backend sampling rate would be 44.1K * 128/64
+             */
+            out->sample_rate = out->sample_rate * audio_extn_get_mi2s_be_dsd_rate_mul_factor(out->dsd_format);
+            /* sampling rate of frontend still expects as DSD bit rate.
+             * In case of DSD128, 44.1KHz DSD  backend sampling rate would be 44.1K * 128
+             */
+            out->compr_config.codec->sample_rate = out->compr_config.codec->sample_rate * audio_extn_get_fe_dsd_rate_mul_factor(out->dsd_format);
+        }
+    }
+
     uc_info->id = out->usecase;
     uc_info->type = PCM_PLAYBACK;
     uc_info->stream.out = out;
@@ -3294,6 +3339,7 @@ int start_output_stream(struct stream_out *out)
         }
     }
 
+
     if ((out->devices & AUDIO_DEVICE_OUT_ALL_A2DP) &&
         (!audio_extn_a2dp_source_is_ready())) {
         if (!a2dp_combo) {
@@ -3309,6 +3355,11 @@ int start_output_stream(struct stream_out *out)
         }
     } else {
          select_devices(adev, out->usecase);
+    }
+
+    if (out->format == AUDIO_FORMAT_DSD) {
+        /* set extra config to output device in DSD format to mute unused speakers */
+        platform_set_native_dsd_speaker_cfg(out);
     }
 
     if (out->usecase == USECASE_INCALL_MUSIC_UPLINK)
@@ -4413,6 +4464,12 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
             pthread_mutex_unlock(&out->lock);
         }
     }
+
+    err = str_parms_get_int(parms, AUDIO_PARAMETER_STREAM_DSD_FMT, &val);
+    if (err >= 0) {
+        out->dsd_format = val;
+    }
+
     //end suspend, resume handling block
     str_parms_destroy(parms);
 error:
@@ -5967,6 +6024,11 @@ static int in_set_parameters(struct audio_stream *stream, const char *kvpairs)
                                                           in->profile, &in->app_type_cfg);
     }
 
+    err = str_parms_get_int(parms, AUDIO_PARAMETER_STREAM_DSD_FMT, &val);
+    if (err >= 0) {
+        in->dsd_format = val;
+    }
+
     pthread_mutex_unlock(&adev->lock);
     pthread_mutex_unlock(&in->lock);
 
@@ -7001,6 +7063,7 @@ int adev_open_output_stream(struct audio_hw_device *dev,
         if (config->format == AUDIO_FORMAT_DSD) {
             out->flags |= AUDIO_OUTPUT_FLAG_COMPRESS_PASSTHROUGH;
             out->compr_config.codec->compr_passthr = PASSTHROUGH_DSD;
+            out->config.channels = audio_channel_count_from_out_mask(out->channel_mask);
         }
 
         create_offload_callback_thread(out);
@@ -8340,15 +8403,15 @@ static void adev_close_input_stream(struct audio_hw_device *dev,
         platform_set_echo_reference(adev, false, AUDIO_DEVICE_NONE);
     else
         audio_extn_sound_trigger_update_ec_ref_status(false);
+    if (in == NULL) {
+        ALOGE("%s: audio_stream_in ptr is NULL", __func__);
+        return;
+    }
 
 #ifndef LINUX_ENABLED
     error_log_destroy(in->error_log);
     in->error_log = NULL;
 #endif
-    if (in == NULL) {
-        ALOGE("%s: audio_stream_in ptr is NULL", __func__);
-        return;
-    }
 
     if (in->usecase == USECASE_COMPRESS_VOIP_CALL) {
         pthread_mutex_lock(&adev->lock);

@@ -721,7 +721,8 @@ void audio_extn_utils_update_stream_output_app_type_cfg(void *platform,
     struct stream_format *sf_info;
     char value[PROPERTY_VALUE_MAX] = {0};
 
-    if (devices & AUDIO_DEVICE_OUT_SPEAKER) {
+     if ((devices & AUDIO_DEVICE_OUT_SPEAKER) &&
+         (format != AUDIO_FORMAT_DSD)) {
         int bw = platform_get_snd_device_bit_width(SND_DEVICE_OUT_SPEAKER);
         if ((-ENOSYS != bw) && (bit_width > (uint32_t)bw))
             bit_width = (uint32_t)bw;
@@ -1558,6 +1559,9 @@ uint32_t hal_format_to_alsa(audio_format_t hal_format)
         break;
     case AUDIO_FORMAT_PCM_FLOAT:
         alsa_format = SNDRV_PCM_FORMAT_S24_3LE;
+        break;
+    case AUDIO_FORMAT_DSD:
+        alsa_format = SNDRV_PCM_FORMAT_S32_LE;
         break;
     default:
     case AUDIO_FORMAT_PCM_16_BIT:
@@ -3058,9 +3062,13 @@ size_t audio_extn_utils_get_input_buffer_size(uint32_t sample_rate,
     if (is_low_latency)
         size = LOW_LATENCY_CAPTURE_PERIOD_SIZE;
 
-
-    bytes_per_period_sample = audio_bytes_per_sample(format) * channel_count;
-    size *= bytes_per_period_sample;
+    if (format != AUDIO_FORMAT_DSD) {
+        bytes_per_period_sample = audio_bytes_per_sample(format) * channel_count;
+        size *= bytes_per_period_sample;
+    } else {
+        bytes_per_period_sample = sizeof(uint32_t) * channel_count;
+        size *= bytes_per_period_sample;
+    }
 
     /* make sure the size is multiple of 32 bytes and additionally multiple of
      * the frame_size (required for 24bit samples and non-power-of-2 channel counts)
@@ -3096,4 +3104,114 @@ int audio_extn_utils_send_app_type_gain(struct audio_device *adev,
     ALOGV("%s app_type %d l(%d) r(%d)", __func__,  app_type, gain[0], gain[1]);
     return mixer_ctl_set_array(ctl, gain_cfg,
                                sizeof(gain_cfg)/sizeof(gain_cfg[0]));
+}
+
+int audio_extn_get_mi2s_be_dsd_rate_mul_factor(int dsd_format)
+{
+    int mul_factor = 0;
+
+    switch (dsd_format) {
+        case DSD_FORMAT_64:
+            mul_factor = 1;
+        break;
+        case DSD_FORMAT_128:
+            mul_factor = 2;
+        break;
+        case DSD_FORMAT_256:
+            mul_factor = 3;
+        break;
+        case DSD_FORMAT_512:
+            mul_factor = 4;
+        break;
+        default:
+            ALOGE("%s: invalid DSD format %d", __func__, dsd_format);
+    }
+
+    return mul_factor;
+}
+
+int audio_extn_get_fe_dsd_rate_mul_factor(int dsd_format)
+{
+    int mul_factor = 0;
+
+    switch (dsd_format) {
+        case DSD_FORMAT_64:
+            mul_factor = 64;
+        break;
+        case DSD_FORMAT_128:
+            mul_factor = 128;
+        break;
+        case DSD_FORMAT_256:
+            mul_factor = 256;
+        break;
+        case DSD_FORMAT_512:
+            mul_factor = 512;
+        break;
+        default:
+            ALOGE("%s: invalid DSD format %d", __func__, dsd_format);
+    }
+
+    return mul_factor;
+}
+
+int audio_extn_get_dsd_in_ch_mask(int channels)
+{
+    int ch_mask = 0;
+
+    switch (channels) {
+        case 4:
+            ch_mask = AUDIO_CHANNEL_IN_LEFT | AUDIO_CHANNEL_IN_RIGHT |
+            AUDIO_CHANNEL_IN_FRONT | AUDIO_CHANNEL_IN_BACK;
+        break;
+        case 10:
+            ch_mask = AUDIO_CHANNEL_IN_LEFT | AUDIO_CHANNEL_IN_RIGHT |
+            AUDIO_CHANNEL_IN_FRONT | AUDIO_CHANNEL_IN_BACK |
+            AUDIO_CHANNEL_IN_LEFT_PROCESSED | AUDIO_CHANNEL_IN_RIGHT_PROCESSED |
+            AUDIO_CHANNEL_IN_FRONT_PROCESSED | AUDIO_CHANNEL_IN_BACK_PROCESSED |
+            AUDIO_CHANNEL_IN_PRESSURE | AUDIO_CHANNEL_IN_X_AXIS;
+        break;
+        case 12:
+            ch_mask = AUDIO_CHANNEL_IN_LEFT | AUDIO_CHANNEL_IN_RIGHT |
+            AUDIO_CHANNEL_IN_FRONT | AUDIO_CHANNEL_IN_BACK |
+            AUDIO_CHANNEL_IN_LEFT_PROCESSED | AUDIO_CHANNEL_IN_RIGHT_PROCESSED |
+            AUDIO_CHANNEL_IN_FRONT_PROCESSED | AUDIO_CHANNEL_IN_BACK_PROCESSED |
+            AUDIO_CHANNEL_IN_PRESSURE | AUDIO_CHANNEL_IN_X_AXIS |
+            AUDIO_CHANNEL_IN_Y_AXIS | AUDIO_CHANNEL_IN_Z_AXIS;
+        break;
+        default:
+            ALOGE("%s: unsupported DSD channels %d", __func__, channels);
+    }
+
+    return ch_mask;
+}
+
+int audio_extn_get_dsd_out_ch_mask(int channels)
+{
+    int ch_mask = 0;
+
+    switch (channels) {
+        case 4:
+            AUDIO_CHANNEL_OUT_FRONT_LEFT | AUDIO_CHANNEL_OUT_FRONT_RIGHT |
+            AUDIO_CHANNEL_OUT_FRONT_CENTER | AUDIO_CHANNEL_OUT_LOW_FREQUENCY;
+        break;
+        case 10:
+            ch_mask = AUDIO_CHANNEL_OUT_FRONT_LEFT | AUDIO_CHANNEL_OUT_FRONT_RIGHT |
+            AUDIO_CHANNEL_OUT_FRONT_CENTER | AUDIO_CHANNEL_OUT_LOW_FREQUENCY |
+            AUDIO_CHANNEL_OUT_BACK_LEFT | AUDIO_CHANNEL_OUT_BACK_RIGHT |
+            AUDIO_CHANNEL_OUT_FRONT_LEFT_OF_CENTER | AUDIO_CHANNEL_OUT_FRONT_RIGHT_OF_CENTER |
+            AUDIO_CHANNEL_OUT_BACK_CENTER | AUDIO_CHANNEL_OUT_SIDE_LEFT;
+        break;
+        case 12:
+            ch_mask = AUDIO_CHANNEL_OUT_FRONT_LEFT | AUDIO_CHANNEL_OUT_FRONT_RIGHT |
+            AUDIO_CHANNEL_OUT_FRONT_CENTER | AUDIO_CHANNEL_OUT_LOW_FREQUENCY |
+            AUDIO_CHANNEL_OUT_BACK_LEFT | AUDIO_CHANNEL_OUT_BACK_RIGHT |
+            AUDIO_CHANNEL_OUT_FRONT_LEFT_OF_CENTER | AUDIO_CHANNEL_OUT_FRONT_RIGHT_OF_CENTER |
+            AUDIO_CHANNEL_OUT_BACK_CENTER | AUDIO_CHANNEL_OUT_SIDE_LEFT |
+            AUDIO_CHANNEL_OUT_SIDE_RIGHT | AUDIO_CHANNEL_OUT_TOP_CENTER;
+        break;
+        default:
+            ALOGE("%s: unsupported DSD channels %d", __func__, channels);
+    }
+
+    return ch_mask;
 }

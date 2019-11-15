@@ -1278,10 +1278,14 @@ static void audio_a2dp_update_tws_channel_mode()
 {
     char* channel_mode;
     struct mixer_ctl *ctl_channel_mode;
+
+    ALOGD("Update tws for mono_mode on=%d",a2dp.is_tws_mono_mode_on);
+
     if (a2dp.is_tws_mono_mode_on)
        channel_mode = "One";
     else
        channel_mode = "Two";
+
     ctl_channel_mode = mixer_get_ctl_by_name(a2dp.adev->mixer,MIXER_FMT_TWS_CHANNEL_MODE);
     if (!ctl_channel_mode) {
          ALOGE("failed to get tws mixer ctl");
@@ -1322,14 +1326,8 @@ static int update_aptx_dsp_config(struct aptx_enc_cfg_t *aptx_dsp_cfg,
             break;
         case 2:
         default:
-            if (!a2dp.is_tws_mono_mode_on) {
                aptx_dsp_cfg->custom_cfg.channel_mapping[0] = PCM_CHANNEL_L;
                aptx_dsp_cfg->custom_cfg.channel_mapping[1] = PCM_CHANNEL_R;
-            }
-            else {
-               a2dp.is_tws_mono_mode_on = true;
-               ALOGD("Update tws for mono_mode_on: %d",a2dp.is_tws_mono_mode_on);
-            }
             break;
     }
     a2dp.enc_channels = aptx_dsp_cfg->custom_cfg.num_channels;
@@ -1370,11 +1368,9 @@ bool configure_aptx_enc_format(audio_aptx_encoder_config_l *aptx_bt_cfg)
     }
 
     if (a2dp.is_aptx_adaptive) {
-        mixer_size = sizeof(struct aptx_ad_enc_cfg_t);
         ret = update_aptx_ad_dsp_config(&aptx_ad_dsp_cfg, aptx_bt_cfg);
         sample_rate_backup = aptx_ad_dsp_cfg.custom_cfg.sample_rate;
     } else {
-        mixer_size = sizeof(struct aptx_enc_cfg_t);
         sample_rate_backup = aptx_bt_cfg->default_cfg->sampling_rate;
         ret = update_aptx_dsp_config(&aptx_dsp_cfg, aptx_bt_cfg);
     }
@@ -1387,10 +1383,10 @@ bool configure_aptx_enc_format(audio_aptx_encoder_config_l *aptx_bt_cfg)
 
     if (a2dp.is_aptx_adaptive)
         ret = mixer_ctl_set_array(ctl_enc_data, (void *)&aptx_ad_dsp_cfg,
-                              mixer_size);
+                              sizeof(struct aptx_ad_enc_cfg_t));
     else
         ret = mixer_ctl_set_array(ctl_enc_data, (void *)&aptx_dsp_cfg,
-                              mixer_size);
+                               sizeof(struct aptx_enc_cfg_t));
 
     if (ret != 0) {
         ALOGE("%s: Failed to set APTX encoder config", __func__);

@@ -125,6 +125,13 @@ struct audio_effect_config {
     uint32_t param_value;
 };
 
+struct audio_fluence_mmsecns_config {
+    uint32_t topology_id;
+    uint32_t module_id;
+    uint32_t instance_id;
+    uint32_t param_id;
+};
+
 #define MAX_MIXER_PATH_LEN 64
 
 typedef enum card_status_t {
@@ -370,6 +377,7 @@ struct stream_out {
     bool adm_event_enable;
     bool asm_event_enable;
     bool ip_hdlr_enabled;
+    dsd_format_t dsd_format;
 
     stream_callback_t client_callback;
     void *client_cookie;
@@ -453,6 +461,7 @@ struct stream_in {
     struct stream_app_type_cfg app_type_cfg;
     void *cin_extn;
     qahwi_stream_in_t qahwi_in;
+    dsd_format_t dsd_format;
 
     struct audio_device *dev;
     card_status_t card_status;

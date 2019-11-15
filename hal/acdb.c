@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -169,8 +169,13 @@ int acdb_init_v2(struct mixer *mixer)
         result = -1;
         goto cleanup;
     }
-
     snd_card_name = platform_get_snd_card_name_for_acdb_loader(snd_card_name);
+    if (!snd_card_name) {
+        ALOGE("failed to allocate memory for snd_card_name");
+        result = -1;
+        goto cleanup;
+    }
+
     int key = 0;
     struct listnode *node = NULL;
     struct meta_key_list *key_info = NULL;
