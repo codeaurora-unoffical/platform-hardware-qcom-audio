@@ -69,6 +69,7 @@
 typedef enum patch_handle_type {
     AUDIO_PATCH_MIC_IN_SPKR_OUT = 0x10,
     AUDIO_PATCH_DTMF_IN_SPKR_OUT,
+    AUDIO_PATCH_HEADSET_MIC_IN_SPKR_OUT,
 } patch_handle_type_t;
 
 typedef enum patch_state {
@@ -220,6 +221,7 @@ patch_handle_type_t get_loopback_patch_type(loopback_patch_t*  loopback_patch)
     bool is_source_supported=false, is_sink_supported=false;
     struct audio_port_config *source_patch_config = &loopback_patch->
                                                     loopback_source;
+    struct audio_device *adev = audio_loopback_mod->adev;
 
     if (loopback_patch->patch_handle_id != PATCH_HANDLE_INVALID) {
         ALOGE("%s, Patch handle already exists", __func__);
@@ -277,6 +279,18 @@ patch_handle_type_t get_loopback_patch_type(loopback_patch_t*  loopback_patch)
             ALOGD("%s, is_source_supported (%d) is sink_supported(%d) patch id (%08x)",
                  __func__, is_source_supported, is_sink_supported, AUDIO_PATCH_DTMF_IN_SPKR_OUT);
             return AUDIO_PATCH_DTMF_IN_SPKR_OUT;
+        } else if (audio_loopback_mod->adev->sec_mi2s_headset_enable == true) {
+            if (loopback_patch->loopback_sink.ext.device.type & AUDIO_DEVICE_OUT_WIRED_HEADSET) {
+                ALOGD("%s, is_source_supported (%d) is sink_supported(%d) patch id (%08x)",
+                       __func__, is_source_supported, is_sink_supported,
+                       AUDIO_PATCH_HEADSET_MIC_IN_SPKR_OUT);
+                return AUDIO_PATCH_HEADSET_MIC_IN_SPKR_OUT;
+            }
+            else {
+              ALOGD("%s, is_source_supported (%d) is sink_supported(%d) patch id (%08x)",
+                     __func__, is_source_supported, is_sink_supported, AUDIO_PATCH_MIC_IN_SPKR_OUT);
+              return AUDIO_PATCH_MIC_IN_SPKR_OUT;
+            }
         } else {
             ALOGD("%s, is_source_supported (%d) is sink_supported(%d) patch id (%08x)",
                  __func__, is_source_supported, is_sink_supported, AUDIO_PATCH_MIC_IN_SPKR_OUT);
@@ -421,6 +435,11 @@ int create_loopback_session(loopback_patch_t *active_loopback_patch)
 
     pcm_dev_rx_id = platform_get_pcm_device_id(uc_info->id, PCM_PLAYBACK);
     pcm_dev_tx_id = platform_get_pcm_device_id(uc_info->id, PCM_CAPTURE);
+
+    if ((active_loopback_patch->patch_handle_id >> 8) == AUDIO_PATCH_HEADSET_MIC_IN_SPKR_OUT) {
+         pcm_dev_rx_id = SEC_AFE_LOOPBACK_RX_DEV_ID;
+         pcm_dev_tx_id = SEC_AFE_LOOPBACK_TX_DEV_ID;
+    }
 
     if (pcm_dev_rx_id < 0) {
         ALOGE("%s: Invalid PCM devices (asm: rx %d) for the usecase(%d)",

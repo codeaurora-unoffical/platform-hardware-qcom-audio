@@ -3140,7 +3140,7 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
         pthread_mutex_unlock(&out->lock);
     }
 
-    if (out == adev->primary_output) {
+    if (output_drives_call(adev, out)) {
         lock_output_stream(out);
         pthread_mutex_lock(&adev->lock);
         audio_extn_set_parameters(adev, parms);
@@ -4740,6 +4740,17 @@ int adev_open_output_stream(struct audio_hw_device *dev,
             if (out->config.period_size <= 0) {
                 ALOGE("Invalid configuration period size is not valid");
                 ret = -EINVAL;
+                goto error_open;
+            }
+        } else if (out->flags & AUDIO_OUTPUT_FLAG_VOICE_CALL) {
+            /* Voice call should not use primary path */
+            out->usecase = USECASE_VOICEMMODE1_CALL;
+            out->config = PCM_CONFIG_AUDIO_PLAYBACK_PRIMARY;
+            if(adev->voice_tx_output == NULL) {
+                adev->voice_tx_output = out;
+            } else {
+                ALOGE("%s: Voice output is already opened", __func__);
+                ret = -EEXIST;
                 goto error_open;
             }
         } else {

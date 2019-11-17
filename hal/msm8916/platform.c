@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2018, 2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -76,6 +76,7 @@
 #define MIXER_XML_PATH_WCD9326_I2S "/etc/mixer_paths_wcd9326_i2s.xml"
 #define MIXER_XML_PATH_WCD9330_I2S "/etc/mixer_paths_wcd9330_i2s.xml"
 #define MIXER_XML_PATH_WCD9335_I2S "/etc/mixer_paths_wcd9335_i2s.xml"
+#define MIXER_XML_PATH_EXTCODEC_I2S "/etc/mixer_paths_extcodec_i2s.xml"
 #define MIXER_XML_PATH_SBC "/etc/mixer_paths_sbc.xml"
 #else
 #define MIXER_XML_PATH "/system/etc/mixer_paths.xml"
@@ -91,6 +92,7 @@
 #define MIXER_XML_PATH_WCD9326_I2S "/system/etc/mixer_paths_wcd9326_i2s.xml"
 #define MIXER_XML_PATH_WCD9330_I2S "/system/etc/mixer_paths_wcd9330_i2s.xml"
 #define MIXER_XML_PATH_WCD9335_I2S "/system/etc/mixer_paths_wcd9335_i2s.xml"
+#define MIXER_XML_PATH_EXTCODEC_I2S "/system/etc/mixer_paths_extcodec_i2s.xml"
 #define MIXER_XML_PATH_SBC "/system/etc/mixer_paths_sbc.xml"
 #endif
 #define MIXER_XML_PATH_SKUN "/system/etc/mixer_paths_qrd_skun.xml"
@@ -164,6 +166,8 @@
 #define EVENT_EXTERNAL_MIC   "qc_ext_mic"
 #define MAX_CAL_NAME 20
 #define MAX_MIME_TYPE_LENGTH 30
+
+#define AUDIO_PARAMETER_KEY_SEC_MI2S_HEADSET "sec_mi2s_headset_enable"
 
 char cal_name_info[WCD9XXX_MAX_CAL][MAX_CAL_NAME] = {
         [WCD9XXX_ANC_CAL] = "anc_cal",
@@ -880,6 +884,7 @@ static struct name_to_index usecase_name_index[AUDIO_USECASE_MAX] = {
     {TO_NAME_INDEX(USECASE_AUDIO_SPKR_CALIB_RX)},
     {TO_NAME_INDEX(USECASE_AUDIO_PLAYBACK_AFE_PROXY)},
     {TO_NAME_INDEX(USECASE_AUDIO_RECORD_AFE_PROXY)},
+    {TO_NAME_INDEX(USECASE_AUDIO_AFE_LOOPBACK)},
     {TO_NAME_INDEX(USECASE_AUDIO_EC_REF_LOOPBACK)},
 };
 
@@ -950,7 +955,9 @@ static char *platform_get_mixer_control(struct mixer_ctl *);
 
 static void update_interface(const char *snd_card_name) {
      if (!strncmp(snd_card_name, "apq8009-tashalite-snd-card",
-                  sizeof("apq8009-tashalite-snd-card"))) {
+                  sizeof("apq8009-tashalite-snd-card")) ||
+         !strncmp(snd_card_name, "mdm-auto-i2s-snd-card",
+                  sizeof("mdm-auto-i2s-snd-card"))) {
          is_slimbus_interface = false;
      }
 }
@@ -995,6 +1002,8 @@ static void update_codec_type(const char *snd_card_name) {
                   sizeof("mdm9607-tomtom-i2s-snd-card")) ||
          !strncmp(snd_card_name, "mdm-tasha-i2s-snd-card",
                   sizeof("mdm-tasha-i2s-snd-card")) ||
+         !strncmp(snd_card_name, "mdm-auto-i2s-snd-card",
+                  sizeof("mdm-auto-i2s-snd-card")) ||
          !strncmp(snd_card_name, "sdm660-tashalite-snd-card",
                   sizeof("sdm660-tashalite-snd-card")) ||
          !strncmp(snd_card_name, "sdm660-tasha-skus-snd-card",
@@ -1366,6 +1375,14 @@ static void query_platform(const char *snd_card_name,
         msm_device_to_be_id = msm_device_to_be_id_external_codec;
         msm_be_id_array_len  =
             sizeof(msm_device_to_be_id_external_codec) / sizeof(msm_device_to_be_id_external_codec[0]);
+   } else if (!strncmp(snd_card_name, "mdm-auto-i2s-snd-card",
+                       sizeof("mdm-auto-i2s-snd-card"))) {
+        strlcpy(mixer_xml_path, MIXER_XML_PATH_EXTCODEC_I2S,
+                sizeof(MIXER_XML_PATH_EXTCODEC_I2S));
+        msm_device_to_be_id = msm_device_to_be_id_external_codec;
+        msm_be_id_array_len  =
+                sizeof(msm_device_to_be_id_external_codec) / sizeof(msm_device_to_be_id_external_codec[0]);
+
     } else {
         strlcpy(mixer_xml_path, MIXER_XML_PATH,
                 sizeof(MIXER_XML_PATH));
@@ -1420,6 +1437,24 @@ void platform_set_gsm_mode(void *platform, bool enable)
          my_data->gsm_mode_enabled = true;
          ALOGD("%s: enabling gsm mode", __func__);
          audio_route_apply_and_update_path(adev->audio_route, "gsm-mode");
+    }
+}
+
+static void platform_set_sec_mi2s_headset_params(void *platform, struct str_parms *parms, char *value, int len)
+{
+    struct platform_data *my_data = (struct platform_data *)platform;
+    struct audio_device *adev = my_data->adev;
+    int err;
+
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_SEC_MI2S_HEADSET, value, len);
+
+    if (err >= 0) {
+
+        if (!strncmp("true", value, sizeof("true")))
+            adev->sec_mi2s_headset_enable = true;
+        else
+            adev->sec_mi2s_headset_enable = false;
+
     }
 }
 
@@ -4821,6 +4856,8 @@ int platform_set_parameters(void *platform, struct str_parms *parms)
         my_data->max_mic_count = atoi(value);
         ALOGV("%s: max_mic_count %d", __func__, my_data->max_mic_count);
     }
+
+    platform_set_sec_mi2s_headset_params(platform, parms, value, len);
 
     /* handle audio calibration parameters */
     set_audiocal(platform, parms, value, len);
