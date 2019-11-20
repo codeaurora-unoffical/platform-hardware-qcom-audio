@@ -317,6 +317,7 @@ struct platform_data {
     acdb_deallocate_t          acdb_deallocate;
     acdb_send_audio_cal_t      acdb_send_audio_cal;
     acdb_send_audio_cal_v3_t   acdb_send_audio_cal_v3;
+    acdb_send_audio_cal_v5_t   acdb_send_audio_cal_v5;
     acdb_set_audio_cal_t       acdb_set_audio_cal;
     acdb_get_audio_cal_t       acdb_get_audio_cal;
     acdb_send_voice_cal_t      acdb_send_voice_cal;
@@ -482,6 +483,8 @@ static int pcm_device_table[AUDIO_USECASE_MAX][2] = {
     [USECASE_AUDIO_PLAYBACK_PHONE] = {PHONE_PCM_DEVICE,
                                       PHONE_PCM_DEVICE},
     [USECASE_AUDIO_FM_TUNER_EXT] = {-1, -1},
+    [USECASE_AUDIO_AFE_LOOPBACK] = {AFE_LOOPBACK_RX_DEV_ID, AFE_LOOPBACK_TX_DEV_ID},
+    [USECASE_AUDIO_DTMF] = {DTMF_TX_DEV_ID, DTMF_TX_DEV_ID},
 };
 
 /* Array to store sound devices */
@@ -687,6 +690,13 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_HANDSET_QMIC_AND_EC_REF_LOOPBACK] = "handset-qmic-and-ec-ref-loopback",
     [SND_DEVICE_IN_HANDSET_6MIC_AND_EC_REF_LOOPBACK] = "handset-6mic-and-ec-ref-loopback",
     [SND_DEVICE_IN_HANDSET_8MIC_AND_EC_REF_LOOPBACK] = "handset-8mic-and-ec-ref-loopback",
+    [SND_DEVICE_IN_HANDSET_GENERIC_DMIC] = "dmic-endfire",
+    [SND_DEVICE_IN_HANDSET_GENERIC_6MIC] = "handset-6mic",
+    [SND_DEVICE_IN_HANDSET_GENERIC_8MIC] = "handset-8mic",
+    [SND_DEVICE_IN_HANDSET_GENERIC_DMIC_AND_EC_REF_LOOPBACK] = "handset-dmic-and-ec-ref-loopback",
+    [SND_DEVICE_IN_HANDSET_GENERIC_QMIC_AND_EC_REF_LOOPBACK] = "handset-qmic-and-ec-ref-loopback",
+    [SND_DEVICE_IN_HANDSET_GENERIC_6MIC_AND_EC_REF_LOOPBACK] = "handset-6mic-and-ec-ref-loopback",
+    [SND_DEVICE_IN_HANDSET_GENERIC_8MIC_AND_EC_REF_LOOPBACK] = "handset-8mic-and-ec-ref-loopback",
 };
 
 // Platform specific backend bit width table
@@ -1106,6 +1116,13 @@ static struct name_to_index snd_device_name_index[SND_DEVICE_MAX] = {
     {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_QMIC_AND_EC_REF_LOOPBACK)},
     {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_6MIC_AND_EC_REF_LOOPBACK)},
     {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_8MIC_AND_EC_REF_LOOPBACK)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_GENERIC_DMIC)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_GENERIC_6MIC)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_GENERIC_8MIC)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_GENERIC_DMIC_AND_EC_REF_LOOPBACK)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_GENERIC_QMIC_AND_EC_REF_LOOPBACK)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_GENERIC_6MIC_AND_EC_REF_LOOPBACK)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_GENERIC_8MIC_AND_EC_REF_LOOPBACK)},
 };
 
 static char * backend_tag_table[SND_DEVICE_MAX] = {0};
@@ -2380,6 +2397,8 @@ static void get_source_mic_type(struct platform_data * my_data)
 {
     // support max to mono, example if max count is 3, usecase supports Three, dual and mono mic
     switch (my_data->max_mic_count) {
+        case 8:
+            my_data->source_mic_type |= SOURCE_OCT_MIC;
         case 6:
             my_data->source_mic_type |= SOURCE_HEX_MIC;
         case 4:
@@ -2850,6 +2869,12 @@ void *platform_init(struct audio_device *adev)
                                                     "acdb_loader_send_audio_cal_v3");
         if (!my_data->acdb_send_audio_cal_v3)
             ALOGE("%s: Could not find the symbol acdb_send_audio_cal_v3 from %s",
+                  __func__, LIB_ACDB_LOADER);
+
+        my_data->acdb_send_audio_cal_v5 = (acdb_send_audio_cal_v5_t)dlsym(my_data->acdb_handle,
+                                                    "acdb_loader_send_audio_cal_v5");
+        if (!my_data->acdb_send_audio_cal_v5)
+            ALOGE("%s: Could not find the symbol acdb_send_audio_cal_v5 from %s",
                   __func__, LIB_ACDB_LOADER);
 
         my_data->acdb_set_audio_cal = (acdb_set_audio_cal_t)dlsym(my_data->acdb_handle,
@@ -3751,12 +3776,12 @@ bool platform_check_backends_match(snd_device_t snd_device1, snd_device_t snd_de
                 platform_get_snd_device_name(snd_device1),
                 platform_get_snd_device_name(snd_device2));
 
-    if ((snd_device1 < SND_DEVICE_MIN) || (snd_device1 >= SND_DEVICE_OUT_END)) {
+    if ((snd_device1 < SND_DEVICE_MIN) || (snd_device1 >= SND_DEVICE_MAX)) {
         ALOGE("%s: Invalid snd_device = %s", __func__,
                 platform_get_snd_device_name(snd_device1));
         return false;
     }
-    if ((snd_device2 < SND_DEVICE_MIN) || (snd_device2 >= SND_DEVICE_OUT_END)) {
+    if ((snd_device2 < SND_DEVICE_MIN) || (snd_device2 >= SND_DEVICE_MAX)) {
         ALOGE("%s: Invalid snd_device = %s", __func__,
                 platform_get_snd_device_name(snd_device2));
         return false;
@@ -4376,6 +4401,8 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
         snd_device = usecase->in_snd_device;
     else if (usecase->type == TRANSCODE_LOOPBACK_RX)
         snd_device = usecase->out_snd_device;
+    else if ((usecase->type == AFE_LOOPBACK) || (usecase->type == DTMF_PLAYBACK))
+        snd_device = usecase->out_snd_device;
 
     acdb_dev_id = acdb_device_table[platform_get_spkr_prot_snd_device(snd_device)];
     if (acdb_dev_id < 0) {
@@ -4439,7 +4466,14 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
         else
             acdb_dev_type = ACDB_DEV_TYPE_IN;
 
-        if (my_data->acdb_send_audio_cal_v3) {
+        if (my_data->acdb_send_audio_cal_v5) {
+            /* 0: non-persistent, 1: persistent */
+            int cal_mode = (usecase->is_persistent_cal) ?
+                            CAL_MODE_PERSIST : CAL_MODE_SEND;
+            my_data->acdb_send_audio_cal_v5(acdb_dev_id, acdb_dev_type,
+                                            app_type, sample_rate, i,
+                                            sample_rate, cal_mode);
+        } else if (my_data->acdb_send_audio_cal_v3) {
             my_data->acdb_send_audio_cal_v3(acdb_dev_id, acdb_dev_type,
                                             app_type, sample_rate, i);
         } else if (my_data->acdb_send_audio_cal) {
@@ -4988,8 +5022,27 @@ int platform_split_snd_device(void *platform,
         new_snd_devices[0] = SND_DEVICE_IN_HANDSET_8MIC;
         new_snd_devices[1] = SND_DEVICE_IN_EC_REF_LOOPBACK;
         ret = 0;
+    } else if (SND_DEVICE_IN_HANDSET_GENERIC_DMIC_AND_EC_REF_LOOPBACK == snd_device) {
+        *num_devices = 2;
+        new_snd_devices[0] = SND_DEVICE_IN_HANDSET_GENERIC_DMIC;
+        new_snd_devices[1] = SND_DEVICE_IN_EC_REF_LOOPBACK;
+        ret = 0;
+    } else if (SND_DEVICE_IN_HANDSET_GENERIC_QMIC_AND_EC_REF_LOOPBACK == snd_device) {
+        *num_devices = 2;
+        new_snd_devices[0] = SND_DEVICE_IN_HANDSET_GENERIC_QMIC;
+        new_snd_devices[1] = SND_DEVICE_IN_EC_REF_LOOPBACK;
+        ret = 0;
+    } else if (SND_DEVICE_IN_HANDSET_GENERIC_6MIC_AND_EC_REF_LOOPBACK == snd_device) {
+        *num_devices = 2;
+        new_snd_devices[0] = SND_DEVICE_IN_HANDSET_GENERIC_6MIC;
+        new_snd_devices[1] = SND_DEVICE_IN_EC_REF_LOOPBACK;
+        ret = 0;
+    } else if (SND_DEVICE_IN_HANDSET_GENERIC_8MIC_AND_EC_REF_LOOPBACK == snd_device) {
+        *num_devices = 2;
+        new_snd_devices[0] = SND_DEVICE_IN_HANDSET_GENERIC_8MIC;
+        new_snd_devices[1] = SND_DEVICE_IN_EC_REF_LOOPBACK;
+        ret = 0;
     }
-
 
     ALOGD("%s: snd_device(%d) num devices(%d) new_snd_devices(%d)", __func__,
         snd_device, *num_devices, *new_snd_devices);
@@ -5777,26 +5830,20 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
                 }
             }
         }
-    } else if (my_data->use_generic_handset == true &&  //     system prop is enabled
-               (my_data->source_mic_type & SOURCE_QUAD_MIC) &&  // AND 4mic is available
-               ((in_device & AUDIO_DEVICE_IN_BUILTIN_MIC) ||    // AND device is buit-in mic or back mic
+    } else if (my_data->use_generic_handset == true) {//     system prop is enabled
+        if (((in_device & AUDIO_DEVICE_IN_BUILTIN_MIC) ||    // AND device is buit-in mic or back mic
                 (in_device & AUDIO_DEVICE_IN_BACK_MIC)) &&
-               (my_data->fluence_in_audio_rec == true &&       //  AND fluencepro is enabled
-                my_data->fluence_type & FLUENCE_QUAD_MIC) &&
-               (source == AUDIO_SOURCE_CAMCORDER ||           // AND source is cam/mic/unprocessed
-                source == AUDIO_SOURCE_UNPROCESSED ||
-                source == AUDIO_SOURCE_MIC)) {
-                snd_device = SND_DEVICE_IN_HANDSET_GENERIC_QMIC;
-                platform_set_echo_reference(adev, true, out_device);
-    } else if (my_data->use_generic_handset == true &&          // System prop is enabled
-               (my_data->ambisonic_capture == true) &&          // Enable Ambisonic capture
-               (my_data->source_mic_type & SOURCE_QUAD_MIC) &&  // AND 4mic is available
-               ((in_device & AUDIO_DEVICE_IN_BUILTIN_MIC) ||    // AND device is Built-in
-               (in_device & AUDIO_DEVICE_IN_BACK_MIC)) &&       // OR Back-mic
-               (source == AUDIO_SOURCE_MIC ||                   // AND source is MIC for 16bit
-                source == AUDIO_SOURCE_UNPROCESSED ||           // OR unprocessed for 24bit
-                source == AUDIO_SOURCE_CAMCORDER)) {            // OR camera usecase
-                snd_device = SND_DEVICE_IN_HANDSET_GENERIC_QMIC;
+             ((source == AUDIO_SOURCE_CAMCORDER) ||           // AND source is cam/mic/unprocessed
+                (source == AUDIO_SOURCE_UNPROCESSED) ||
+                (source == AUDIO_SOURCE_MIC))) {
+            if (my_data->ambisonic_capture == true) {          // Enable Ambisonic capture
+                if (my_data->source_mic_type & SOURCE_QUAD_MIC) {
+                    snd_device = SND_DEVICE_IN_HANDSET_GENERIC_QMIC;
+                } else {
+                    snd_device = SND_DEVICE_NONE;
+                    ALOGW("Unsupported Input configuration for ambisonic capture");
+                    goto exit;
+                }
                 /* Below check is true only in LA build to set
                    ambisonic profile. In LE hal client will set profile
                  */
@@ -5817,6 +5864,60 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
                           goto exit;
                     }
                 }
+            } else {
+                if (in_device & AUDIO_DEVICE_IN_LOOPBACK) {
+                    if (my_data->source_mic_type & SOURCE_OCT_MIC) {
+                        snd_device = SND_DEVICE_IN_HANDSET_GENERIC_8MIC_AND_EC_REF_LOOPBACK;
+                    } else if (my_data->source_mic_type & SOURCE_HEX_MIC) {
+                        snd_device = SND_DEVICE_IN_HANDSET_GENERIC_6MIC_AND_EC_REF_LOOPBACK;
+                    } else if (my_data->source_mic_type & SOURCE_QUAD_MIC) {
+                        snd_device = SND_DEVICE_IN_HANDSET_GENERIC_QMIC_AND_EC_REF_LOOPBACK;
+                    } else if (my_data->source_mic_type & SOURCE_DUAL_MIC) {
+                        snd_device = SND_DEVICE_IN_HANDSET_GENERIC_DMIC_AND_EC_REF_LOOPBACK;
+                    } else {
+                        snd_device = SND_DEVICE_NONE;
+                    }
+                } else if ((my_data->fluence_in_audio_rec == true) &&
+                           (channel_count == 1)) {
+                    if (my_data->fluence_type & FLUENCE_QUAD_MIC) {
+                        if (my_data->source_mic_type & SOURCE_OCT_MIC) {
+                            snd_device = SND_DEVICE_IN_HANDSET_GENERIC_8MIC;
+                        } else if (my_data->source_mic_type & SOURCE_HEX_MIC) {
+                            snd_device = SND_DEVICE_IN_HANDSET_GENERIC_6MIC;
+                        } else if (my_data->source_mic_type & SOURCE_QUAD_MIC) {
+                            snd_device = SND_DEVICE_IN_HANDSET_GENERIC_QMIC;
+                        } else if (my_data->source_mic_type & SOURCE_DUAL_MIC) {
+                            snd_device = SND_DEVICE_IN_HANDSET_GENERIC_DMIC;
+                        } else {
+                            snd_device = SND_DEVICE_NONE;
+                        }
+
+                        if (snd_device != SND_DEVICE_NONE) {
+                            platform_set_echo_reference(adev, true, out_device);
+                            usecase = get_usecase_from_list(adev, uc_id);
+                            if (usecase != NULL)
+                                usecase->is_persistent_cal = true;
+                        }
+                    }
+                } else {
+                    if (my_data->source_mic_type & SOURCE_OCT_MIC) {
+                        snd_device = SND_DEVICE_IN_HANDSET_GENERIC_8MIC;
+                    } else if (my_data->source_mic_type & SOURCE_HEX_MIC) {
+                        snd_device = SND_DEVICE_IN_HANDSET_GENERIC_6MIC;
+                    } else if (my_data->source_mic_type & SOURCE_QUAD_MIC) {
+                        snd_device = SND_DEVICE_IN_HANDSET_GENERIC_QMIC;
+                    } else if (my_data->source_mic_type & SOURCE_DUAL_MIC) {
+                        snd_device = SND_DEVICE_IN_HANDSET_GENERIC_DMIC;
+                    } else {
+                        snd_device = SND_DEVICE_NONE;
+                    }
+                }
+            }
+        } else {
+            snd_device = SND_DEVICE_NONE;
+            ALOGW("%s: Unsupported input configuration for generic handset capture", __func__);
+            goto exit;
+        }
     } else if (source == AUDIO_SOURCE_CAMCORDER) {
         if (in_device & AUDIO_DEVICE_IN_BUILTIN_MIC ||
             in_device & AUDIO_DEVICE_IN_BACK_MIC) {
@@ -7458,7 +7559,8 @@ bool platform_sound_trigger_device_needs_event(snd_device_t snd_device)
         (snd_device != SND_DEVICE_IN_CAPTURE_FM) &&
         (snd_device != SND_DEVICE_IN_CAPTURE_VI_FEEDBACK) &&
         (snd_device != SND_DEVICE_IN_CAPTURE_VI_FEEDBACK_MONO_1) &&
-        (snd_device != SND_DEVICE_IN_CAPTURE_VI_FEEDBACK_MONO_2))
+        (snd_device != SND_DEVICE_IN_CAPTURE_VI_FEEDBACK_MONO_2) &&
+        (snd_device != SND_DEVICE_IN_EC_REF_LOOPBACK))
         needs_event = true;
 
     return needs_event;
@@ -7773,6 +7875,7 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
             my_data->current_backend_cfg[backend_idx].sample_rate = sample_rate;
             ret = 0;
     }
+
     if ((my_data->current_backend_cfg[backend_idx].channels_mixer_ctl) &&
         (channels != my_data->current_backend_cfg[backend_idx].channels)) {
         struct  mixer_ctl *ctl = NULL;
@@ -8280,7 +8383,9 @@ bool platform_check_and_set_codec_backend_cfg(struct audio_device* adev,
 
     backend_idx = platform_get_backend_index(snd_device);
 
-    if (usecase->type == TRANSCODE_LOOPBACK_RX) {
+    if ((usecase->type == TRANSCODE_LOOPBACK_RX)
+          || (usecase->type == AFE_LOOPBACK)
+           || (usecase->type == DTMF_PLAYBACK)) {
         backend_cfg.bit_width = usecase->stream.inout->out_config.bit_width;
         backend_cfg.sample_rate = usecase->stream.inout->out_config.sample_rate;
         backend_cfg.format = usecase->stream.inout->out_config.format;
@@ -8391,17 +8496,36 @@ static bool platform_check_capture_codec_backend_cfg(struct audio_device* adev,
             in = (struct stream_in *) uc->stream.in;
             if (in != NULL && uc->type == PCM_CAPTURE &&
                 backend_idx == platform_get_backend_index(uc->in_snd_device)) {
+                unsigned int bw = in->bit_width;
                 uc_channels = audio_channel_count_from_in_mask(in->channel_mask);
+
+                if (is_loopback_input_device(in->device)) {
+                    struct audio_custom_mtmx_in_params_info in_info = {0};
+                    struct audio_custom_mtmx_in_params *in_params = NULL;
+
+                    bw = platform_get_snd_device_bit_width(uc->in_snd_device);
+                    if (((int32_t)bw == -ENOSYS) || ((uint32_t)bw > in->bit_width))
+                        bw = in->bit_width;
+
+                    in_info.usecase_id[0] = uc->id;
+                    in_info.op_channels = uc_channels;
+                    in_params = platform_get_custom_mtmx_in_params(adev->platform, &in_info);
+                    if (in_params) {
+                        ALOGD("%s: txbecf: set channels to %d from mtmx in params",
+                               __func__, in_params->mic_ch);
+                        uc_channels = in_params->mic_ch;
+                    }
+                }
 
                 ALOGV("%s:txbecf: uc %s, id %d, sr %d, bw %d, ch %d, device %s",
                       __func__, use_case_table[uc->id], uc->id, in->sample_rate,
-                      in->bit_width, uc_channels,
+                      bw, uc_channels,
                       platform_get_snd_device_name(uc->in_snd_device));
 
                 if (sample_rate < in->sample_rate)
                     sample_rate = in->sample_rate;
-                if (bit_width < in->bit_width)
-                    bit_width = in->bit_width;
+                if (bit_width < bw)
+                    bit_width = bw;
                 if (channels < uc_channels)
                     channels = uc_channels;
             }
@@ -8414,7 +8538,12 @@ static bool platform_check_capture_codec_backend_cfg(struct audio_device* adev,
     }
 
     ALOGI("%s:txbecf: afe: Codec selected backend: %d updated bit width: %d and "
-          "sample rate: %d", __func__, backend_idx, bit_width, sample_rate);
+          "sample rate: %d, channels %d", __func__, backend_idx, bit_width, sample_rate, channels);
+    ALOGI("%s:txbecf: afe: Current backend bit width: %d and "
+          "sample rate: %d, channels %d", __func__,
+          my_data->current_backend_cfg[backend_idx].bit_width,
+          my_data->current_backend_cfg[backend_idx].sample_rate,
+          my_data->current_backend_cfg[backend_idx].channels);
     // Force routing if the expected bitwdith or samplerate
     // is not same as current backend comfiguration
     if ((bit_width != my_data->current_backend_cfg[backend_idx].bit_width) ||
@@ -8456,12 +8585,24 @@ bool platform_check_and_set_capture_codec_backend_cfg(struct audio_device* adev,
         backend_cfg.bit_width= usecase->stream.in->bit_width;
         backend_cfg.format= usecase->stream.in->format;
         backend_cfg.channels = audio_channel_count_from_in_mask(usecase->stream.in->channel_mask);
+        /* override config if loopback input device is used */
         if (is_loopback_input_device(usecase->stream.in->device)) {
             int bw = platform_get_snd_device_bit_width(snd_device);
+            struct audio_custom_mtmx_in_params_info in_info = {0};
+            struct audio_custom_mtmx_in_params *in_params = NULL;
             if ((-ENOSYS != bw) && (backend_cfg.bit_width > (uint32_t)bw)) {
                 backend_cfg.bit_width = bw;
                 ALOGD("%s:txbecf: set bitwidth to %d from platform info",
                        __func__, bw);
+            }
+
+            in_info.usecase_id[0] = usecase->id;
+            in_info.op_channels = backend_cfg.channels;
+            in_params = platform_get_custom_mtmx_in_params(adev->platform, &in_info);
+            if (in_params) {
+                ALOGD("%s: txbecf: set channels to %d from mtmx in params",
+                       __func__, in_params->mic_ch);
+                backend_cfg.channels = in_params->mic_ch;
             }
         }
     } else {

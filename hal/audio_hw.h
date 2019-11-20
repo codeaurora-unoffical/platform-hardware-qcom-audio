@@ -242,6 +242,8 @@ enum {
 
     /*Audio FM Tuner usecase*/
     USECASE_AUDIO_FM_TUNER_EXT,
+    USECASE_AUDIO_AFE_LOOPBACK,
+    USECASE_AUDIO_DTMF,
     AUDIO_USECASE_MAX
 };
 
@@ -488,7 +490,9 @@ typedef enum {
     TRANSCODE_LOOPBACK_RX,
     TRANSCODE_LOOPBACK_TX,
     PCM_PASSTHROUGH,
-    USECASE_TYPE_MAX
+    USECASE_TYPE_MAX,
+    AFE_LOOPBACK,
+    DTMF_PLAYBACK,
 } usecase_type_t;
 
 union stream_ptr {
@@ -507,6 +511,7 @@ struct audio_usecase {
     struct stream_app_type_cfg out_app_type_cfg;
     struct stream_app_type_cfg in_app_type_cfg;
     union stream_ptr stream;
+    bool is_persistent_cal;
 };
 
 struct stream_format {
