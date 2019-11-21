@@ -1874,6 +1874,10 @@ qap_module_handle_t qap_wrapper_stream_open(void* stream_data)
             case QAP_MODULE_FLAG_OTT_SOUND:
                 ALOGV("%s::%d Set OTT Sound Flag", __func__, __LINE__);
                 break;
+            case QAP_MODULE_FLAG_EXTERN_PCM:
+                ALOGV("%s::%d Set EXTERN PCM Flag", __func__, __LINE__);
+                break;
+
             default:
                 ALOGE("%s::%d unsupported flag for PCM input.", __func__, __LINE__);
                 return NULL;
