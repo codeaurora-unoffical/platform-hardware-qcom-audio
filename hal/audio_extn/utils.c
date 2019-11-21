@@ -20,6 +20,7 @@
 #define LOG_TAG "audio_hw_utils"
 /* #define LOG_NDEBUG 0 */
 
+#include <sys/ioctl.h>
 #include <errno.h>
 #include <cutils/properties.h>
 #include <cutils/config_utils.h>
@@ -35,6 +36,7 @@
 #include "audio_extn.h"
 #include "voice.h"
 #include "sound/compress_params.h"
+#include "sound/devdep_params.h"
 
 #ifdef AUDIO_EXTERNAL_HDMI_ENABLED
 #ifdef HDMI_PASSTHROUGH_ENABLED
@@ -1569,3 +1571,40 @@ void audio_utils_set_hdmi_channel_status(struct stream_out *out, char * buffer, 
 
 }
 #endif
+
+#ifdef SNDRV_PCM_IOCTL_DSP_POSITION
+int audio_extn_utils_pcm_get_dsp_presentation_pos(struct stream_out *out,
+            uint64_t *frames, struct timespec *timestamp, int32_t clock_id)
+{
+    int ret = -EINVAL;
+    uint64_t time = 0;
+    struct snd_pcm_prsnt_position prsnt_position;
+
+    ALOGV("%s:: Quering DSP position with clock id %d",__func__, clock_id);
+    prsnt_position.clock_id = clock_id;
+    ret = pcm_ioctl(out->pcm, SNDRV_PCM_IOCTL_DSP_POSITION, &prsnt_position);
+    if (ret) {
+        ALOGE("%s::error  %d", __func__, ret);
+        ret = -EIO;
+        goto exit;
+    }
+
+    *frames = prsnt_position.frames;
+    time = prsnt_position.timestamp;
+    timestamp->tv_sec = time / 1000000;
+    timestamp->tv_nsec = (time % 1000000)*1000;
+
+exit:
+    return ret;
+}
+#else
+int audio_extn_utils_pcm_get_dsp_presentation_pos(struct stream_out *out __unused,
+            uint64_t *frames __unused, struct timespec *timestamp __unused,
+            int32_t clock_id __unused)
+{
+    ALOGD("%s:: dsp presentation position not supported", __func__);
+    return 0;
+
+}
+#endif
+

@@ -825,6 +825,28 @@ void audio_extn_get_parameters(const struct audio_device *adev,
     free(kv_pairs);
 }
 
+int audio_ext_get_presentation_position(struct stream_out *out,
+                           struct audio_out_presentation_position_param *pos_param)
+{
+    int ret = -ENODATA;
+
+    if (!out) {
+        ALOGE("%s:: Invalid stream",__func__);
+        return ret;
+    }
+
+    if (!is_offload_usecase(out->usecase)) {
+        if (out->pcm)
+            ret = audio_extn_utils_pcm_get_dsp_presentation_pos(out,
+                                  &pos_param->frames, &pos_param->timestamp, pos_param->clock_id);
+    }
+
+    ALOGV("%s frames %lld timestamp %lld", __func__, (long long int)pos_param->frames,
+           pos_param->timestamp.tv_sec*1000000000LL + pos_param->timestamp.tv_nsec);
+
+    return ret;
+}
+
 #ifndef COMPRESS_METADATA_NEEDED
 #define audio_extn_parse_compress_metadata(out, parms) (0)
 #else

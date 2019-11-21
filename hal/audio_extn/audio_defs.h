@@ -152,4 +152,10 @@ typedef enum {
     AUDIO_EXTN_PARAM_APTX_DEC
 } audio_extn_param_id;
 
+struct audio_out_presentation_position_param {
+    struct timespec timestamp;
+    uint64_t frames;
+    int32_t clock_id;
+};
+
 #endif /* AUDIO_DEFS_H */
