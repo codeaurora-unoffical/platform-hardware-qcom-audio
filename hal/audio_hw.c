@@ -7793,7 +7793,7 @@ static int adev_open(const hw_module_t *module, const char *name,
         ALOGV("new period_multiplier = %d", af_period_multiplier);
     }
 
-    adev->multi_offload_enable = property_get_bool("vendor.audio.offload.multiple.enabled", false);
+    adev->multi_offload_enable |= property_get_bool("vendor.audio.offload.multiple.enabled", false);
     pthread_mutex_unlock(&adev_init_lock);
 
     if (adev->adm_init)

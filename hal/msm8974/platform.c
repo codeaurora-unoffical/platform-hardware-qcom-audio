@@ -150,6 +150,9 @@
 
 #define AUDIO_PARAMETER_KEY_PERF_LOCK_OPTS "perf_lock_opts"
 
+/* Enable Multi offload */
+#define AUDIO_PARAMETER_KEY_MULTI_OFFLOAD "multi_offload_enable"
+
 /* Reload ACDB files from specified path */
 #define AUDIO_PARAMETER_KEY_RELOAD_ACDB "reload_acdb"
 
@@ -5282,6 +5285,23 @@ static void platform_capture_device_set_params(struct platform_data *platform,
     }
 }
 
+static void platform_set_multi_offload_params(void *platform, struct str_parms *parms, char *value, int len)
+{
+    struct platform_data *my_data = (struct platform_data *)platform;
+    struct audio_device *adev = my_data->adev;
+    int err;
+
+    err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_MULTI_OFFLOAD, value, len);
+    if (err >= 0) {
+        if (!strncmp("true", value, sizeof("true")))
+            adev->multi_offload_enable = true;
+        else
+            adev->multi_offload_enable = false;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_MULTI_OFFLOAD);
+    }
+}
+
 static void platform_set_fluence_params(void *platform, struct str_parms *parms, char *value, int len)
 {
     struct platform_data *my_data = (struct platform_data *)platform;
@@ -5501,6 +5521,8 @@ int platform_set_parameters(void *platform, struct str_parms *parms)
     }
 
     platform_set_fluence_params(platform, parms, value, len);
+
+    platform_set_multi_offload_params(platform, parms, value, len);
 
     /* handle audio calibration parameters */
     set_audiocal(platform, parms, value, len);
