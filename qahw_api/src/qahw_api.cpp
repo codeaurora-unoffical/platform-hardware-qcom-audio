@@ -106,6 +106,7 @@ static const char * const stream_name_map[QAHW_AUDIO_STREAM_TYPE_MAX] = {
     [QAHW_AUDIO_HOST_PCM_TX_RX]= "host-pcm-tx-rx",
     [QAHW_AUDIO_AFE_LOOPBACK] ="audio-afe-loopback",
     [QAHW_AUDIO_TONE_RX] = "audio-tone-playback",
+    [QAHW_AUDIO_COMPRESSED_PLAYBACK_VOICE_CALL_MUSIC] = "playback-compressed-in-call-music",
 };
 
 static const char * const tty_mode_map[QAHW_TTY_MODE_MAX] = {
@@ -2010,6 +2011,9 @@ int qahw_add_flags_source(struct qahw_stream_attributes attr,
     case QAHW_AUDIO_AFE_LOOPBACK:
     case QAHW_AUDIO_TONE_RX:
         break;
+    case QAHW_AUDIO_COMPRESSED_PLAYBACK_VOICE_CALL_MUSIC:
+        *flags = AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD|AUDIO_OUTPUT_FLAG_NON_BLOCKING|AUDIO_OUTPUT_FLAG_DIRECT;
+        break;
     default:
         rc = -EINVAL;
         break;
@@ -2964,7 +2968,9 @@ int32_t qahw_stream_get_buffer_size(const qahw_stream_handle_t *stream_handle,
         ALOGE("%d:%s invalid stream direction, cannot get size", __LINE__, __func__);
         break;
     }
-    ALOGV("%d:%s inSz %d outSz %d ret 0x%8x", __LINE__, __func__, *in_buffer, *out_buffer, rc);
+    ALOGV("%d:%s inSz %d outSz %d ret 0x%8x", __LINE__, __func__,
+          (in_buffer)?(*in_buffer):0,
+          (out_buffer)?(*out_buffer):0, rc);
     return rc;
 }
 
