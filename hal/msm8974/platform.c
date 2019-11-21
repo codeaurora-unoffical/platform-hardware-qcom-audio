@@ -4776,6 +4776,8 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
             snd_device = SND_DEVICE_IN_CAPTURE_FM;
         } else if (audio_extn_usb_connected(NULL) && audio_is_usb_in_device(in_device | AUDIO_DEVICE_BIT_IN)) {
             snd_device = SND_DEVICE_IN_USB_HEADSET_MIC;
+        } else if (in_device & AUDIO_DEVICE_IN_PROXY) {
+            snd_device = SND_DEVICE_IN_VOICE_RX;
         } else {
             ALOGE("%s: Unknown input device(s) %#x", __func__, in_device);
             ALOGW("%s: Using default handset-mic", __func__);
