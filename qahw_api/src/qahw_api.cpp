@@ -1994,7 +1994,7 @@ int qahw_add_flags_source(struct qahw_stream_attributes attr,
         /*unsupported */
         break;
     case QAHW_VOICE_CALL:
-        *flags = AUDIO_OUTPUT_FLAG_PRIMARY;
+        *flags = QAHW_AUDIO_OUTPUT_FLAG_VOICE_CALL;
         break;
     case QAHW_AUDIO_TRANSCODE:
         /*TODO*/
