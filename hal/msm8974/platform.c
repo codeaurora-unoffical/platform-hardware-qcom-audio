@@ -1714,7 +1714,9 @@ static void update_codec_type_and_interface(struct platform_data * my_data,
          !strncmp(snd_card_name, "atoll-qrd-snd-card",
                    sizeof("atoll-qrd-snd-card")) ||
          !strncmp(snd_card_name, "bengal-idp-snd-card",
-                   sizeof("bengal-idp-snd-card"))) {
+                   sizeof("bengal-idp-snd-card")) ||
+         !strncmp(snd_card_name, "bengal-qrd-snd-card",
+                   sizeof("bengal-qrd-snd-card"))) {
          ALOGI("%s: snd_card_name: %s",__func__,snd_card_name);
          my_data->is_internal_codec = true;
          my_data->is_slimbus_interface = false;
@@ -1904,9 +1906,6 @@ void platform_set_echo_reference(struct audio_device *adev, bool enable,
                     MIXER_PATH_MAX_LENGTH);
         else if (out_device & AUDIO_DEVICE_OUT_USB_HEADSET)
             strlcat(ec_ref_mixer_path, " usb-headphones",
-                    MIXER_PATH_MAX_LENGTH);
-        else if (out_device & AUDIO_DEVICE_OUT_BUS)
-            strlcpy(ec_ref_mixer_path, "multi-mic-echo-reference",
                     MIXER_PATH_MAX_LENGTH);
 
         if (audio_route_apply_and_update_path(adev->audio_route,
@@ -3279,6 +3278,9 @@ void *platform_init(struct audio_device *adev)
         platform_info_init(PLATFORM_INFO_XML_PATH_QRD, my_data, PLATFORM);
     else if (!strncmp(snd_card_name, "atoll-qrd-snd-card",
                sizeof("atoll-qrd-snd-card")))
+        platform_info_init(PLATFORM_INFO_XML_PATH_QRD, my_data, PLATFORM);
+    else if (!strncmp(snd_card_name, "bengal-qrd-snd-card",
+               sizeof("bengal-qrd-snd-card")))
         platform_info_init(PLATFORM_INFO_XML_PATH_QRD, my_data, PLATFORM);
     else if (!strncmp(snd_card_name, "qcs405-wsa-snd-card",
                sizeof("qcs405-wsa-snd-card")))
