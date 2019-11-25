@@ -2424,13 +2424,13 @@ static int qap_set_hdmi_configuration_to_module()
         if (p_qap->qap_mod[MS12].session_handle) {
 
             bool do_setparam = false;
+            memcpy(prop_value, p_qap->ms12_out_format, sizeof(p_qap->ms12_out_format) -1);
             if (p_qap->ms12_out_format[0] == '\0') {
                 property_get("vendor.audio.qap.hdmi.out", prop_value, NULL);
-                memcpy(p_qap->ms12_out_format, prop_value, sizeof(p_qap->ms12_out_format) - 1);
             }
 
             if (platform_is_edid_supported_format(p_qap->adev->platform, AUDIO_FORMAT_E_AC3)
-                    && (strncmp(p_qap->ms12_out_format, "ddp", 3) == 0)) {
+                    && (strncmp(prop_value, "ddp", 3) == 0)) {
                 do_setparam = true;
                 session_outputs_config.output_config[0].format = QAP_AUDIO_FORMAT_EAC3;
                 session_outputs_config.output_config[0].id = AUDIO_DEVICE_OUT_HDMI|QAP_AUDIO_FORMAT_EAC3;
@@ -2438,7 +2438,6 @@ static int qap_set_hdmi_configuration_to_module()
                 do_setparam = true;
                 session_outputs_config.output_config[0].format = QAP_AUDIO_FORMAT_AC3;
                 session_outputs_config.output_config[0].id = AUDIO_DEVICE_OUT_HDMI|QAP_AUDIO_FORMAT_AC3;
-                memcpy(p_qap->ms12_out_format, "dd", sizeof(p_qap->ms12_out_format) - 1);
             }
             if (do_setparam) {
                 DEBUG_MSG(" Enabling HDMI(Passthrough out) from MS12 wrapper outputid=0x%x",
@@ -2479,7 +2478,6 @@ static int qap_set_hdmi_configuration_to_module()
 
         channels = platform_edid_get_max_channels(p_qap->adev->platform);
         session_outputs_config.output_config[0].format = QAP_AUDIO_FORMAT_PCM_16_BIT;
-        memcpy(p_qap->ms12_out_format, "pcm", sizeof(p_qap->ms12_out_format) - 1);
 
         switch (channels) {
             case 8:
