@@ -56,6 +56,9 @@ uint64_t timestamp;
 };
 #endif
 
+ssize_t qahwi_out_write_v2(struct audio_stream_out *stream, const void* buffer,
+                          size_t bytes, int64_t* timestamp);
+
 static void lock_output_stream(struct stream_out *out)
 {
     pthread_mutex_lock(&out->pre_lock);
@@ -84,7 +87,9 @@ int qahwi_out_set_param_data(struct audio_stream_out *stream,
         if (ret)
             ALOGE("%s::qaf_out_set_param_data failed error %d", __func__ , ret);
     } else {
-        if (out->standby && (param_id != AUDIO_EXTN_PARAM_OUT_CHANNEL_MAP))
+        if (out->standby && (out->flags & AUDIO_OUTPUT_FLAG_TIMESTAMP))
+            qahwi_out_write_v2(stream, NULL, 0, NULL);
+        else if (out->standby && (param_id != AUDIO_EXTN_PARAM_OUT_CHANNEL_MAP))
             out->stream.write(&out->stream, NULL, 0);
         lock_output_stream(out);
         ret = audio_extn_out_set_param_data(out, param_id, payload);
@@ -110,8 +115,11 @@ int qahwi_out_get_param_data(struct audio_stream_out *stream,
         if (ret)
             ALOGE("%s::qaf_out_get_param_data failed error %d", __func__, ret);
     } else  {
-        if (out->standby)
+        if (out->standby && (out->flags & AUDIO_OUTPUT_FLAG_TIMESTAMP))
+            qahwi_out_write_v2(stream, NULL, 0, NULL);
+        else if (out->standby)
             out->stream.write(&out->stream, NULL, 0);
+
         lock_output_stream(out);
         ret = audio_extn_out_get_param_data(out, param_id, payload);
         if (ret)
@@ -393,6 +401,12 @@ ssize_t qahwi_out_write_v2(struct audio_stream_out *stream, const void* buffer,
             mdata->length = bytes;
             mdata->offset = mdata_size;
             mdata->timestamp = *timestamp;
+        }
+
+        if (bytes >  out->qahwi_out.buf_size) {
+            ALOGE("%s: received bytes %zd greater than fragment size %zd",
+                  __func__, bytes, out->qahwi_out.buf_size);
+            return -EINVAL;
         }
         memcpy(buf + mdata_size, buffer, bytes);
         ret = out->qahwi_out.base.write(&out->stream, (void *)buf, out->qahwi_out.buf_size);
