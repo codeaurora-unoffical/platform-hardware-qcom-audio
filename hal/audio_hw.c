@@ -37,7 +37,7 @@
 
 #define LOG_TAG "audio_hw_primary"
 #define ATRACE_TAG (ATRACE_TAG_AUDIO|ATRACE_TAG_HAL)
-/*#define LOG_NDEBUG 0*/
+#define LOG_NDEBUG 0
 /*#define VERY_VERY_VERBOSE_LOGGING*/
 #ifdef VERY_VERY_VERBOSE_LOGGING
 #define ALOGVV ALOGV
@@ -387,6 +387,8 @@ const char * const use_case_table[AUDIO_USECASE_MAX] = {
     [USECASE_AUDIO_PLAYBACK_NAV_GUIDANCE] = "nav-guidance-playback",
     [USECASE_AUDIO_PLAYBACK_PHONE] = "phone-playback",
     [USECASE_AUDIO_FM_TUNER_EXT] = "fm-tuner-ext",
+    [USECASE_AUDIO_AFE_LOOPBACK] = "audio-afe-loopback",
+    [USECASE_AUDIO_DTMF] = "audio-dtmf-playback",
 };
 
 static const audio_usecase_t offload_usecases[] = {
@@ -1395,6 +1397,8 @@ static snd_device_t derive_playback_snd_device(void * platform,
 
     switch (uc->type) {
         case TRANSCODE_LOOPBACK_RX :
+        case AFE_LOOPBACK:
+        case DTMF_PLAYBACK:
             a1 = uc->stream.inout->out_config.devices;
             a2 = new_uc->stream.inout->out_config.devices;
             break;
@@ -1568,7 +1572,8 @@ static void check_usecases_codec_backend(struct audio_device *adev,
               platform_get_snd_device_name(usecase->out_snd_device),
               platform_check_backends_match(snd_device, usecase->out_snd_device));
         if ((usecase->type != PCM_CAPTURE) && (usecase != uc_info) &&
-                (usecase->type != PCM_PASSTHROUGH)) {
+                (usecase->type != PCM_PASSTHROUGH) && (usecase->type != AFE_LOOPBACK) &&
+                (usecase->type != DTMF_PLAYBACK)) {
             uc_derive_snd_device = derive_playback_snd_device(adev->platform,
                                                usecase, uc_info, snd_device);
             if (((uc_derive_snd_device != usecase->out_snd_device) || force_routing) &&
@@ -2264,7 +2269,8 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
             in_snd_device = platform_get_input_snd_device(adev->platform, usecase->stream.out->devices);
         }
         usecase->devices = usecase->stream.out->devices;
-    } else if (usecase->type == TRANSCODE_LOOPBACK_RX) {
+    } else if ((usecase->type == TRANSCODE_LOOPBACK_RX) 
+            || (usecase->type == DTMF_PLAYBACK)) {
         if (usecase->stream.inout == NULL) {
             ALOGE("%s: stream.inout is NULL", __func__);
             return -EINVAL;
@@ -2283,6 +2289,19 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
         }
         in_snd_device = platform_get_input_snd_device(adev->platform, AUDIO_DEVICE_NONE);
         usecase->devices = in_snd_device;
+    } else if (usecase->type == AFE_LOOPBACK) {
+        if (usecase->stream.inout == NULL) {
+            ALOGE("%s: stream.inout is NULL", __func__);
+            return -EINVAL;
+        }
+        stream_out.devices = usecase->stream.inout->out_config.devices;
+        stream_out.sample_rate = usecase->stream.inout->out_config.sample_rate;
+        stream_out.format = usecase->stream.inout->out_config.format;
+        stream_out.channel_mask = usecase->stream.inout->out_config.channel_mask;
+        out_snd_device = platform_get_output_snd_device(adev->platform,
+                                                        &stream_out);
+        in_snd_device = platform_get_input_snd_device(adev->platform, AUDIO_DEVICE_NONE);
+        usecase->devices = (out_snd_device | in_snd_device);
     } else {
         /*
          * If the voice call is active, use the sound devices of voice call usecase
@@ -4237,6 +4256,8 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
     bool bypass_a2dp = false;
     bool reconfig = false;
     unsigned long service_interval = 0;
+    bool use_db_as_primary =
+           audio_feature_manager_is_feature_enabled(USE_DEEP_BUFFER_AS_PRIMARY_OUTPUT);
 
     ALOGD("%s: enter: usecase(%d: %s) kvpairs: %s",
           __func__, out->usecase, use_case_table[out->usecase], kvpairs);
@@ -4421,6 +4442,8 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
         audio_extn_set_parameters(adev, parms);
         if (voice_is_call_state_active(adev))
             voice_extn_out_set_parameters(out, parms);
+        if (out->usecase == GET_USECASE_AUDIO_PLAYBACK_PRIMARY(use_db_as_primary))
+            audio_extn_set_tone_parameters(out, parms);
         pthread_mutex_unlock(&adev->lock);
         pthread_mutex_unlock(&out->lock);
     }
@@ -8615,7 +8638,15 @@ int adev_create_audio_patch(struct audio_hw_device *dev,
 {
     int ret;
 
-    ret = audio_extn_hw_loopback_create_audio_patch(dev,
+#ifdef AUDIO_AFE_LOOPBACK_ENABLED
+     return audio_extn_afe_loopback_create_audio_patch(dev,
+                                         num_sources,
+                                         sources,
+                                         num_sinks,
+                                         sinks,
+                                         handle);
+#else
+     ret = audio_extn_hw_loopback_create_audio_patch(dev,
                                         num_sources,
                                         sources,
                                         num_sinks,
@@ -8628,6 +8659,8 @@ int adev_create_audio_patch(struct audio_hw_device *dev,
                                         sinks,
                                         handle);
     return ret;
+#endif
+
 }
 
 int adev_release_audio_patch(struct audio_hw_device *dev,
@@ -8635,18 +8668,26 @@ int adev_release_audio_patch(struct audio_hw_device *dev,
 {
     int ret;
 
+#ifdef AUDIO_AFE_LOOPBACK_ENABLED
+    return audio_extn_afe_loopback_release_audio_patch(dev, handle);
+#else
     ret = audio_extn_hw_loopback_release_audio_patch(dev, handle);
     ret |= audio_extn_auto_hal_release_audio_patch(dev, handle);
     return ret;
+#endif
 }
 
 int adev_get_audio_port(struct audio_hw_device *dev, struct audio_port *config)
 {
     int ret = 0;
 
+#ifdef AUDIO_AFE_LOOPBACK_ENABLED
+    return audio_extn_afe_loopback_get_audio_port(dev, config);
+#else
     ret = audio_extn_hw_loopback_get_audio_port(dev, config);
     ret |= audio_extn_auto_hal_get_audio_port(dev, config);
     return ret;
+#endif
 }
 
 int adev_set_audio_port_config(struct audio_hw_device *dev,
@@ -8654,9 +8695,14 @@ int adev_set_audio_port_config(struct audio_hw_device *dev,
 {
     int ret = 0;
 
+#ifdef AUDIO_AFE_LOOPBACK_ENABLED
+    return audio_extn_afe_loopback_set_audio_port_config(dev, config);
+#else
     ret = audio_extn_hw_loopback_set_audio_port_config(dev, config);
     ret |= audio_extn_auto_hal_set_audio_port_config(dev, config);
     return ret;
+#endif
+
 }
 
 static int adev_dump(const audio_hw_device_t *device __unused,
@@ -8699,6 +8745,7 @@ static int adev_close(hw_device_t *device)
         audio_extn_adsp_hdlr_deinit();
         audio_extn_snd_mon_deinit();
         audio_extn_hw_loopback_deinit(adev);
+        audio_extn_afe_loopback_deinit(adev);
         audio_extn_ffv_deinit();
         if (adev->device_cfg_params) {
             free(adev->device_cfg_params);
@@ -9003,6 +9050,7 @@ static int adev_open(const hw_module_t *module, const char *name,
     audio_extn_listen_init(adev, adev->snd_card);
     audio_extn_gef_init(adev);
     audio_extn_hw_loopback_init(adev);
+    audio_extn_afe_loopback_init(adev);
     audio_extn_ffv_init(adev);
 
     if (access(OFFLOAD_EFFECTS_BUNDLE_LIBRARY_PATH, R_OK) == 0) {
