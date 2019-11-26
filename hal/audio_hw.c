@@ -54,6 +54,8 @@
 #include <dlfcn.h>
 #include <sys/resource.h>
 #include <sys/prctl.h>
+#include <unistd.h>
+#include <fcntl.h>
 
 #include <cutils/log.h>
 #include <cutils/trace.h>
@@ -76,6 +78,8 @@
 #include "sound/compress_params.h"
 #include "sound/asound.h"
 
+#define AVTIMER_DEVICE_FILE_NAME "/dev/avtimer"
+
 #define COMPRESS_OFFLOAD_NUM_FRAGMENTS 4
 /*DIRECT PCM has same buffer sizes as DEEP Buffer*/
 #define DIRECT_PCM_NUM_FRAGMENTS 2
@@ -96,6 +100,8 @@
 #endif
 
 #define ULL_PERIOD_SIZE (DEFAULT_OUTPUT_SAMPLING_RATE/1000)
+
+static int avtimer_dev_node = 0;
 
 static unsigned int configured_low_latency_capture_period_size =
         LOW_LATENCY_CAPTURE_PERIOD_SIZE;
@@ -5376,6 +5382,9 @@ static int adev_close(hw_device_t *device)
     pthread_mutex_lock(&adev_init_lock);
 
     if ((--audio_device_ref_count) == 0) {
+        if (avtimer_dev_node > 0)
+            close(avtimer_dev_node);
+
         audio_extn_sound_trigger_deinit(adev);
         audio_extn_listen_deinit(adev);
         audio_extn_utils_release_streams_cfg_lists(
@@ -5720,6 +5729,12 @@ static int adev_open(const hw_module_t *module, const char *name,
 
     qahwi_init(*device);
     audio_extn_perf_lock_init();
+
+    avtimer_dev_node = open(AVTIMER_DEVICE_FILE_NAME, 0);
+    if (avtimer_dev_node < 0)
+        ALOGE("%s: ERROR. Could not open /dev/avtimer",
+                __func__);
+
     ALOGV("%s: exit", __func__);
     return 0;
 }
