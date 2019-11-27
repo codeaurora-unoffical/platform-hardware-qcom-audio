@@ -1010,6 +1010,16 @@ int qahw_create_audio_patch(qahw_module_handle_t *hw_module,
     }
 }
 
+int qahw_create_audio_patch_v2(qahw_module_handle_t *hw_module,
+                        qahw_source_port_config_t *source_port_config,
+                        qahw_sink_port_config_t *sink_port_config,
+                        audio_patch_handle_t *handle)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_create_audio_patch_v2_l(hw_module, source_port_config,
+                                     sink_port_config, handle);
+}
+
 int qahw_release_audio_patch(qahw_module_handle_t *hw_module,
                         audio_patch_handle_t handle)
 {
