@@ -1,4 +1,4 @@
-/* Copyright (c) 2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -49,7 +49,8 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 #ifdef DTMF_ENABLED
 int voice_extn_dtmf_generate_rx_tone(struct stream_out *out,
                                        uint32_t dtmf_low_freq,
-                                       uint32_t dtmf_high_freq)
+                                       uint32_t dtmf_high_freq,
+                                       uint32_t dtmf_duration_ms)
 {
     struct audio_device *adev = out->dev;
     struct platform_data *my_data = (struct platform_data *)adev->platform;
@@ -64,6 +65,7 @@ int voice_extn_dtmf_generate_rx_tone(struct stream_out *out,
 
     set_values[0] = dtmf_low_freq;
     set_values[1] = dtmf_high_freq;
+    set_values[2] = dtmf_duration_ms;
     ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
     if (!ctl) {
         ALOGE("%s: Could not get ctl for mixer cmd - %s",
@@ -71,9 +73,10 @@ int voice_extn_dtmf_generate_rx_tone(struct stream_out *out,
         return -EINVAL;
     }
 
-    ALOGV("%s: Setting Rx DTMF: low:%d, high:%d gain:%d mixer ctrl:%s",
+    ALOGV("%s: Setting Rx DTMF: low:%d, high:%d duration:%d gain:%d mixer ctrl:%s",
           __func__,
-          dtmf_low_freq, dtmf_high_freq, out->rx_dtmf_tone_gain, mixer_ctl_name);
+          dtmf_low_freq, dtmf_high_freq, dtmf_duration_ms, out->rx_dtmf_tone_gain,
+          mixer_ctl_name);
     mixer_ctl_set_array(ctl, set_values, ARRAY_SIZE(set_values));
 
     return ret;

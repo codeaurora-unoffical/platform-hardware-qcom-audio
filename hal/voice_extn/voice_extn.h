@@ -299,7 +299,8 @@ static bool __unused voice_extn_compress_voip_is_started(
 #ifdef DTMF_ENABLED
 int voice_extn_dtmf_generate_rx_tone(struct stream_out *out,
                                      uint32_t dtmf_low_freq,
-                                     uint32_t dtmf_high_freq);
+                                     uint32_t dtmf_high_freq,
+                                     uint32_t dtmf_duration_ms);
 
 int voice_extn_dtmf_set_rx_tone_gain(struct stream_out *out,
                                      int32_t gain);
@@ -313,7 +314,8 @@ int voice_extn_dtmf_set_rx_detection(struct stream_out *out,
 static int __unused voice_extn_dtmf_generate_rx_tone(
                             struct stream_out *out __unused,
                             uint32_t dtmf_low_freq __unused,
-                            uint32_t dtmf_high_freq __unused)
+                            uint32_t dtmf_high_freq __unused,
+                            uint32_t dtmf_duration_ms __unused)
 {
     ALOGV("%s: DTMF_ENABLED is not defined", __func__);
     return -ENOSYS;

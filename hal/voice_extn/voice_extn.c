@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2018, 2020 The Linux Foundation. All rights reserved.
  * Not a contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -54,6 +54,7 @@
 /* dtmf_low_freq and dtmf_high_freq must be paired */
 #define AUDIO_PARAMETER_KEY_DTMF_LOW_FREQ "dtmf_low_freq"
 #define AUDIO_PARAMETER_KEY_DTMF_HIGH_FREQ "dtmf_high_freq"
+#define AUDIO_PARAMETER_KEY_DTMF_DURATION_MS "dtmf_duration_ms"
 #define AUDIO_PARAMETER_KEY_DTMF_TONE_GAIN "dtmf_tone_gain"
 #define AUDIO_PARAMETER_KEY_DTMF_TONE_OFF "dtmf_tone_off"
 
@@ -465,11 +466,20 @@ int voice_extn_out_set_parameters(struct stream_out *out,
 
     ALOGV_IF(kv_pairs != NULL, "%s: enter: %s", __func__, kv_pairs);
 
+    err = str_parms_get_int(parms, AUDIO_PARAMETER_KEY_DTMF_TONE_GAIN, &value);
+    if (err >= 0) {
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_DTMF_TONE_GAIN);
+        int32_t dtmf_tone_gain = value;
+
+        voice_extn_dtmf_set_rx_tone_gain(out, dtmf_tone_gain);
+    }
+
     err = str_parms_get_int(parms, AUDIO_PARAMETER_KEY_DTMF_LOW_FREQ, &value);
     if (err >= 0) {
         str_parms_del(parms, AUDIO_PARAMETER_KEY_DTMF_LOW_FREQ);
         uint32_t dtmf_low_freq = value;
         uint32_t dtmf_high_freq = 0;
+        uint32_t dtmf_duration_ms = 0;
         err = str_parms_get_int(parms, AUDIO_PARAMETER_KEY_DTMF_HIGH_FREQ, &value);
         if (err >= 0) {
             dtmf_high_freq = value;
@@ -479,18 +489,18 @@ int voice_extn_out_set_parameters(struct stream_out *out,
             ret = -EINVAL;
             goto done;
         }
+	err = str_parms_get_int(parms, AUDIO_PARAMETER_KEY_DTMF_DURATION_MS, &value);
+        if (err >= 0) {
+            dtmf_duration_ms = value;
+            str_parms_del(parms, AUDIO_PARAMETER_KEY_DTMF_DURATION_MS);
+        } else {
+            ALOGE("%s: dtmf_duration_ms key not found, setting to default infinity",
+                  __func__);
+            dtmf_duration_ms = 0xFFFF;
+        }
 
-        voice_extn_dtmf_generate_rx_tone(out,
-            dtmf_low_freq, dtmf_high_freq);
-    }
-
-    err = str_parms_get_int(parms, AUDIO_PARAMETER_KEY_DTMF_TONE_GAIN, &value);
-    if (err >= 0) {
-        str_parms_del(parms, AUDIO_PARAMETER_KEY_DTMF_TONE_GAIN);
-        int32_t dtmf_tone_gain = value;
-
-        voice_extn_dtmf_set_rx_tone_gain(out,
-            dtmf_tone_gain);
+        voice_extn_dtmf_generate_rx_tone(out, dtmf_low_freq, dtmf_high_freq,
+                                         dtmf_duration_ms);
     }
 
     err = str_parms_has_key(parms, AUDIO_PARAMETER_KEY_DTMF_TONE_OFF);
