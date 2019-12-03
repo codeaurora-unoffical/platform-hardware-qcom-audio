@@ -240,6 +240,9 @@ enum {
 
     /*Audio FM Tuner usecase*/
     USECASE_AUDIO_FM_TUNER_EXT,
+
+    /*In Car Communication Usecase*/
+    USECASE_ICC_CALL,
     AUDIO_USECASE_MAX
 };
 
@@ -516,6 +519,7 @@ typedef enum {
     TRANSCODE_LOOPBACK_RX,
     TRANSCODE_LOOPBACK_TX,
     PCM_PASSTHROUGH,
+    ICC_CALL,
     USECASE_TYPE_MAX
 } usecase_type_t;
 
