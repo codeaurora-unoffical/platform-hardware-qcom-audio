@@ -220,6 +220,24 @@ enum {
     CAL_MODE_RTAC           = 0x4
 };
 
+#define PLATFORM_CONFIG_KEY_OPERATOR_INFO "operator_info"
+
+struct operator_info {
+    struct listnode list;
+    char *name;
+    char *mccmnc;
+};
+
+struct operator_specific_device {
+    struct listnode list;
+    char *operator;
+    char *mixer_path;
+    int acdb_id;
+};
+
+static struct listnode operator_info_list;
+static struct listnode *operator_specific_device_table[SND_DEVICE_MAX];
+
 acdb_loader_get_calibration_t acdb_loader_get_calibration;
 
 typedef struct codec_backend_cfg {
@@ -270,6 +288,7 @@ struct platform_data {
     bool is_wsa_speaker;
     bool is_acdb_initialized;
     bool hifi_audio;
+    bool ec_car_state;
     /* Vbat monitor related flags */
     bool is_vbat_speaker;
     bool gsm_mode_enabled;
@@ -620,6 +639,9 @@ static struct audio_effect_config effect_config_table[GET_IN_DEVICE_INDEX(SND_DE
     [GET_IN_DEVICE_INDEX(SND_DEVICE_IN_HANDSET_MIC)][EFFECT_AEC] = {TX_VOICE_SMECNS_V2, 0x0, 0x10EAF, 0x01},
     [GET_IN_DEVICE_INDEX(SND_DEVICE_IN_HANDSET_MIC)][EFFECT_NS] = {TX_VOICE_SMECNS_V2, 0x0, 0x10EAF, 0x02},
 };
+
+static struct audio_fluence_mmsecns_config fluence_mmsecns_table = {TOPOLOGY_ID_MM_HFP_ECNS, MODULE_ID_MM_HFP_ECNS,
+                                                                    INSTANCE_ID_MM_HFP_ECNS, PARAM_ID_MM_HFP_ZONE};
 
 /* ACDB IDs (audio DSP path configuration IDs) for each sound device */
 static int acdb_device_table[SND_DEVICE_MAX] = {
@@ -997,6 +1019,24 @@ static struct name_to_index usecase_name_index[AUDIO_USECASE_MAX] = {
     {TO_NAME_INDEX(USECASE_AUDIO_TRANSCODE_LOOPBACK_RX)},
     {TO_NAME_INDEX(USECASE_AUDIO_TRANSCODE_LOOPBACK_TX)},
 };
+
+static const struct name_to_index usecase_type_index[USECASE_TYPE_MAX] = {
+    {TO_NAME_INDEX(PCM_PLAYBACK)},
+    {TO_NAME_INDEX(PCM_CAPTURE)},
+    {TO_NAME_INDEX(VOICE_CALL)},
+    {TO_NAME_INDEX(PCM_HFP_CALL)},
+};
+
+struct app_type_entry {
+    int uc_type;
+    int bit_width;
+    int app_type;
+    int max_rate;
+    char *mode;
+    struct listnode node; // membership in app_type_entry_list;
+};
+
+static struct listnode app_type_entry_list;
 
 #define NO_COLS 2
 static int msm_be_id_array_len;
@@ -3257,6 +3297,35 @@ int platform_get_usecase_index(const char *usecase_name)
     return find_index(usecase_name_index, AUDIO_USECASE_MAX, usecase_name);
 }
 
+void platform_add_operator_specific_device(snd_device_t snd_device,
+                                           const char *operator,
+                                           const char *mixer_path,
+                                           unsigned int acdb_id)
+{
+    struct operator_specific_device *device;
+
+    if (operator_specific_device_table[snd_device] == NULL) {
+        operator_specific_device_table[snd_device] =
+            (struct listnode *)calloc(1, sizeof(struct listnode));
+        list_init(operator_specific_device_table[snd_device]);
+    }
+
+    device = (struct operator_specific_device *)calloc(1, sizeof(struct operator_specific_device));
+    if (device == NULL) {
+        ALOGE("%s: No memory allocated",__func__);
+        return;
+    }
+    device->operator = strdup(operator);
+    device->mixer_path = strdup(mixer_path);
+    device->acdb_id = acdb_id;
+
+    list_add_tail(operator_specific_device_table[snd_device], &device->list);
+
+    ALOGD("%s: device[%s] -> operator[%s] mixer_path[%s] acdb_id[%d]", __func__,
+            platform_get_snd_device_name(snd_device), operator, mixer_path, acdb_id);
+
+}
+
 int platform_get_effect_config_data(snd_device_t snd_device,
                                       struct audio_effect_config *effect_config,
                                       effect_type_t effect_type)
@@ -3324,6 +3393,18 @@ int platform_set_effect_config_data(snd_device_t snd_device,
     effect_config_table[GET_IN_DEVICE_INDEX(snd_device)][effect_type] = effect_config;
 
 done:
+    return ret;
+}
+
+int platform_set_fluence_mmsecns_config(struct audio_fluence_mmsecns_config fluence_mmsecns_config)
+{
+    int ret = 0;
+
+    ALOGV("%s: topology_id = 0x%x, module_id = 0x%x, instance_id = 0x%x, param_id = 0x%x",
+           __func__, fluence_mmsecns_config.topology_id, fluence_mmsecns_config.module_id,
+           fluence_mmsecns_config.instance_id, fluence_mmsecns_config.param_id);
+    fluence_mmsecns_table = fluence_mmsecns_config;
+
     return ret;
 }
 
@@ -3952,6 +4033,43 @@ int platform_get_sample_rate(void *platform __unused,
                              uint32_t *rate __unused)
 {
     return 0;
+}
+
+void platform_set_speaker_gain_in_combo(struct audio_device *adev,
+                                        snd_device_t snd_device,
+                                        bool enable)
+{
+    const char* name;
+    switch (snd_device) {
+        case SND_DEVICE_OUT_SPEAKER_AND_HEADPHONES:
+            if (enable)
+                name = "spkr-gain-in-headphone-combo";
+            else
+                name = "speaker-gain-default";
+            break;
+        case SND_DEVICE_OUT_SPEAKER_AND_LINE:
+            if (enable)
+                name = "spkr-gain-in-line-combo";
+            else
+                name = "speaker-gain-default";
+            break;
+        case SND_DEVICE_OUT_SPEAKER_SAFE_AND_HEADPHONES:
+            if (enable)
+                name = "spkr-safe-gain-in-headphone-combo";
+            else
+                name = "speaker-safe-gain-default";
+            break;
+        case SND_DEVICE_OUT_SPEAKER_SAFE_AND_LINE:
+            if (enable)
+                name = "spkr-safe-gain-in-line-combo";
+            else
+                name = "speaker-safe-gain-default";
+            break;
+        default:
+            return;
+    }
+
+    audio_route_apply_and_update_path(adev->audio_route, name);
 }
 
 int platform_set_voice_volume(void *platform, int volume)
@@ -5227,6 +5345,49 @@ static int set_hd_voice(struct platform_data *my_data, bool state)
     return ret;
 }
 
+bool platform_get_eccarstate(void *platform)
+{
+    struct platform_data *my_data = (struct platform_data *)platform;
+    return my_data->ec_car_state;
+}
+
+static int platform_set_eccarstate(struct platform_data *my_data, bool state)
+{
+    int ret = 0;
+    ALOGD("Setting EC Car state: %d", state);
+    my_data->ec_car_state = state;
+
+    return ret;
+}
+
+static int update_external_device_status(struct platform_data *my_data,
+                                 char* event_name, bool status)
+{
+    int ret = 0;
+    struct audio_usecase *usecase;
+    struct listnode *node;
+
+    ALOGD("Recieved  external event switch %s", event_name);
+
+    if (!strcmp(event_name, EVENT_EXTERNAL_SPK_1))
+        my_data->external_spk_1 = status;
+    else if (!strcmp(event_name, EVENT_EXTERNAL_SPK_2))
+        my_data->external_spk_2 = status;
+    else if (!strcmp(event_name, EVENT_EXTERNAL_MIC))
+        my_data->external_mic = status;
+    else {
+        ALOGE("The audio event type is not found");
+        return -EINVAL;
+    }
+
+    list_for_each(node, &my_data->adev->usecase_list) {
+        usecase = node_to_item(node, struct audio_usecase, list);
+        select_devices(my_data->adev, usecase->id);
+    }
+
+    return ret;
+}
+
 static int parse_audiocal_cfg(struct str_parms *parms, acdb_audio_cal_cfg_t *cal)
 {
     int err;
@@ -5569,6 +5730,37 @@ int platform_set_incall_recording_session_id(void *platform,
 
     return ret;
 }
+
+#ifdef INCALL_STEREO_CAPTURE_ENABLED
+int platform_set_incall_recording_session_channels(void *platform,
+                                             uint32_t channel_count)
+{
+    int ret = 0;
+    struct platform_data *my_data = (struct platform_data *)platform;
+    struct audio_device *adev = my_data->adev;
+    const char *mixer_ctl_name = "Voc Rec Config";
+    int num_ctl_values;
+    int i;
+    struct mixer_ctl *ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+
+    if (!ctl) {
+        ALOGE("%s: Could not get ctl for mixer cmd - %s",
+              __func__, mixer_ctl_name);
+        ret = -EINVAL;
+    } else {
+        num_ctl_values = mixer_ctl_get_num_values(ctl);
+        for (i = 0; i < num_ctl_values; i++) {
+            if (mixer_ctl_set_value(ctl, i, channel_count)) {
+                ALOGE("Error: invalid channel count: %x", channel_count);
+                ret = -EINVAL;
+                break;
+            }
+        }
+    }
+
+    return ret;
+}
+#endif /* INCALL_STEREO_CAPTURE_ENABLED end */
 
 int platform_stop_incall_recording_usecase(void *platform)
 {
@@ -7327,6 +7519,41 @@ void platform_check_and_update_copp_sample_rate(void* platform, snd_device_t snd
 
 }
 
+// called from info parser
+void platform_add_app_type(const char *uc_type,
+                           const char *mode,
+                           int bw,
+                           int app_type, int max_rate) {
+    struct app_type_entry *ap =
+            (struct app_type_entry *)calloc(1, sizeof(struct app_type_entry));
+
+    if (!ap) {
+        ALOGE("%s failed to allocate mem for app type", __func__);
+        return;
+    }
+
+    ap->uc_type = -1;
+    for (int i=0; i<USECASE_TYPE_MAX; i++) {
+        if (!strcmp(uc_type, usecase_type_index[i].name)) {
+            ap->uc_type = usecase_type_index[i].index;
+            break;
+        }
+    }
+
+    if (ap->uc_type == -1) {
+        free(ap);
+        return;
+    }
+
+    ALOGI("%s uc %s mode %s bw %d app_type %d max_rate %d",
+          __func__, uc_type, mode, bw, app_type, max_rate);
+    ap->bit_width = bw;
+    ap->app_type = app_type;
+    ap->max_rate = max_rate;
+    ap->mode = strdup(mode);
+    list_add_tail(&app_type_entry_list, &ap->node);
+}
+
 int platform_get_edid_info(void *platform)
 {
     struct platform_data *my_data = (struct platform_data *)platform;
@@ -7597,6 +7824,21 @@ bool platform_is_edid_supported_sample_rate(void *platform, int sample_rate)
     }
 
     return false;
+}
+
+int platform_edid_get_highest_supported_sr(void *platform)
+{
+    struct platform_data *my_data = (struct platform_data *)platform;
+    edid_audio_info *info = NULL;
+    int ret = 0;
+
+    ret = platform_get_edid_info(platform);
+    info = (edid_audio_info *)my_data->edid_info;
+    if (ret == 0 && info != NULL) {
+        return audio_extn_edid_get_highest_supported_sr(info);
+    }
+
+    return 0;
 }
 
 int platform_set_edid_channels_configuration(void *platform, int channels, int backend_idx __unused) {

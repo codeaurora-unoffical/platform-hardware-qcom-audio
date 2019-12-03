@@ -1010,6 +1010,16 @@ int qahw_create_audio_patch(qahw_module_handle_t *hw_module,
     }
 }
 
+int qahw_create_audio_patch_v2(qahw_module_handle_t *hw_module,
+                        qahw_source_port_config_t *source_port_config,
+                        qahw_sink_port_config_t *sink_port_config,
+                        audio_patch_handle_t *handle)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_create_audio_patch_v2_l(hw_module, source_port_config,
+                                     sink_port_config, handle);
+}
+
 int qahw_release_audio_patch(qahw_module_handle_t *hw_module,
                         audio_patch_handle_t handle)
 {
@@ -2954,7 +2964,8 @@ int32_t qahw_stream_get_buffer_size(const qahw_stream_handle_t *stream_handle,
         ALOGE("%d:%s invalid stream direction, cannot get size", __LINE__, __func__);
         break;
     }
-    ALOGV("%d:%s inSz %d outSz %d ret 0x%8x", __LINE__, __func__, *in_buffer, *out_buffer, rc);
+    ALOGV("%d:%s inSz %d outSz %d ret 0x%8x", __LINE__, __func__,((in_buffer)? *in_buffer : NULL),
+                                              ((out_buffer)? *out_buffer : NULL), rc);
     return rc;
 }
 
