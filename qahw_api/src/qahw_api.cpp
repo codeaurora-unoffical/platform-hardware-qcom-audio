@@ -2708,7 +2708,7 @@ int32_t qahw_stream_get_buffer_size(const qahw_stream_handle_t *stream_handle,
     if (stream) {
         switch (stream->dir) {
         case QAHW_STREAM_OUTPUT:
-            if (stream->out_stream)
+            if (stream->out_stream && out_buffer)
                 *out_buffer = qahw_out_get_buffer_size(stream->out_stream);
             else {
                 ALOGE("%d:%s out stream invalid, cannot get size"
@@ -2717,7 +2717,7 @@ int32_t qahw_stream_get_buffer_size(const qahw_stream_handle_t *stream_handle,
             }
             break;
         case QAHW_STREAM_INPUT:
-            if (stream->in_stream)
+            if (stream->in_stream && in_buffer)
                 *in_buffer = qahw_in_get_buffer_size(stream->in_stream);
             else {
                 ALOGE("%d:%s in stream invalid, cannot get size"
@@ -2726,14 +2726,14 @@ int32_t qahw_stream_get_buffer_size(const qahw_stream_handle_t *stream_handle,
             }
             break;
         case QAHW_STREAM_INPUT_OUTPUT:
-            if (stream->out_stream)
+            if (stream->out_stream && out_buffer)
                 *out_buffer = qahw_out_get_buffer_size(stream->out_stream);
             else {
                 ALOGE("%d:%s out stream invalid, cannot get size"
                       , __LINE__, __func__);
                 rc = -EINVAL;
             }
-            if (stream->in_stream)
+            if (stream->in_stream && in_buffer)
                 *in_buffer = qahw_in_get_buffer_size(stream->in_stream);
             else {
                 ALOGE("%d:%s in stream invalid, cannot get size"
