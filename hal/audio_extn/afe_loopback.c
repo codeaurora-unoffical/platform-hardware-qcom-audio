@@ -216,6 +216,10 @@ static int afe_loopback_set_volume(struct audio_device *adev,
 patch_handle_type_t get_loopback_patch_type(loopback_patch_t*  loopback_patch)
 {
     bool is_source_supported=false, is_sink_supported=false;
+    struct audio_port_config *source_patch_config = &loopback_patch->
+                                                    loopback_source;
+    struct audio_device *adev = audio_loopback_mod->adev;
+
     if (loopback_patch->patch_handle_id != PATCH_HANDLE_INVALID) {
         ALOGE("%s, Patch handle already exists", __func__);
         return loopback_patch->patch_handle_id;
@@ -286,12 +290,14 @@ int32_t release_loopback_session(loopback_patch_t *active_loopback_patch)
                                                     loopback_source;
 
     /* 1. Close the PCM devices */
+    if (!source_patch_config->id) {
     if (active_loopback_patch->source_stream) {
         pcm_close(active_loopback_patch->source_stream);
         active_loopback_patch->source_stream = NULL;
     } else {
         ALOGE("%s: Failed to close loopback stream in capture path",
             __func__);
+    }
     }
 
     /* 2. Close the PCM devices */
@@ -306,7 +312,7 @@ int32_t release_loopback_session(loopback_patch_t *active_loopback_patch)
     uc_info = get_usecase_from_list(adev, audio_loopback_mod->uc_id);
     if (uc_info == NULL) {
         ALOGE("%s: Could not find the loopback usecase (%d) in the list",
-            __func__, active_loopback_patch->patch_handle_id);
+            __func__, audio_loopback_mod->uc_id);
         return -EINVAL;
     }
 
@@ -317,6 +323,7 @@ int32_t release_loopback_session(loopback_patch_t *active_loopback_patch)
 
     /* 3. Disable the rx and tx devices */
     disable_snd_device(adev, uc_info->out_snd_device);
+    if (!source_patch_config->id)
     disable_snd_device(adev, uc_info->in_snd_device);
 
     /* 4. Reset backend device to default state */
@@ -442,7 +449,7 @@ int create_loopback_session(loopback_patch_t *active_loopback_patch)
 
     ALOGV("%s: Opening PCM capture device card_id(%d) device_id(%d)",
           __func__, adev->snd_card, pcm_dev_tx_id);
-    if (pcm_dev_rx_id != pcm_dev_tx_id) {
+    if (!source_patch_config->id) {
         active_loopback_patch->source_stream = pcm_open(adev->snd_card,
                                pcm_dev_tx_id,
                                PCM_IN, &pcm_config);
@@ -457,7 +464,7 @@ int create_loopback_session(loopback_patch_t *active_loopback_patch)
 
     active_loopback_patch->patch_state = PATCH_CREATED;
 
-    if (pcm_dev_rx_id != pcm_dev_tx_id) {
+    if (!source_patch_config->id) {
         if (pcm_start(active_loopback_patch->source_stream) < 0) {
             ALOGE("%s: Failure to start loopback stream in capture path",
             __func__);
