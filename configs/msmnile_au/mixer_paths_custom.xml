@@ -1315,7 +1315,7 @@
     </path>
 
     <path name="rear-seat-playback">
-        <ctl name="QUAT_TDM_RX_0 Channels" value="Six" />
+        <ctl name="QUAT_TDM_RX_0 Channels" value="Eight" />
         <ctl name="QUAT_TDM_RX_0 Audio Mixer MultiMedia22" value="1" />
     </path>
 
