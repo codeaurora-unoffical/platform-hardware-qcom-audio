@@ -102,6 +102,7 @@
 #define ULL_PERIOD_SIZE (DEFAULT_OUTPUT_SAMPLING_RATE/1000)
 
 static int avtimer_dev_node = 0;
+static int avtimer_open_count = 0;
 
 static unsigned int configured_low_latency_capture_period_size =
         LOW_LATENCY_CAPTURE_PERIOD_SIZE;
@@ -2260,6 +2261,12 @@ static int stop_output_stream(struct stream_out *out)
         return -EINVAL;
     }
 
+    if (--avtimer_open_count == 0) {
+        if (avtimer_dev_node > 0)
+            close(avtimer_dev_node);
+    } else if (avtimer_open_count < 0)
+        avtimer_open_count = 0;
+
     if (is_offload_usecase(out->usecase) &&
         !(audio_extn_passthru_is_passthrough_stream(out))) {
         if (adev->visualizer_stop_output != NULL)
@@ -2398,6 +2405,13 @@ int start_output_stream(struct stream_out *out)
         }
     } else {
          select_devices(adev, out->usecase);
+    }
+
+    if (avtimer_open_count++ == 0) {
+        avtimer_dev_node = open(AVTIMER_DEVICE_FILE_NAME, 0);
+        if (avtimer_dev_node < 0)
+            ALOGE("%s: ERROR. Could not open /dev/avtimer",
+                    __func__);
     }
 
     ALOGV("%s: Opening PCM device card_id(%d) device_id(%d) format(%#x)",
@@ -5382,8 +5396,6 @@ static int adev_close(hw_device_t *device)
     pthread_mutex_lock(&adev_init_lock);
 
     if ((--audio_device_ref_count) == 0) {
-        if (avtimer_dev_node > 0)
-            close(avtimer_dev_node);
 
         audio_extn_sound_trigger_deinit(adev);
         audio_extn_listen_deinit(adev);
@@ -5730,10 +5742,6 @@ static int adev_open(const hw_module_t *module, const char *name,
     qahwi_init(*device);
     audio_extn_perf_lock_init();
 
-    avtimer_dev_node = open(AVTIMER_DEVICE_FILE_NAME, 0);
-    if (avtimer_dev_node < 0)
-        ALOGE("%s: ERROR. Could not open /dev/avtimer",
-                __func__);
 
     ALOGV("%s: exit", __func__);
     return 0;
