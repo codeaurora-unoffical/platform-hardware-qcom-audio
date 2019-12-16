@@ -4004,7 +4004,7 @@ int platform_get_ext_disp_type(void *platform)
     int disp_type;
     struct platform_data *my_data = (struct platform_data *)platform;
 
-    if (my_data->ext_disp_type != EXT_DISPLAY_TYPE_NONE) {
+    if (my_data->ext_disp_type > EXT_DISPLAY_TYPE_NONE) {
          ALOGD("%s: Returning cached ext disp type:%s",
                __func__, (my_data->ext_disp_type == EXT_DISPLAY_TYPE_DP) ? "DisplayPort" : "HDMI");
          return my_data->ext_disp_type;
@@ -4023,7 +4023,7 @@ int platform_get_ext_disp_type(void *platform)
     }
 
     disp_type = mixer_ctl_get_value(ctl, 0);
-    if (disp_type == EXT_DISPLAY_TYPE_NONE) {
+    if (disp_type <= EXT_DISPLAY_TYPE_NONE) {
          ALOGE("%s: Invalid external display type: %d", __func__, disp_type);
          return -EINVAL;
     }
