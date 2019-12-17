@@ -2324,11 +2324,11 @@ static void qap_session_callback(qap_session_handle_t session_handle __unused,
             DEBUG_MSG("sent DRAIN_READY");
         }
     } else if (QAP_CALLBACK_EVENT_DELAY == event_id) {
-        audio_qaf_delay_t *qaf_delay = (audio_qaf_delay_t*) buffer;
-        main_delay_event_data.algo_delay = qaf_delay->algo_delay;
-        main_delay_event_data.buffering_delay = qaf_delay->buffering_delay;
-        main_delay_event_data.non_main_data_length = qaf_delay->non_main_data_length;
-        main_delay_event_data.non_main_data_offset = qaf_delay->non_main_data_offset;
+        qap_output_delay_t *qap_delay = (qap_output_delay_t*) buffer;
+        main_delay_event_data.algo_delay = qap_delay->algo_delay;
+        main_delay_event_data.buffering_delay = qap_delay->buffering_delay;
+        main_delay_event_data.non_main_data_length = qap_delay->non_main_data_length;
+        main_delay_event_data.non_main_data_offset = qap_delay->non_main_data_offset;
         if (delay_event_fired == false) {
             delay_event_fired = true;
             DEBUG_MSG("QAP_CALLBACK_EVENT_DELAY active");
