@@ -71,6 +71,7 @@
  * DDP encoder output size for one frame.
  */
 #define DDP_ENCODER_OUTPUT_SIZE 4608
+#define AUDIO_OUTPUT_SINK_CAPABILITY_DECTECTION 0x20000
 
 /*********TODO Need to get correct values.*************************/
 
@@ -3262,9 +3263,10 @@ int audio_extn_qap_open_output_stream(struct audio_hw_device *dev,
 
     DEBUG_MSG("Entry");
     if (p_qap->bypass_enable &&
-          (flags & (AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD | AUDIO_OUTPUT_FLAG_DIRECT))) {
-       ERROR_MSG("Recieved compress path request when bypass mode is active, reject open request");
-       return -EAGAIN;
+        (flags & (AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD | AUDIO_OUTPUT_FLAG_DIRECT)) &&
+        (!(flags & AUDIO_OUTPUT_SINK_CAPABILITY_DECTECTION))) {
+        ERROR_MSG("Recieved compress path request when bypass mode is active, reject open request");
+        return -EAGAIN;
     }
 
     ret = adev_open_output_stream(dev, handle, devices, flags, config, stream_out, address);
