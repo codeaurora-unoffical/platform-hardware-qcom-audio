@@ -46,6 +46,9 @@
         <device name="SND_DEVICE_IN_UNPROCESSED_THREE_MIC" acdb_id="145"/>
         <device name="SND_DEVICE_IN_UNPROCESSED_QUAD_MIC" acdb_id="146"/>
         <device name="SND_DEVICE_IN_UNPROCESSED_HEADSET_MIC" acdb_id="147"/>
+        <device name="SND_DEVICE_IN_HANDSET_QMIC" acdb_id="140"/>
+        <device name="SND_DEVICE_IN_EC_REF_LOOPBACK_MONO" acdb_id="140"/>
+        <device name="SND_DEVICE_IN_EC_REF_LOOPBACK_STEREO" acdb_id="140"/>
     </acdb_ids>
     <module_ids>
         <aec>
