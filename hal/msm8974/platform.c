@@ -727,6 +727,7 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_HANDSET_QMIC_AND_EC_REF_LOOPBACK] = "handset-qmic-and-ec-ref-loopback",
     [SND_DEVICE_IN_HANDSET_6MIC_AND_EC_REF_LOOPBACK] = "handset-6mic-and-ec-ref-loopback",
     [SND_DEVICE_IN_HANDSET_8MIC_AND_EC_REF_LOOPBACK] = "handset-8mic-and-ec-ref-loopback",
+    [SND_DEVICE_IN_EC_REF_LOOPBACK_QUAD] = "ec-ref-loopback-quad",
 };
 
 // Platform specific backend bit width table
@@ -986,6 +987,7 @@ static int acdb_device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_BUS] = 11,
     [SND_DEVICE_IN_EC_REF_LOOPBACK_MONO] = 4,
     [SND_DEVICE_IN_EC_REF_LOOPBACK_STEREO] = 4,
+    [SND_DEVICE_IN_EC_REF_LOOPBACK_QUAD] = 4,
 };
 
 struct name_to_index {
@@ -1227,6 +1229,7 @@ static struct name_to_index snd_device_name_index[SND_DEVICE_MAX] = {
     {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_QMIC_AND_EC_REF_LOOPBACK)},
     {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_6MIC_AND_EC_REF_LOOPBACK)},
     {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_8MIC_AND_EC_REF_LOOPBACK)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_EC_REF_LOOPBACK_QUAD)}
 };
 
 static char * backend_tag_table[SND_DEVICE_MAX] = {0};
@@ -4104,7 +4107,8 @@ int platform_get_snd_device_name_extn(void *platform, snd_device_t snd_device,
             strlcpy(device_name, device_table[snd_device], DEVICE_NAME_MAX_SIZE);
         hw_info_append_hw_type(my_data->hw_info, snd_device, device_name);
         if ((snd_device == SND_DEVICE_IN_EC_REF_LOOPBACK_MONO) ||
-            (snd_device == SND_DEVICE_IN_EC_REF_LOOPBACK_STEREO))
+            (snd_device == SND_DEVICE_IN_EC_REF_LOOPBACK_STEREO) ||
+            (snd_device == SND_DEVICE_IN_EC_REF_LOOPBACK_QUAD))
             audio_extn_ffv_append_ec_ref_dev_name(device_name);
     } else {
         strlcpy(device_name, "", DEVICE_NAME_MAX_SIZE);
@@ -6733,7 +6737,7 @@ snd_device_t platform_get_input_snd_device(void *platform,
             if(my_data->fluence_in_audio_rec) {
                if ((my_data->fluence_type & FLUENCE_HEX_MIC) &&
                     (my_data->source_mic_type & SOURCE_HEX_MIC) &&
-                    (audio_extn_ffv_get_stream() == adev->active_input)) {
+                    (audio_extn_ffv_get_stream() == in)) {
                     snd_device = audio_extn_ffv_get_capture_snd_device();
                } else if ((my_data->fluence_type & FLUENCE_QUAD_MIC) &&
                     (my_data->source_mic_type & SOURCE_QUAD_MIC)) {
@@ -10422,6 +10426,9 @@ int platform_get_ec_ref_loopback_snd_device(int channel_count)
             break;
         case 2:
             snd_device = SND_DEVICE_IN_EC_REF_LOOPBACK_STEREO;
+            break;
+        case 4:
+            snd_device = SND_DEVICE_IN_EC_REF_LOOPBACK_QUAD;
             break;
         default:
             snd_device = SND_DEVICE_NONE;
