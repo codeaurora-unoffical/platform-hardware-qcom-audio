@@ -600,8 +600,6 @@ static void close_all_hdmi_output_l()
     close_all_pcm_hdmi_output_l();
 }
 
-#if SUPPORT_SET_STREAM_VOLUME
-
 #define DSD_VOLUME_MIN_DB (-96)
 static float AmpToDb(float amplification)
 {
@@ -666,15 +664,6 @@ static int qap_set_stream_volume(struct audio_stream_out *stream, float left, fl
     DEBUG_MSG("Exit");
     return ret;
 }
-#else
-static int qap_set_stream_volume(struct audio_stream_out *stream __unused,
-                                 float left __unused,
-                                 float right __unused)
-{
-    DEBUG_MSG("Support for set stream volume is not enabled");
-    return -ENOSYS;
-}
-#endif
 
 static int qap_out_callback(stream_callback_event_t event, void *param __unused, void *cookie)
 {
