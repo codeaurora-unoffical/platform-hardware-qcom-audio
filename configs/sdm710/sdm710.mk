@@ -7,7 +7,7 @@ ifneq ($(TARGET_USES_AOSP_FOR_AUDIO), true)
 AUDIO_FEATURE_ENABLED_COMPRESS_CAPTURE := false
 AUDIO_FEATURE_ENABLED_COMPRESS_INPUT := true
 AUDIO_FEATURE_ENABLED_COMPRESS_VOIP := false
-AUDIO_FEATURE_ENABLED_DYNAMIC_ECNS := false
+AUDIO_FEATURE_ENABLED_DYNAMIC_ECNS := true
 AUDIO_FEATURE_ENABLED_EXTN_FORMATS := true
 AUDIO_FEATURE_ENABLED_EXTN_FLAC_DECODER := true
 AUDIO_FEATURE_ENABLED_EXTN_RESAMPLER := true
@@ -382,7 +382,7 @@ vendor.audio.feature.concurrent_capture.enable=false \
 vendor.audio.feature.custom_stereo.enable=true \
 vendor.audio.feature.display_port.enable=true \
 vendor.audio.feature.dsm_feedback.enable=false \
-vendor.audio.feature.dynamic_ecns.enable=false \
+vendor.audio.feature.dynamic_ecns.enable=true \
 vendor.audio.feature.ext_hw_plugin.enable=false \
 vendor.audio.feature.external_dsp.enable=false \
 vendor.audio.feature.external_speaker.enable=false \

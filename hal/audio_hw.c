@@ -1012,7 +1012,7 @@ static int enable_disable_effect(struct audio_device *adev, int effect_type, boo
     struct stream_in *in = adev_get_active_input(adev);
 
     if(!voice_extn_is_dynamic_ecns_enabled())
-        return ENOSYS;
+        return -ENOSYS;
 
     if (!in) {
         ALOGE("%s: Invalid input stream", __func__);
@@ -6833,7 +6833,7 @@ static int add_remove_audio_effect(const struct audio_stream *stream,
             }
         }
         if (!in->standby) {
-            if (enable_disable_effect(in->dev, EFFECT_AEC, enable) == ENOSYS)
+            if (!enable_disable_effect(in->dev, EFFECT_AEC, enable))
                 select_devices(in->dev, in->usecase);
         }
 
@@ -6850,7 +6850,7 @@ static int add_remove_audio_effect(const struct audio_stream *stream,
         if (!in->standby) {
             if (in->source == AUDIO_SOURCE_VOICE_COMMUNICATION ||
                 in->dev->mode == AUDIO_MODE_IN_COMMUNICATION) {
-                if (enable_disable_effect(in->dev, EFFECT_NS, enable) == ENOSYS)
+                if (!enable_disable_effect(in->dev, EFFECT_NS, enable))
                     select_devices(in->dev, in->usecase);
             } else
                 select_devices(in->dev, in->usecase);
