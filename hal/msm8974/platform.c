@@ -6147,12 +6147,10 @@ static snd_device_t get_snd_device_for_voice_comm_ecns_enabled(struct platform_d
                                      : SND_DEVICE_IN_SPEAKER_DMIC_AEC_NS;
             }
             adev->acdb_settings |= DMIC_FLAG;
-        } else if (in != NULL && (!in->enable_aec || !in->enable_ns)) {
-            snd_device = SND_DEVICE_IN_SPEAKER_MIC;
         } else
             snd_device = my_data->fluence_sb_enabled ?
                              SND_DEVICE_IN_SPEAKER_MIC_SB
-                             : SND_DEVICE_IN_SPEAKER_MIC_AEC_NS;
+                             : SND_DEVICE_IN_SPEAKER_MIC;
     } else if (in_device & AUDIO_DEVICE_IN_BUILTIN_MIC) {
         if ((my_data->fluence_type & FLUENCE_TRI_MIC) &&
             (my_data->source_mic_type & SOURCE_THREE_MIC)) {
