@@ -55,6 +55,9 @@
 #include "platform_api.h"
 #include "edid.h"
 #include "audio_feature_manager.h"
+#include "voice_extn.h"
+#include "adsp_hdlr.h"
+
 #include "sound/compress_params.h"
 
 #ifdef DYNAMIC_LOG_ENABLED
@@ -149,6 +152,14 @@ on_error:
     if (snd_card_name)
         free(snd_card_name);
 }
+
+/* TONE Generation Keys */
+/* tone_low_freq and tone_high_freq must be paired */
+#define AUDIO_PARAMETER_KEY_TONE_LOW_FREQ "tone_low_freq"
+#define AUDIO_PARAMETER_KEY_TONE_HIGH_FREQ "tone_high_freq"
+#define AUDIO_PARAMETER_KEY_TONE_DURATION_MS "tone_duration_ms"
+#define AUDIO_PARAMETER_KEY_TONE_GAIN "tone_gain"
+#define AUDIO_PARAMETER_KEY_TONE_OFF "tone_off"
 
 struct audio_extn_module {
     bool anc_enabled;
@@ -4565,3 +4576,62 @@ int audio_ext_get_presentation_position(struct stream_out *out,
 
     return ret;
 }
+
+#ifdef TONE_ENABLED
+int audio_extn_set_tone_parameters(struct stream_out *out,
+                                  struct str_parms *parms)
+{
+    int value = 0;
+    int ret = 0, err = 0;
+    char *kv_pairs = str_parms_to_str(parms);
+    char str_value[256] = {0};
+
+    ALOGV_IF(kv_pairs != NULL, "%s: enter: %s", __func__, kv_pairs);
+
+    err = str_parms_get_int(parms, AUDIO_PARAMETER_KEY_TONE_GAIN, &value);
+    if (err >= 0) {
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_TONE_GAIN);
+        int32_t tone_gain = value;
+
+        voice_extn_dtmf_set_rx_tone_gain(out, tone_gain);
+    }
+    err = str_parms_get_int(parms, AUDIO_PARAMETER_KEY_TONE_LOW_FREQ, &value);
+    if (err >= 0) {
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_TONE_LOW_FREQ);
+        uint32_t tone_low_freq = value;
+        uint32_t tone_high_freq = 0;
+        uint32_t tone_duration_ms = 0;
+        err = str_parms_get_int(parms, AUDIO_PARAMETER_KEY_TONE_HIGH_FREQ, &value);
+        if (err >= 0) {
+            tone_high_freq = value;
+            str_parms_del(parms, AUDIO_PARAMETER_KEY_TONE_HIGH_FREQ);
+        } else {
+            ALOGE("%s: tone_high_freq key not found", __func__);
+            ret = -EINVAL;
+            goto done;
+        }
+        err = str_parms_get_int(parms, AUDIO_PARAMETER_KEY_TONE_DURATION_MS, &value);
+        if (err >= 0) {
+            tone_duration_ms = value;
+            str_parms_del(parms, AUDIO_PARAMETER_KEY_TONE_DURATION_MS);
+        } else {
+            ALOGE("%s: tone duration key not found, setting to default infinity",
+                  __func__);
+            tone_duration_ms = 0xFFFF;
+        }
+        voice_extn_dtmf_generate_rx_tone(out, tone_low_freq, tone_high_freq,
+                                         tone_duration_ms);
+    }
+    err = str_parms_has_key(parms, AUDIO_PARAMETER_KEY_TONE_OFF);
+    if (err > 0) {
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_TONE_OFF);
+        voice_extn_dtmf_set_rx_tone_off(out);
+    }
+
+done:
+    ALOGV("%s: exit with code(%d)", __func__, ret);
+    free(kv_pairs);
+    return ret;
+}
+
+#endif

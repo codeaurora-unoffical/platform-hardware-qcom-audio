@@ -433,6 +433,7 @@ static int usb_get_capability(int type,
     char *bit_width_str = NULL;
     struct usb_device_config * usb_device_info;
     bool check = false;
+    int flag_t = 0;
 
     memset(path, 0, sizeof(path));
     ALOGV("%s: for %s", __func__, (type == USB_PLAYBACK) ?
@@ -462,7 +463,8 @@ static int usb_get_capability(int type,
         goto done;
     }
 
-    if((read(fd, read_buf, USB_BUFF_SIZE) < 0) || (strlen(read_buf) > USB_BUFF_SIZE)) {
+    flag_t = read(fd, read_buf, USB_BUFF_SIZE);
+    if( flag_t < 0 || read_buf[flag_t] != '\0') {
         ALOGE("file read error\n");
         goto done;
     }
