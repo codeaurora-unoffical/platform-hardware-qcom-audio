@@ -987,6 +987,8 @@ void audio_extn_cin_free_input_stream_resources(struct stream_in *in);
 int audio_extn_cin_read(struct stream_in *in, void *buffer,
                         size_t bytes, size_t *bytes_read);
 int audio_extn_cin_configure_input_stream(struct stream_in *in, struct audio_config *in_config);
+int audio_extn_compress_in_set_ttp_offset(struct stream_in *in,
+            struct audio_in_ttp_offset_param *offset_param);
 #else
 #define audio_extn_cin_applicable_stream(in) (false)
 #define audio_extn_cin_attached_usecase(uc_id) (false)
@@ -998,6 +1000,7 @@ int audio_extn_cin_configure_input_stream(struct stream_in *in, struct audio_con
 #define audio_extn_cin_free_input_stream_resources(in) (0)
 #define audio_extn_cin_read(in, buffer, bytes, bytes_read) (0)
 #define audio_extn_cin_configure_input_stream(in, in_config) (0)
+#define audio_extn_compress_in_set_ttp_offset(in, offset_param) (0)
 #endif
 
 //START: SOURCE_TRACKING_FEATURE ==============================================
@@ -1068,8 +1071,6 @@ int audio_extn_utils_compress_get_dsp_presentation_pos(struct stream_out *out,
             uint64_t *frames, struct timespec *timestamp, int32_t clock_id);
 int audio_extn_utils_pcm_get_dsp_presentation_pos(struct stream_out *out,
             uint64_t *frames, struct timespec *timestamp, int32_t clock_id);
-int audio_extn_compress_in_set_ttp_offset(struct stream_in *in,
-            struct audio_in_ttp_offset_param *offset_param);
 #ifdef AUDIO_HW_LOOPBACK_ENABLED
 /* API to create audio patch */
 int audio_extn_hw_loopback_create_audio_patch(struct audio_hw_device *dev,
