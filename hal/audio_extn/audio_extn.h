@@ -1069,6 +1069,8 @@ int audio_extn_utils_compress_get_dsp_presentation_pos(struct stream_out *out,
             uint64_t *frames, struct timespec *timestamp, int32_t clock_id);
 int audio_extn_utils_pcm_get_dsp_presentation_pos(struct stream_out *out,
             uint64_t *frames, struct timespec *timestamp, int32_t clock_id);
+int audio_extn_compress_in_set_ttp_offset(struct stream_in *in,
+            struct audio_in_ttp_offset_param *offset_param);
 #ifdef AUDIO_HW_LOOPBACK_ENABLED
 /* API to create audio patch */
 int audio_extn_hw_loopback_create_audio_patch(struct audio_hw_device *dev,

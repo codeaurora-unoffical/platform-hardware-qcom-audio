@@ -205,6 +205,10 @@ struct audio_out_correct_drift {
     int64_t        adjust_time;
 };
 
+struct audio_in_ttp_offset_param {
+   uint64_t        ttp_offset; /* TTP value is derived from ttp offset*/
+};
+
 /* Device playback mode passed to keep_alive_start & keep_alive_stop*/
 typedef enum {
     KEEP_ALIVE_OUT_NONE = 0,
@@ -341,6 +345,7 @@ typedef union {
     struct dolby_thd_dec_param dthd_params;
     struct dolby_mat_dec_param dmat_params;
     struct audio_out_presentation_position_param pos_param;
+    struct audio_in_ttp_offset_param ttp_offset;
 } audio_extn_param_payload;
 
 typedef enum {
@@ -367,6 +372,12 @@ typedef enum {
     AUDIO_EXTN_PARAM_DOLBY_THD_DEC,
     AUDIO_EXTN_PARAM_DOLBY_MAT_DEC,
     AUDIO_EXTN_PARAM_OUT_PRESENTATION_POSITION,
+    AUDIO_EXTN_PARAM_DTMF_GEN,
+    AUDIO_EXTN_PARAM_TTY_MODE,
+    AUDIO_EXTN_PARAM_HPCM,
+    AUDIO_EXTN_PARAM_DTMF_DETECT,
+    AUDIO_EXTN_PARAM_TONE_GEN,
+    AUDIO_EXTN_PARAM_IN_TTP_OFFSET,
 } audio_extn_param_id;
 
 typedef union {

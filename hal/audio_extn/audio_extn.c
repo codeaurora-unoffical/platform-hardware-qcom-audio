@@ -3613,6 +3613,32 @@ int audio_extn_out_get_param_data(struct stream_out *out,
     return ret;
 }
 
+/* API to set capture stream specific config parameters */
+int audio_extn_in_set_param_data(struct stream_in *in,
+                             audio_extn_param_id param_id,
+                             audio_extn_param_payload *payload) {
+    int ret = -EINVAL;
+
+    if (!in || !payload) {
+        ALOGE("%s:: Invalid Param",__func__);
+        return ret;
+    }
+
+    ALOGD("%s: enter: stream (%p) usecase(%d: %s) param_id %d", __func__,
+            in, in->usecase, use_case_table[in->usecase], param_id);
+
+    switch (param_id) {
+        case AUDIO_EXTN_PARAM_IN_TTP_OFFSET:
+            ret = audio_extn_compress_in_set_ttp_offset(in,
+                    (struct audio_in_ttp_offset_param *)(payload));
+            break;
+        default:
+            ALOGE("%s:: unsupported param_id %d", __func__, param_id);
+            break;
+    }
+    return ret;
+}
+
 int audio_extn_set_device_cfg_params(struct audio_device *adev,
                                      struct audio_device_cfg_param *payload)
 {
