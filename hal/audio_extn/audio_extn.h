@@ -1042,6 +1042,8 @@ int audio_extn_utils_get_avt_device_drift(
                 struct audio_avt_device_drift_param *drift_param);
 int audio_extn_utils_compress_get_dsp_latency(struct stream_out *out);
 int audio_extn_utils_compress_set_render_mode(struct stream_out *out);
+int audio_extn_utils_compress_set_render_mode_v2(struct compress *compr,
+                                                 int render_mode);
 int audio_extn_utils_compress_set_clk_rec_mode(struct audio_usecase *usecase);
 int audio_extn_utils_compress_set_render_window(
             struct stream_out *out,

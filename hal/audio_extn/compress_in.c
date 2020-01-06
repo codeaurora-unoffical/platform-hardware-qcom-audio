@@ -182,6 +182,52 @@ size_t audio_extn_cin_get_buffer_size(struct stream_in *in)
     return sz;
 }
 
+#ifdef SNDRV_COMPRESS_RENDER_MODE
+static int audio_extn_compress_set_render_mode(struct stream_in *in)
+{
+    struct snd_compr_metadata metadata;
+    int ret = -EINVAL;
+    cin_private_data_t *cin_data = (cin_private_data_t *) in->cin_extn;
+
+    if (!audio_extn_cin_attached_usecase(in->usecase)) {
+        ALOGE("%s:: not supported for non offload session", __func__);
+        goto exit;
+    }
+
+    if (!cin_data->compr) {
+        ALOGW("%s: offload session not yet opened", __func__);
+       goto exit;
+    }
+
+    ALOGD("%s:: render mode %d", __func__, in->render_mode);
+
+    metadata.key = SNDRV_COMPRESS_RENDER_MODE;
+    if (in->render_mode == RENDER_MODE_AUDIO_MASTER) {
+        metadata.value[0] = SNDRV_COMPRESS_RENDER_MODE_AUDIO_MASTER;
+    } else if (in->render_mode == RENDER_MODE_AUDIO_STC_MASTER) {
+        metadata.value[0] = SNDRV_COMPRESS_RENDER_MODE_STC_MASTER;
+    } else if (in->render_mode == RENDER_MODE_AUDIO_TTP) {
+        metadata.value[0] = SNDRV_COMPRESS_RENDER_MODE_TTP;
+    } else {
+        ret = 0;
+        ALOGE("%s:: invalid render mode %d", __func__, in->render_mode);
+        goto exit;
+    }
+    ret = compress_set_metadata(cin_data->compr, &metadata);
+    if(ret) {
+        ALOGE("%s::error %s", __func__, compress_get_error(cin_data->compr));
+    }
+exit:
+    return ret;
+}
+#else
+static int audio_extn_compress_set_render_mode(struct stream_in *in __unused)
+{
+    ALOGD("%s:: configuring render mode not supported", __func__);
+    return 0;
+}
+#endif
+
 int audio_extn_cin_open_input_stream(struct stream_in *in)
 {
     int ret = -EINVAL;
@@ -202,6 +248,9 @@ int audio_extn_cin_open_input_stream(struct stream_in *in)
     } else {
         ret = 0;
     }
+
+    audio_extn_compress_set_render_mode(in);
+
     return ret;
 }
 
@@ -347,6 +396,13 @@ int audio_extn_cin_configure_input_stream(struct stream_in *in, struct audio_con
         compress_config_set_timstamp_flag(&cin_data->compr_config);
         cin_data->compr_config.fragment_size += meta_size;
     }
+
+    if ((in->flags & AUDIO_INPUT_FLAG_TIMESTAMP) &&
+        (property_get_bool("persist.vendor.audio.ttp.render.mode", false)))
+        in->render_mode = RENDER_MODE_AUDIO_TTP;
+    else
+        in->render_mode = RENDER_MODE_AUDIO_NO_TIMESTAMP;
+
     ALOGD("%s: format %d flags 0x%x SR %d CM 0x%x buf_size %d in %p",
           __func__, in->format, in->flags, in->sample_rate, in->channel_mask,
           cin_data->compr_config.fragment_size, in);

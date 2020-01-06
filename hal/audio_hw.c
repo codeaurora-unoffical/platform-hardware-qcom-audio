@@ -7117,7 +7117,10 @@ int adev_open_output_stream(struct audio_hw_device *dev,
             (flags & AUDIO_OUTPUT_FLAG_HW_AV_SYNC)) {
             out->render_mode = RENDER_MODE_AUDIO_STC_MASTER;
         } else if(flags & AUDIO_OUTPUT_FLAG_TIMESTAMP) {
-            out->render_mode = RENDER_MODE_AUDIO_MASTER;
+            if (property_get_bool("persist.vendor.audio.ttp.render.mode", false))
+                out->render_mode = RENDER_MODE_AUDIO_TTP;
+            else
+                out->render_mode = RENDER_MODE_AUDIO_MASTER;
         } else {
             out->render_mode = RENDER_MODE_AUDIO_NO_TIMESTAMP;
         }

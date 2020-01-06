@@ -2241,9 +2241,36 @@ int audio_extn_utils_compress_get_dsp_latency(struct stream_out *out __unused)
 #endif
 
 #ifdef SNDRV_COMPRESS_RENDER_MODE
-int audio_extn_utils_compress_set_render_mode(struct stream_out *out)
+int audio_extn_utils_compress_set_render_mode_v2(struct compress *compr,
+                                                 int render_mode)
 {
     struct snd_compr_metadata metadata;
+    int ret = -EINVAL;
+
+    ALOGD("%s:: render mode %d", __func__, render_mode);
+
+    metadata.key = SNDRV_COMPRESS_RENDER_MODE;
+    if (render_mode == RENDER_MODE_AUDIO_MASTER) {
+        metadata.value[0] = SNDRV_COMPRESS_RENDER_MODE_AUDIO_MASTER;
+    } else if (render_mode == RENDER_MODE_AUDIO_STC_MASTER) {
+        metadata.value[0] = SNDRV_COMPRESS_RENDER_MODE_STC_MASTER;
+    } else if (render_mode == RENDER_MODE_AUDIO_TTP) {
+        metadata.value[0] = SNDRV_COMPRESS_RENDER_MODE_TTP;
+    } else {
+        ret = 0;
+        ALOGE("%s:: invalid render mode %d", __func__, render_mode);
+        goto exit;
+    }
+    ret = compress_set_metadata(compr, &metadata);
+    if(ret) {
+        ALOGE("%s::error %s", __func__, compress_get_error(compr));
+    }
+exit:
+    return ret;
+}
+
+int audio_extn_utils_compress_set_render_mode(struct stream_out *out)
+{
     int ret = -EINVAL;
 
     if (!(is_offload_usecase(out->usecase))) {
@@ -2256,26 +2283,20 @@ int audio_extn_utils_compress_set_render_mode(struct stream_out *out)
                 __func__);
         goto exit;
     }
-
-    ALOGD("%s:: render mode %d", __func__, out->render_mode);
-
-    metadata.key = SNDRV_COMPRESS_RENDER_MODE;
-    if (out->render_mode == RENDER_MODE_AUDIO_MASTER) {
-        metadata.value[0] = SNDRV_COMPRESS_RENDER_MODE_AUDIO_MASTER;
-    } else if (out->render_mode == RENDER_MODE_AUDIO_STC_MASTER) {
-        metadata.value[0] = SNDRV_COMPRESS_RENDER_MODE_STC_MASTER;
-    } else {
-        ret = 0;
-        goto exit;
-    }
-    ret = compress_set_metadata(out->compr, &metadata);
-    if(ret) {
-        ALOGE("%s::error %s", __func__, compress_get_error(out->compr));
-    }
+    ret = audio_extn_utils_compress_set_render_mode_v2(out->compr, out->render_mode);
+    if (ret)
+        ALOGE("%s: set render mode failed %d", __func__, ret);
 exit:
     return ret;
 }
 #else
+int audio_extn_utils_compress_set_render_mode_v2(struct compress *compr __unused,
+                                                 int render_mode __unused)
+{
+    ALOGD("%s:: configuring render mode v2 not supported", __func__);
+    return 0;
+}
+
 int audio_extn_utils_compress_set_render_mode(struct stream_out *out __unused)
 {
     ALOGD("%s:: configuring render mode not supported", __func__);
