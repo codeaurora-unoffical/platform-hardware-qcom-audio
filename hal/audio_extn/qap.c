@@ -71,6 +71,7 @@
  * DDP encoder output size for one frame.
  */
 #define DDP_ENCODER_OUTPUT_SIZE 4608
+#define AUDIO_OUTPUT_SINK_CAPABILITY_DECTECTION 0x20000
 
 /*********TODO Need to get correct values.*************************/
 
@@ -175,6 +176,7 @@ struct qap_module {
 
     /*Input stream of MM module */
     struct stream_out *stream_in[MAX_QAP_MODULE_IN];
+    pthread_mutex_t qap_stream_in_lock[MAX_QAP_MODULE_IN];
     /*Output Stream from MM module */
     struct stream_out *stream_out[MAX_QAP_MODULE_OUT];
 
@@ -276,6 +278,8 @@ struct ecref {
 };
 
 static struct ecref ec;
+static int get_input_stream_index_l(struct stream_out *out);
+static struct qap_module* get_qap_module_for_input_stream_l(struct stream_out *out);
 
 static void insert_wav_header(FILE *fp, struct audio_config *config) {
     struct wav_header *hdr = &ec.hdr;
@@ -327,6 +331,60 @@ static void unlock_session_output(struct qap_module *qap_mod)
     return;
 }
 
+static void lock_all_qap_stream_in(struct qap_module *qap_mod)
+{
+    int i;
+    for (i = QAP_IN_MAIN; i < MAX_QAP_MODULE_IN; i++) {
+        if (qap_mod->stream_in[i] != NULL ) {
+            pthread_mutex_lock(&qap_mod->qap_stream_in_lock[i]);
+            DEBUG_MSG_VV("Qap stream in lock acquired %p for index=%d",
+                         &qap_mod->qap_stream_in_lock[i], i);
+        }
+    }
+    return;
+ }
+
+static void unlock_all_qap_stream_in(struct qap_module *qap_mod)
+{
+    int i;
+    for (i = QAP_IN_MAIN; i < MAX_QAP_MODULE_IN; i++) {
+        if (qap_mod->stream_in[i] != NULL ) {
+            pthread_mutex_unlock(&qap_mod->qap_stream_in_lock[i]);
+            DEBUG_MSG_VV("Qap stream in lock released %p for index=%d",
+                          &qap_mod->qap_stream_in_lock[i], i);
+        }
+    }
+    return;
+}
+
+static void lock_qap_stream_in(struct stream_out *out)
+{
+    int index = -1;
+    struct qap_module *qap_mod = NULL;
+
+    qap_mod = get_qap_module_for_input_stream_l(out);
+    index = get_input_stream_index_l(out);
+    pthread_mutex_lock(&qap_mod->qap_stream_in_lock[index]);
+    DEBUG_MSG_VV("Qap stream in lock acquired %p for index =%d",
+                  &qap_mod->qap_stream_in_lock[index], index);
+
+    return;
+}
+
+static void unlock_qap_stream_in(struct stream_out *out)
+{
+    int index = -1;
+    struct qap_module *qap_mod = NULL;
+
+    qap_mod = get_qap_module_for_input_stream_l(out);
+    index = get_input_stream_index_l(out);
+
+    pthread_mutex_unlock(&qap_mod->qap_stream_in_lock[index]);
+    DEBUG_MSG_VV("Qap stream in lock released %p for index=%d",
+                  &qap_mod->qap_stream_in_lock[index], index);
+    return;
+}
+
 static void check_and_activate_output_thread(bool awake)
 {
     struct qap_module *qap_mod = &(p_qap->qap_mod[MS12]);
@@ -334,7 +392,7 @@ static void check_and_activate_output_thread(bool awake)
     lock_session_output(qap_mod);
 
     if (awake) {
-        if (qap_mod->is_session_output_active == false) {
+        if (qap_mod->is_session_output_active == false && !p_qap->qap_active_api_count) {
             pthread_cond_signal(&qap_mod->session_output_cond);
         }
         p_qap->qap_active_api_count++;
@@ -506,28 +564,6 @@ static void unlock_output_stream_l(struct stream_out *out)
     pthread_mutex_unlock(&out->lock);
 }
 
-static void lock_all_output_streams(struct qap_module *qap_mod)
-{
-    int i;
-    for (i = QAP_IN_MAIN; i < MAX_QAP_MODULE_IN; i++) {
-        if (qap_mod->stream_in[i] != NULL ) {
-            lock_output_stream_l(qap_mod->stream_in[i]);
-        }
-    }
-    return;
- }
-
-static void unlock_all_output_streams(struct qap_module *qap_mod)
-{
-    int i;
-    for (i = QAP_IN_MAIN; i < MAX_QAP_MODULE_IN; i++) {
-        if (qap_mod->stream_in[i] != NULL ) {
-            unlock_output_stream_l(qap_mod->stream_in[i]);
-        }
-    }
-    return;
-}
-
 /* Checks if stream can be routed as QAP passthrough or not. */
 static bool audio_extn_qap_passthrough_enabled(struct stream_out *out)
 {
@@ -626,7 +662,7 @@ static int qap_set_stream_volume(struct audio_stream_out *stream, float left, fl
 
     DEBUG_MSG("Left %f, Right %f", left, right);
 
-    lock_output_stream_l(out);
+    lock_qap_stream_in(out);
     if (!p_qap->bypass_enable) {
         if (is_offload_usecase(out->usecase))
             cmd_data[0] = MS12_SESSION_CFG_SYSSOUND_MIXING_GAIN_INPUT1;
@@ -634,8 +670,8 @@ static int qap_set_stream_volume(struct audio_stream_out *stream, float left, fl
             (out->usecase == USECASE_AUDIO_PLAYBACK_DEEP_BUFFER)) {
             DEBUG_MSG("Request for volume set for %s usecase not supported",
                       (out->usecase == USECASE_AUDIO_PLAYBACK_LOW_LATENCY) ? "low_latency":"deepbuffer");
-            unlock_output_stream_l(out);
-            return -ENOSYS;
+             unlock_qap_stream_in(out);
+             return -ENOSYS;
         }
 
         /*take left as default level and MS12 doenst support left and right seperately*/
@@ -657,12 +693,11 @@ static int qap_set_stream_volume(struct audio_stream_out *stream, float left, fl
         } else
            DEBUG_MSG("qap module is not yet opened!!, vol cannot be applied");
         check_and_activate_output_thread(false);
-        unlock_output_stream_l(out);
     } else {
-        unlock_output_stream_l(out);
         ret = p_qap->hal_stream_ops.set_volume(stream, left, right);
     }
 
+    unlock_qap_stream_in(out);
     DEBUG_MSG("Exit");
     return ret;
 }
@@ -782,8 +817,10 @@ static int qap_out_drain(struct audio_stream_out* stream, audio_drain_type_t typ
     qap_mod = get_qap_module_for_input_stream_l(out);
     DEBUG_MSG("Output Stream %p", out);
 
-    lock_output_stream_l(out);
+    lock_qap_stream_in(out);
     if (!p_qap->bypass_enable) {
+       lock_output_stream_l(out);
+
        //If QAP passthrough is enabled then block the drain on module stream.
        if (p_qap->passthrough_out) {
           pthread_mutex_lock(&p_qap->lock);
@@ -813,6 +850,7 @@ static int qap_out_drain(struct audio_stream_out* stream, audio_drain_type_t typ
           if (QAP_STATUS_OK != status) {
              ERROR_MSG("EOS buffer queing failed%d", status);
              unlock_output_stream_l(out);
+             unlock_qap_stream_in(out);
              return -EINVAL;
           }
 
@@ -829,9 +867,9 @@ static int qap_out_drain(struct audio_stream_out* stream, audio_drain_type_t typ
 
        unlock_output_stream_l(out);
     } else {
-       unlock_output_stream_l(out);
        status = p_qap->hal_stream_ops.drain(stream, type);
     }
+    unlock_qap_stream_in(out);
     DEBUG_MSG_VV("Exit");
     return status;
 }
@@ -904,8 +942,10 @@ static int qap_out_flush(struct audio_stream_out* stream)
     int status = 0;
 
     DEBUG_MSG("Output Stream %p", out);
-    lock_output_stream_l(out);
+    lock_qap_stream_in(out);
     if (!p_qap->bypass_enable) {
+       lock_output_stream_l(out);
+
        if (!out->standby) {
            //If QAP passthrough is active then block the flush on module input streams.
            if (p_qap->passthrough_out) {
@@ -924,9 +964,9 @@ static int qap_out_flush(struct audio_stream_out* stream)
        }
        unlock_output_stream_l(out);
     } else {
-        unlock_output_stream_l(out);
         status = p_qap->hal_stream_ops.flush(stream);
     }
+    unlock_qap_stream_in(out);
     DEBUG_MSG("Exit");
     return status;
 }
@@ -939,8 +979,10 @@ static int qap_out_pause(struct audio_stream_out* stream)
     int status = 0;
     DEBUG_MSG("Output Stream %p", out);
 
-    lock_output_stream_l(out);
+    lock_qap_stream_in(out);
     if (!p_qap->bypass_enable) {
+       lock_output_stream_l(out);
+
        //If QAP passthrough is enabled then block the pause on module stream.
        if (p_qap->passthrough_out) {
           pthread_mutex_lock(&p_qap->lock);
@@ -958,9 +1000,9 @@ static int qap_out_pause(struct audio_stream_out* stream)
 
        unlock_output_stream_l(out);
     } else {
-       unlock_output_stream_l(out);
        p_qap->hal_stream_ops.pause(stream);
     }
+    unlock_qap_stream_in(out);
     DEBUG_MSG_VV("Exit");
     return status;
 }
@@ -993,8 +1035,9 @@ static int qap_out_standby(struct audio_stream *stream)
     DEBUG_MSG("enter: stream (%p) usecase(%d: %s)",
           stream, out->usecase, use_case_table[out->usecase]);
 
-    lock_output_stream_l(out);
+    lock_qap_stream_in(out);
     if (!p_qap->bypass_enable) {
+       lock_output_stream_l(out);
        DEBUG_MSG("Total bytes consumed %llu[frames] for usecase %s stream (%p) by MM Module",
                 (unsigned long long)out->written, use_case_table[out->usecase], stream);
 
@@ -1039,9 +1082,9 @@ static int qap_out_standby(struct audio_stream *stream)
 
        unlock_output_stream_l(out);
     } else {
-        unlock_output_stream_l(out);
         status = p_qap->hal_stream_ops.common.standby(stream);
     }
+    unlock_qap_stream_in(out);
     DEBUG_MSG_VV("Exit");
     return status;
 }
@@ -1147,8 +1190,12 @@ static ssize_t qap_out_write(struct audio_stream_out *stream, const void *buffer
     DEBUG_MSG_VV("bytes = %d, usecase[%s] and flags[%x] for handle[%p] bypass mode[%d]",
           (int)bytes, use_case_table[out->usecase], out->flags, out, p_qap->bypass_enable);
 
-    lock_output_stream_l(out);
+
+    lock_qap_stream_in(out);
     if (!p_qap->bypass_enable) {
+        lock_output_stream_l(out);
+         check_and_activate_output_thread(true);
+
         // If QAP passthrough is active then block writing data to QAP mm module.
         if (p_qap->passthrough_out) {
            //If write is received for the QAP passthrough stream then send the buffer to primary HAL.
@@ -1160,31 +1207,26 @@ static ssize_t qap_out_write(struct audio_stream_out *stream, const void *buffer
                if (ret > 0) out->standby = false;
            }
            unlock_output_stream_l(out);
+           unlock_qap_stream_in(out);
            return ret;
         } else if (out->standby) {
            qap_mod = get_qap_module_for_input_stream_l(out);
-           lock_session_output(qap_mod);
-           if (qap_mod->is_session_output_active == false) {
-               pthread_cond_signal(&qap_mod->session_output_cond);
-           }
-           p_qap->qap_active_api_count++;
            pthread_mutex_lock(&adev->lock);
            ret = qap_start_output_stream(out);
            pthread_mutex_unlock(&adev->lock);
-           p_qap->qap_active_api_count--;
            if (ret == 0) {
               out->standby = false;
               if(p_qap->qap_output_block_handling) {
-                 if (!qap_mod->is_session_output_active) {
+                 lock_session_output(qap_mod);
+                 if (!qap_mod->is_session_output_active && !p_qap->qap_active_api_count) {
                      pthread_cond_signal(&qap_mod->session_output_cond);
                  }
                  qap_mod->is_session_output_active = true;
+                 unlock_session_output(qap_mod);
               }
            } else {
-              unlock_session_output(qap_mod);
               goto exit;
            }
-           unlock_session_output(qap_mod);
         }
 
         if ((adev->is_channel_status_set == false) && (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL)) {
@@ -1202,6 +1244,7 @@ static ssize_t qap_out_write(struct audio_stream_out *stream, const void *buffer
 
         exit:
            unlock_output_stream_l(out);
+           check_and_activate_output_thread(false);
 
            if (ret < 0) {
               if (ret == -EAGAIN) {
@@ -1222,10 +1265,11 @@ static ssize_t qap_out_write(struct audio_stream_out *stream, const void *buffer
               bytes = ret;
            }
     } else {
-        unlock_output_stream_l(out);
         ret = p_qap->hal_stream_ops.write(stream, buffer, bytes);
         bytes = ret;
     }
+    unlock_qap_stream_in(out);
+    DEBUG_MSG_VV("Exit");
     return bytes;
 }
 
@@ -1418,13 +1462,13 @@ static int qap_out_get_render_position(const struct audio_stream_out *stream,
     uint64_t frames=0;
     struct qap_module* qap_mod = NULL;
 
-    lock_output_stream_l(out);
+    lock_qap_stream_in(out);
     if (!p_qap->bypass_enable) {
         qap_mod = get_qap_module_for_input_stream_l(out);
         if (!qap_mod) {
             ret = out->stream.get_render_position(stream, dsp_frames);
             DEBUG_MSG("non qap_MOD DSP FRAMES %d", (int)dsp_frames);
-            unlock_output_stream_l(out);
+            unlock_qap_stream_in(out);
             return ret;
         }
 
@@ -1434,18 +1478,17 @@ static int qap_out_get_render_position(const struct audio_stream_out *stream,
                           dsp_frames);
             pthread_mutex_unlock(&p_qap->lock);
             DEBUG_MSG("PASS THROUGH DSP FRAMES %p", dsp_frames);
-            unlock_output_stream_l(out);
+            unlock_qap_stream_in(out);
             return ret;
         }
         frames=*dsp_frames;
         ret = qap_get_rendered_frames(out, &frames);
         *dsp_frames = (uint32_t)frames;
         DEBUG_MSG_VV("DSP FRAMES %ud for out(%p)", *dsp_frames, out);
-        unlock_output_stream_l(out);
     } else {
-       unlock_output_stream_l(out);
        p_qap->hal_stream_ops.get_render_position(stream, dsp_frames);
     }
+    unlock_qap_stream_in(out);
     return ret;
 }
 
@@ -1456,7 +1499,7 @@ static int qap_out_get_presentation_position(const struct audio_stream_out *stre
     struct stream_out *out = (struct stream_out *)stream;
     int ret = 0;
 
-    lock_output_stream_l(out);
+    lock_qap_stream_in(out);
     if (!p_qap->bypass_enable) {
     //If QAP passthorugh output stream is active.
     if (p_qap->passthrough_out) {
@@ -1473,7 +1516,7 @@ static int qap_out_get_presentation_position(const struct audio_stream_out *stre
             *frames = 0;
             clock_gettime(CLOCK_MONOTONIC, timestamp);
         }
-        unlock_output_stream_l(out);
+        unlock_qap_stream_in(out);
         return ret;
     }
 
@@ -1481,11 +1524,10 @@ static int qap_out_get_presentation_position(const struct audio_stream_out *stre
     clock_gettime(CLOCK_MONOTONIC, timestamp);
 
     DEBUG_MSG_VV("frames(%llu) for out(%p)", (unsigned long long)*frames, out);
-    unlock_output_stream_l(out);
     } else {
-       unlock_output_stream_l(out);
        p_qap->hal_stream_ops.get_presentation_position(stream, frames, timestamp);
     }
+    unlock_qap_stream_in(out);
     return ret;
 }
 
@@ -1496,11 +1538,11 @@ static uint32_t qap_out_get_latency(const struct audio_stream_out *stream)
     struct qap_module *qap_mod = NULL;
     DEBUG_MSG_VV("Output Stream %p", out);
 
-    lock_output_stream_l(out);
+    lock_qap_stream_in(out);
     if (!p_qap->bypass_enable) {
         qap_mod = get_qap_module_for_input_stream_l(out);
         if (!qap_mod) {
-            unlock_output_stream_l(out);
+            unlock_qap_stream_in(out);
             return 0;
         }
 
@@ -1540,11 +1582,10 @@ static uint32_t qap_out_get_latency(const struct audio_stream_out *stream)
                }
            }
         }
-        unlock_output_stream_l(out);
     } else {
-        unlock_output_stream_l(out);
         latency = p_qap->hal_stream_ops.get_latency(stream);
     }
+    unlock_qap_stream_in(out);
     DEBUG_MSG_VV("Latency %d", latency);
     return latency;
 }
@@ -1688,7 +1729,9 @@ static void qap_session_callback(qap_session_handle_t session_handle __unused,
         if (!qap_mod->is_session_output_active && !p_qap->qap_active_api_count) {
             qap_close_all_output_streams(qap_mod);
             DEBUG_MSG("disabling MM module output by blocking the output thread");
-            pthread_cond_wait(&qap_mod->session_output_cond, &qap_mod->session_output_lock);
+            /*is_session_output_active & qap_active_api_count used as predicate to safe gaurd against the spurious wakeups */
+            while(!qap_mod->is_session_output_active && !p_qap->qap_active_api_count)
+                pthread_cond_wait(&qap_mod->session_output_cond, &qap_mod->session_output_lock);
             DEBUG_MSG("MM module output Enabled, output thread active");
         }
         unlock_session_output(qap_mod);
@@ -1976,8 +2019,8 @@ static void qap_session_callback(qap_session_handle_t session_handle __unused,
                  */
 
                 if (p_qap->passthrough_enabled) {
-                    //Closing all the multi-Channel PCM HDMI output stream from QAP.
-                    close_all_pcm_hdmi_output_l();
+                    //Closing all HDMI output stream from QAP.
+                    close_all_hdmi_output_l();
 
                     //If passthrough is active then pcm hdmi output has to be dropped.
                     pthread_mutex_unlock(&p_qap->lock);
@@ -2282,11 +2325,11 @@ static void qap_session_callback(qap_session_handle_t session_handle __unused,
             DEBUG_MSG("sent DRAIN_READY");
         }
     } else if (QAP_CALLBACK_EVENT_DELAY == event_id) {
-        audio_qaf_delay_t *qaf_delay = (audio_qaf_delay_t*) buffer;
-        main_delay_event_data.algo_delay = qaf_delay->algo_delay;
-        main_delay_event_data.buffering_delay = qaf_delay->buffering_delay;
-        main_delay_event_data.non_main_data_length = qaf_delay->non_main_data_length;
-        main_delay_event_data.non_main_data_offset = qaf_delay->non_main_data_offset;
+        qap_output_delay_t *qap_delay = (qap_output_delay_t*) buffer;
+        main_delay_event_data.algo_delay = qap_delay->algo_delay;
+        main_delay_event_data.buffering_delay = qap_delay->buffering_delay;
+        main_delay_event_data.non_main_data_length = qap_delay->non_main_data_length;
+        main_delay_event_data.non_main_data_offset = qap_delay->non_main_data_offset;
         if (delay_event_fired == false) {
             delay_event_fired = true;
             DEBUG_MSG("QAP_CALLBACK_EVENT_DELAY active");
@@ -2323,9 +2366,10 @@ static int qap_sess_close(struct qap_module* qap_mod)
     qap_mod->is_session_closing = true;
     if(p_qap->qap_output_block_handling) {
         lock_session_output(qap_mod);
-        if (!qap_mod->is_session_output_active)
+        if (!qap_mod->is_session_output_active && !p_qap->qap_active_api_count) {
+            qap_mod->is_session_output_active = true;
             pthread_cond_signal(&qap_mod->session_output_cond);
-        qap_mod->is_session_output_active = true;
+        }
         unlock_session_output(qap_mod);
     }
     pthread_mutex_lock(&p_qap->lock);
@@ -2387,6 +2431,7 @@ static int qap_stream_close(struct stream_out *out)
     } else
         DEBUG_MSG("module(ox%x) closed successfully", (int)out->qap_stream_handle);
     qap_mod->stream_in[index] = NULL;
+    pthread_mutex_destroy(&qap_mod->qap_stream_in_lock[index]);
 
     out->qap_stream_handle = NULL;
     unlock_output_stream_l(out);
@@ -2465,13 +2510,13 @@ static int qap_set_hdmi_configuration_to_module()
         if (p_qap->qap_mod[MS12].session_handle) {
 
             bool do_setparam = false;
+            memcpy(prop_value, p_qap->ms12_out_format, sizeof(p_qap->ms12_out_format) -1);
             if (p_qap->ms12_out_format[0] == '\0') {
                 property_get("vendor.audio.qap.hdmi.out", prop_value, NULL);
-                memcpy(p_qap->ms12_out_format, prop_value, sizeof(p_qap->ms12_out_format) - 1);
             }
 
             if (platform_is_edid_supported_format(p_qap->adev->platform, AUDIO_FORMAT_E_AC3)
-                    && (strncmp(p_qap->ms12_out_format, "ddp", 3) == 0)) {
+                    && (strncmp(prop_value, "ddp", 3) == 0)) {
                 do_setparam = true;
                 session_outputs_config.output_config[0].format = QAP_AUDIO_FORMAT_EAC3;
                 session_outputs_config.output_config[0].id = AUDIO_DEVICE_OUT_HDMI|QAP_AUDIO_FORMAT_EAC3;
@@ -2479,7 +2524,6 @@ static int qap_set_hdmi_configuration_to_module()
                 do_setparam = true;
                 session_outputs_config.output_config[0].format = QAP_AUDIO_FORMAT_AC3;
                 session_outputs_config.output_config[0].id = AUDIO_DEVICE_OUT_HDMI|QAP_AUDIO_FORMAT_AC3;
-                memcpy(p_qap->ms12_out_format, "dd", sizeof(p_qap->ms12_out_format) - 1);
             }
             if (do_setparam) {
                 DEBUG_MSG(" Enabling HDMI(Passthrough out) from MS12 wrapper outputid=0x%x",
@@ -2520,7 +2564,6 @@ static int qap_set_hdmi_configuration_to_module()
 
         channels = platform_edid_get_max_channels(p_qap->adev->platform);
         session_outputs_config.output_config[0].format = QAP_AUDIO_FORMAT_PCM_16_BIT;
-        memcpy(p_qap->ms12_out_format, "pcm", sizeof(p_qap->ms12_out_format) - 1);
 
         switch (channels) {
             case 8:
@@ -2740,12 +2783,13 @@ static int set_ms12_output_format(const char *out_format) {
    return status;
 }
 
-static int enable_qap_bypass(bool bypass_qap) {
+static int enable_qap_bypass(struct audio_device *adev, bool bypass_qap) {
     struct qap_module *qap_mod = NULL;
     struct stream_out *out = NULL;
     int i = 0;
     int status = 0;
 
+    DEBUG_MSG_VV("enter");
     if (p_qap) {
         if (p_qap->bypass_enable == bypass_qap) {
             DEBUG_MSG_VV("Bypass %d request is already active", bypass_qap);
@@ -2759,16 +2803,16 @@ static int enable_qap_bypass(bool bypass_qap) {
         }
 
         qap_mod = &p_qap->qap_mod[MS12];
-        lock_all_output_streams(qap_mod);
+        pthread_mutex_unlock(&adev->lock);
+        lock_all_qap_stream_in(qap_mod);
+        pthread_mutex_lock(&adev->lock);
         if (!bypass_qap) {
             /* Check if hal pcm active, move to standby */
             out = qap_mod->stream_in[QAP_IN_PCM];
             if (out != NULL && !out->standby) {
-               pthread_mutex_unlock(&out->dev->lock);
-               p_qap->bypass_enable = bypass_qap;
-               unlock_all_output_streams(qap_mod);
+               pthread_mutex_unlock(&adev->lock);
                p_qap->hal_stream_ops.common.standby((struct audio_stream *)out);
-               pthread_mutex_lock(&out->dev->lock);
+               pthread_mutex_lock(&adev->lock);
             }
         } else {
             /* Check if any compress stream is active.
@@ -2781,7 +2825,7 @@ static int enable_qap_bypass(bool bypass_qap) {
                      check_stream_state_l(qap_mod->stream_in[i], RUN)) {
                      ERROR_MSG("[%s] stream is still active in qap path, rejecting bypass request",
                                use_case_table[qap_mod->stream_in[i]->usecase]);
-                     unlock_all_output_streams(qap_mod);
+                     unlock_all_qap_stream_in(qap_mod);
                      return -ENOTSUP;
                  }
             }
@@ -2794,14 +2838,17 @@ static int enable_qap_bypass(bool bypass_qap) {
                 }
                 qap_mod->stream_in[QAP_IN_PCM]->standby = true;
             }
-            if (p_qap->qap_output_block_handling)
-                qap_mod->is_session_output_active = false;
-            p_qap->bypass_enable = bypass_qap;
-            unlock_all_output_streams(qap_mod);
+            /* Set qap session output to inactive state */
+            lock_session_output(qap_mod);
+            qap_mod->is_session_output_active = false;
+            unlock_session_output(qap_mod);
         }
+        p_qap->bypass_enable = bypass_qap;
+        unlock_all_qap_stream_in(qap_mod);
     } else
         return -EINVAL;
 
+    DEBUG_MSG_VV("exit");
     return 0;
 }
 
@@ -2989,6 +3036,7 @@ static int qap_stream_open(struct stream_out *out,
             DEBUG_MSG("QAP_MODULE_FLAG_SYSTEM_SOUND, module(ox%x) opened successfully", (int)out->qap_stream_handle);
 
         qap_mod->stream_in[QAP_IN_PCM] = out;
+        pthread_mutex_init(&qap_mod->qap_stream_in_lock[QAP_IN_PCM], (const pthread_mutexattr_t *) NULL);
     } else if ((flags & AUDIO_OUTPUT_FLAG_MAIN) && (flags & AUDIO_OUTPUT_FLAG_ASSOCIATED)) {
         if (is_main_active_l(qap_mod) || is_dual_main_active_l(qap_mod)) {
             ERROR_MSG("Dual Main or Main already active. So, Cannot open main and associated stream");
@@ -3005,6 +3053,7 @@ static int qap_stream_open(struct stream_out *out,
                     DEBUG_MSG("QAP_MODULE_FLAG_PRIMARY, module opened successfully 0x%x", (int)out->qap_stream_handle);;
 
             qap_mod->stream_in[QAP_IN_MAIN] = out;
+            pthread_mutex_init(&qap_mod->qap_stream_in_lock[QAP_IN_MAIN], (const pthread_mutexattr_t *) NULL);
         }
     } else if ((flags & AUDIO_OUTPUT_FLAG_MAIN) || ((!(flags & AUDIO_OUTPUT_FLAG_MAIN)) && (!(flags & AUDIO_OUTPUT_FLAG_ASSOCIATED)))) {
         /* Assume Main if no flag is set */
@@ -3032,8 +3081,10 @@ static int qap_stream_open(struct stream_out *out,
 
             if(qap_mod->stream_in[QAP_IN_MAIN]) {
                 qap_mod->stream_in[QAP_IN_MAIN_2] = out;
+		pthread_mutex_init(&qap_mod->qap_stream_in_lock[QAP_IN_MAIN_2], (const pthread_mutexattr_t *) NULL);
             } else {
                 qap_mod->stream_in[QAP_IN_MAIN] = out;
+		pthread_mutex_init(&qap_mod->qap_stream_in_lock[QAP_IN_MAIN], (const pthread_mutexattr_t *) NULL);
             }
         }
     } else if ((flags & AUDIO_OUTPUT_FLAG_ASSOCIATED)) {
@@ -3060,6 +3111,7 @@ static int qap_stream_open(struct stream_out *out,
             DEBUG_MSG("QAP_MODULE_FLAG_SECONDARY, module opened successfully 0x%x", (int)out->qap_stream_handle);
 
         qap_mod->stream_in[QAP_IN_ASSOC] = out;
+        pthread_mutex_init(&qap_mod->qap_stream_in_lock[QAP_IN_ASSOC], (const pthread_mutexattr_t *) NULL);
     }
 
     if (out->qap_stream_handle) {
@@ -3114,8 +3166,10 @@ static int qap_out_resume(struct audio_stream_out* stream)
     int status = 0;
     DEBUG_MSG("Output Stream %p", out);
 
-    lock_output_stream_l(out);
+    lock_qap_stream_in(out);
     if (!p_qap->bypass_enable) {
+       lock_output_stream_l(out);
+
        //If QAP passthrough is active then block the resume on module input streams.
        if (p_qap->passthrough_out) {
           //If resume is received for the QAP passthrough stream then call the primary HAL api.
@@ -3133,10 +3187,9 @@ static int qap_out_resume(struct audio_stream_out* stream)
 
        unlock_output_stream_l(out);
     } else {
-        unlock_output_stream_l(out);
         status = p_qap->hal_stream_ops.resume(stream);
     }
-
+    unlock_qap_stream_in(out);
     DEBUG_MSG();
     return status;
 }
@@ -3153,21 +3206,22 @@ static int qap_out_set_parameters(struct audio_stream *stream, const char *kvpai
 
     DEBUG_MSG("usecase(%d: %s) kvpairs: %s", out->usecase, use_case_table[out->usecase], kvpairs);
 
-    lock_output_stream_l(out);
+    lock_qap_stream_in(out);
     if (!p_qap->bypass_enable) {
         parms = str_parms_create_str(kvpairs);
         err = str_parms_get_str(parms, AUDIO_PARAMETER_STREAM_ROUTING, value, sizeof(value));
         if (err < 0) {
-            unlock_output_stream_l(out);
-            return err;
+           unlock_qap_stream_in(out);
+           return err;
         }
         val = atoi(value);
 
         qap_mod = get_qap_module_for_input_stream_l(out);
         if (!qap_mod) {
-            unlock_output_stream_l(out);
+            unlock_qap_stream_in(out);
             return (-EINVAL);
         }
+
         //TODO: HDMI is connected but user doesn't want HDMI output, close both HDMI outputs.
 
         /* Setting new device information to the mm module input streams.
@@ -3230,11 +3284,10 @@ static int qap_out_set_parameters(struct audio_stream *stream, const char *kvpai
         }
         str_parms_destroy(parms);
         check_and_activate_output_thread(false);
-        unlock_output_stream_l(out);
     } else {
-        unlock_output_stream_l(out);
         ret = p_qap->hal_stream_ops.common.set_parameters(stream, kvpairs);
     }
+    unlock_qap_stream_in(out);
     return ret;
 }
 
@@ -3262,9 +3315,10 @@ int audio_extn_qap_open_output_stream(struct audio_hw_device *dev,
 
     DEBUG_MSG("Entry");
     if (p_qap->bypass_enable &&
-          (flags & (AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD | AUDIO_OUTPUT_FLAG_DIRECT))) {
-       ERROR_MSG("Recieved compress path request when bypass mode is active, reject open request");
-       return -EAGAIN;
+        (flags & (AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD | AUDIO_OUTPUT_FLAG_DIRECT)) &&
+        (!(flags & AUDIO_OUTPUT_SINK_CAPABILITY_DECTECTION))) {
+        ERROR_MSG("Recieved compress path request when bypass mode is active, reject open request");
+        return -EAGAIN;
     }
 
     ret = adev_open_output_stream(dev, handle, devices, flags, config, stream_out, address);
@@ -3388,7 +3442,7 @@ int audio_extn_qap_set_parameters(struct audio_device *adev, struct str_parms *p
 
     status = str_parms_get_int(parms, "bypass_qap", &val);
     if (status >= 0) {
-       status = enable_qap_bypass(val ? true : false);
+       status = enable_qap_bypass(adev, val ? true : false);
        DEBUG_MSG("Set param request to bypass qap %d is %s", val, status ? "failed" : "success");
        return status;
     }
