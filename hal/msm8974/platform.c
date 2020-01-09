@@ -7625,6 +7625,13 @@ bool platform_sound_trigger_usecase_needs_event(audio_usecase_t uc_id)
     case USECASE_AUDIO_PLAYBACK_MULTI_CH:
     case USECASE_AUDIO_PLAYBACK_OFFLOAD:
     case USECASE_AUDIO_PLAYBACK_OFFLOAD2:
+    case USECASE_AUDIO_PLAYBACK_OFFLOAD3:
+    case USECASE_AUDIO_PLAYBACK_OFFLOAD4:
+    case USECASE_AUDIO_PLAYBACK_OFFLOAD5:
+    case USECASE_AUDIO_PLAYBACK_OFFLOAD6:
+    case USECASE_AUDIO_PLAYBACK_OFFLOAD7:
+    case USECASE_AUDIO_PLAYBACK_OFFLOAD8:
+    case USECASE_AUDIO_PLAYBACK_OFFLOAD9:
         needs_event = true;
         break;
     /* concurrent playback in low latency allowed */
