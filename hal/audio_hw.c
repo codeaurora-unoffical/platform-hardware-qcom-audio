@@ -1852,9 +1852,10 @@ static int read_hdmi_sink_caps(struct stream_out *out)
     reset_hdmi_sink_caps(out);
 
     /* Cache ext disp type */
-    if (platform_get_ext_disp_type_v2(adev->platform,
+    ret = platform_get_ext_disp_type_v2(adev->platform,
                                       out->extconn.cs.controller,
-                                      out->extconn.cs.stream <= 0)) {
+                                      out->extconn.cs.stream);
+    if(ret < 0) {
         ALOGE("%s: Failed to query disp type, ret:%d", __func__, ret);
         return -EINVAL;
     }
@@ -4529,7 +4530,7 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
 
     err = platform_get_controller_stream_from_params(parms, &ext_controller,
                                                        &ext_stream);
-    if (err >= 0) {
+    if (err == 0) {
         out->extconn.cs.controller = ext_controller;
         out->extconn.cs.stream = ext_stream;
         ALOGD("%s: usecase(%s) new controller/stream (%d/%d)", __func__,
@@ -7297,6 +7298,12 @@ int adev_open_output_stream(struct audio_hw_device *dev,
         devices = AUDIO_DEVICE_OUT_SPEAKER;
         ALOGW("%s: ignore set device to non existing USB card, use output device(%#x)",
               __func__, devices);
+        if (config->format == AUDIO_FORMAT_DEFAULT)
+            config->format = AUDIO_FORMAT_PCM_16_BIT;
+        if (config->sample_rate == 0)
+            config->sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
+        if (config->channel_mask == AUDIO_CHANNEL_NONE)
+            config->channel_mask = AUDIO_CHANNEL_OUT_STEREO;
     }
 
     *stream_out = NULL;
@@ -8437,6 +8444,15 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
                 usecase->stream.out->a2dp_compress_mute = false;
                 out_set_compr_volume(&usecase->stream.out->stream, usecase->stream.out->volume_l, usecase->stream.out->volume_r);
                 audio_extn_a2dp_set_handoff_mode(false);
+                pthread_mutex_unlock(&usecase->stream.out->lock);
+                break;
+            } else if ((usecase->stream.out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) &&
+                        usecase->stream.out->a2dp_compress_mute) {
+                pthread_mutex_unlock(&adev->lock);
+                lock_output_stream(usecase->stream.out);
+                pthread_mutex_lock(&adev->lock);
+                usecase->stream.out->devices = AUDIO_DEVICE_OUT_BLUETOOTH_A2DP;
+                check_a2dp_restore_l(adev, usecase->stream.out, true);
                 pthread_mutex_unlock(&usecase->stream.out->lock);
                 break;
             }
@@ -9909,8 +9925,7 @@ static int adev_open(const hw_module_t *module, const char *name,
     audio_device_ref_count++;
 
     int trial;
-    if ((property_get("vendor.audio_hal.period_size", value, NULL) > 0) ||
-        (property_get("audio_hal.period_size", value, NULL) > 0)) {
+    if (property_get("vendor.audio_hal.period_size", value, NULL) > 0) {
         trial = atoi(value);
         if (period_size_is_plausible_for_low_latency(trial)) {
             pcm_config_low_latency.period_size = trial;
@@ -9931,8 +9946,7 @@ static int adev_open(const hw_module_t *module, const char *name,
 
     adev->camera_orientation = CAMERA_DEFAULT;
 
-    if ((property_get("vendor.audio_hal.period_multiplier",value,NULL) > 0) ||
-        (property_get("audio_hal.period_multiplier",value,NULL) > 0)) {
+    if (property_get("vendor.audio_hal.period_multiplier",value,NULL) > 0) {
         af_period_multiplier = atoi(value);
         if (af_period_multiplier < 0)
             af_period_multiplier = 2;
