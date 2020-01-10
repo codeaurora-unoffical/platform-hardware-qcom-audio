@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -7532,19 +7532,11 @@ void adev_close_output_stream(struct audio_hw_device *dev __unused,
     audio_extn_snd_mon_unregister_listener(out);
 
     /* close adsp hdrl session before standby */
-    if (out->ip_hdlr_enabled) {
-
-        if (out->adsp_hdlr_stream_handle) {
-            ret = audio_extn_adsp_hdlr_stream_close(out->adsp_hdlr_stream_handle);
-            if (ret)
-                ALOGE("%s: adsp_hdlr_stream_close failed %d",__func__, ret);
-            out->adsp_hdlr_stream_handle = NULL;
-        }
-
-        if (adev->ip_hdlr_handle) {
-            audio_extn_ip_hdlr_intf_deinit(adev->ip_hdlr_handle);
-            adev->ip_hdlr_handle = NULL;
-        }
+    if (out->adsp_hdlr_stream_handle) {
+        ret = audio_extn_adsp_hdlr_stream_close(out->adsp_hdlr_stream_handle);
+        if (ret)
+            ALOGE("%s: adsp_hdlr_stream_close failed %d",__func__, ret);
+        out->adsp_hdlr_stream_handle = NULL;
     }
 
     if (out->usecase == USECASE_COMPRESS_VOIP_CALL) {
@@ -8790,12 +8782,18 @@ static int adev_close(hw_device_t *device)
     size_t i;
     struct audio_device *adev_temp = (struct audio_device *)device;
 
+    ALOGD("%s: enter", __func__);
+
     if (!adev_temp)
         return 0;
 
     pthread_mutex_lock(&adev_init_lock);
 
     if ((--audio_device_ref_count) == 0) {
+        if (adev->ip_hdlr_handle) {
+            audio_extn_ip_hdlr_intf_deinit(adev->ip_hdlr_handle);
+            adev->ip_hdlr_handle = NULL;
+        }
         audio_extn_snd_mon_unregister_listener(adev);
         audio_extn_sound_trigger_deinit(adev);
         audio_extn_listen_deinit(adev);
@@ -8833,6 +8831,7 @@ static int adev_close(hw_device_t *device)
     }
     pthread_mutex_unlock(&adev_init_lock);
     enable_gcov();
+    ALOGD("%s: exit", __func__);
     return 0;
 }
 
@@ -9288,11 +9287,11 @@ static int adev_open(const hw_module_t *module, const char *name,
         adev->use_old_pspd_mix_ctrl = true;
     }
 
-        ret = audio_extn_ip_hdlr_intf_init(&adev->ip_hdlr_handle, NULL, NULL, adev, NULL);
-        if (ret < 0) {
-            ALOGE("%s: audio_extn_ip_hdlr_intf_init failed %d",__func__, ret);
-            adev->ip_hdlr_handle = NULL;
-        }
+    ret = audio_extn_ip_hdlr_intf_init(&adev->ip_hdlr_handle, NULL, NULL, adev, NULL);
+    if (ret < 0) {
+        ALOGE("%s: audio_extn_ip_hdlr_intf_init failed %d",__func__, ret);
+        adev->ip_hdlr_handle = NULL;
+    }
 
     ALOGV("%s: exit", __func__);
     return 0;
