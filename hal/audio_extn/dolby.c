@@ -21,6 +21,8 @@
 #define LOG_NDEBUG 0
 #define LOG_NDDEBUG 0
 
+#define __user
+
 #include <errno.h>
 #include <cutils/properties.h>
 #include <stdlib.h>
