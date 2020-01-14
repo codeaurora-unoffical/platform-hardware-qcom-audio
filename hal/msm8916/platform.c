@@ -21,6 +21,8 @@
 /*#define LOG_NDEBUG 0*/
 #define LOG_NDDEBUG 0
 
+#define __user
+
 #include <stdlib.h>
 #include <dlfcn.h>
 #include <fcntl.h>
@@ -33,7 +35,7 @@
 #include "platform.h"
 #include "audio_extn.h"
 #include "voice_extn.h"
-#include "sound/msmcal-hwdep.h"
+#include <sound/msmcal-hwdep.h>
 #include <dirent.h>
 #define SOUND_TRIGGER_DEVICE_HANDSET_MONO_LOW_POWER_ACDB_ID (100)
 #define MAX_MIXER_XML_PATH  100
