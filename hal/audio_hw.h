@@ -187,6 +187,7 @@ enum {
     OFFLOAD_CMD_DRAIN,              /* send a full drain request to DSP */
     OFFLOAD_CMD_PARTIAL_DRAIN,      /* send a partial drain request to DSP */
     OFFLOAD_CMD_WAIT_FOR_BUFFER,    /* wait for buffer released by DSP */
+    OFFLOAD_CMD_ERROR,              /* offload playback hit some error */
 };
 
 enum {
@@ -425,6 +426,7 @@ struct audio_device {
     unsigned int audio_patch_index;
     struct listnode active_inputs_list;
     struct listnode active_outputs_list;
+    int offload_error;
 };
 
 struct audio_patch_record {

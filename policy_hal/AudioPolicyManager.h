@@ -40,6 +40,36 @@ namespace android {
 #define AUDIO_DEVICE_OUT_PROXY 0x1000000
 #endif
 
+#define MAX_BITRATE_WMA_PRO      1536000
+#define WMA_STD_NUM_FREQ     7
+#define WMA_STD_NUM_CHANNELS 2
+static uint32_t wmaStdSampleRateTbl[WMA_STD_NUM_FREQ] =
+{
+    8000, 11025, 16000, 22050, 32000, 44100, 48000
+};
+
+static uint32_t wmaStdMinAvgByteRateTbl[WMA_STD_NUM_FREQ][WMA_STD_NUM_CHANNELS] =
+{
+    {128, 12000},
+    {8016, 8016},
+    {10000, 16000},
+    {16016, 20008},
+    {20000, 24000},
+    {20008, 31960},
+    {63000, 63000}
+};
+
+static uint32_t wmaStdMaxAvgByteRateTbl[WMA_STD_NUM_FREQ][WMA_STD_NUM_CHANNELS] =
+{
+    {8000, 12000},
+    {10168, 10168},
+    {16000, 20000},
+    {20008, 32048},
+    {20000, 48000},
+    {48024, 320032},
+    {256008, 256008}
+};
+
 #ifdef AUDIO_FEATURE_ENABLED_WMA_OFFLOAD
 #define MAX_BITRATE_WMA          384000
 #define MAX_BITRATE_WMA_PRO      1536000
