@@ -2300,6 +2300,9 @@ static int stop_output_stream(struct stream_out *out)
     if (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL)
         audio_extn_keep_alive_start();
 
+    if (!is_offload_usecase(out->usecase))
+        out->written = 0;
+
     ALOGV("%s: exit: status(%d)", __func__, ret);
     return ret;
 }
