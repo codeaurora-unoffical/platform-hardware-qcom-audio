@@ -3632,9 +3632,9 @@ static int out_get_next_write_timestamp(const struct audio_stream_out *stream,
         return ret;
     }
     remain_frames =  out->written - pos_param.frames;
-    *timestamp = remain_frames * 1000000LL / out->sample_rate
-                + pos_param.timestamp.tv_sec * 1000000LL
-                + pos_param.timestamp.tv_nsec / 1000;
+    *timestamp = remain_frames * 1000000000LL / out->sample_rate
+                + pos_param.timestamp.tv_sec * 1000000000LL
+                + pos_param.timestamp.tv_nsec;
 
     pthread_mutex_unlock(&out->lock);
     return 0;
