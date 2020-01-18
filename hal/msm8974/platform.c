@@ -3018,6 +3018,8 @@ void *platform_init(struct audio_device *adev)
         return NULL;
     }
 
+    update_codec_type_and_interface(my_data, snd_card_name);
+
     adev->dp_allowed_for_voice =
         property_get_bool("vendor.audio.enable.dp.for.voice", false);
 
@@ -3269,10 +3271,8 @@ void *platform_init(struct audio_device *adev)
 
         ALOGD("%s: Loading mixer file: %s", __func__, mixer_xml_file);
         if (audio_extn_read_xml(adev, adev->snd_card, mixer_xml_file,
-                                MIXER_XML_PATH_AUXPCM) == -ENOSYS) {
+                                MIXER_XML_PATH_AUXPCM) == -ENOSYS)
             adev->audio_route = audio_route_init(adev->snd_card, mixer_xml_file);
-            update_codec_type_and_interface(my_data, snd_card_name);
-        }
     }
     audio_extn_perf_lock_release(&adev->perf_lock_handle);
 
@@ -5917,7 +5917,7 @@ int platform_get_ext_disp_type_v2(void *platform, int controller, int stream)
         }
 
         disp_type = mixer_ctl_get_value(ctl, 0);
-        if (disp_type == EXT_DISPLAY_TYPE_NONE) {
+        if (disp_type <= EXT_DISPLAY_TYPE_NONE) {
              ALOGE("%s: Invalid external display type: %d", __func__, disp_type);
              return -EINVAL;
         }
