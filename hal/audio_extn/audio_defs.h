@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2015, 2017-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2015, 2017-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -268,6 +268,12 @@ struct audio_device_cfg_param {
    uint16_t   channel_allocation;
 };
 
+struct audio_pll_device_cfg_param {
+   int32_t    drift;
+   audio_devices_t device;
+   bool       reset;
+};
+
 struct audio_device_config_param {
    bool use_client_dev_cfg;
    struct audio_device_cfg_param dev_cfg_params;
@@ -372,6 +378,7 @@ typedef enum {
     AUDIO_EXTN_PARAM_DOLBY_THD_DEC,
     AUDIO_EXTN_PARAM_DOLBY_MAT_DEC,
     AUDIO_EXTN_PARAM_OUT_PRESENTATION_POSITION,
+    AUDIO_EXTN_PARAM_PLL_DEVICE_CONFIG,
     AUDIO_EXTN_PARAM_DTMF_GEN,
     AUDIO_EXTN_PARAM_TTY_MODE,
     AUDIO_EXTN_PARAM_HPCM,

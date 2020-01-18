@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -173,6 +173,12 @@ struct snd_card_split {
 };
 
 struct snd_card_split *audio_extn_get_snd_card_split();
+
+struct pll_device_config_params {
+    int32_t be_idx;
+    int32_t drift;
+    bool reset;
+} __attribute__((packed));
 
 // -- function pointers needed for audio extn
 typedef void (*fp_platform_make_cal_cfg_t)(acdb_audio_cal_cfg_t *, int, int,
@@ -1037,6 +1043,8 @@ int audio_extn_out_get_param_data(struct stream_out *out,
                              audio_extn_param_payload *payload);
 int audio_extn_set_device_cfg_params(struct audio_device *adev,
                                      struct audio_device_cfg_param *payload);
+int audio_extn_set_pll_device_cfg_params(struct audio_device *adev,
+                struct audio_pll_device_cfg_param *payload);
 int audio_extn_utils_get_avt_device_drift(
                 struct audio_usecase *usecase,
                 struct audio_avt_device_drift_param *drift_param);
