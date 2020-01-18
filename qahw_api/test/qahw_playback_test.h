@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2015 The Android Open Source Project *
@@ -172,6 +172,7 @@ typedef struct {
     struct dolby_thd_params_local dlb_truehd_params;
     struct dolby_mat_params_local dlb_mat_params;
     bool bt_wbs;
+    bool pll_dev_cfg;
 }stream_config;
 
 qahw_module_handle_t * load_hal(audio_devices_t dev);

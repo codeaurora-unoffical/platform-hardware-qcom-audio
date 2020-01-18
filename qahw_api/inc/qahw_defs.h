@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2011 The Android Open Source Project *
@@ -300,6 +300,12 @@ struct qahw_aptx_dec_param {
    struct aptx_dec_bt_addr bt_addr;
 };
 
+struct qahw_pll_dev_cfg {
+    int32_t clk_drift;
+    uint32_t audio_device;
+    bool    reset;
+};
+
 struct qahw_avt_device_drift_param {
    /* Flag to indicate if resync is required on the client side for
     * drift correction. Flag is set to TRUE for the first get_param response
@@ -538,6 +544,7 @@ typedef enum {
     QAHW_PARAM_DOLBY_THD_DEC,
     QAHW_PARAM_DOLBY_MAT_DEC,
     QAHW_PARAM_OUT_PRESENTATION_POSITION,
+    QAHW_PARAM_PLL_DEVICE_CONFIG,
     QAHW_PARAM_DTMF_GEN,
     QAHW_PARAM_TTY_MODE,
     QAHW_PARAM_HPCM,
