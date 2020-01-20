@@ -558,12 +558,20 @@ int audio_extn_adsp_hdlr_stream_register_event(void *handle, void *data,
     ALOGD("%s: event = %d, payload_length %d", __func__, param->event_type, param->payload_length);
 
     /* copy event_type, payload size and payload */
+    if (sizeof(payload) < (sizeof(param->event_type) +
+                        sizeof(param->payload_length) + param->payload_length)) {
+        ALOGE("%s: error in size of payload",__func__);
+        ret = -EINVAL;
+        goto done;
+    }
+
     memcpy(payload, &param->event_type,
                     sizeof(param->event_type));
     memcpy(payload + sizeof(param->event_type), &param->payload_length,
                     sizeof(param->payload_length));
     memcpy(payload + sizeof(param->event_type) + sizeof(param->payload_length),
            param->payload, param->payload_length);
+
     ret = mixer_ctl_set_array(ctl, payload, (sizeof(param->event_type) +
                                sizeof(param->payload_length) + param->payload_length));
 
@@ -716,9 +724,9 @@ int audio_extn_adsp_hdlr_stream_open(void **handle,
 
     stream_data = (struct adsp_hdlr_stream_data *) calloc(1,
                                    sizeof(struct adsp_hdlr_stream_data));
-    if (stream_data == NULL) {
-        ret = -ENOMEM;
-    }
+    if (stream_data == NULL)
+        return -ENOMEM;
+
     stream_data->config = *config;
     *handle = (void **)stream_data;
 

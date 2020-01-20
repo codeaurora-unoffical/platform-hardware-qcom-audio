@@ -37,7 +37,7 @@
 
 #define LOG_TAG "audio_hw_primary"
 #define ATRACE_TAG (ATRACE_TAG_AUDIO|ATRACE_TAG_HAL)
-/*#define LOG_NDEBUG 0*/
+#define LOG_NDEBUG 0
 /*#define VERY_VERY_VERBOSE_LOGGING*/
 #ifdef VERY_VERY_VERBOSE_LOGGING
 #define ALOGVV ALOGV
@@ -387,6 +387,8 @@ const char * const use_case_table[AUDIO_USECASE_MAX] = {
     [USECASE_AUDIO_PLAYBACK_NAV_GUIDANCE] = "nav-guidance-playback",
     [USECASE_AUDIO_PLAYBACK_PHONE] = "phone-playback",
     [USECASE_AUDIO_FM_TUNER_EXT] = "fm-tuner-ext",
+    [USECASE_AUDIO_AFE_LOOPBACK] = "audio-afe-loopback",
+    [USECASE_AUDIO_DTMF] = "audio-dtmf-playback",
 };
 
 static const audio_usecase_t offload_usecases[] = {
@@ -951,7 +953,7 @@ static int update_effect_param_ecns(struct audio_device *adev, unsigned int modu
 }
 
 static int enable_disable_effect(struct audio_device *adev, int effect_type, bool enable)
-{ 
+{
     struct audio_effect_config effect_config;
     struct audio_usecase *usecase = NULL;
     int ret = 0;
@@ -1395,6 +1397,8 @@ static snd_device_t derive_playback_snd_device(void * platform,
 
     switch (uc->type) {
         case TRANSCODE_LOOPBACK_RX :
+        case AFE_LOOPBACK:
+        case DTMF_PLAYBACK:
             a1 = uc->stream.inout->out_config.devices;
             a2 = new_uc->stream.inout->out_config.devices;
             break;
@@ -1568,7 +1572,8 @@ static void check_usecases_codec_backend(struct audio_device *adev,
               platform_get_snd_device_name(usecase->out_snd_device),
               platform_check_backends_match(snd_device, usecase->out_snd_device));
         if ((usecase->type != PCM_CAPTURE) && (usecase != uc_info) &&
-                (usecase->type != PCM_PASSTHROUGH)) {
+                (usecase->type != PCM_PASSTHROUGH) && (usecase->type != AFE_LOOPBACK) &&
+                (usecase->type != DTMF_PLAYBACK)) {
             uc_derive_snd_device = derive_playback_snd_device(adev->platform,
                                                usecase, uc_info, snd_device);
             if (((uc_derive_snd_device != usecase->out_snd_device) || force_routing) &&
@@ -1649,7 +1654,7 @@ static void check_usecases_capture_codec_backend(struct audio_device *adev,
     struct listnode *node;
     struct audio_usecase *usecase;
     snd_device_t uc_derive_snd_device;
-    snd_device_t derive_snd_device[AUDIO_USECASE_MAX];
+    snd_device_t derive_snd_device[AUDIO_USECASE_MAX] = {0};
     bool switch_device[AUDIO_USECASE_MAX];
     int i, num_uc_to_switch = 0;
     int backend_check_cond = AUDIO_DEVICE_OUT_ALL_CODEC_BACKEND;
@@ -2264,7 +2269,8 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
             in_snd_device = platform_get_input_snd_device(adev->platform, usecase->stream.out->devices);
         }
         usecase->devices = usecase->stream.out->devices;
-    } else if (usecase->type == TRANSCODE_LOOPBACK_RX) {
+    } else if ((usecase->type == TRANSCODE_LOOPBACK_RX) 
+            || (usecase->type == DTMF_PLAYBACK)) {
         if (usecase->stream.inout == NULL) {
             ALOGE("%s: stream.inout is NULL", __func__);
             return -EINVAL;
@@ -2283,6 +2289,19 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
         }
         in_snd_device = platform_get_input_snd_device(adev->platform, AUDIO_DEVICE_NONE);
         usecase->devices = in_snd_device;
+    } else if (usecase->type == AFE_LOOPBACK) {
+        if (usecase->stream.inout == NULL) {
+            ALOGE("%s: stream.inout is NULL", __func__);
+            return -EINVAL;
+        }
+        stream_out.devices = usecase->stream.inout->out_config.devices;
+        stream_out.sample_rate = usecase->stream.inout->out_config.sample_rate;
+        stream_out.format = usecase->stream.inout->out_config.format;
+        stream_out.channel_mask = usecase->stream.inout->out_config.channel_mask;
+        out_snd_device = platform_get_output_snd_device(adev->platform,
+                                                        &stream_out);
+        in_snd_device = platform_get_input_snd_device(adev->platform, AUDIO_DEVICE_NONE);
+        usecase->devices = (out_snd_device | in_snd_device);
     } else {
         /*
          * If the voice call is active, use the sound devices of voice call usecase
@@ -2734,6 +2753,26 @@ int start_input_stream(struct stream_in *in)
         goto error_config;
     }
 
+    if ((in->format == AUDIO_FORMAT_DSD) && (in->dsd_config_updated == false)) {
+        if (strstr(platform_get_snd_device_backend_interface(
+            platform_get_input_snd_device(adev->platform, in->device)), "MI2S")) {
+            in->bit_width = 32;
+           /*
+            *  In case of MI2S backend, DSD data comes in 32bit and each data line of MI2S
+            *  holds one channel of DSD. The number of channels are multiplied by 2 to properly
+            *  configure the MI2S data lines and FE should also have same number of channels to
+            *  avoid processing in ADSP.
+            */
+            in->config.channels = in->config.channels << 1;
+            in->channel_mask = audio_extn_get_dsd_in_ch_mask(in->config.channels);
+            /* sampling rate of backend should be DSD bit rate / (bitwidth of BE * 2).
+             * In case of DSD128, 44.1KHz DSD  backend sampling rate would be 44.1K * 128/64
+             */
+            in->sample_rate = in->sample_rate * audio_extn_get_mi2s_be_dsd_rate_mul_factor(in->dsd_format);
+            in->dsd_config_updated = true;
+        }
+    }
+
     uc_info->id = in->usecase;
     uc_info->type = PCM_CAPTURE;
     uc_info->stream.in = in;
@@ -2745,8 +2784,8 @@ int start_input_stream(struct stream_in *in)
     audio_extn_perf_lock_acquire(&adev->perf_lock_handle, 0,
                                  adev->perf_lock_opts,
                                  adev->perf_lock_opts_size);
-    select_devices(adev, in->usecase);
 
+    select_devices(adev, in->usecase);
     if (audio_extn_ext_hw_plugin_usecase_start(adev->ext_hw_plugin, uc_info))
         ALOGE("%s: failed to start ext hw plugin", __func__);
 
@@ -3281,6 +3320,7 @@ int start_output_stream(struct stream_out *out)
     char* perf_mode[] = {"ULL", "ULL_PP", "LL"};
     bool a2dp_combo = false;
     bool is_direct_passthough = false;
+    int blk_size = 0;
 
     ATRACE_BEGIN("start_output_stream");
     if ((out->usecase < 0) || (out->usecase >= AUDIO_USECASE_MAX)) {
@@ -3342,6 +3382,34 @@ int start_output_stream(struct stream_out *out)
         goto error_config;
     }
 
+
+    if ((out->format == AUDIO_FORMAT_DSD) && (out->dsd_config_updated == false)) {
+        /* set DSD block size as 1 to maintain backward compatibility */
+        blk_size = 1;
+        if (strstr(platform_get_snd_device_backend_interface(platform_get_output_snd_device(adev->platform, out)), "MI2S")) {
+            out->bit_width = 32;
+            /*
+             * In case of MI2S backend, DSD data comes in 32bit and each data line of MI2S
+             * holds one channel of DSD. The number of channels are multiplied by 2 to properly
+             * configure the MI2S data lines and FE should also have same number of channels to
+             * avoid processing in ADSP.
+             */
+            out->config.channels = out->config.channels << 1;
+            out->channel_mask = audio_extn_get_dsd_out_ch_mask(out->config.channels);
+            /* sampling rate of backend should be DSD bit rate / (bitwidth of BE * 2).
+             * In case of DSD128, 44.1KHz DSD  backend sampling rate would be 44.1K * 128/64
+             */
+            out->sample_rate = out->sample_rate * audio_extn_get_mi2s_be_dsd_rate_mul_factor(out->dsd_format);
+            /* sampling rate of frontend still expects as DSD bit rate.
+             * In case of DSD128, 44.1KHz DSD  backend sampling rate would be 44.1K * 128
+             */
+            out->compr_config.codec->sample_rate = out->compr_config.codec->sample_rate * audio_extn_get_fe_dsd_rate_mul_factor(out->dsd_format);
+            blk_size = out->bit_width >> 3;
+            out->dsd_config_updated = true;
+        }
+        audio_extn_set_dsd_dec_params(out, blk_size);
+    }
+
     uc_info->id = out->usecase;
     uc_info->type = PCM_PLAYBACK;
     uc_info->stream.out = out;
@@ -3370,6 +3438,7 @@ int start_output_stream(struct stream_out *out)
         }
     }
 
+
     if ((out->devices & AUDIO_DEVICE_OUT_ALL_A2DP) &&
         (!audio_extn_a2dp_source_is_ready())) {
         if (!a2dp_combo) {
@@ -3385,6 +3454,11 @@ int start_output_stream(struct stream_out *out)
         }
     } else {
          select_devices(adev, out->usecase);
+    }
+
+    if (out->format == AUDIO_FORMAT_DSD) {
+        /* set extra config to output device in DSD format to mute unused speakers */
+        platform_set_native_dsd_speaker_cfg(out);
     }
 
     if (out->usecase == USECASE_INCALL_MUSIC_UPLINK)
@@ -4237,6 +4311,8 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
     bool bypass_a2dp = false;
     bool reconfig = false;
     unsigned long service_interval = 0;
+    bool use_db_as_primary =
+           audio_feature_manager_is_feature_enabled(USE_DEEP_BUFFER_AS_PRIMARY_OUTPUT);
 
     ALOGD("%s: enter: usecase(%d: %s) kvpairs: %s",
           __func__, out->usecase, use_case_table[out->usecase], kvpairs);
@@ -4421,6 +4497,8 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
         audio_extn_set_parameters(adev, parms);
         if (voice_is_call_state_active(adev))
             voice_extn_out_set_parameters(out, parms);
+        if (out->usecase == GET_USECASE_AUDIO_PLAYBACK_PRIMARY(use_db_as_primary))
+            audio_extn_set_tone_parameters(out, parms);
         pthread_mutex_unlock(&adev->lock);
         pthread_mutex_unlock(&out->lock);
     }
@@ -4489,6 +4567,12 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
             pthread_mutex_unlock(&out->lock);
         }
     }
+
+    err = str_parms_get_int(parms, AUDIO_PARAMETER_STREAM_DSD_FMT, &val);
+    if (err >= 0) {
+        out->dsd_format = val;
+    }
+
     //end suspend, resume handling block
     str_parms_destroy(parms);
 error:
@@ -6043,6 +6127,11 @@ static int in_set_parameters(struct audio_stream *stream, const char *kvpairs)
                                                           in->profile, &in->app_type_cfg);
     }
 
+    err = str_parms_get_int(parms, AUDIO_PARAMETER_STREAM_DSD_FMT, &val);
+    if (err >= 0) {
+        in->dsd_format = val;
+    }
+
     pthread_mutex_unlock(&adev->lock);
     pthread_mutex_unlock(&in->lock);
 
@@ -6675,6 +6764,8 @@ int adev_open_output_stream(struct audio_hw_device *dev,
     out->prev_card_status_offline = false;
     out->pspd_coeff_sent = false;
 
+    out->dsd_config_updated = false;
+
     if ((flags & AUDIO_OUTPUT_FLAG_BD) &&
         (property_get_bool("vendor.audio.matrix.limiter.enable", false)))
         platform_set_device_params(out, DEVICE_PARAM_LIMITER_ID, 1);
@@ -7026,7 +7117,10 @@ int adev_open_output_stream(struct audio_hw_device *dev,
             (flags & AUDIO_OUTPUT_FLAG_HW_AV_SYNC)) {
             out->render_mode = RENDER_MODE_AUDIO_STC_MASTER;
         } else if(flags & AUDIO_OUTPUT_FLAG_TIMESTAMP) {
-            out->render_mode = RENDER_MODE_AUDIO_MASTER;
+            if (property_get_bool("persist.vendor.audio.ttp.render.mode", false))
+                out->render_mode = RENDER_MODE_AUDIO_TTP;
+            else
+                out->render_mode = RENDER_MODE_AUDIO_MASTER;
         } else {
             out->render_mode = RENDER_MODE_AUDIO_NO_TIMESTAMP;
         }
@@ -7079,6 +7173,7 @@ int adev_open_output_stream(struct audio_hw_device *dev,
         if (config->format == AUDIO_FORMAT_DSD) {
             out->flags |= AUDIO_OUTPUT_FLAG_COMPRESS_PASSTHROUGH;
             out->compr_config.codec->compr_passthr = PASSTHROUGH_DSD;
+            out->config.channels = audio_channel_count_from_out_mask(out->channel_mask);
         }
 
         create_offload_callback_thread(out);
@@ -8075,6 +8170,8 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
     in->bit_width = 16;
     in->af_period_multiplier = 1;
 
+    in->dsd_config_updated = false;
+
     ALOGV("%s: source = %d, config->channel_mask = %d", __func__, source, config->channel_mask);
     if (source == AUDIO_SOURCE_VOICE_UPLINK ||
         source == AUDIO_SOURCE_VOICE_DOWNLINK) {
@@ -8615,7 +8712,15 @@ int adev_create_audio_patch(struct audio_hw_device *dev,
 {
     int ret;
 
-    ret = audio_extn_hw_loopback_create_audio_patch(dev,
+#ifdef AUDIO_AFE_LOOPBACK_ENABLED
+     return audio_extn_afe_loopback_create_audio_patch(dev,
+                                         num_sources,
+                                         sources,
+                                         num_sinks,
+                                         sinks,
+                                         handle);
+#else
+     ret = audio_extn_hw_loopback_create_audio_patch(dev,
                                         num_sources,
                                         sources,
                                         num_sinks,
@@ -8628,6 +8733,8 @@ int adev_create_audio_patch(struct audio_hw_device *dev,
                                         sinks,
                                         handle);
     return ret;
+#endif
+
 }
 
 int adev_release_audio_patch(struct audio_hw_device *dev,
@@ -8635,18 +8742,26 @@ int adev_release_audio_patch(struct audio_hw_device *dev,
 {
     int ret;
 
+#ifdef AUDIO_AFE_LOOPBACK_ENABLED
+    return audio_extn_afe_loopback_release_audio_patch(dev, handle);
+#else
     ret = audio_extn_hw_loopback_release_audio_patch(dev, handle);
     ret |= audio_extn_auto_hal_release_audio_patch(dev, handle);
     return ret;
+#endif
 }
 
 int adev_get_audio_port(struct audio_hw_device *dev, struct audio_port *config)
 {
     int ret = 0;
 
+#ifdef AUDIO_AFE_LOOPBACK_ENABLED
+    return audio_extn_afe_loopback_get_audio_port(dev, config);
+#else
     ret = audio_extn_hw_loopback_get_audio_port(dev, config);
     ret |= audio_extn_auto_hal_get_audio_port(dev, config);
     return ret;
+#endif
 }
 
 int adev_set_audio_port_config(struct audio_hw_device *dev,
@@ -8654,9 +8769,14 @@ int adev_set_audio_port_config(struct audio_hw_device *dev,
 {
     int ret = 0;
 
+#ifdef AUDIO_AFE_LOOPBACK_ENABLED
+    return audio_extn_afe_loopback_set_audio_port_config(dev, config);
+#else
     ret = audio_extn_hw_loopback_set_audio_port_config(dev, config);
     ret |= audio_extn_auto_hal_set_audio_port_config(dev, config);
     return ret;
+#endif
+
 }
 
 static int adev_dump(const audio_hw_device_t *device __unused,
@@ -8699,6 +8819,7 @@ static int adev_close(hw_device_t *device)
         audio_extn_adsp_hdlr_deinit();
         audio_extn_snd_mon_deinit();
         audio_extn_hw_loopback_deinit(adev);
+        audio_extn_afe_loopback_deinit(adev);
         audio_extn_ffv_deinit();
         if (adev->device_cfg_params) {
             free(adev->device_cfg_params);
@@ -9003,6 +9124,7 @@ static int adev_open(const hw_module_t *module, const char *name,
     audio_extn_listen_init(adev, adev->snd_card);
     audio_extn_gef_init(adev);
     audio_extn_hw_loopback_init(adev);
+    audio_extn_afe_loopback_init(adev);
     audio_extn_ffv_init(adev);
 
     if (access(OFFLOAD_EFFECTS_BUNDLE_LIBRARY_PATH, R_OK) == 0) {

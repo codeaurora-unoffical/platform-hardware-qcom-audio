@@ -768,6 +768,11 @@ int audio_extn_utils_get_bit_width_from_string(const char *);
 int audio_extn_utils_get_sample_rate_from_string(const char *);
 int audio_extn_utils_get_channels_from_string(const char *);
 bool audio_extn_utils_is_dolby_mat_thd_format(audio_format_t format);
+int audio_extn_get_mi2s_be_dsd_rate_mul_factor(int dsd_format);
+int audio_extn_get_fe_dsd_rate_mul_factor(int dsd_format);
+int audio_extn_get_dsd_in_ch_mask(int channels);
+int audio_extn_get_dsd_out_ch_mask(int channels);
+void audio_extn_set_dsd_dec_params(struct stream_out *out, int blk_size);
 
 #ifdef DS2_DOLBY_DAP_ENABLED
 #define LIB_DS2_DAP_HAL "vendor/lib/libhwdaphal.so"
@@ -983,6 +988,8 @@ void audio_extn_cin_free_input_stream_resources(struct stream_in *in);
 int audio_extn_cin_read(struct stream_in *in, void *buffer,
                         size_t bytes, size_t *bytes_read);
 int audio_extn_cin_configure_input_stream(struct stream_in *in, struct audio_config *in_config);
+int audio_extn_compress_in_set_ttp_offset(struct stream_in *in,
+            struct audio_in_ttp_offset_param *offset_param);
 #else
 #define audio_extn_cin_applicable_stream(in) (false)
 #define audio_extn_cin_attached_usecase(uc_id) (false)
@@ -994,6 +1001,7 @@ int audio_extn_cin_configure_input_stream(struct stream_in *in, struct audio_con
 #define audio_extn_cin_free_input_stream_resources(in) (0)
 #define audio_extn_cin_read(in, buffer, bytes, bytes_read) (0)
 #define audio_extn_cin_configure_input_stream(in, in_config) (0)
+#define audio_extn_compress_in_set_ttp_offset(in, offset_param) (0)
 #endif
 
 //START: SOURCE_TRACKING_FEATURE ==============================================
@@ -1034,6 +1042,8 @@ int audio_extn_utils_get_avt_device_drift(
                 struct audio_avt_device_drift_param *drift_param);
 int audio_extn_utils_compress_get_dsp_latency(struct stream_out *out);
 int audio_extn_utils_compress_set_render_mode(struct stream_out *out);
+int audio_extn_utils_compress_set_render_mode_v2(struct compress *compr,
+                                                 int render_mode);
 int audio_extn_utils_compress_set_clk_rec_mode(struct audio_usecase *usecase);
 int audio_extn_utils_compress_set_render_window(
             struct stream_out *out,
@@ -1313,4 +1323,47 @@ void audio_extn_set_custom_mtmx_params_v1(struct audio_device *adev,
 snd_device_t audio_extn_get_loopback_snd_device(struct audio_device *adev,
                                                 struct audio_usecase *usecase,
                                                 int channel_count);
+
+#ifdef TONE_ENABLED
+/* for Tone generation with reference of DTMF */
+int audio_extn_set_tone_parameters(struct stream_out *out,
+                                  struct str_parms *parms);
+#else
+static int __unused audio_extn_set_tone_parameters(
+                                   struct stream_out *out __unused,
+                                   struct str_parms *parms __unused)
+{
+    ALOGV("%s: TONE_ENABLED is not defined in tone generation", __func__);
+    return -ENOSYS;
+}
+#endif
+
+#ifdef AUDIO_AFE_LOOPBACK_ENABLED
+/* API to create audio patch */
+int audio_extn_afe_loopback_create_audio_patch(struct audio_hw_device *dev,
+                                     unsigned int num_sources,
+                                     const struct audio_port_config *sources,
+                                     unsigned int num_sinks,
+                                     const struct audio_port_config *sinks,
+                                     audio_patch_handle_t *handle);
+/* API to release audio patch */
+int audio_extn_afe_loopback_release_audio_patch(struct audio_hw_device *dev,
+                                             audio_patch_handle_t handle);
+
+#define audio_extn_afe_loopback_set_audio_port_config(dev, config) (0)
+int audio_extn_afe_loopback_get_audio_port(struct audio_hw_device *dev,
+                                    struct audio_port *port_in);
+int audio_extn_afe_loopback_init(struct audio_device *adev);
+void audio_extn_afe_loopback_deinit(struct audio_device *adev);
+#else
+#define audio_extn_afe_loopback_create_audio_patch(dev, num_sources, sources,\
+                                    num_sinks, sinks, handle) (0)
+#define audio_extn_afe_loopback_release_audio_patch(dev, handle) (0)
+#define audio_extn_afe_loopback_set_audio_port_config(dev, config) (0)
+#define audio_extn_afe_loopback_get_audio_port(dev, port_in) (0)
+#define audio_extn_afe_loopback_init(adev) (0)
+#define audio_extn_afe_loopback_deinit(adev) (0)
+#endif
+
 #endif /* AUDIO_EXTN_H */
+

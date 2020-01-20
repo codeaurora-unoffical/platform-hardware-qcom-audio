@@ -386,6 +386,11 @@ uint32_t qahw_in_get_input_frames_lost(qahw_stream_handle_t *in_handle);
 int qahw_in_get_capture_position(const qahw_stream_handle_t *in_handle,
                                  int64_t *frames, int64_t *time);
 
+/* API to set capture stream specific config parameters */
+int qahw_in_set_param_data(qahw_stream_handle_t *in_handle,
+                            qahw_param_id param_id,
+                            qahw_param_payload *payload);
+
 /* Module specific APIs */
 
 /* convenience API for opening and closing an audio HAL module */

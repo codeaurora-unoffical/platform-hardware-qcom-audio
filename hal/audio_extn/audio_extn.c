@@ -55,6 +55,9 @@
 #include "platform_api.h"
 #include "edid.h"
 #include "audio_feature_manager.h"
+#include "voice_extn.h"
+#include "adsp_hdlr.h"
+
 #include "sound/compress_params.h"
 
 #ifdef DYNAMIC_LOG_ENABLED
@@ -149,6 +152,14 @@ on_error:
     if (snd_card_name)
         free(snd_card_name);
 }
+
+/* TONE Generation Keys */
+/* tone_low_freq and tone_high_freq must be paired */
+#define AUDIO_PARAMETER_KEY_TONE_LOW_FREQ "tone_low_freq"
+#define AUDIO_PARAMETER_KEY_TONE_HIGH_FREQ "tone_high_freq"
+#define AUDIO_PARAMETER_KEY_TONE_DURATION_MS "tone_duration_ms"
+#define AUDIO_PARAMETER_KEY_TONE_GAIN "tone_gain"
+#define AUDIO_PARAMETER_KEY_TONE_OFF "tone_off"
 
 struct audio_extn_module {
     bool anc_enabled;
@@ -3470,6 +3481,12 @@ void audio_extn_send_aptx_dec_bt_addr_to_dsp(struct stream_out *out)
 
 #endif //APTX_DECODER_ENABLED
 
+void audio_extn_set_dsd_dec_params(struct stream_out *out, int blk_size)
+{
+    ALOGV("%s", __func__);
+    out->compr_config.codec->options.dsd_dec.blk_size = blk_size;
+}
+
 int audio_extn_out_set_param_data(struct stream_out *out,
                              audio_extn_param_id param_id,
                              audio_extn_param_payload *payload) {
@@ -3593,6 +3610,32 @@ int audio_extn_out_get_param_data(struct stream_out *out,
             break;
     }
 
+    return ret;
+}
+
+/* API to set capture stream specific config parameters */
+int audio_extn_in_set_param_data(struct stream_in *in,
+                             audio_extn_param_id param_id,
+                             audio_extn_param_payload *payload) {
+    int ret = -EINVAL;
+
+    if (!in || !payload) {
+        ALOGE("%s:: Invalid Param",__func__);
+        return ret;
+    }
+
+    ALOGD("%s: enter: stream (%p) usecase(%d: %s) param_id %d", __func__,
+            in, in->usecase, use_case_table[in->usecase], param_id);
+
+    switch (param_id) {
+        case AUDIO_EXTN_PARAM_IN_TTP_OFFSET:
+            ret = audio_extn_compress_in_set_ttp_offset(in,
+                    (struct audio_in_ttp_offset_param *)(payload));
+            break;
+        default:
+            ALOGE("%s:: unsupported param_id %d", __func__, param_id);
+            break;
+    }
     return ret;
 }
 
@@ -4565,3 +4608,62 @@ int audio_ext_get_presentation_position(struct stream_out *out,
 
     return ret;
 }
+
+#ifdef TONE_ENABLED
+int audio_extn_set_tone_parameters(struct stream_out *out,
+                                  struct str_parms *parms)
+{
+    int value = 0;
+    int ret = 0, err = 0;
+    char *kv_pairs = str_parms_to_str(parms);
+    char str_value[256] = {0};
+
+    ALOGV_IF(kv_pairs != NULL, "%s: enter: %s", __func__, kv_pairs);
+
+    err = str_parms_get_int(parms, AUDIO_PARAMETER_KEY_TONE_GAIN, &value);
+    if (err >= 0) {
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_TONE_GAIN);
+        int32_t tone_gain = value;
+
+        voice_extn_dtmf_set_rx_tone_gain(out, tone_gain);
+    }
+    err = str_parms_get_int(parms, AUDIO_PARAMETER_KEY_TONE_LOW_FREQ, &value);
+    if (err >= 0) {
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_TONE_LOW_FREQ);
+        uint32_t tone_low_freq = value;
+        uint32_t tone_high_freq = 0;
+        uint32_t tone_duration_ms = 0;
+        err = str_parms_get_int(parms, AUDIO_PARAMETER_KEY_TONE_HIGH_FREQ, &value);
+        if (err >= 0) {
+            tone_high_freq = value;
+            str_parms_del(parms, AUDIO_PARAMETER_KEY_TONE_HIGH_FREQ);
+        } else {
+            ALOGE("%s: tone_high_freq key not found", __func__);
+            ret = -EINVAL;
+            goto done;
+        }
+        err = str_parms_get_int(parms, AUDIO_PARAMETER_KEY_TONE_DURATION_MS, &value);
+        if (err >= 0) {
+            tone_duration_ms = value;
+            str_parms_del(parms, AUDIO_PARAMETER_KEY_TONE_DURATION_MS);
+        } else {
+            ALOGE("%s: tone duration key not found, setting to default infinity",
+                  __func__);
+            tone_duration_ms = 0xFFFF;
+        }
+        voice_extn_dtmf_generate_rx_tone(out, tone_low_freq, tone_high_freq,
+                                         tone_duration_ms);
+    }
+    err = str_parms_has_key(parms, AUDIO_PARAMETER_KEY_TONE_OFF);
+    if (err > 0) {
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_TONE_OFF);
+        voice_extn_dtmf_set_rx_tone_off(out);
+    }
+
+done:
+    ALOGV("%s: exit with code(%d)", __func__, ret);
+    free(kv_pairs);
+    return ret;
+}
+
+#endif

@@ -85,6 +85,10 @@ typedef int (*qahwi_create_audio_patch_v2_t)(const audio_hw_device_t *,
                         qahw_sink_port_config_t *sink_port_config,
                         audio_patch_handle_t *);
 
+typedef int (*qahwi_in_set_param_data_t)(struct audio_stream_in *in,
+                                      qahw_param_id param_id,
+                                      qahw_param_payload *payload);
+
 typedef struct {
     audio_hw_device_t *audio_device;
     char module_name[MAX_MODULE_NAME_LENGTH];
@@ -123,6 +127,7 @@ typedef struct {
     pthread_mutex_t lock;
     qahwi_in_read_v2_t qahwi_in_read_v2;
     qahwi_in_stop_t qahwi_in_stop;
+    qahwi_in_set_param_data_t qahwi_in_set_param_data;
 } qahw_stream_in_t;
 
 typedef enum {
@@ -1007,6 +1012,39 @@ exit:
     return str_param;
 }
 
+/* API to get capture stream specific config parameters */
+int qahw_in_set_param_data_l(qahw_stream_handle_t *in_handle,
+                            qahw_param_id param_id,
+                            qahw_param_payload *payload)
+{
+    int rc = -EINVAL;
+    qahw_stream_in_t *qahw_stream_in = (qahw_stream_in_t *)in_handle;
+    audio_stream_in_t *in = NULL;
+
+    if (!payload) {
+        ALOGE("%s::Invalid param", __func__);
+        goto exit;
+    }
+
+    if (!is_valid_qahw_stream_l((void *)qahw_stream_in, STREAM_DIR_IN)) {
+        ALOGE("%s::Invalid in handle %p", __func__, in_handle);
+        goto exit;
+    }
+
+    pthread_mutex_lock(&qahw_stream_in->lock);
+    in = qahw_stream_in->stream;
+    if (qahw_stream_in->qahwi_in_set_param_data) {
+        rc = qahw_stream_in->qahwi_in_set_param_data(in, param_id, payload);
+    } else {
+        rc = -ENOSYS;
+        ALOGW("%s not supported", __func__);
+    }
+    pthread_mutex_unlock(&qahw_stream_in->lock);
+
+exit:
+    return rc;
+}
+
 /*
  * Read audio buffer in from audio driver. Returns number of bytes read, or a
  *  negative status_t. If at least one frame was read prior to the error,
@@ -1840,6 +1878,17 @@ int qahw_open_input_stream_l(qahw_module_handle_t *hw_module,
             ALOGI("%s: dlsym error %s for qahwi_in_read_v2", __func__, error);
             qahw_stream_in->qahwi_in_read_v2 = NULL;
         }
+    }
+
+    /* clear any existing errors */
+    dlerror();
+    qahw_stream_in->qahwi_in_set_param_data = (qahwi_in_set_param_data_t)
+                                             dlsym(qahw_module->module->dso,
+                                             "qahwi_in_set_param_data");
+    if ((error = dlerror()) != NULL) {
+        ALOGI("%s: dlsym error %s for qahwi_in_set_param_data",
+                   __func__, error);
+        qahw_stream_in->qahwi_in_set_param_data = NULL;
     }
 
     /* clear any existing errors */

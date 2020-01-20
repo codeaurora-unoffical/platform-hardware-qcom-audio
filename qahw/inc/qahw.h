@@ -364,6 +364,12 @@ ssize_t qahw_in_read_l(qahw_stream_handle_t *in_handle,
  * Stop input stream. Returns zero on success.
  */
 int qahw_in_stop_l(qahw_stream_handle_t *in_handle);
+
+/* API to set capture stream specific config parameters */
+int qahw_in_set_param_data_l(qahw_stream_handle_t *in_handle,
+                            qahw_param_id param_id,
+                            qahw_param_payload *payload);
+
 /*
  * Return the amount of input frames lost in the audio driver since the
  * last call of this function.
