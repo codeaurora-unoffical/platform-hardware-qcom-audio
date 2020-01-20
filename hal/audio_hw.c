@@ -953,7 +953,7 @@ static int update_effect_param_ecns(struct audio_device *adev, unsigned int modu
 }
 
 static int enable_disable_effect(struct audio_device *adev, int effect_type, bool enable)
-{ 
+{
     struct audio_effect_config effect_config;
     struct audio_usecase *usecase = NULL;
     int ret = 0;
@@ -2753,6 +2753,26 @@ int start_input_stream(struct stream_in *in)
         goto error_config;
     }
 
+    if ((in->format == AUDIO_FORMAT_DSD) && (in->dsd_config_updated == false)) {
+        if (strstr(platform_get_snd_device_backend_interface(
+            platform_get_input_snd_device(adev->platform, in->device)), "MI2S")) {
+            in->bit_width = 32;
+           /*
+            *  In case of MI2S backend, DSD data comes in 32bit and each data line of MI2S
+            *  holds one channel of DSD. The number of channels are multiplied by 2 to properly
+            *  configure the MI2S data lines and FE should also have same number of channels to
+            *  avoid processing in ADSP.
+            */
+            in->config.channels = in->config.channels << 1;
+            in->channel_mask = audio_extn_get_dsd_in_ch_mask(in->config.channels);
+            /* sampling rate of backend should be DSD bit rate / (bitwidth of BE * 2).
+             * In case of DSD128, 44.1KHz DSD  backend sampling rate would be 44.1K * 128/64
+             */
+            in->sample_rate = in->sample_rate * audio_extn_get_mi2s_be_dsd_rate_mul_factor(in->dsd_format);
+            in->dsd_config_updated = true;
+        }
+    }
+
     uc_info->id = in->usecase;
     uc_info->type = PCM_CAPTURE;
     uc_info->stream.in = in;
@@ -2764,8 +2784,8 @@ int start_input_stream(struct stream_in *in)
     audio_extn_perf_lock_acquire(&adev->perf_lock_handle, 0,
                                  adev->perf_lock_opts,
                                  adev->perf_lock_opts_size);
-    select_devices(adev, in->usecase);
 
+    select_devices(adev, in->usecase);
     if (audio_extn_ext_hw_plugin_usecase_start(adev->ext_hw_plugin, uc_info))
         ALOGE("%s: failed to start ext hw plugin", __func__);
 
@@ -3300,6 +3320,7 @@ int start_output_stream(struct stream_out *out)
     char* perf_mode[] = {"ULL", "ULL_PP", "LL"};
     bool a2dp_combo = false;
     bool is_direct_passthough = false;
+    int blk_size = 0;
 
     ATRACE_BEGIN("start_output_stream");
     if ((out->usecase < 0) || (out->usecase >= AUDIO_USECASE_MAX)) {
@@ -3361,6 +3382,34 @@ int start_output_stream(struct stream_out *out)
         goto error_config;
     }
 
+
+    if ((out->format == AUDIO_FORMAT_DSD) && (out->dsd_config_updated == false)) {
+        /* set DSD block size as 1 to maintain backward compatibility */
+        blk_size = 1;
+        if (strstr(platform_get_snd_device_backend_interface(platform_get_output_snd_device(adev->platform, out)), "MI2S")) {
+            out->bit_width = 32;
+            /*
+             * In case of MI2S backend, DSD data comes in 32bit and each data line of MI2S
+             * holds one channel of DSD. The number of channels are multiplied by 2 to properly
+             * configure the MI2S data lines and FE should also have same number of channels to
+             * avoid processing in ADSP.
+             */
+            out->config.channels = out->config.channels << 1;
+            out->channel_mask = audio_extn_get_dsd_out_ch_mask(out->config.channels);
+            /* sampling rate of backend should be DSD bit rate / (bitwidth of BE * 2).
+             * In case of DSD128, 44.1KHz DSD  backend sampling rate would be 44.1K * 128/64
+             */
+            out->sample_rate = out->sample_rate * audio_extn_get_mi2s_be_dsd_rate_mul_factor(out->dsd_format);
+            /* sampling rate of frontend still expects as DSD bit rate.
+             * In case of DSD128, 44.1KHz DSD  backend sampling rate would be 44.1K * 128
+             */
+            out->compr_config.codec->sample_rate = out->compr_config.codec->sample_rate * audio_extn_get_fe_dsd_rate_mul_factor(out->dsd_format);
+            blk_size = out->bit_width >> 3;
+            out->dsd_config_updated = true;
+        }
+        audio_extn_set_dsd_dec_params(out, blk_size);
+    }
+
     uc_info->id = out->usecase;
     uc_info->type = PCM_PLAYBACK;
     uc_info->stream.out = out;
@@ -3389,6 +3438,7 @@ int start_output_stream(struct stream_out *out)
         }
     }
 
+
     if ((out->devices & AUDIO_DEVICE_OUT_ALL_A2DP) &&
         (!audio_extn_a2dp_source_is_ready())) {
         if (!a2dp_combo) {
@@ -3404,6 +3454,11 @@ int start_output_stream(struct stream_out *out)
         }
     } else {
          select_devices(adev, out->usecase);
+    }
+
+    if (out->format == AUDIO_FORMAT_DSD) {
+        /* set extra config to output device in DSD format to mute unused speakers */
+        platform_set_native_dsd_speaker_cfg(out);
     }
 
     if (out->usecase == USECASE_INCALL_MUSIC_UPLINK)
@@ -4512,6 +4567,12 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
             pthread_mutex_unlock(&out->lock);
         }
     }
+
+    err = str_parms_get_int(parms, AUDIO_PARAMETER_STREAM_DSD_FMT, &val);
+    if (err >= 0) {
+        out->dsd_format = val;
+    }
+
     //end suspend, resume handling block
     str_parms_destroy(parms);
 error:
@@ -6066,6 +6127,11 @@ static int in_set_parameters(struct audio_stream *stream, const char *kvpairs)
                                                           in->profile, &in->app_type_cfg);
     }
 
+    err = str_parms_get_int(parms, AUDIO_PARAMETER_STREAM_DSD_FMT, &val);
+    if (err >= 0) {
+        in->dsd_format = val;
+    }
+
     pthread_mutex_unlock(&adev->lock);
     pthread_mutex_unlock(&in->lock);
 
@@ -6698,6 +6764,8 @@ int adev_open_output_stream(struct audio_hw_device *dev,
     out->prev_card_status_offline = false;
     out->pspd_coeff_sent = false;
 
+    out->dsd_config_updated = false;
+
     if ((flags & AUDIO_OUTPUT_FLAG_BD) &&
         (property_get_bool("vendor.audio.matrix.limiter.enable", false)))
         platform_set_device_params(out, DEVICE_PARAM_LIMITER_ID, 1);
@@ -7049,7 +7117,10 @@ int adev_open_output_stream(struct audio_hw_device *dev,
             (flags & AUDIO_OUTPUT_FLAG_HW_AV_SYNC)) {
             out->render_mode = RENDER_MODE_AUDIO_STC_MASTER;
         } else if(flags & AUDIO_OUTPUT_FLAG_TIMESTAMP) {
-            out->render_mode = RENDER_MODE_AUDIO_MASTER;
+            if (property_get_bool("persist.vendor.audio.ttp.render.mode", false))
+                out->render_mode = RENDER_MODE_AUDIO_TTP;
+            else
+                out->render_mode = RENDER_MODE_AUDIO_MASTER;
         } else {
             out->render_mode = RENDER_MODE_AUDIO_NO_TIMESTAMP;
         }
@@ -7102,6 +7173,7 @@ int adev_open_output_stream(struct audio_hw_device *dev,
         if (config->format == AUDIO_FORMAT_DSD) {
             out->flags |= AUDIO_OUTPUT_FLAG_COMPRESS_PASSTHROUGH;
             out->compr_config.codec->compr_passthr = PASSTHROUGH_DSD;
+            out->config.channels = audio_channel_count_from_out_mask(out->channel_mask);
         }
 
         create_offload_callback_thread(out);
@@ -8097,6 +8169,8 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
     in->flags = flags;
     in->bit_width = 16;
     in->af_period_multiplier = 1;
+
+    in->dsd_config_updated = false;
 
     ALOGV("%s: source = %d, config->channel_mask = %d", __func__, source, config->channel_mask);
     if (source == AUDIO_SOURCE_VOICE_UPLINK ||

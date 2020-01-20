@@ -76,7 +76,7 @@
 
 /* Flags used to initialize acdb_settings variable that goes to ACDB library */
 #define NONE_FLAG            0x00000000
-#define ANC_FLAG	     0x00000001
+#define ANC_FLAG             0x00000001
 #define DMIC_FLAG            0x00000002
 #define QMIC_FLAG            0x00000004
 /* Include TMIC Flag after existing QMIC flag to avoid backward compatibility
@@ -283,6 +283,7 @@ typedef enum render_mode {
     RENDER_MODE_AUDIO_NO_TIMESTAMP = 0,
     RENDER_MODE_AUDIO_MASTER,
     RENDER_MODE_AUDIO_STC_MASTER,
+    RENDER_MODE_AUDIO_TTP,
 } render_mode_t;
 
 #ifdef AUDIO_EXTN_AUTO_HAL_ENABLED
@@ -379,6 +380,7 @@ struct stream_out {
     bool adm_event_enable;
     bool asm_event_enable;
     bool ip_hdlr_enabled;
+    dsd_format_t dsd_format;
 
     stream_callback_t client_callback;
     void *client_cookie;
@@ -428,6 +430,7 @@ struct stream_out {
 
     char address[AUDIO_DEVICE_MAX_ADDRESS_LEN];
     int car_audio_stream;
+    bool dsd_config_updated;
 
 #ifndef LINUX_ENABLED
     error_log_t *error_log;
@@ -462,10 +465,12 @@ struct stream_in {
     struct stream_app_type_cfg app_type_cfg;
     void *cin_extn;
     qahwi_stream_in_t qahwi_in;
+    dsd_format_t dsd_format;
 
     struct audio_device *dev;
     card_status_t card_status;
     int capture_started;
+    render_mode_t render_mode;
 
     volatile int32_t capture_stopped;
 
@@ -476,6 +481,8 @@ struct stream_in {
 
     int64_t frames_read; /* total frames read, not cleared when entering standby */
     int64_t frames_muted; /* total frames muted, not cleared when entering standby */
+
+    bool dsd_config_updated;
 #ifndef LINUX_ENABLED
     error_log_t *error_log;
 #endif

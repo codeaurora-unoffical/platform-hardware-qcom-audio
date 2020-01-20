@@ -3481,6 +3481,12 @@ void audio_extn_send_aptx_dec_bt_addr_to_dsp(struct stream_out *out)
 
 #endif //APTX_DECODER_ENABLED
 
+void audio_extn_set_dsd_dec_params(struct stream_out *out, int blk_size)
+{
+    ALOGV("%s", __func__);
+    out->compr_config.codec->options.dsd_dec.blk_size = blk_size;
+}
+
 int audio_extn_out_set_param_data(struct stream_out *out,
                              audio_extn_param_id param_id,
                              audio_extn_param_payload *payload) {
@@ -3604,6 +3610,32 @@ int audio_extn_out_get_param_data(struct stream_out *out,
             break;
     }
 
+    return ret;
+}
+
+/* API to set capture stream specific config parameters */
+int audio_extn_in_set_param_data(struct stream_in *in,
+                             audio_extn_param_id param_id,
+                             audio_extn_param_payload *payload) {
+    int ret = -EINVAL;
+
+    if (!in || !payload) {
+        ALOGE("%s:: Invalid Param",__func__);
+        return ret;
+    }
+
+    ALOGD("%s: enter: stream (%p) usecase(%d: %s) param_id %d", __func__,
+            in, in->usecase, use_case_table[in->usecase], param_id);
+
+    switch (param_id) {
+        case AUDIO_EXTN_PARAM_IN_TTP_OFFSET:
+            ret = audio_extn_compress_in_set_ttp_offset(in,
+                    (struct audio_in_ttp_offset_param *)(payload));
+            break;
+        default:
+            ALOGE("%s:: unsupported param_id %d", __func__, param_id);
+            break;
+    }
     return ret;
 }
 

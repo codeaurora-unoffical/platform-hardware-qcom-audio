@@ -8893,3 +8893,9 @@ end:
     *mic_count = actual_mic_count;
     return 0;
 }
+
+void platform_set_native_dsd_speaker_cfg(struct stream_out *out)
+{
+     ALOGE("%s: Not implemented", __func__);
+     return;
+}

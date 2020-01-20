@@ -500,6 +500,7 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_OUT_SPEAKER_SAFE] = "speaker-safe",
     [SND_DEVICE_OUT_HEADPHONES] = "headphones",
     [SND_DEVICE_OUT_HEADPHONES_DSD] = "headphones-dsd",
+    [SND_DEVICE_OUT_SPEAKER_DSD] = "speaker-dsd",
     [SND_DEVICE_OUT_HEADPHONES_44_1] = "headphones-44.1",
     [SND_DEVICE_OUT_LINE] = "line",
     [SND_DEVICE_OUT_SPEAKER_AND_HEADPHONES] = "speaker-and-headphones",
@@ -602,6 +603,7 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_VOICE_HEADSET_MIC] = "voice-headset-mic",
     [SND_DEVICE_IN_SPDIF] = "spdif-in",
     [SND_DEVICE_IN_HDMI_MIC] = "hdmi-in",
+    [SND_DEVICE_IN_HDMI_MIC_DSD] = "hdmi-in-dsd",
     [SND_DEVICE_IN_HDMI_ARC] = "hdmi-arc-in",
     [SND_DEVICE_IN_BT_SCO_MIC] = "bt-sco-mic",
     [SND_DEVICE_IN_BT_SCO_MIC_NREC] = "bt-sco-mic",
@@ -936,6 +938,7 @@ static struct name_to_index snd_device_name_index[SND_DEVICE_MAX] = {
     {TO_NAME_INDEX(SND_DEVICE_OUT_SPEAKER_SAFE)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_HEADPHONES)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_HEADPHONES_DSD)},
+    {TO_NAME_INDEX(SND_DEVICE_OUT_SPEAKER_DSD)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_HEADPHONES_44_1)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_LINE)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_SPEAKER_AND_HEADPHONES)},
@@ -1031,6 +1034,7 @@ static struct name_to_index snd_device_name_index[SND_DEVICE_MAX] = {
     {TO_NAME_INDEX(SND_DEVICE_IN_VOICE_HEADSET_MIC)},
     {TO_NAME_INDEX(SND_DEVICE_IN_SPDIF)},
     {TO_NAME_INDEX(SND_DEVICE_IN_HDMI_MIC)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_HDMI_MIC_DSD)},
     {TO_NAME_INDEX(SND_DEVICE_IN_HDMI_ARC)},
     {TO_NAME_INDEX(SND_DEVICE_IN_BT_SCO_MIC)},
     {TO_NAME_INDEX(SND_DEVICE_IN_BT_SCO_MIC_NREC)},
@@ -1586,6 +1590,24 @@ void platform_set_gsm_mode(void *platform, bool enable)
     }
 }
 
+void platform_set_native_dsd_speaker_cfg(struct stream_out *out)
+{
+    struct audio_device *adev = NULL;
+    char spkr_mixer_path[MIXER_PATH_MAX_LENGTH];
+
+    if (out == NULL)
+        return;
+
+    adev = out->dev;
+    snprintf(spkr_mixer_path, MIXER_PATH_MAX_LENGTH, "speaker-native-dsd-%dch",
+                               out->config.channels);
+
+    audio_route_apply_and_update_path(adev->audio_route, spkr_mixer_path);
+
+    ALOGD("%s: applying DSD speaker configuration %s", __func__, spkr_mixer_path);
+    return;
+}
+
 void platform_set_echo_reference(struct audio_device *adev, bool enable,
                                  audio_devices_t out_device)
 {
@@ -1628,9 +1650,6 @@ void platform_set_echo_reference(struct audio_device *adev, bool enable,
                     MIXER_PATH_MAX_LENGTH);
         else if (out_device & AUDIO_DEVICE_OUT_USB_HEADSET)
             strlcat(ec_ref_mixer_path, " usb-headphones",
-                    MIXER_PATH_MAX_LENGTH);
-        else if (out_device & AUDIO_DEVICE_OUT_BUS)
-            strlcpy(ec_ref_mixer_path, "multi-mic-echo-reference",
                     MIXER_PATH_MAX_LENGTH);
 
         if (audio_route_apply_and_update_path(adev->audio_route,
@@ -1859,6 +1878,7 @@ static void set_platform_defaults(struct platform_data * my_data)
     backend_tag_table[SND_DEVICE_IN_BT_SCO_MIC_WB_NREC] = strdup("bt-sco-wb");
     backend_tag_table[SND_DEVICE_IN_SPDIF] = strdup("spdif-in");
     backend_tag_table[SND_DEVICE_IN_HDMI_MIC] = strdup("hdmi-in");
+    backend_tag_table[SND_DEVICE_IN_HDMI_MIC_DSD] = strdup("hdmi-in-dsd");
     backend_tag_table[SND_DEVICE_IN_HDMI_ARC] = strdup("hdmi-arc-in");
     backend_tag_table[SND_DEVICE_OUT_BT_SCO] = strdup("bt-sco");
     backend_tag_table[SND_DEVICE_OUT_BT_SCO_WB] = strdup("bt-sco-wb");
@@ -2029,6 +2049,7 @@ static void set_platform_defaults(struct platform_data * my_data)
     hw_interface_table[SND_DEVICE_IN_SPDIF] = strdup("PRI_SPDIF_TX");
     hw_interface_table[SND_DEVICE_IN_HDMI_MIC] = strdup("SEC_MI2S_TX");
     hw_interface_table[SND_DEVICE_IN_HDMI_ARC] = strdup("SEC_SPDIF_TX");
+    hw_interface_table[SND_DEVICE_IN_HDMI_MIC_DSD] = strdup("QUAT_MI2S_TX");
     hw_interface_table[SND_DEVICE_IN_BT_SCO_MIC] = strdup("SLIMBUS_7_TX");
     hw_interface_table[SND_DEVICE_IN_BT_SCO_MIC_NREC] = strdup("SLIMBUS_7_TX");
     hw_interface_table[SND_DEVICE_IN_BT_SCO_MIC_WB] = strdup("SLIMBUS_7_TX");
@@ -3166,6 +3187,13 @@ acdb_init_fail:
                     my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].channels_mixer_ctl =
                         strdup("PRIM_MI2S_RX Channels");
                 }
+                    my_data->current_backend_cfg[DSD_NATIVE_BACKEND].bitwidth_mixer_ctl =
+                        strdup("PRIM_MI2S_RX Format");
+                    my_data->current_backend_cfg[DSD_NATIVE_BACKEND].samplerate_mixer_ctl =
+                        strdup("PRIM_MI2S_RX SampleRate");
+                    my_data->current_backend_cfg[DSD_NATIVE_BACKEND].channels_mixer_ctl =
+                        strdup("PRIM_MI2S_RX Channels");
+
             } else {
                my_data->current_backend_cfg[DEFAULT_CODEC_BACKEND].bitwidth_mixer_ctl =
                    strdup("WSA_CDC_DMA_RX_0 Format");
@@ -3219,6 +3247,13 @@ acdb_init_fail:
         my_data->current_backend_cfg[HDMI_TX_BACKEND].channels_mixer_ctl =
             strdup("QUAT_MI2S_TX Channels");
     }
+
+    my_data->current_backend_cfg[HDMI_DSD_TX_BACKEND].bitwidth_mixer_ctl =
+        strdup("QUAT_MI2S_TX Format");
+    my_data->current_backend_cfg[HDMI_DSD_TX_BACKEND].samplerate_mixer_ctl =
+        strdup("QUAT_MI2S_TX SampleRate");
+    my_data->current_backend_cfg[HDMI_DSD_TX_BACKEND].channels_mixer_ctl =
+        strdup("QUAT_MI2S_TX Channels");
 
     my_data->current_backend_cfg[SEC_MI2S_RX_BACKEND].bitwidth_mixer_ctl =
         strdup("SEC_MI2S_RX Format");
@@ -3330,6 +3365,11 @@ acdb_init_fail:
             my_data->is_asrc_supported = true;
             platform_set_native_support(NATIVE_AUDIO_MODE_MULTIPLE_44_1);
         }
+    }
+
+    if (strstr(snd_card_name, "csra8plus2")) {
+        ALOGD("%s:DSD playback is supported", __func__);
+        my_data->is_dsd_supported = true;
     }
 
     if (property_get_bool("vendor.audio.apptype.multirec.enabled", false))
@@ -4361,6 +4401,8 @@ int platform_get_backend_index(snd_device_t snd_device)
                         port = SPDIF_TX_BACKEND;
                 else if (strcmp(backend_tag_table[snd_device], "hdmi-in") == 0)
                         port = HDMI_TX_BACKEND;
+                else if (strcmp(backend_tag_table[snd_device], "hdmi-in-dsd") == 0)
+                        port = HDMI_DSD_TX_BACKEND;
                 else if (strcmp(backend_tag_table[snd_device], "hdmi-arc-in") == 0)
                         port = HDMI_ARC_TX_BACKEND;
                 else if (strcmp(backend_tag_table[snd_device], "headset-mic") == 0)
@@ -5393,6 +5435,8 @@ snd_device_t platform_get_output_snd_device(void *platform, struct stream_out *o
                 snd_device = SND_DEVICE_OUT_SPEAKER;
         } else if (my_data->is_vbat_speaker || my_data->is_bcl_speaker)
             snd_device = SND_DEVICE_OUT_SPEAKER_VBAT;
+        else if (out->format == AUDIO_FORMAT_DSD)
+            snd_device = SND_DEVICE_OUT_SPEAKER_DSD;
         else
             snd_device = SND_DEVICE_OUT_SPEAKER;
     } else if (devices & AUDIO_DEVICE_OUT_SPEAKER2) {
@@ -5639,6 +5683,8 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
 {
     struct platform_data *my_data = (struct platform_data *)platform;
     struct audio_device *adev = my_data->adev;
+    int format = (adev->active_input == NULL) ? AUDIO_FORMAT_DEFAULT : adev->active_input->format;
+
     /*
      * TODO: active_input always points to last opened input. Source returned will
      * be wrong if more than one active inputs are present.
@@ -6141,7 +6187,10 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
         } else if (in_device & AUDIO_DEVICE_IN_BLUETOOTH_A2DP) {
             snd_device = SND_DEVICE_IN_BT_A2DP;
         } else if (in_device & AUDIO_DEVICE_IN_AUX_DIGITAL) {
-            snd_device = SND_DEVICE_IN_HDMI_MIC;
+            if (format ==  AUDIO_FORMAT_DSD)
+                snd_device = SND_DEVICE_IN_HDMI_MIC_DSD;
+            else
+                snd_device = SND_DEVICE_IN_HDMI_MIC;
         } else if (in_device & AUDIO_DEVICE_IN_HDMI_ARC) {
             snd_device = SND_DEVICE_IN_HDMI_ARC;
         } else if (in_device & AUDIO_DEVICE_IN_ANLG_DOCK_HEADSET ||
@@ -7576,6 +7625,13 @@ bool platform_sound_trigger_usecase_needs_event(audio_usecase_t uc_id)
     case USECASE_AUDIO_PLAYBACK_MULTI_CH:
     case USECASE_AUDIO_PLAYBACK_OFFLOAD:
     case USECASE_AUDIO_PLAYBACK_OFFLOAD2:
+    case USECASE_AUDIO_PLAYBACK_OFFLOAD3:
+    case USECASE_AUDIO_PLAYBACK_OFFLOAD4:
+    case USECASE_AUDIO_PLAYBACK_OFFLOAD5:
+    case USECASE_AUDIO_PLAYBACK_OFFLOAD6:
+    case USECASE_AUDIO_PLAYBACK_OFFLOAD7:
+    case USECASE_AUDIO_PLAYBACK_OFFLOAD8:
+    case USECASE_AUDIO_PLAYBACK_OFFLOAD9:
         needs_event = true;
         break;
     /* concurrent playback in low latency allowed */
@@ -7747,6 +7803,11 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
             channels = adev_device_cfg_ptr->dev_cfg_params.channels;
         if (adev_device_cfg_ptr->dev_cfg_params.format)
             format = adev_device_cfg_ptr->dev_cfg_params.format;
+    }
+
+    /*TODO: Need to get backend idx using platform_get_backend_idx*/
+    if (snd_device == SND_DEVICE_OUT_SPEAKER_DSD) {
+        backend_idx = DSD_NATIVE_BACKEND;
     }
 
     ALOGI("%s:becf: afe: bitwidth %d, samplerate %d channels %d format %d"
@@ -7930,6 +7991,9 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
             ext_disp_format = "SEC MI2S TX Format";
         else
             ext_disp_format = "QUAT MI2S TX Format";
+        set_mi2s_tx_data_format = true;
+    } else if (backend_idx == HDMI_DSD_TX_BACKEND) {
+        ext_disp_format = "QUAT MI2S TX Format";
         set_mi2s_tx_data_format = true;
     } else if (backend_idx == HDMI_ARC_TX_BACKEND) {
         ext_disp_format = "SEC SPDIF TX Format";
@@ -8187,7 +8251,7 @@ static bool platform_check_codec_backend_cfg(struct audio_device* adev,
     }
 
     /* Native playback is preferred for Headphone/HS device over 192Khz */
-    if (!voice_call_active && codec_device_supports_native_playback(snd_device)) {
+    if (!voice_call_active && codec_device_supports_native_playback(usecase->devices)) {
         if (audio_is_true_native_stream_active(adev)) {
             if (check_hdset_combo_device(usecase->devices)) {
                 /*
@@ -8613,7 +8677,8 @@ bool platform_check_and_set_capture_codec_backend_cfg(struct audio_device* adev,
     }
 
     if ((my_data->capture_ch_map != NULL) &&
-        (platform_get_backend_index(snd_device) == HDMI_TX_BACKEND))
+        ((platform_get_backend_index(snd_device) == HDMI_TX_BACKEND) ||
+        (platform_get_backend_index(snd_device) == HDMI_DSD_TX_BACKEND)))
         platform_set_channel_map(my_data, my_data->capture_ch_map->num_ch,
                                  my_data->capture_ch_map->chmap, -2);
 
@@ -9341,6 +9406,10 @@ void platform_check_and_update_copp_sample_rate(void* platform, snd_device_t snd
     struct platform_data* my_data = (struct platform_data *)platform;
     int backend_idx = platform_get_backend_index(snd_device);
     int device_sr = my_data->current_backend_cfg[backend_idx].sample_rate;
+
+    /* TODO: Need to set DSD_NATIVE_BACKEND for DSD speaker */
+    if (snd_device == SND_DEVICE_OUT_SPEAKER_DSD)
+        device_sr = my_data->current_backend_cfg[DSD_NATIVE_BACKEND].sample_rate;
     /*
      *Check if device SR is multiple of 8K or 11.025 Khz
      *check if the stream SR is multiple of same base, if yes

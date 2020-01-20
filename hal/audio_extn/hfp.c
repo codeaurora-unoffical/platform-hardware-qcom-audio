@@ -87,7 +87,6 @@ struct hfp_module {
     struct pcm *hfp_sco_tx;
     struct pcm *hfp_pcm_rx;
     struct pcm *hfp_pcm_tx;
-    struct pcm *hfp_ext_ec_tx;
     bool is_hfp_running;
     float hfp_volume;
     int32_t hfp_pcm_dev_id;
@@ -103,7 +102,6 @@ static struct hfp_module hfpmod = {
     .hfp_sco_tx = NULL,
     .hfp_pcm_rx = NULL,
     .hfp_pcm_tx = NULL,
-    .hfp_ext_ec_tx = NULL,
     .is_hfp_running = 0,
     .hfp_volume = 0,
     .hfp_pcm_dev_id = HFP_ASM_RX_TX,
@@ -280,7 +278,6 @@ static int32_t start_hfp(struct audio_device *adev,
     int32_t ret = 0;
     struct audio_usecase *uc_info;
     int32_t pcm_dev_rx_id = HFP_PCM_RX, pcm_dev_tx_id, pcm_dev_asm_rx_id, pcm_dev_asm_tx_id;
-    int32_t pcm_ext_ec_ref_id;
 
     ALOGD("%s: enter", __func__);
 
@@ -343,6 +340,14 @@ static int32_t start_hfp(struct audio_device *adev,
         goto exit;
     }
 
+    /* enable multichannel asm loopback for MMECNS device and
+     * restore period size to original.
+     */
+    if (uc_info->in_snd_device == SND_DEVICE_IN_VOICE_SPEAKER_MIC_HFP_MMSECNS) {
+        pcm_config_hfp.channels = 4;
+        pcm_config_hfp.period_size = 240;
+    }
+
     hfpmod.hfp_pcm_tx = pcm_open(adev->snd_card,
                                  pcm_dev_tx_id,
                                  PCM_IN, &pcm_config_hfp);
@@ -365,6 +370,9 @@ static int32_t start_hfp(struct audio_device *adev,
 
     if (audio_extn_auto_hal_start_hfp_downlink(adev, uc_info))
         ALOGE("%s: start hfp downlink failed", __func__);
+
+    if (uc_info->out_snd_device == SND_DEVICE_OUT_VOICE_SPEAKER_HFP)
+        pcm_config_hfp.channels = 1;
 
     hfpmod.hfp_sco_rx = pcm_open(adev->snd_card,
                                   pcm_dev_asm_rx_id,
@@ -394,27 +402,6 @@ static int32_t start_hfp(struct audio_device *adev,
         ret = -EINVAL;
         goto exit;
     }
-
-#ifdef PLATFORM_AUTO
-    /* echo reference path for single-mic/multi-mic surround ECNS hfp calls */
-    pcm_ext_ec_ref_id = HFP_EXT_EC_REF_TX;
-    ALOGD("%s: Opening PCM capture device card_id(%d) device_id(%d)",
-            __func__, adev->snd_card, pcm_ext_ec_ref_id);
-    hfpmod.hfp_ext_ec_tx = pcm_open(adev->snd_card,
-                                    pcm_ext_ec_ref_id,
-                                    PCM_IN, &pcm_config_hfp);
-    if (hfpmod.hfp_ext_ec_tx && !pcm_is_ready(hfpmod.hfp_ext_ec_tx)) {
-        ALOGE("%s: %s", __func__, pcm_get_error(hfpmod.hfp_ext_ec_tx));
-        ret = -EIO;
-        goto exit;
-    }
-
-    if (pcm_start(hfpmod.hfp_ext_ec_tx) < 0) {
-        ALOGE("%s: pcm start for hfp ext ec tx failed", __func__);
-        ret = -EINVAL;
-        goto exit;
-    }
-#endif
 
     hfpmod.is_hfp_running = true;
     hfp_set_volume(adev, hfpmod.hfp_volume);
@@ -457,14 +444,6 @@ static int32_t stop_hfp(struct audio_device *adev)
         pcm_close(hfpmod.hfp_pcm_tx);
         hfpmod.hfp_pcm_tx = NULL;
     }
-
-#ifdef PLATFORM_AUTO
-    /* echo reference path for single-mic/multi-mic surround ECNS hfp calls */
-    if (hfpmod.hfp_ext_ec_tx) {
-        pcm_close(hfpmod.hfp_ext_ec_tx);
-        hfpmod.hfp_ext_ec_tx = NULL;
-    }
-#endif
 
     uc_info = get_usecase_from_list(adev, hfpmod.ucid);
     if (uc_info == NULL) {
