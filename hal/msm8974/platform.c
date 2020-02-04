@@ -7605,13 +7605,22 @@ bool platform_sound_trigger_device_needs_event(snd_device_t snd_device)
 {
     bool needs_event = false;
 
+    /*
+     * ToDo - Needs to be decided based on backend id.
+     * Line in might share same backend in few platforms.
+     */
     if ((snd_device >= SND_DEVICE_IN_BEGIN) &&
         (snd_device < SND_DEVICE_IN_END) &&
         (snd_device != SND_DEVICE_IN_CAPTURE_FM) &&
         (snd_device != SND_DEVICE_IN_CAPTURE_VI_FEEDBACK) &&
         (snd_device != SND_DEVICE_IN_CAPTURE_VI_FEEDBACK_MONO_1) &&
         (snd_device != SND_DEVICE_IN_CAPTURE_VI_FEEDBACK_MONO_2) &&
-        (snd_device != SND_DEVICE_IN_EC_REF_LOOPBACK))
+        (snd_device != SND_DEVICE_IN_EC_REF_LOOPBACK) &&
+        (snd_device != SND_DEVICE_IN_SPDIF) &&
+        (snd_device != SND_DEVICE_IN_HDMI_MIC) &&
+        (snd_device != SND_DEVICE_IN_HDMI_MIC_DSD) &&
+        (snd_device != SND_DEVICE_IN_HDMI_ARC) &&
+        (snd_device != SND_DEVICE_IN_LINE))
         needs_event = true;
 
     return needs_event;
