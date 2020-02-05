@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -266,7 +266,7 @@ bool audio_extn_qdsp_supported_usb();
 
 //END: EXTN_QDSP_PLUGIN      ===========================================
 
-#define MIN_OFFLOAD_BUFFER_DURATION_MS 5 /* 5ms */
+#define MIN_OFFLOAD_BUFFER_DURATION_MS 4 /* 4ms */
 #define MAX_OFFLOAD_BUFFER_DURATION_MS (100 * 1000) /* 100s */
 
 void audio_extn_set_parameters(struct audio_device *adev,
