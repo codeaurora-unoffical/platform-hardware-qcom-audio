@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -391,4 +391,5 @@ struct audio_custom_mtmx_in_params * platform_get_custom_mtmx_in_params(void *pl
                                     struct audio_custom_mtmx_in_params_info *info);
 int platform_add_custom_mtmx_in_params(void *platform,
                                     struct audio_custom_mtmx_in_params_info *info);
+bool platform_check_snd_device_is_speaker(snd_device_t snd_device);
 #endif // AUDIO_PLATFORM_API_H

@@ -420,7 +420,8 @@ vendor.audio.feature.deepbuffer_as_primary.enable=false \
 vendor.audio.feature.vbat.enable=true \
 vendor.audio.feature.wsa.enable=false \
 vendor.audio.feature.audiozoom.enable=false \
-vendor.audio.feature.snd_mon.enable=true
+vendor.audio.feature.snd_mon.enable=true \
+vendor.audio.feature.quad_speaker.enable=false
 
 PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.qap.enabled=true

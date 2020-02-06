@@ -261,6 +261,11 @@ int32_t audio_extn_read_afe_proxy_channel_masks(struct stream_out *out);
 int32_t audio_extn_get_afe_proxy_channel_count();
 //END: AFE_PROXY_FEATURE
 
+// START: QUAD SPEAKER
+void quad_speaker_feature_init(bool is_feature_enabled);
+bool audio_extn_is_quad_speaker_enabled();
+// END: QUAD SPEAKER
+
 /// ---- USB feature ---------------------------------------------------------------
 void audio_extn_usb_init(void *adev);
 void audio_extn_usb_deinit();

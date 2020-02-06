@@ -202,6 +202,7 @@ static bool audio_extn_compress_in_enabled = false;
 static bool audio_extn_battery_listener_enabled = false;
 static bool audio_extn_maxx_audio_enabled = false;
 static bool audio_extn_audiozoom_enabled = false;
+static bool audio_extn_quad_speaker_enabled = false;
 
 #define AUDIO_PARAMETER_KEY_AANC_NOISE_LEVEL "aanc_noise_level"
 #define AUDIO_PARAMETER_KEY_ANC        "anc_enabled"
@@ -542,6 +543,16 @@ void audio_extn_set_custom_mtmx_params_v2(struct audio_device *adev,
             info.ip_channels = backend_cfg.channels;
             info.op_channels = audio_channel_count_from_in_mask(
                                    usecase->stream.in->channel_mask);
+        }
+        /*
+         * Quad speaker device is a combo of spkr and lineout to play 4channels.
+         * So set o/p channels to 4 instead of backend cfg channels and update
+         * feature id also.
+         */
+        if (audio_extn_is_quad_speaker_enabled() &&
+            (info.snd_device == SND_DEVICE_OUT_SPEAKER_QUAD)) {
+            info.id = 1;
+            info.op_channels = 4;
         }
         params = platform_get_custom_mtmx_params(adev->platform, &info, &idx);
         if (params) {
@@ -3651,16 +3662,16 @@ void hdmi_edid_feature_init(bool is_feature_enabled)
         //map each function
         //on any faliure to map any function, disble feature
         if (((hdmi_edid_is_supported_sr =
-             (hdmi_edid_is_supported_sr_t)dlsym(hdmi_edid_lib_handle, 
+             (hdmi_edid_is_supported_sr_t)dlsym(hdmi_edid_lib_handle,
                                                 "edid_is_supported_sr")) == NULL) ||
             ((hdmi_edid_is_supported_bps =
              (hdmi_edid_is_supported_bps_t)dlsym(hdmi_edid_lib_handle,
                                                 "edid_is_supported_bps")) == NULL) ||
             ((hdmi_edid_get_highest_supported_sr =
-             (hdmi_edid_get_highest_supported_sr_t)dlsym(hdmi_edid_lib_handle, 
+             (hdmi_edid_get_highest_supported_sr_t)dlsym(hdmi_edid_lib_handle,
                                                 "edid_get_highest_supported_sr")) == NULL) ||
             ((hdmi_edid_get_sink_caps =
-             (hdmi_edid_get_sink_caps_t)dlsym(hdmi_edid_lib_handle, 
+             (hdmi_edid_get_sink_caps_t)dlsym(hdmi_edid_lib_handle,
                                                 "edid_get_sink_caps")) == NULL)) {
             ALOGE("%s: dlsym failed", __func__);
             goto feature_disabled;
@@ -4095,7 +4106,6 @@ void audio_extn_send_dual_mono_mixing_coefficients(struct stream_out *out)
         out->set_dual_mono = true;
         goto exit;
         }
-
         ALOGD("%s: i/p channel count %d, o/p channel count %d, pcm id %d", __func__,
                ip_channel_cnt, op_channel_cnt, pcm_device_id);
 
@@ -4135,11 +4145,10 @@ void audio_extn_send_dual_mono_mixing_coefficients(struct stream_out *out)
         cust_ch_mixer_cfg[len++] = ip_channel_cnt;
         cust_ch_mixer_cfg[len++] = op_channel_cnt;
         for (i = 0; i < op_channel_cnt; i++) {
-             for (j = 0; j < ip_channel_cnt; j++) {
-                  cust_ch_mixer_cfg[len++] = Q14_GAIN_UNITY/ip_channel_cnt;
-             }
+            for (j = 0; j < ip_channel_cnt; j++) {
+                cust_ch_mixer_cfg[len++] = Q14_GAIN_UNITY/ip_channel_cnt;
+            }
         }
-
         err = mixer_ctl_set_array(ctl, cust_ch_mixer_cfg, len);
         if (err)
             ALOGE("%s: ERROR. Mixer ctl set failed", __func__);
@@ -5178,6 +5187,19 @@ bool audio_extn_battery_properties_is_charging()
 }
 // END: BATTERY_LISTENER ================================================================
 
+// START: QUAD SPEAKER ============================================================
+bool audio_extn_is_quad_speaker_enabled()
+{
+    return audio_extn_quad_speaker_enabled;
+}
+
+void quad_speaker_feature_init(bool is_feature_enabled)
+{
+    audio_extn_quad_speaker_enabled = is_feature_enabled;
+    ALOGD("%s: ---- Feature QUAD_SPEAKER is %s----", __func__, is_feature_enabled? "ENABLED": "NOT ENABLED");
+}
+
+// END: QUAD SPEAKER ============================================================
 // START: AUDIOZOOM_FEATURE =====================================================================
 #ifdef __LP64__
 #define AUDIOZOOM_LIB_PATH "/vendor/lib64/libaudiozoom.so"
@@ -5519,6 +5541,9 @@ void audio_extn_feature_init()
     audiozoom_feature_init(
         property_get_bool("vendor.audio.feature.audiozoom.enable",
                            true));
+    quad_speaker_feature_init(
+        property_get_bool("vendor.audio.feature.quad_speaker.enable",
+                           false));
 }
 
 void audio_extn_set_parameters(struct audio_device *adev,

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -154,6 +154,7 @@ enum {
     SND_DEVICE_OUT_VOICE_SPEAKER_AND_VOICE_ANC_HEADSET,
     SND_DEVICE_OUT_VOICE_SPEAKER_STEREO_AND_VOICE_HEADPHONES,
     SND_DEVICE_OUT_VOICE_SPEAKER_STEREO_AND_VOICE_ANC_HEADSET,
+    SND_DEVICE_OUT_SPEAKER_QUAD,
     SND_DEVICE_OUT_END,
 
     /*

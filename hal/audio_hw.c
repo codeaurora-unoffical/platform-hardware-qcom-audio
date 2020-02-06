@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -2461,6 +2461,7 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
     struct audio_usecase *vc_usecase = NULL;
     struct audio_usecase *voip_usecase = NULL;
     struct audio_usecase *hfp_usecase = NULL;
+    struct audio_usecase *pb_usecase = NULL;
     struct stream_out stream_out;
     audio_usecase_t hfp_ucid;
     int status = 0;
@@ -2554,6 +2555,19 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
                    in_snd_device = hfp_usecase->in_snd_device;
                    out_snd_device = hfp_usecase->out_snd_device;
             }
+        } else if (audio_extn_is_quad_speaker_enabled() &&
+                    (usecase->type == PCM_PLAYBACK) &&
+                    platform_check_snd_device_is_speaker(usecase->stream.out->devices)) {
+            /*
+             * If quad speaker is enabled and deep buffer playback is going on
+             * quad speaker (stereo spkr and lineout) and if touch tones comes that
+             * will result in device switch where both LL and music are routed to
+             * spkr instead of quad spkr. To avoid switching devices for music playback
+             * choose playback device only for the other usecases also.
+             */
+            pb_usecase = get_usecase_from_list(adev, USECASE_AUDIO_PLAYBACK_DEEP_BUFFER);
+            if (pb_usecase && (pb_usecase->out_snd_device == SND_DEVICE_OUT_SPEAKER_QUAD))
+               out_snd_device = pb_usecase->out_snd_device;
         }
         if (usecase->type == PCM_PLAYBACK) {
             if (usecase->stream.out == NULL) {
