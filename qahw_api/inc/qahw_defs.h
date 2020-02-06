@@ -220,6 +220,16 @@ typedef enum {
 #define QAHW_PCM_CHANNEL_RLC  15  /* Rear left of center.                          */
 #define QAHW_PCM_CHANNEL_RRC  16  /* Rear right of center.                         */
 
+/* Parameter to be passed when clock switch is needed */
+#define QAHW_PARAMETER_CLOCK "clock"
+#define QAHW_PARAMETER_CLOCK_FREQUENCY "clock_frequency"
+
+typedef enum {
+    QAHW_CLOCK_INTERNAL,
+    QAHW_CLOCK_EXTERNAL,
+    QAHW_CLOCK_MAX
+} qahw_clock_type;
+
 /* type of asynchronous write callback events. Mutually exclusive */
 typedef enum {
     QAHW_STREAM_CBK_EVENT_WRITE_READY, /* non blocking write completed */

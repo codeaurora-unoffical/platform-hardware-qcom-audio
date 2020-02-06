@@ -286,6 +286,25 @@ typedef enum render_mode {
     RENDER_MODE_AUDIO_TTP,
 } render_mode_t;
 
+/* Parameter to be passed when clock switch is needed */
+#define AUDIO_PARAMETER_CLOCK "clock"
+#define AUDIO_PARAMETER_CLOCK_FREQUENCY "clock_frequency"
+
+typedef enum {
+    AUDIO_CLOCK_INTERNAL,
+    AUDIO_CLOCK_EXTERNAL,
+    AUDIO_CLOCK_MAX
+} audio_clock_type;
+
+typedef struct audio_clock_data {
+    int be_id;
+    audio_clock_type clock_type;
+    long clock_frequency;
+    struct listnode list;
+    audio_devices_t device;
+    bool clock_switch;
+} audio_clock_data_t;
+
 #ifdef AUDIO_EXTN_AUTO_HAL_ENABLED
 /* This defines the physical car streams supported in audio HAL,
  * limited by the available frontend PCM driver.
@@ -603,6 +622,7 @@ struct audio_device {
     bool mic_muted;
     bool enable_voicerx;
     unsigned int num_va_sessions;
+    struct listnode clock_switch_list;
 
     int snd_card;
     card_status_t card_status;
