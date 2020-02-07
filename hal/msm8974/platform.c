@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -9173,7 +9173,7 @@ int platform_get_edid_info(void *platform)
 
     switch(my_data->ext_disp_type) {
         case EXT_DISPLAY_TYPE_HDMI:
-            mix_ctl_name = "HDMI EDID";
+            mix_ctl_name = "HDMI MS EDID";
             break;
         case EXT_DISPLAY_TYPE_DP:
             mix_ctl_name = "Display Port EDID";
