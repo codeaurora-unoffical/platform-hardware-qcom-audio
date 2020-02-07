@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -3688,6 +3688,69 @@ int audio_extn_set_device_cfg_params(struct audio_device *adev,
     memcpy(&adev_device_cfg_ptr->dev_cfg_params, device_cfg_params, sizeof(struct audio_device_cfg_param));
 
     return 0;
+}
+
+int audio_extn_set_pll_device_cfg_params(struct audio_device *adev,
+                                     struct audio_pll_device_cfg_param *payload)
+{
+    int ret = 0;
+    struct mixer_ctl *ctl = NULL;
+    const char *mixer_ctl_name = "PLL config data";
+    uint32_t snd_device = 0, backend_idx = 0;
+    struct stream_out out;
+    struct audio_pll_device_cfg_param *dev_cfg_params = payload;
+    struct pll_device_config_params pll_device_cfg_params;
+
+    ALOGV("%s\n", __func__);
+
+    if (!dev_cfg_params || !adev) {
+        ALOGE("Invalid param\n");
+        ret = -EINVAL;
+        goto err;
+    }
+
+    /* Config is not supported for combo devices */
+    if (popcount(dev_cfg_params->device) != 1) {
+        ALOGE("%s:: Invalid Device (%#x) - Config is ignored\n",
+              __func__, dev_cfg_params->device);
+        ret = -EINVAL;
+        goto err;
+    }
+
+    memset(&out, 0, sizeof(struct stream_out));
+
+    out.devices = dev_cfg_params->device;
+    snd_device = platform_get_output_snd_device(adev->platform, &out);
+    if (snd_device < SND_DEVICE_MIN || snd_device >= SND_DEVICE_MAX) {
+        ALOGE("%s: Invalid sound device %d", __func__, snd_device);
+        ret = -EINVAL;
+        goto err;
+    }
+
+    backend_idx = platform_get_snd_device_backend_index(snd_device);
+
+    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+    if (!ctl) {
+        ALOGE("%s: ERROR. Could not get ctl for mixer cmd - %s",
+              __func__, mixer_ctl_name);
+        ret = -EINVAL;
+        goto err;
+    }
+
+    memset(&pll_device_cfg_params, 0, sizeof(pll_device_cfg_params));
+
+    pll_device_cfg_params.be_idx = backend_idx;
+    pll_device_cfg_params.drift = dev_cfg_params->drift;
+    pll_device_cfg_params.reset = (uint32_t)dev_cfg_params->reset;
+
+    /* trigger mixer control to send clock drift value */
+    ret = mixer_ctl_set_array(ctl, &pll_device_cfg_params,
+                   sizeof(struct pll_device_config_params));
+    if (ret < 0)
+        ALOGE("%s:[%d] Could not set ctl for mixer cmd - %s, ret %d",
+              __func__, pll_device_cfg_params.drift, mixer_ctl_name, ret);
+err:
+    return ret;
 }
 
 //START: FM_POWER_OPT_FEATURE ================================================================

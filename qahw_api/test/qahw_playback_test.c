@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2015 The Android Open Source Project *
@@ -99,6 +99,12 @@ struct proxy_data {
 struct drift_data {
     qahw_module_handle_t *out_handle;
     bool enable_drift_correction;
+    volatile bool thread_exit;
+};
+
+struct pll_dev_cfg_data {
+    struct qahw_pll_dev_cfg pll_cfg;
+    qahw_module_handle_t *out_handle;
     volatile bool thread_exit;
 };
 
@@ -539,6 +545,65 @@ void *drift_read(void* data)
     return NULL;
 }
 
+void *pll_cfg_send(void *data)
+{
+    struct pll_dev_cfg_data *params = (struct pll_dev_cfg_data*)data;
+    qahw_stream_handle_t* out_handle = params->out_handle;
+    struct qahw_pll_dev_cfg dev_cfg_params;
+    int rc = 0;
+    char *str1 = "drift";
+    char *str2 = "reset";
+    char *save_ptr;
+    char cmd_str[MAX_STR_LEN];
+    int32_t drift;
+    uint32_t reset;
+
+    memset(&dev_cfg_params, 0, sizeof(struct qahw_pll_dev_cfg));
+    dev_cfg_params.audio_device = params->pll_cfg.audio_device;
+
+    while (!(params->thread_exit)) {
+        if (fgets(cmd_str, sizeof(cmd_str), stdin) == NULL) {
+            fprintf(stderr, "read error\n");
+            break;
+        }
+        strtok_r(cmd_str, "\n", &save_ptr);
+        if (!is_valid_input(cmd_str))
+            continue;
+
+        if (strcmp(str1, cmd_str) == 0) {
+            fgets(cmd_str, sizeof(cmd_str), stdin);
+            strtok_r(cmd_str, "\n", &save_ptr);
+            drift = atoi(cmd_str);
+            dev_cfg_params.clk_drift = drift;
+            dev_cfg_params.reset = 0;
+            rc = qahw_set_param_data(out_handle,
+                      QAHW_PARAM_PLL_DEVICE_CONFIG,
+                      (qahw_param_payload *)&dev_cfg_params);
+            if (rc != 0) {
+                fprintf(log_file, "set PLL dev cfg failed with updated drift err %d\n", rc);
+                fprintf(stderr, "set PLL dev cfg failed with updated drift err %d\n", rc);
+            }
+            fprintf(stderr, "setparam called with updated drift:%d reset:%d\n",
+                    dev_cfg_params.clk_drift, dev_cfg_params.reset);
+        } else if (strcmp(str2, cmd_str) == 0) {
+            fgets(cmd_str, sizeof(cmd_str), stdin);
+            strtok_r(cmd_str, "\n", &save_ptr);
+            reset = atoi(cmd_str);
+            dev_cfg_params.reset = reset;
+            rc = qahw_set_param_data(out_handle,
+                      QAHW_PARAM_PLL_DEVICE_CONFIG,
+                      (qahw_param_payload *)&dev_cfg_params);
+            if (rc != 0) {
+                fprintf(log_file, "set PLL dev cfg failed with updated reset err %d\n", rc);
+                fprintf(stderr, "set PLL dev cfg failed with updated reset err %d\n", rc);
+            }
+            fprintf(stderr, "setparam called with updated reset  drift:%d reset:%d\n",
+                    dev_cfg_params.clk_drift, dev_cfg_params.reset);
+        }
+    }
+    return NULL;
+}
+
 static int __unused is_eof (stream_config *stream) {
     if (stream->filename) {
         if (feof(stream->file_stream)) {
@@ -651,7 +716,11 @@ void *start_stream_playback (void* stream_data)
 
     bool drift_thread_active = false;
     pthread_t drift_query_thread;
+    pthread_t pll_cfg_thread;
     struct drift_data drift_params;
+
+    bool pll_cfg_thread_active = false;
+    struct pll_dev_cfg_data pll_cfg_params;
 
     int offset = 0;
     bool is_offload = params->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD;
@@ -853,6 +922,22 @@ void *start_stream_playback (void* stream_data)
             fprintf(log_file, "drift query thread creation failure %d\n", rc);
     }
 
+    if (params->pll_dev_cfg && !pll_cfg_thread_active) {
+        pll_cfg_params.out_handle = params->qahw_out_hal_handle;
+        pll_cfg_params.thread_exit = false;
+
+        pll_cfg_params.pll_cfg.audio_device = params->output_device;
+
+        fprintf(log_file, "create pll cfg thread to send setdeviceparam command\n");
+        rc = pthread_create(&pll_cfg_thread, NULL, pll_cfg_send, (void *)&pll_cfg_params);
+        if (!rc) {
+            pll_cfg_thread_active = true;
+        }
+        else {
+            fprintf(log_file, "pll cfg thread creation failure %d\n", rc);
+        }
+    }
+
     rc = qahw_out_set_volume(params->out_handle, vol_level, vol_level);
     if (rc < 0) {
         fprintf(log_file, "stream %d: unable to set volume\n", params->stream_index);
@@ -903,9 +988,7 @@ void *start_stream_playback (void* stream_data)
     unsigned int total_bytes_read = 0;
     while (!exit && !stop_playback) {
         if (!bytes_remaining) {
-            fprintf(log_file, "\nstream %d: reading bytes %zd\n", params->stream_index, bytes_wanted);
             bytes_read = read_bytes(params, data_ptr, bytes_wanted, &total_bytes_read);
-            fprintf(log_file, "stream %d: read bytes %zd\n", params->stream_index, bytes_read);
             if ((!read_complete_file && (bytes_to_read <= 0)) || (bytes_read <= 0)) {
                 fprintf(log_file, "stream %d: end of file\n", params->stream_index);
                 if (is_offload) {
@@ -936,8 +1019,6 @@ void *start_stream_playback (void* stream_data)
         }
 
         offset = write_length - bytes_remaining;
-        fprintf(log_file, "stream %d: writing to hal %zd bytes, offset %d, write length %zd\n",
-                params->stream_index, bytes_remaining, offset, write_length);
 
 
         bytes_written = bytes_remaining;
@@ -950,8 +1031,6 @@ void *start_stream_playback (void* stream_data)
         bytes_remaining -= bytes_written;
 
         latency = qahw_out_get_latency(params->out_handle);
-        fprintf(log_file, "stream %d: bytes_written %zd, bytes_remaining %zd latency %d\n",
-                params->stream_index, bytes_written, bytes_remaining, latency);
     }
 
 
@@ -1006,6 +1085,13 @@ void *start_stream_playback (void* stream_data)
         drift_params.thread_exit = true;
         pthread_join(drift_query_thread, NULL);
     }
+
+    if (pll_cfg_thread_active) {
+        pll_cfg_params.thread_exit = true;
+        pthread_cancel(pll_cfg_thread);
+        pthread_join(pll_cfg_thread, NULL);
+    }
+
     rc = qahw_out_standby(params->out_handle);
     if (rc) {
         fprintf(log_file, "stream %d: out standby failed %d \n", params->stream_index, rc);
@@ -1758,6 +1844,8 @@ void usage() {
     printf("hal_play_test -f /data/ape_dsp.isf.0x152E.bitstream.0x10100400.0x2.0x12F32.rx.bin -k 16,73728,3990,2000,53808,32,2,44100,157,44100,1 -t 18 -r 48000 -c 2 -v 0.5 -d 131072");
     printf("                                          -> kvpair(-k) values represent media-info of clip & values should be in below mentioned sequence\n");
     printf("                                          ->bits_per_sample,blocks_per_frame,compatible_version,compression_level,final_frame_blocks,format_flags,num_channels,sample_rate,total_frames,sample_rate,seek_table_present \n");
+    printf(" hal_play_test -f /data/yesterday_48k_stereo.wav -r 48000 -c 2 -d 2 -v 0.3 -n 1\n");
+    printf("                                          -> (n=1) enable PLL dev cfg params\n");
 }
 
 int get_wav_header_length (FILE* file_stream)
@@ -2217,6 +2305,7 @@ int main(int argc, char* argv[]) {
         {"drift correction",   no_argument,     0, 'Q'},
         {"device-nodeurl",required_argument,    0, 'u'},
         {"mode",          required_argument,    0, 'm'},
+        {"pll-dev-cfg",   required_argument,    0, 'n'},
         {"effect-preset",   required_argument,    0, 'p'},
         {"effect-strength", required_argument,    0, 'S'},
         {"render-format", required_argument,    0, 'x'},
@@ -2262,7 +2351,7 @@ int main(int argc, char* argv[]) {
 
     while ((opt = getopt_long(argc,
                               argv,
-                              "-f:r:c:b:d:s:v:V:l:t:a:w:k:PD:KF:Ee:A:u:m:S:C:p::x:y:qQzh:i:h:g:O:",
+                              "-f:r:c:b:d:s:v:V:l:t:a:w:k:PD:KF:Ee:A:u:m:n:S:C:p::x:y:qQzh:i:h:g:O:",
                               long_options,
                               &option_index)) != -1) {
 
@@ -2458,6 +2547,9 @@ int main(int argc, char* argv[]) {
             break;
         case 'm':
             stream_param[i].usb_mode = atoi(optarg);
+            break;
+        case 'n':
+            stream_param[i].pll_dev_cfg = atoi(optarg);
             break;
         case 'x':
             render_format = atoi(optarg);
