@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2014 The Android Open Source Project
@@ -1812,6 +1812,10 @@ void audio_extn_utils_send_audio_calibration(struct audio_device *adev,
         platform_send_audio_calibration(adev->platform, usecase,
                          platform_get_default_app_type_v2(adev->platform, usecase->type),
                          usecase->stream.inout->out_config.sample_rate);
+    } else if (type == TRANSCODE_LOOPBACK_TX && usecase->stream.inout != NULL) {
+        platform_send_audio_calibration(adev->platform, usecase,
+                         platform_get_default_app_type_v2(adev->platform, usecase->type),
+                         usecase->stream.inout->in_config.sample_rate);
     } else {
         /* No need to send audio calibration for voice and voip call usecases */
         if ((type != VOICE_CALL) && (type != VOIP_CALL))

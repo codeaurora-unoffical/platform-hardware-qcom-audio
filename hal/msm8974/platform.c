@@ -4443,6 +4443,8 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
         snd_device = usecase->in_snd_device;
     else if (usecase->type == TRANSCODE_LOOPBACK_RX)
         snd_device = usecase->out_snd_device;
+    else if (usecase->type == TRANSCODE_LOOPBACK_TX)
+        snd_device = usecase->in_snd_device;
     else if ((usecase->type == AFE_LOOPBACK) || (usecase->type == DTMF_PLAYBACK))
         snd_device = usecase->out_snd_device;
 
