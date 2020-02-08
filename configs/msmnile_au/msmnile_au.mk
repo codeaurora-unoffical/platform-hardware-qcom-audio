@@ -90,6 +90,7 @@ AUDIO_FEATURE_ENABLED_AUTO_AUDIOD := true
 AUDIO_FEATURE_ENABLED_DAEMON_SUPPORT := true
 endif
 AUDIO_FEATURE_ENABLED_FM_TUNER_EXT := true
+AUDIO_FEATURE_ENABLED_ICC := true
 ##AUTOMOTIVE_AUDIO_FEATURE_FLAGS
 
 ifneq ($(strip $(TARGET_USES_RRO)), true)
@@ -357,6 +358,7 @@ vendor.audio.feature.fm.enable=false \
 vendor.audio.feature.hdmi_edid.enable=false \
 vendor.audio.feature.hdmi_passthrough.enable=false \
 vendor.audio.feature.hfp.enable=true  \
+vendor.audio.feature.icc.enable=true  \
 vendor.audio.feature.hifi_audio.enable=false \
 vendor.audio.feature.hwdep_cal.enable=false  \
 vendor.audio.feature.incall_music.enable=true  \
@@ -402,6 +404,7 @@ vendor.audio.feature.fm.enable=true \
 vendor.audio.feature.hdmi_edid.enable=true \
 vendor.audio.feature.hdmi_passthrough.enable=true \
 vendor.audio.feature.hfp.enable=true \
+vendor.audio.feature.icc.enable=true \
 vendor.audio.feature.hifi_audio.enable=false \
 vendor.audio.feature.hwdep_cal.enable=false \
 vendor.audio.feature.incall_music.enable=true \
