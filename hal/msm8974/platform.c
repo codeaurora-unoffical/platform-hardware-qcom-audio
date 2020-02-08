@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -2761,6 +2761,9 @@ static bool check_and_get_wsa_info(char *snd_card_name, int *wsaCount,
         char buf[50];
         struct dirent *tzdirent;
         DIR *tzdir = NULL;
+
+        if (!strcmp(tdirent->d_name,".."))
+            continue;
 
         tzdir = opendir(tdirent->d_name);
         if (!tzdir)
