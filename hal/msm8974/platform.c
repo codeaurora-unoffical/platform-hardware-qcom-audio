@@ -3368,8 +3368,6 @@ void *platform_init(struct audio_device *adev)
             ALOGD("ACDB initialization failed");
         }
     }
-    /* init keep-alive for compress passthru */
-    audio_extn_keep_alive_init(adev);
 
 #ifdef FLICKER_SENSOR_INPUT
     configure_flicker_sensor_input(adev->mixer);
