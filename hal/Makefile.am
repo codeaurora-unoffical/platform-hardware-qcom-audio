@@ -71,6 +71,10 @@ endif
 #c_sources += audio_extn/compress_capture.c
 #endif
 
+if FLUENCE_ENABLED
+AM_CFLAGS += -DFLUENCE_ENABLED
+endif
+
 if DTS_EAGLE
 AM_CFLAGS += -DDTS_EAGLE
 c_sources += audio_extn/dts_eagle.c
