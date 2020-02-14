@@ -574,6 +574,7 @@ typedef enum {
     QAHW_PARAM_DTMF_DETECT,
     QAHW_PARAM_TONE_GEN,
     QAHW_PARAM_IN_TTP_OFFSET,
+    QAHW_PARAM_PLL_DEVICE_CONFIG,
 } qahw_param_id;
 
 typedef union {
