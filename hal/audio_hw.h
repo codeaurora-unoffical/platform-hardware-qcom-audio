@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -483,6 +483,7 @@ struct stream_in {
     int64_t frames_muted; /* total frames muted, not cleared when entering standby */
 
     bool dsd_config_updated;
+    uint64_t ttp_offset_cached;
 #ifndef LINUX_ENABLED
     error_log_t *error_log;
 #endif
