@@ -20,6 +20,12 @@
 #define LOG_TAG "msm8916_platform"
 /*#define LOG_NDEBUG 0*/
 #define LOG_NDDEBUG 0
+/*#define VERY_VERY_VERBOSE_LOGGING*/
+#ifdef VERY_VERY_VERBOSE_LOGGING
+#define ALOGVV ALOGV
+#else
+#define ALOGVV(a...) do { } while(0)
+#endif
 
 #include <stdlib.h>
 #include <dlfcn.h>
@@ -91,6 +97,7 @@
 #define MIXER_XML_PATH_WCD9330_I2S "/etc/mixer_paths_wcd9330_i2s.xml"
 #define MIXER_XML_PATH_WCD9335_I2S "/etc/mixer_paths_wcd9335_i2s.xml"
 #define MIXER_XML_PATH_SBC "/etc/mixer_paths_sbc.xml"
+#define MIXER_XML_PATH_SDM429W "/etc/mixer_paths_sdm429w.xml"
 #else
 #define MIXER_XML_PATH "/vendor/etc/mixer_paths.xml"
 #define MIXER_XML_PATH_MSM8909_PM8916 "/vendor/etc/mixer_paths_msm8909_pm8916.xml"
@@ -108,6 +115,7 @@
 #define MIXER_XML_PATH_WCD9330_I2S "/vendor/etc/mixer_paths_wcd9330_i2s.xml"
 #define MIXER_XML_PATH_WCD9335_I2S "/vendor/etc/mixer_paths_wcd9335_i2s.xml"
 #define MIXER_XML_PATH_SBC "/vendor/etc/mixer_paths_sbc.xml"
+#define MIXER_XML_PATH_SDM429W "/vendor/etc/mixer_paths_sdm429w.xml"
 #endif
 #define MIXER_XML_PATH_SKUN "/vendor/etc/mixer_paths_qrd_skun.xml"
 
@@ -1500,6 +1508,13 @@ static void query_platform(const char *snd_card_name,
         msm_device_to_be_id = msm_device_to_be_id_external_codec;
         msm_be_id_array_len  =
             sizeof(msm_device_to_be_id_external_codec) / sizeof(msm_device_to_be_id_external_codec[0]);
+   } else if (!strncmp(snd_card_name, "sdm429w-snd-card",
+                       sizeof("sdm429w-snd-card"))) {
+        strlcpy(mixer_xml_path, MIXER_XML_PATH_SDM429W,
+                sizeof(MIXER_XML_PATH_SDM429W));
+        msm_device_to_be_id = msm_device_to_be_id_internal_codec;
+        msm_be_id_array_len  =
+            sizeof(msm_device_to_be_id_internal_codec) / sizeof(msm_device_to_be_id_internal_codec[0]);
     } else {
         strlcpy(mixer_xml_path, MIXER_XML_PATH,
                 sizeof(MIXER_XML_PATH));
