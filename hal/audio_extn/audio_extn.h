@@ -64,16 +64,6 @@
 #define AUDIO_DEVICE_OUT_FM_TX 0x8000000
 #endif
 
-#ifndef AUDIO_FORMAT_AAC_LATM
-#define AUDIO_FORMAT_AAC_LATM 0x80000000UL
-#define AUDIO_FORMAT_AAC_LATM_LC   (AUDIO_FORMAT_AAC_LATM |\
-                                      AUDIO_FORMAT_AAC_SUB_LC)
-#define AUDIO_FORMAT_AAC_LATM_HE_V1 (AUDIO_FORMAT_AAC_LATM |\
-                                      AUDIO_FORMAT_AAC_SUB_HE_V1)
-#define AUDIO_FORMAT_AAC_LATM_HE_V2  (AUDIO_FORMAT_AAC_LATM |\
-                                      AUDIO_FORMAT_AAC_SUB_HE_V2)
-#endif
-
 #ifndef AUDIO_FORMAT_AC4
 #define AUDIO_FORMAT_AC4  0x22000000UL
 #endif
