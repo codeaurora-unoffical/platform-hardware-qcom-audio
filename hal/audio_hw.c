@@ -3774,6 +3774,8 @@ static int check_input_parameters(uint32_t sample_rate,
     case 96000:
     case 176400:
     case 192000:
+    case 352800:
+    case 384000:
         break;
     default:
         ret = -EINVAL;
