@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -3682,6 +3682,8 @@ static int check_input_parameters(uint32_t sample_rate,
     case 96000:
     case 176400:
     case 192000:
+    case 352800:
+    case 384000:
         break;
     default:
         ret = -EINVAL;
