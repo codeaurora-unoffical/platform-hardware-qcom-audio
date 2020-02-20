@@ -481,6 +481,7 @@ static mm_module_type get_mm_module_for_format_l(audio_format_t format)
     switch (format & AUDIO_FORMAT_MAIN_MASK) {
         case AUDIO_FORMAT_AC3:
         case AUDIO_FORMAT_E_AC3:
+        case AUDIO_FORMAT_E_AC3_JOC:
         case AUDIO_FORMAT_AAC:
         case AUDIO_FORMAT_AAC_ADTS:
         case AUDIO_FORMAT_AC4:
@@ -567,6 +568,7 @@ static bool audio_extn_qap_passthrough_enabled(struct stream_out *out)
             switch (out->format) {
                 case AUDIO_FORMAT_AC3:
                 case AUDIO_FORMAT_E_AC3:
+                case AUDIO_FORMAT_E_AC3_JOC:
                 case AUDIO_FORMAT_DTS:
                 case AUDIO_FORMAT_DTS_HD:
                 case AUDIO_FORMAT_DOLBY_TRUEHD:
@@ -1305,6 +1307,7 @@ static int get_buffer_latency(struct stream_out *out, uint32_t buffer_size, uint
             size_of_one_encoded_frame = DD_ENCODER_OUTPUT_SIZE;
         break;
         case AUDIO_FORMAT_E_AC3:
+        case AUDIO_FORMAT_E_AC3_JOC:
             samples_in_one_encoded_frame = DDP_FRAME_SIZE;
             size_of_one_encoded_frame = DDP_ENCODER_OUTPUT_SIZE;
         break;
@@ -2894,7 +2897,8 @@ static int qap_map_input_format(audio_format_t audio_format, qap_audio_format_t 
     if (audio_format == AUDIO_FORMAT_AC3) {
         *format = QAP_AUDIO_FORMAT_AC3;
         DEBUG_MSG( "File Format is AC3!");
-    } else if (audio_format == AUDIO_FORMAT_E_AC3) {
+    } else if ((audio_format == AUDIO_FORMAT_E_AC3) ||
+               (audio_format == AUDIO_FORMAT_E_AC3_JOC)) {
         *format = QAP_AUDIO_FORMAT_EAC3;
         DEBUG_MSG( "File Format is E_AC3!");
     } else if ((audio_format == AUDIO_FORMAT_AAC_ADTS_LC) ||
