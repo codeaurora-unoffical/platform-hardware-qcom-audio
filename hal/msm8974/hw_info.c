@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -756,7 +756,8 @@ void *hw_info_init(const char *snd_card_name)
     } else if (strstr(snd_card_name, "sdm660") || strstr(snd_card_name, "sdm670")
                || strstr(snd_card_name, "sm6150") || strstr(snd_card_name, "qcs605-lc")
                || strstr(snd_card_name, "qcs405") || strstr(snd_card_name, "qcs605-ipc")
-               || strstr(snd_card_name, "trinket") || strstr(snd_card_name, "sa6155")) {
+               || strstr(snd_card_name, "trinket") || strstr(snd_card_name, "sa6155")
+               || strstr(snd_card_name, "qcs404")) {
         ALOGV("Bear - variant soundcard");
         update_hardware_info_bear(hw_info, snd_card_name);
     } else if (strstr(snd_card_name, "sdx")) {
