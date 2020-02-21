@@ -36,7 +36,7 @@ LOCAL_SRC_FILES         := src/aenc_svr.c
 LOCAL_SRC_FILES         += src/omx_evrc_aenc.cpp
 
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include \
-                    $(TARGET_OUT_INTERMEDIATES)/vendor/qcom/opensource/audio-kernel/include
+                    vendor/qcom/opensource/audio-kernel/include/uapi
 LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
 
 include $(BUILD_SHARED_LIBRARY)

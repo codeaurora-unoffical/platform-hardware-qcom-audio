@@ -44,7 +44,7 @@ LOCAL_SRC_FILES := \
 LOCAL_SRC_FILES += audio_extn/audio_extn.c \
                    audio_extn/utils.c
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
-LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/vendor/qcom/opensource/audio-kernel/include
+LOCAL_C_INCLUDES += vendor/qcom/opensource/audio-kernel/include/uapi
 LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
 
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_PCM_OFFLOAD)),true)
