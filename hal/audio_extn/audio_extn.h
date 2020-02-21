@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -174,6 +174,12 @@ struct snd_card_split {
 
 struct snd_card_split *audio_extn_get_snd_card_split();
 
+struct pll_device_config_params {
+    int32_t be_idx;
+    int32_t drift;
+    bool reset;
+} __attribute__((packed));
+
 // -- function pointers needed for audio extn
 typedef void (*fp_platform_make_cal_cfg_t)(acdb_audio_cal_cfg_t *, int, int,
                                          int, int, int, uint32_t, uint16_t,
@@ -266,7 +272,7 @@ bool audio_extn_qdsp_supported_usb();
 
 //END: EXTN_QDSP_PLUGIN      ===========================================
 
-#define MIN_OFFLOAD_BUFFER_DURATION_MS 5 /* 5ms */
+#define MIN_OFFLOAD_BUFFER_DURATION_MS 4 /* 4ms */
 #define MAX_OFFLOAD_BUFFER_DURATION_MS (100 * 1000) /* 100s */
 
 void audio_extn_set_parameters(struct audio_device *adev,
@@ -772,6 +778,7 @@ int audio_extn_get_mi2s_be_dsd_rate_mul_factor(int dsd_format);
 int audio_extn_get_fe_dsd_rate_mul_factor(int dsd_format);
 int audio_extn_get_dsd_in_ch_mask(int channels);
 int audio_extn_get_dsd_out_ch_mask(int channels);
+void audio_extn_set_dsd_dec_params(struct stream_out *out, int blk_size);
 
 #ifdef DS2_DOLBY_DAP_ENABLED
 #define LIB_DS2_DAP_HAL "vendor/lib/libhwdaphal.so"
@@ -987,6 +994,8 @@ void audio_extn_cin_free_input_stream_resources(struct stream_in *in);
 int audio_extn_cin_read(struct stream_in *in, void *buffer,
                         size_t bytes, size_t *bytes_read);
 int audio_extn_cin_configure_input_stream(struct stream_in *in, struct audio_config *in_config);
+int audio_extn_compress_in_set_ttp_offset(struct stream_in *in,
+            struct audio_in_ttp_offset_param *offset_param);
 #else
 #define audio_extn_cin_applicable_stream(in) (false)
 #define audio_extn_cin_attached_usecase(uc_id) (false)
@@ -998,6 +1007,7 @@ int audio_extn_cin_configure_input_stream(struct stream_in *in, struct audio_con
 #define audio_extn_cin_free_input_stream_resources(in) (0)
 #define audio_extn_cin_read(in, buffer, bytes, bytes_read) (0)
 #define audio_extn_cin_configure_input_stream(in, in_config) (0)
+#define audio_extn_compress_in_set_ttp_offset(in, offset_param) (0)
 #endif
 
 //START: SOURCE_TRACKING_FEATURE ==============================================
@@ -1033,11 +1043,15 @@ int audio_extn_out_get_param_data(struct stream_out *out,
                              audio_extn_param_payload *payload);
 int audio_extn_set_device_cfg_params(struct audio_device *adev,
                                      struct audio_device_cfg_param *payload);
+int audio_extn_set_pll_device_cfg_params(struct audio_device *adev,
+                struct audio_pll_device_cfg_param *payload);
 int audio_extn_utils_get_avt_device_drift(
                 struct audio_usecase *usecase,
                 struct audio_avt_device_drift_param *drift_param);
 int audio_extn_utils_compress_get_dsp_latency(struct stream_out *out);
 int audio_extn_utils_compress_set_render_mode(struct stream_out *out);
+int audio_extn_utils_compress_set_render_mode_v2(struct compress *compr,
+                                                 int render_mode);
 int audio_extn_utils_compress_set_clk_rec_mode(struct audio_usecase *usecase);
 int audio_extn_utils_compress_set_render_window(
             struct stream_out *out,

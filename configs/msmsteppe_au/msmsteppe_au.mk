@@ -219,7 +219,7 @@ vendor.audio.use.sw.ape.decoder=true
 
 #enable hw aac encoder by default
 PRODUCT_PROPERTY_OVERRIDES += \
-vendor.audio.hw.aac.encoder=true
+vendor.audio.hw.aac.encoder=false
 
 #enable hardware decoders for WMA & APE by default
 PRODUCT_PROPERTY_OVERRIDES += \

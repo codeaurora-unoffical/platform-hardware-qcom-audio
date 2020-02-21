@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -3320,6 +3320,7 @@ int start_output_stream(struct stream_out *out)
     char* perf_mode[] = {"ULL", "ULL_PP", "LL"};
     bool a2dp_combo = false;
     bool is_direct_passthough = false;
+    int blk_size = 0;
 
     ATRACE_BEGIN("start_output_stream");
     if ((out->usecase < 0) || (out->usecase >= AUDIO_USECASE_MAX)) {
@@ -3383,6 +3384,8 @@ int start_output_stream(struct stream_out *out)
 
 
     if ((out->format == AUDIO_FORMAT_DSD) && (out->dsd_config_updated == false)) {
+        /* set DSD block size as 1 to maintain backward compatibility */
+        blk_size = 1;
         if (strstr(platform_get_snd_device_backend_interface(platform_get_output_snd_device(adev->platform, out)), "MI2S")) {
             out->bit_width = 32;
             /*
@@ -3401,8 +3404,10 @@ int start_output_stream(struct stream_out *out)
              * In case of DSD128, 44.1KHz DSD  backend sampling rate would be 44.1K * 128
              */
             out->compr_config.codec->sample_rate = out->compr_config.codec->sample_rate * audio_extn_get_fe_dsd_rate_mul_factor(out->dsd_format);
+            blk_size = out->bit_width >> 3;
             out->dsd_config_updated = true;
         }
+        audio_extn_set_dsd_dec_params(out, blk_size);
     }
 
     uc_info->id = out->usecase;
@@ -7112,7 +7117,10 @@ int adev_open_output_stream(struct audio_hw_device *dev,
             (flags & AUDIO_OUTPUT_FLAG_HW_AV_SYNC)) {
             out->render_mode = RENDER_MODE_AUDIO_STC_MASTER;
         } else if(flags & AUDIO_OUTPUT_FLAG_TIMESTAMP) {
-            out->render_mode = RENDER_MODE_AUDIO_MASTER;
+            if (property_get_bool("persist.vendor.audio.ttp.render.mode", false))
+                out->render_mode = RENDER_MODE_AUDIO_TTP;
+            else
+                out->render_mode = RENDER_MODE_AUDIO_MASTER;
         } else {
             out->render_mode = RENDER_MODE_AUDIO_NO_TIMESTAMP;
         }
@@ -7524,19 +7532,11 @@ void adev_close_output_stream(struct audio_hw_device *dev __unused,
     audio_extn_snd_mon_unregister_listener(out);
 
     /* close adsp hdrl session before standby */
-    if (out->ip_hdlr_enabled) {
-
-        if (out->adsp_hdlr_stream_handle) {
-            ret = audio_extn_adsp_hdlr_stream_close(out->adsp_hdlr_stream_handle);
-            if (ret)
-                ALOGE("%s: adsp_hdlr_stream_close failed %d",__func__, ret);
-            out->adsp_hdlr_stream_handle = NULL;
-        }
-
-        if (adev->ip_hdlr_handle) {
-            audio_extn_ip_hdlr_intf_deinit(adev->ip_hdlr_handle);
-            adev->ip_hdlr_handle = NULL;
-        }
+    if (out->adsp_hdlr_stream_handle) {
+        ret = audio_extn_adsp_hdlr_stream_close(out->adsp_hdlr_stream_handle);
+        if (ret)
+            ALOGE("%s: adsp_hdlr_stream_close failed %d",__func__, ret);
+        out->adsp_hdlr_stream_handle = NULL;
     }
 
     if (out->usecase == USECASE_COMPRESS_VOIP_CALL) {
@@ -7756,7 +7756,7 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
     audio_extn_hfp_set_parameters(adev, parms);
     audio_extn_qdsp_set_parameters(adev, parms);
 
-    status = audio_extn_a2dp_set_parameters(parms, &a2dp_reconfig);
+    ret = audio_extn_a2dp_set_parameters(parms, &a2dp_reconfig);
     if (ret >= 0 && a2dp_reconfig) {
         struct audio_usecase *usecase;
         struct listnode *node;
@@ -8782,12 +8782,18 @@ static int adev_close(hw_device_t *device)
     size_t i;
     struct audio_device *adev_temp = (struct audio_device *)device;
 
+    ALOGD("%s: enter", __func__);
+
     if (!adev_temp)
         return 0;
 
     pthread_mutex_lock(&adev_init_lock);
 
     if ((--audio_device_ref_count) == 0) {
+        if (adev->ip_hdlr_handle) {
+            audio_extn_ip_hdlr_intf_deinit(adev->ip_hdlr_handle);
+            adev->ip_hdlr_handle = NULL;
+        }
         audio_extn_snd_mon_unregister_listener(adev);
         audio_extn_sound_trigger_deinit(adev);
         audio_extn_listen_deinit(adev);
@@ -8825,6 +8831,7 @@ static int adev_close(hw_device_t *device)
     }
     pthread_mutex_unlock(&adev_init_lock);
     enable_gcov();
+    ALOGD("%s: exit", __func__);
     return 0;
 }
 
@@ -9280,11 +9287,11 @@ static int adev_open(const hw_module_t *module, const char *name,
         adev->use_old_pspd_mix_ctrl = true;
     }
 
-        ret = audio_extn_ip_hdlr_intf_init(&adev->ip_hdlr_handle, NULL, NULL, adev, NULL);
-        if (ret < 0) {
-            ALOGE("%s: audio_extn_ip_hdlr_intf_init failed %d",__func__, ret);
-            adev->ip_hdlr_handle = NULL;
-        }
+    ret = audio_extn_ip_hdlr_intf_init(&adev->ip_hdlr_handle, NULL, NULL, adev, NULL);
+    if (ret < 0) {
+        ALOGE("%s: audio_extn_ip_hdlr_intf_init failed %d",__func__, ret);
+        adev->ip_hdlr_handle = NULL;
+    }
 
     ALOGV("%s: exit", __func__);
     return 0;

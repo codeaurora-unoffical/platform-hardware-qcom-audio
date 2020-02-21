@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -645,20 +645,20 @@ static int set_custom_mtmx_output_channel_map(struct audio_device *adev,
     case 6:
         channel_map[0] = PCM_CHANNEL_FL;
         channel_map[1] = PCM_CHANNEL_FR;
-        channel_map[2] = PCM_CHANNEL_FC;
-        channel_map[3] = PCM_CHANNEL_LFE;
+        channel_map[2] = PCM_CHANNEL_LFE;
+        channel_map[3] = PCM_CHANNEL_FC;
         channel_map[4] = PCM_CHANNEL_LS;
         channel_map[5] = PCM_CHANNEL_RS;
         break;
     case 8:
         channel_map[0] = PCM_CHANNEL_FL;
         channel_map[1] = PCM_CHANNEL_FR;
-        channel_map[2] = PCM_CHANNEL_FC;
-        channel_map[3] = PCM_CHANNEL_LFE;
-        channel_map[4] = PCM_CHANNEL_LB;
-        channel_map[5] = PCM_CHANNEL_RB;
-        channel_map[6] = PCM_CHANNEL_LS;
-        channel_map[7] = PCM_CHANNEL_RS;
+        channel_map[2] = PCM_CHANNEL_LFE;
+        channel_map[3] = PCM_CHANNEL_FC;
+        channel_map[4] = PCM_CHANNEL_LS;
+        channel_map[5] = PCM_CHANNEL_RS;
+        channel_map[6] = PCM_CHANNEL_LB;
+        channel_map[7] = PCM_CHANNEL_RB;
         break;
     case 10:
         channel_map[0] = PCM_CHANNEL_FL;
@@ -3354,9 +3354,10 @@ static int audio_extn_set_multichannel_mask(struct audio_device *adev,
     *channel_mask_updated = false;
 
     int max_mic_count = platform_get_max_mic_count(adev->platform);
-    /* validate input params. Avoid updated channel mask if loopback device */
+    /* validate input params. Avoid updated channel mask if HDMI or loopback device */
     if ((channel_count == 6) &&
         (in->format == AUDIO_FORMAT_PCM_16_BIT) &&
+        !((in->device & AUDIO_DEVICE_IN_HDMI) & ~(AUDIO_DEVICE_BIT_IN)) &&
         (!is_loopback_input_device(in->device))) {
         switch (max_mic_count) {
             case 4:
@@ -3375,6 +3376,7 @@ static int audio_extn_set_multichannel_mask(struct audio_device *adev,
         ret = 0;
         *channel_mask_updated = true;
     }
+
     return ret;
 }
 
@@ -3480,6 +3482,12 @@ void audio_extn_send_aptx_dec_bt_addr_to_dsp(struct stream_out *out)
 }
 
 #endif //APTX_DECODER_ENABLED
+
+void audio_extn_set_dsd_dec_params(struct stream_out *out, int blk_size)
+{
+    ALOGV("%s", __func__);
+    out->compr_config.codec->options.dsd_dec.blk_size = blk_size;
+}
 
 int audio_extn_out_set_param_data(struct stream_out *out,
                              audio_extn_param_id param_id,
@@ -3607,6 +3615,32 @@ int audio_extn_out_get_param_data(struct stream_out *out,
     return ret;
 }
 
+/* API to set capture stream specific config parameters */
+int audio_extn_in_set_param_data(struct stream_in *in,
+                             audio_extn_param_id param_id,
+                             audio_extn_param_payload *payload) {
+    int ret = -EINVAL;
+
+    if (!in || !payload) {
+        ALOGE("%s:: Invalid Param",__func__);
+        return ret;
+    }
+
+    ALOGD("%s: enter: stream (%p) usecase(%d: %s) param_id %d", __func__,
+            in, in->usecase, use_case_table[in->usecase], param_id);
+
+    switch (param_id) {
+        case AUDIO_EXTN_PARAM_IN_TTP_OFFSET:
+            ret = audio_extn_compress_in_set_ttp_offset(in,
+                    (struct audio_in_ttp_offset_param *)(payload));
+            break;
+        default:
+            ALOGE("%s:: unsupported param_id %d", __func__, param_id);
+            break;
+    }
+    return ret;
+}
+
 int audio_extn_set_device_cfg_params(struct audio_device *adev,
                                      struct audio_device_cfg_param *payload)
 {
@@ -3656,6 +3690,69 @@ int audio_extn_set_device_cfg_params(struct audio_device *adev,
     memcpy(&adev_device_cfg_ptr->dev_cfg_params, device_cfg_params, sizeof(struct audio_device_cfg_param));
 
     return 0;
+}
+
+int audio_extn_set_pll_device_cfg_params(struct audio_device *adev,
+                                     struct audio_pll_device_cfg_param *payload)
+{
+    int ret = 0;
+    struct mixer_ctl *ctl = NULL;
+    const char *mixer_ctl_name = "PLL config data";
+    uint32_t snd_device = 0, backend_idx = 0;
+    struct stream_out out;
+    struct audio_pll_device_cfg_param *dev_cfg_params = payload;
+    struct pll_device_config_params pll_device_cfg_params;
+
+    ALOGV("%s\n", __func__);
+
+    if (!dev_cfg_params || !adev) {
+        ALOGE("Invalid param\n");
+        ret = -EINVAL;
+        goto err;
+    }
+
+    /* Config is not supported for combo devices */
+    if (popcount(dev_cfg_params->device) != 1) {
+        ALOGE("%s:: Invalid Device (%#x) - Config is ignored\n",
+              __func__, dev_cfg_params->device);
+        ret = -EINVAL;
+        goto err;
+    }
+
+    memset(&out, 0, sizeof(struct stream_out));
+
+    out.devices = dev_cfg_params->device;
+    snd_device = platform_get_output_snd_device(adev->platform, &out);
+    if (snd_device < SND_DEVICE_MIN || snd_device >= SND_DEVICE_MAX) {
+        ALOGE("%s: Invalid sound device %d", __func__, snd_device);
+        ret = -EINVAL;
+        goto err;
+    }
+
+    backend_idx = platform_get_snd_device_backend_index(snd_device);
+
+    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+    if (!ctl) {
+        ALOGE("%s: ERROR. Could not get ctl for mixer cmd - %s",
+              __func__, mixer_ctl_name);
+        ret = -EINVAL;
+        goto err;
+    }
+
+    memset(&pll_device_cfg_params, 0, sizeof(pll_device_cfg_params));
+
+    pll_device_cfg_params.be_idx = backend_idx;
+    pll_device_cfg_params.drift = dev_cfg_params->drift;
+    pll_device_cfg_params.reset = (uint32_t)dev_cfg_params->reset;
+
+    /* trigger mixer control to send clock drift value */
+    ret = mixer_ctl_set_array(ctl, &pll_device_cfg_params,
+                   sizeof(struct pll_device_config_params));
+    if (ret < 0)
+        ALOGE("%s:[%d] Could not set ctl for mixer cmd - %s, ret %d",
+              __func__, pll_device_cfg_params.drift, mixer_ctl_name, ret);
+err:
+    return ret;
 }
 
 //START: FM_POWER_OPT_FEATURE ================================================================
@@ -3722,16 +3819,16 @@ void hdmi_edid_feature_init(bool is_feature_enabled)
         //map each function
         //on any faliure to map any function, disble feature
         if (((hdmi_edid_is_supported_sr =
-             (hdmi_edid_is_supported_sr_t)dlsym(hdmi_edid_lib_handle, 
+             (hdmi_edid_is_supported_sr_t)dlsym(hdmi_edid_lib_handle,
                                                 "edid_is_supported_sr")) == NULL) ||
             ((hdmi_edid_is_supported_bps =
              (hdmi_edid_is_supported_bps_t)dlsym(hdmi_edid_lib_handle,
                                                 "edid_is_supported_bps")) == NULL) ||
             ((hdmi_edid_get_highest_supported_sr =
-             (hdmi_edid_get_highest_supported_sr_t)dlsym(hdmi_edid_lib_handle, 
+             (hdmi_edid_get_highest_supported_sr_t)dlsym(hdmi_edid_lib_handle,
                                                 "edid_get_highest_supported_sr")) == NULL) ||
             ((hdmi_edid_get_sink_caps =
-             (hdmi_edid_get_sink_caps_t)dlsym(hdmi_edid_lib_handle, 
+             (hdmi_edid_get_sink_caps_t)dlsym(hdmi_edid_lib_handle,
                                                 "edid_get_sink_caps")) == NULL)) {
             ALOGE("%s: dlsym failed", __func__);
             goto feature_disabled;

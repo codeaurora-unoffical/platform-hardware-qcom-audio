@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -4443,6 +4443,8 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
         snd_device = usecase->in_snd_device;
     else if (usecase->type == TRANSCODE_LOOPBACK_RX)
         snd_device = usecase->out_snd_device;
+    else if (usecase->type == TRANSCODE_LOOPBACK_TX)
+        snd_device = usecase->in_snd_device;
     else if ((usecase->type == AFE_LOOPBACK) || (usecase->type == DTMF_PLAYBACK))
         snd_device = usecase->out_snd_device;
 
@@ -7603,13 +7605,22 @@ bool platform_sound_trigger_device_needs_event(snd_device_t snd_device)
 {
     bool needs_event = false;
 
+    /*
+     * ToDo - Needs to be decided based on backend id.
+     * Line in might share same backend in few platforms.
+     */
     if ((snd_device >= SND_DEVICE_IN_BEGIN) &&
         (snd_device < SND_DEVICE_IN_END) &&
         (snd_device != SND_DEVICE_IN_CAPTURE_FM) &&
         (snd_device != SND_DEVICE_IN_CAPTURE_VI_FEEDBACK) &&
         (snd_device != SND_DEVICE_IN_CAPTURE_VI_FEEDBACK_MONO_1) &&
         (snd_device != SND_DEVICE_IN_CAPTURE_VI_FEEDBACK_MONO_2) &&
-        (snd_device != SND_DEVICE_IN_EC_REF_LOOPBACK))
+        (snd_device != SND_DEVICE_IN_EC_REF_LOOPBACK) &&
+        (snd_device != SND_DEVICE_IN_SPDIF) &&
+        (snd_device != SND_DEVICE_IN_HDMI_MIC) &&
+        (snd_device != SND_DEVICE_IN_HDMI_MIC_DSD) &&
+        (snd_device != SND_DEVICE_IN_HDMI_ARC) &&
+        (snd_device != SND_DEVICE_IN_LINE))
         needs_event = true;
 
     return needs_event;
@@ -7625,6 +7636,13 @@ bool platform_sound_trigger_usecase_needs_event(audio_usecase_t uc_id)
     case USECASE_AUDIO_PLAYBACK_MULTI_CH:
     case USECASE_AUDIO_PLAYBACK_OFFLOAD:
     case USECASE_AUDIO_PLAYBACK_OFFLOAD2:
+    case USECASE_AUDIO_PLAYBACK_OFFLOAD3:
+    case USECASE_AUDIO_PLAYBACK_OFFLOAD4:
+    case USECASE_AUDIO_PLAYBACK_OFFLOAD5:
+    case USECASE_AUDIO_PLAYBACK_OFFLOAD6:
+    case USECASE_AUDIO_PLAYBACK_OFFLOAD7:
+    case USECASE_AUDIO_PLAYBACK_OFFLOAD8:
+    case USECASE_AUDIO_PLAYBACK_OFFLOAD9:
         needs_event = true;
         break;
     /* concurrent playback in low latency allowed */
@@ -9166,7 +9184,7 @@ int platform_get_edid_info(void *platform)
 
     switch(my_data->ext_disp_type) {
         case EXT_DISPLAY_TYPE_HDMI:
-            mix_ctl_name = "HDMI EDID";
+            mix_ctl_name = "HDMI MS EDID";
             break;
         case EXT_DISPLAY_TYPE_DP:
             mix_ctl_name = "Display Port EDID";

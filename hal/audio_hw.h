@@ -283,6 +283,7 @@ typedef enum render_mode {
     RENDER_MODE_AUDIO_NO_TIMESTAMP = 0,
     RENDER_MODE_AUDIO_MASTER,
     RENDER_MODE_AUDIO_STC_MASTER,
+    RENDER_MODE_AUDIO_TTP,
 } render_mode_t;
 
 #ifdef AUDIO_EXTN_AUTO_HAL_ENABLED
@@ -469,6 +470,7 @@ struct stream_in {
     struct audio_device *dev;
     card_status_t card_status;
     int capture_started;
+    render_mode_t render_mode;
 
     volatile int32_t capture_stopped;
 
