@@ -1645,7 +1645,8 @@ void platform_set_echo_reference(struct audio_device *adev, bool enable,
         else if (out_device & AUDIO_DEVICE_OUT_EARPIECE)
             strlcat(ec_ref_mixer_path, " handset",
                     MIXER_PATH_MAX_LENGTH);
-        else if (out_device & AUDIO_DEVICE_OUT_WIRED_HEADPHONE)
+        else if ((out_device & AUDIO_DEVICE_OUT_WIRED_HEADPHONE) ||
+                 (out_device & AUDIO_DEVICE_OUT_LINE))
             strlcat(ec_ref_mixer_path, " headphones",
                     MIXER_PATH_MAX_LENGTH);
         else if (out_device & AUDIO_DEVICE_OUT_USB_HEADSET)
@@ -4142,7 +4143,7 @@ int platform_get_default_app_type(void *platform)
 int platform_get_default_app_type_v2(void *platform, usecase_type_t  type)
 {
     ALOGV("%s: Platform: %p, type: %d", __func__, platform, type);
-    if(type == PCM_CAPTURE)
+    if((type == PCM_HFP_CALL) || (type == PCM_CAPTURE))
         return DEFAULT_APP_TYPE_TX_PATH;
     else
         return DEFAULT_APP_TYPE_RX_PATH;
