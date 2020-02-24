@@ -6189,9 +6189,17 @@ static void adjust_mmap_period_count(struct pcm_config *config, int32_t min_size
 // This is to workaround apparent inaccuracies in the timing information that
 // is used by the AAudio timing model. The inaccuracies can cause glitches.
 static int64_t get_mmap_out_time_offset() {
+#ifndef LINUX_ENABLED
     const int32_t kDefaultOffsetMicros = 0;
     int32_t mmap_time_offset_micros = property_get_int32(
         "persist.vendor.audio.out_mmap_delay_micros", kDefaultOffsetMicros);
+#else
+    char value[PROPERTY_VALUE_MAX] = {0};
+    int32_t mmap_time_offset_micros = 0;
+    if(property_get("persist.vendor.audio.out_mmap_delay_micros", value, "0"))
+        mmap_time_offset_micros = atoi(value);
+#endif
+
     ALOGI("mmap_time_offset_micros = %d for output", mmap_time_offset_micros);
     return mmap_time_offset_micros * (int64_t)1000;
 }
@@ -7072,9 +7080,16 @@ static int in_start(const struct audio_stream_in* stream)
 // This is to workaround apparent inaccuracies in the timing information that
 // is used by the AAudio timing model. The inaccuracies can cause glitches.
 static int64_t in_get_mmap_time_offset() {
+#ifndef LINUX_ENABLED
     const int32_t kDefaultOffsetMicros = 0;
     int32_t mmap_time_offset_micros = property_get_int32(
             "persist.vendor.audio.in_mmap_delay_micros", kDefaultOffsetMicros);
+#else
+    char value[PROPERTY_VALUE_MAX] = {0};
+    int32_t mmap_time_offset_micros = 0;
+    if(property_get("vendor.audio.hal.maj.version", value, "0"))
+        mmap_time_offset_micros = atoi(value);
+#endif
     ALOGI("mmap_time_offset_micros = %d for input", mmap_time_offset_micros);
     return mmap_time_offset_micros * (int64_t)1000;
 }
@@ -9740,8 +9755,10 @@ static int adev_open(const hw_module_t *module, const char *name,
 
     pthread_mutex_init(&adev->lock, (const pthread_mutexattr_t *) NULL);
 
+#ifdef AHAL_EXT_ENABLED
     // register audio ext hidl at the earliest
     audio_extn_hidl_init();
+#endif
 #ifdef DYNAMIC_LOG_ENABLED
     register_for_dynamic_logging("hal");
 #endif

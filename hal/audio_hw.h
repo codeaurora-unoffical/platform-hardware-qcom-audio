@@ -46,10 +46,18 @@
 #include <tinycompress/tinycompress.h>
 
 #include <audio_route/audio_route.h>
-#include <audio_utils/ErrorLog.h>
 #include "audio_defs.h"
 #include "voice.h"
 #include "audio_hw_extn_api.h"
+
+#ifndef LINUX_ENABLED
+#include <audio_utils/ErrorLog.h>
+#else
+typedef int error_log_t;
+#define error_log_dump(error_log, fd, prefix, lines, limit_ns)                 (0)
+#define error_log_create(entries, aggregate_ns)                                (0)
+#define error_log_destroy(error_log)                                           (0)
+#endif
 
 #if LINUX_ENABLED
 #if defined(__LP64__)
