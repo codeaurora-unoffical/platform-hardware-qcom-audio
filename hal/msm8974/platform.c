@@ -53,6 +53,7 @@
 #endif
 
 #define SOUND_TRIGGER_DEVICE_HANDSET_MONO_LOW_POWER_ACDB_ID (100)
+#define MAX_MIXER_XML_PATH  100
 #define MIXER_FILE_DELIMITER "_"
 #define MIXER_FILE_EXT ".xml"
 
@@ -74,6 +75,7 @@
 #define PLATFORM_INFO_XML_PATH_CSRA6 "/etc/audio_platform_info_csra6.xml"
 #define PLATFORM_INFO_XML_PATH_CSRA8 "/etc/audio_platform_info_csra8.xml"
 #define PLATFORM_INFO_XML_PATH_CSRA8PLUS2 "/etc/audio_platform_info_csra8plus2.xml"
+#define MIXER_XML_PATH_EXTCODEC_I2S "/etc/mixer_paths_extcodec_i2s.xml"
 #else
 #define PLATFORM_INFO_XML_PATH_INTCODEC  "/vendor/etc/audio_platform_info_intcodec.xml"
 #define PLATFORM_INFO_XML_PATH_SKUSH "/vendor/etc/audio_platform_info_skush.xml"
@@ -89,6 +91,7 @@
 #define PLATFORM_INFO_XML_PATH_CSRA6 "/vendor/etc/audio_platform_info_csra6.xml"
 #define PLATFORM_INFO_XML_PATH_CSRA8 "/vendor/etc/audio_platform_info_csra8.xml"
 #define PLATFORM_INFO_XML_PATH_CSRA8PLUS2 "/vendor/etc/audio_platform_info_csra8plus2.xml"
+#define MIXER_XML_PATH_EXTCODEC_I2S "/etc/mixer_paths_extcodec_i2s.xml"
 #endif
 
 #include <linux/msm_audio.h>
@@ -1472,6 +1475,17 @@ static void update_codec_type_and_interface(struct platform_data * my_data,
      }
 }
 
+static void query_platform(const char *snd_card_name, char *mixer_xml_path)
+{
+     if (!strncmp(snd_card_name, "sdx-auto-i2s-snd-card",
+                   sizeof("sdx-auto-i2s-snd-card"))) {
+        strlcpy(mixer_xml_path, MIXER_XML_PATH_EXTCODEC_I2S,
+                 sizeof(MIXER_XML_PATH_EXTCODEC_I2S));
+     } else {
+        strlcpy(mixer_xml_path, MIXER_XML_PATH_I2S, sizeof(MIXER_XML_PATH_I2S));
+     }
+}
+
 static bool can_enable_mbdrc_on_device(snd_device_t snd_device)
 {
     bool ret = false;
@@ -1835,7 +1849,9 @@ static bool platform_is_i2s_ext_modem(const char *snd_card_name,
         !strncmp(snd_card_name, "sda845-tavil-i2s-snd-card",
                  sizeof("sda845-tavil-i2s-snd-card")) ||
         !strncmp(snd_card_name, "sa6155-adp-star-snd-card",
-                 sizeof("sa6155-adp-star-snd-card"))) {
+                 sizeof("sa6155-adp-star-snd-card")) ||
+        !strncmp(snd_card_name, "sdx-auto-i2s-snd-card",
+                 sizeof("sdx-auto-i2s-snd-card"))) {
         plat_data->is_i2s_ext_modem = true;
     }
     ALOGV("%s, is_i2s_ext_modem:%d soundcard name is %s",__func__,
@@ -2408,11 +2424,11 @@ cleanup:
         free(cvd_version);
     if (!result) {
         my_data->is_acdb_initialized = true;
-        ALOGD("ACDB initialized");
+        ALOGD("%s: ACDB initialized", __func__);
         audio_hwdep_send_cal(my_data);
     } else {
         my_data->is_acdb_initialized = false;
-        ALOGD("ACDB initialization failed");
+        ALOGD("%s: ACDB initialization failed", __func__);
     }
     return result;
 }
@@ -2582,6 +2598,7 @@ void *platform_init(struct audio_device *adev)
     char platform[PROPERTY_VALUE_MAX];
     char baseband[PROPERTY_VALUE_MAX];
     char value[PROPERTY_VALUE_MAX];
+    char mixer_xml_path[MAX_MIXER_XML_PATH];
     struct platform_data *my_data = NULL;
     char *snd_card_name = NULL;
     char mixer_xml_file[MIXER_PATH_MAX_LENGTH]= {0};
@@ -2639,10 +2656,9 @@ void *platform_init(struct audio_device *adev)
 
     if (platform_is_i2s_ext_modem(snd_card_name, my_data) &&
         !is_auto_snd_card(snd_card_name)) {
-        ALOGD("%s: Call MIXER_XML_PATH_I2S", __func__);
-
-        adev->audio_route = audio_route_init(adev->snd_card,
-                                             MIXER_XML_PATH_I2S);
+        query_platform(snd_card_name, mixer_xml_path);
+        ALOGD("%s: Call %s", __func__, mixer_xml_path);
+        adev->audio_route = audio_route_init(adev->snd_card, mixer_xml_path);
     } else {
         /* Get the codec internal name from the sound card name
          * and form the mixer paths file name dynamically. This
@@ -2991,11 +3007,11 @@ void *platform_init(struct audio_device *adev)
         int result = acdb_init_v2(adev->mixer);
         if (!result) {
             my_data->is_acdb_initialized = true;
-            ALOGD("ACDB initialized");
+            ALOGD("%s: ACDB initialized", __func__);
             audio_hwdep_send_cal(my_data);
         } else {
             my_data->is_acdb_initialized = false;
-            ALOGD("ACDB initialization failed");
+            ALOGD("%s: ACDB initialization failed", __func__);
         }
     }
 
