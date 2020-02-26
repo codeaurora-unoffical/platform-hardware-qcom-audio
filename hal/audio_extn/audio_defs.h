@@ -409,4 +409,10 @@ typedef struct {
     struct audio_port_config *sink_config;
 } audio_extn_sink_port_config_t;
 
+typedef enum {
+    AUDIO_EXTN_META_DATA_FLAGS_NONE,
+    AUDIO_EXTN_META_DATA_FLAGS_TIMESTAMP_VALID,
+    AUDIO_EXTN_META_DATA_FLAGS_TIMESTAMP_CONTINUE,
+} audio_extn_meta_data_flags;
+
 #endif /* AUDIO_DEFS_H */

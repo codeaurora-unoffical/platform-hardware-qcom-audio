@@ -248,6 +248,8 @@ typedef enum {
 /*TBD: Extend this based on stb requirement*/
 typedef enum {
  QAHW_META_DATA_FLAGS_NONE = 0,
+ QAHW_META_DATA_FLAGS_TIMESTAMP_VALID,
+ QAHW_META_DATA_FLAGS_TIMESTAMP_CONTINUE,
 } qahw_meta_data_flags_t;
 
 typedef struct {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2011 The Android Open Source Project *
@@ -279,6 +279,8 @@ typedef enum {
 /*TBD: Extend this based on stb requirement*/
 typedef enum {
  QAHW_META_DATA_FLAGS_NONE = 0,
+ QAHW_META_DATA_FLAGS_TIMESTAMP_VALID,
+ QAHW_META_DATA_FLAGS_TIMESTAMP_CONTINUE,
 } qahw_meta_data_flags_t;
 
 typedef struct {
