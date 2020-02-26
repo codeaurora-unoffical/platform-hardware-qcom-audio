@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+* Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -90,6 +90,9 @@ static const audio_usecase_t cin_usecases[] = {
 };
 
 static pthread_mutex_t cin_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static int audio_extn_compress_in_set_ttp_metadata(
+                  struct stream_in *in);
 
 bool audio_extn_cin_applicable_stream(struct stream_in *in)
 {
@@ -249,6 +252,12 @@ int audio_extn_cin_open_input_stream(struct stream_in *in)
         ret = 0;
     }
 
+    if ((in->flags & AUDIO_INPUT_FLAG_TIMESTAMP) &&
+        (in->render_mode == RENDER_MODE_AUDIO_TTP) &&
+        (in->ttp_offset_cached)) {
+        ALOGD("set ttp offset:0x%"PRIx64" ", in->ttp_offset_cached);
+        audio_extn_compress_in_set_ttp_metadata(in);
+    }
     audio_extn_compress_set_render_mode(in);
 
     return ret;
@@ -418,7 +427,6 @@ int audio_extn_compress_in_set_ttp_offset(
             struct stream_in *in,
             struct audio_in_ttp_offset_param *offset_param)
 {
-    struct snd_compr_metadata metadata;
     int ret = -EINVAL;
     cin_private_data_t *cin_data = (cin_private_data_t *) in->cin_extn;
 
@@ -434,22 +442,43 @@ int audio_extn_compress_in_set_ttp_offset(
         goto exit;
     }
 
+    in->ttp_offset_cached = offset_param->ttp_offset;
+
     if (!cin_data->compr) {
         ALOGW("%s: offload session not yet opened", __func__);
         goto exit;
     }
 
-    metadata.key = SNDRV_COMPRESS_IN_TTP_OFFSET;
-    metadata.value[0] = 0xFFFFFFFF & offset_param->ttp_offset; /* LSB */
-    metadata.value[1] = \
-            (0xFFFFFFFF00000000 & offset_param->ttp_offset) >> 32; /* MSB*/
-
-    ret = compress_set_metadata(cin_data->compr, &metadata);
-    if(ret) {
-        ALOGE("%s: error %s", __func__, compress_get_error(cin_data->compr));
+    ret = audio_extn_compress_in_set_ttp_metadata(in);
+    if (ret) {
+        ALOGE("%s: error: set ttp offset metadata failed", __func__);
     }
 
 exit:
+    return ret;
+}
+
+static int audio_extn_compress_in_set_ttp_metadata(struct stream_in *in)
+{
+    struct snd_compr_metadata metadata;
+    int ret = -EINVAL;
+    cin_private_data_t *cin_data = (cin_private_data_t *) in->cin_extn;
+
+    if (!in) {
+        ALOGE("%s: Invalid Param", __func__);
+        return ret;
+    }
+
+    metadata.key = SNDRV_COMPRESS_IN_TTP_OFFSET;
+    metadata.value[0] = 0xFFFFFFFF & in->ttp_offset_cached; /* LSB */
+    metadata.value[1] = \
+            (0xFFFFFFFF00000000 & in->ttp_offset_cached) >> 32; /* MSB*/
+
+    ret = compress_set_metadata(cin_data->compr, &metadata);
+    if (ret) {
+        ALOGE("%s: error %s", __func__, compress_get_error(cin_data->compr));
+    }
+
     return ret;
 }
 #else
@@ -458,6 +487,13 @@ int audio_extn_compress_in_set_ttp_offset(
             struct audio_in_ttp_offset_param *offset_param __unused)
 {
     ALOGD("%s: configuring ttp offset not supported", __func__);
+    return 0;
+}
+
+static int audio_extn_compress_in_set_ttp_metadata(
+            struct stream_in *in)
+{
+    ALOGD("%s: configuring ttp offset metadata not supported", __func__);
     return 0;
 }
 #endif
