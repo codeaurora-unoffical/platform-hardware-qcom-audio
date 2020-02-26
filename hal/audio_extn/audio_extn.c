@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -3337,9 +3337,10 @@ static int audio_extn_set_multichannel_mask(struct audio_device *adev,
     *channel_mask_updated = false;
 
     int max_mic_count = platform_get_max_mic_count(adev->platform);
-    /* validate input params. Avoid updated channel mask if loopback device */
+    /* validate input params. Avoid updated channel mask if HDMI or loopback device */
     if ((channel_count == 6) &&
         (in->format == AUDIO_FORMAT_PCM_16_BIT) &&
+        !((in->device & AUDIO_DEVICE_IN_HDMI) & ~(AUDIO_DEVICE_BIT_IN)) &&
         (!is_loopback_input_device(in->device))) {
         switch (max_mic_count) {
             case 4:
@@ -3358,6 +3359,7 @@ static int audio_extn_set_multichannel_mask(struct audio_device *adev,
         ret = 0;
         *channel_mask_updated = true;
     }
+
     return ret;
 }
 
@@ -3463,6 +3465,12 @@ void audio_extn_send_aptx_dec_bt_addr_to_dsp(struct stream_out *out)
 }
 
 #endif //APTX_DECODER_ENABLED
+
+void audio_extn_set_dsd_dec_params(struct stream_out *out, int blk_size)
+{
+    ALOGV("%s", __func__);
+    out->compr_config.codec->options.dsd_dec.blk_size = blk_size;
+}
 
 int audio_extn_out_set_param_data(struct stream_out *out,
                              audio_extn_param_id param_id,
@@ -3705,16 +3713,16 @@ void hdmi_edid_feature_init(bool is_feature_enabled)
         //map each function
         //on any faliure to map any function, disble feature
         if (((hdmi_edid_is_supported_sr =
-             (hdmi_edid_is_supported_sr_t)dlsym(hdmi_edid_lib_handle, 
+             (hdmi_edid_is_supported_sr_t)dlsym(hdmi_edid_lib_handle,
                                                 "edid_is_supported_sr")) == NULL) ||
             ((hdmi_edid_is_supported_bps =
              (hdmi_edid_is_supported_bps_t)dlsym(hdmi_edid_lib_handle,
                                                 "edid_is_supported_bps")) == NULL) ||
             ((hdmi_edid_get_highest_supported_sr =
-             (hdmi_edid_get_highest_supported_sr_t)dlsym(hdmi_edid_lib_handle, 
+             (hdmi_edid_get_highest_supported_sr_t)dlsym(hdmi_edid_lib_handle,
                                                 "edid_get_highest_supported_sr")) == NULL) ||
             ((hdmi_edid_get_sink_caps =
-             (hdmi_edid_get_sink_caps_t)dlsym(hdmi_edid_lib_handle, 
+             (hdmi_edid_get_sink_caps_t)dlsym(hdmi_edid_lib_handle,
                                                 "edid_get_sink_caps")) == NULL)) {
             ALOGE("%s: dlsym failed", __func__);
             goto feature_disabled;

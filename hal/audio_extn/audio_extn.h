@@ -772,6 +772,7 @@ int audio_extn_get_mi2s_be_dsd_rate_mul_factor(int dsd_format);
 int audio_extn_get_fe_dsd_rate_mul_factor(int dsd_format);
 int audio_extn_get_dsd_in_ch_mask(int channels);
 int audio_extn_get_dsd_out_ch_mask(int channels);
+void audio_extn_set_dsd_dec_params(struct stream_out *out, int blk_size);
 
 #ifdef DS2_DOLBY_DAP_ENABLED
 #define LIB_DS2_DAP_HAL "vendor/lib/libhwdaphal.so"
