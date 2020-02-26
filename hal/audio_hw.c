@@ -2558,6 +2558,9 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
         } else if (audio_extn_is_quad_speaker_enabled() &&
                     (usecase->type == PCM_PLAYBACK) &&
                     platform_check_snd_device_is_speaker(usecase->stream.out->devices)) {
+
+            if (usecase->id == USECASE_AUDIO_PLAYBACK_SILENCE)
+                out_snd_device = SND_DEVICE_OUT_SPEAKER_QUAD;
             /*
              * If quad speaker is enabled and deep buffer playback is going on
              * quad speaker (stereo spkr and lineout) and if touch tones comes that
@@ -2568,6 +2571,9 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
             pb_usecase = get_usecase_from_list(adev, USECASE_AUDIO_PLAYBACK_DEEP_BUFFER);
             if (pb_usecase && (pb_usecase->out_snd_device == SND_DEVICE_OUT_SPEAKER_QUAD))
                out_snd_device = pb_usecase->out_snd_device;
+            else if ((pb_usecase = get_usecase_from_list(adev, USECASE_AUDIO_PLAYBACK_SILENCE))
+                && pb_usecase && (pb_usecase->out_snd_device == SND_DEVICE_OUT_SPEAKER_QUAD))
+                out_snd_device = pb_usecase->out_snd_device;
         }
         if (usecase->type == PCM_PLAYBACK) {
             if (usecase->stream.out == NULL) {
