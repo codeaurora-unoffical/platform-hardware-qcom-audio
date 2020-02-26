@@ -1412,7 +1412,7 @@ static int qap_get_rendered_frames(struct stream_out *out, uint64_t *frames)
     DEBUG_MSG_VV("total platform latency %d msec MS12(%d)+kernel_latency(%d)+dsp_latency(%d)",
         out->platform_latency, module_latency, kernel_latency, dsp_latency);
 
-    if (out->format & AUDIO_FORMAT_PCM_16_BIT) {
+    if (out->format == AUDIO_FORMAT_PCM_16_BIT) {
         *frames = 0;
         if(out->written > out->platform_latency) {
            signed_frames = out->written - out->platform_latency;
