@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -1078,6 +1078,15 @@ static void process_custom_mtmx_in_params(const XML_Char **attr)
         ALOGE("%s: 'usecase' not found", __func__);
         return;
     }
+
+    memset(&mtmx_in_params_info, 0, sizeof(mtmx_in_params_info));
+
+    //Initialize the usercase array with default value
+    for (; i < CUSTOM_MTRX_PARAMS_MAX_USECASE; i++) {
+         mtmx_in_params_info.usecase_id[i] = USECASE_INVALID;
+    }
+
+    i = 0;
     /* Check if multi usecases are supported for this custom mtrx params */
     value = strtok_r((char *)attr[attr_idx++], ",", &context);
     while (value && (i < CUSTOM_MTRX_PARAMS_MAX_USECASE)) {
@@ -1143,6 +1152,11 @@ static void process_custom_mtmx_params(const XML_Char **attr)
 
     memset(&mtmx_params_info, 0, sizeof(mtmx_params_info));
 
+    //Initialize the usercase array with default value
+    for (; i < CUSTOM_MTRX_PARAMS_MAX_USECASE; i++) {
+         mtmx_params_info.usecase_id[i] = USECASE_INVALID;
+    }
+
     if (strcmp(attr[attr_idx++], "param_id") != 0) {
         ALOGE("%s: 'param_id' not found", __func__);
         return;
@@ -1166,6 +1180,7 @@ static void process_custom_mtmx_params(const XML_Char **attr)
         return;
     }
 
+    i = 0;
     /* check if multi usecases are supported for this custom mtrx params */
     value = strtok_r((char *)attr[attr_idx++], ",", &context);
     while (value && (i < CUSTOM_MTRX_PARAMS_MAX_USECASE)) {

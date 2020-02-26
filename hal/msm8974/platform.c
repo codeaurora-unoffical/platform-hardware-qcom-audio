@@ -3745,7 +3745,7 @@ struct audio_custom_mtmx_params *
             params->info.ip_channels == info->ip_channels &&
             params->info.op_channels == info->op_channels &&
             params->info.snd_device == info->snd_device) {
-            while (params->info.usecase_id[i] != 0) {
+            while (params->info.usecase_id[i] != USECASE_INVALID) {
                 if (params->info.usecase_id[i] == info->usecase_id[0]) {
                     ALOGV("%s: found params with ip_ch %d op_ch %d uc_id %d snd_dev %d",
                            __func__, info->ip_channels, info->op_channels,
@@ -3793,7 +3793,7 @@ int platform_add_custom_mtmx_params(void *platform,
     ALOGI("%s: adding mtmx params with id %d ip_ch %d op_ch %d snd_dev %d",
           __func__, info->id, info->ip_channels, info->op_channels,
           info->snd_device);
-    while (info->usecase_id[i] != 0) {
+    while (info->usecase_id[i] != USECASE_INVALID) {
         ALOGI("%s: supported usecase ids for added mtmx params %d",
               __func__, info->usecase_id[i]);
         i++;
@@ -3832,7 +3832,7 @@ struct audio_custom_mtmx_in_params *platform_get_custom_mtmx_in_params(void *pla
         params = node_to_item(node, struct audio_custom_mtmx_in_params, list);
         if (params &&
             params->in_info.op_channels == info->op_channels) {
-            while (params->in_info.usecase_id[i] != 0) {
+            while (params->in_info.usecase_id[i] != USECASE_INVALID) {
                 if (params->in_info.usecase_id[i] == info->usecase_id[0]) {
                     ALOGV("%s: found params with op_ch %d uc_id %d",
                           __func__, info->op_channels, info->usecase_id[0]);
@@ -3875,7 +3875,7 @@ int platform_add_custom_mtmx_in_params(void *platform,
     ALOGI("%s: adding mtmx in params with op_ch %d",
           __func__, info->op_channels);
 
-    while (info->usecase_id[i] != 0) {
+    while (info->usecase_id[i] != USECASE_INVALID) {
         ALOGI("%s: supported usecase ids for added mtmx in params %d",
               __func__, info->usecase_id[i]);
         i++;
