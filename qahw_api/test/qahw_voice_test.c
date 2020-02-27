@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2019, The Linux Foundation. All rights reserved.
+* Copyright (c) 2019, 2020 The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -566,6 +566,10 @@ void *playback_start(void *thread_param) {
     attr.attr.audio.config.format = attr.attr.audio.config.offload_info.format;
 
     if (is_offload) {
+        if(attr.type < 0 || attr.type >= QAHW_AUDIO_STREAM_TYPE_MAX){
+             fprintf(stderr, " Invalid Stream type\n");
+             pthread_exit(0);
+        }
         rc = qahw_stream_open(qahw_mod_handle,
                               attr,
                               num_dev,
@@ -580,6 +584,10 @@ void *playback_start(void *thread_param) {
             pthread_exit(0);
         }
     } else {
+        if(attr.type < 0 || attr.type >= QAHW_AUDIO_STREAM_TYPE_MAX){
+           fprintf(stderr, " Invalid Stream type\n");
+           pthread_exit(0);
+        }
         rc = qahw_stream_open(qahw_mod_handle,
                              attr,
                              num_dev,
@@ -771,6 +779,10 @@ void *playback_dl_start(void *thread_param) {
     attr.attr.audio.config.format = attr.attr.audio.config.offload_info.format;
 
     if (is_offload) {
+        if(attr.type < 0 || attr.type >= QAHW_AUDIO_STREAM_TYPE_MAX){
+           fprintf(stderr, " Invalid Stream type\n");
+           pthread_exit(0);
+        }
         rc = qahw_stream_open(qahw_mod_handle,
                               attr,
                               num_dev,
@@ -785,6 +797,10 @@ void *playback_dl_start(void *thread_param) {
             pthread_exit(0);
         }
     } else {
+        if(attr.type < 0 || attr.type >= QAHW_AUDIO_STREAM_TYPE_MAX){
+           fprintf(stderr, " Invalid Stream type\n");
+           pthread_exit(0);
+        }
         rc = qahw_stream_open(qahw_mod_handle,
                              attr,
                              num_dev,

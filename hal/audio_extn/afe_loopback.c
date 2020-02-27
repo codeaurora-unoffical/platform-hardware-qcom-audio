@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+* Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -407,8 +407,9 @@ int create_loopback_session(loopback_patch_t *active_loopback_patch)
     pcm_config.stop_threshold = INT_MAX;
     pcm_config.avail_min = 0;
 
-    memcpy(&loopback_source_stream.usecase, uc_info,
-           sizeof(struct audio_usecase));
+    memscpy(&loopback_source_stream.usecase,
+            sizeof(&loopback_source_stream.usecase),
+            uc_info, sizeof(struct audio_usecase));
     adev->active_input = &loopback_source_stream;
     select_devices(adev, uc_info->id);
 

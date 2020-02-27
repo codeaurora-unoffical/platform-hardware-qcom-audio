@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2015 The Android Open Source Project *
@@ -1183,8 +1183,8 @@ void get_file_format(stream_config *stream_info)
             memcpy (&stream_info->config.offload_info.sample_rate, &header[24], 4);
             memcpy (&stream_info->config.offload_info.bit_width, &header[34], 2);
             /*Check if it's a data chunk*/
-            if (0 == strncmp (&header[wav_header_len - 8], "data", 4)) {
-                memcpy (&stream_info->raw_data_len_in_bytes, &header[wav_header_len - 4],4);
+            if (wav_header_len >=8 && (0 == strncmp (header + wav_header_len - 8 , "data", 4))) {
+                 memcpy(&stream_info->raw_data_len_in_bytes, header + wav_header_len - 4, 4);
                 fprintf(log_file, "wav data length is:%d bytes\n", stream_info->raw_data_len_in_bytes);
             } else {
                 stream_info->raw_data_len_in_bytes = file_length - wav_header_len;

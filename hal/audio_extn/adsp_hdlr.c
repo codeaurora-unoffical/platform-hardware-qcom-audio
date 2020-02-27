@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2017, 2019, The Linux Foundation. All rights reserved.
+* Copyright (c) 2017, 2019, 2020 The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -543,6 +543,13 @@ int audio_extn_adsp_hdlr_stream_register_event(void *handle, void *data,
     ALOGD("%s: event = %d, payload_length %d", __func__, param->event_type, param->payload_length);
 
     /* copy event_type, payload size and payload */
+    if (sizeof(payload) < (sizeof(param->event_type) +
+                        sizeof(param->payload_length) + param->payload_length)) {
+        ALOGE("%s: error in size of payload",__func__);
+        ret = -EINVAL;
+        goto done;
+    }
+
     memcpy(payload, &param->event_type,
                     sizeof(param->event_type));
     memcpy(payload + sizeof(param->event_type), &param->payload_length,
