@@ -410,6 +410,7 @@ bool audio_extn_passthru_is_supported_backend_edid_cfg(struct audio_device *adev
 #define audio_extn_ffv_deinit_ec_ref_loopback(adev, snd_device) (0)
 #define audio_extn_ffv_check_and_append_ec_ref_dev(device_name) (0)
 #define audio_extn_ffv_get_capture_snd_device() (0)
+#define audio_extn_ffv_append_ec_ref_dev_name(device_name) (0)
 #else
 int32_t audio_extn_ffv_init(struct audio_device *adev);
 int32_t audio_extn_ffv_deinit();
