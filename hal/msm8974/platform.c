@@ -69,6 +69,7 @@
 #define MIXER_XML_PATH_I2S "/etc/mixer_paths_i2s.xml"
 #define PLATFORM_INFO_XML_PATH_I2S "/etc/audio_platform_info_extcodec.xml"
 #define PLATFORM_INFO_XML_PATH_WSA  "/etc/audio_platform_info_wsa.xml"
+#define PLATFORM_INFO_XML_PATH_WSA_RB1  "/etc/audio_platform_info_wsa_rb1.xml"
 #define PLATFORM_INFO_XML_PATH_TDM  "/etc/audio_platform_info_tdm.xml"
 #define PLATFORM_INFO_XML_PATH_CSRA6 "/etc/audio_platform_info_csra6.xml"
 #define PLATFORM_INFO_XML_PATH_CSRA8 "/etc/audio_platform_info_csra8.xml"
@@ -83,6 +84,7 @@
 #define MIXER_XML_PATH_I2S "/vendor/etc/mixer_paths_i2s.xml"
 #define PLATFORM_INFO_XML_PATH_I2S "/vendor/etc/audio_platform_info_i2s.xml"
 #define PLATFORM_INFO_XML_PATH_WSA  "/vendor/etc/audio_platform_info_wsa.xml"
+#define PLATFORM_INFO_XML_PATH_WSA_RB1  "/vendor/etc/audio_platform_info_wsa_rb1.xml"
 #define PLATFORM_INFO_XML_PATH_TDM  "/vendor/etc/audio_platform_info_tdm.xml"
 #define PLATFORM_INFO_XML_PATH_CSRA6 "/vendor/etc/audio_platform_info_csra6.xml"
 #define PLATFORM_INFO_XML_PATH_CSRA8 "/vendor/etc/audio_platform_info_csra8.xml"
@@ -2852,6 +2854,9 @@ void *platform_init(struct audio_device *adev)
     else if (!strncmp(snd_card_name, "qcs405-tdm-snd-card",
                sizeof("qcs405-tdm-snd-card")))
         platform_info_init(PLATFORM_INFO_XML_PATH_TDM, my_data, PLATFORM);
+    else if (!strncmp(snd_card_name, "qcs404-wsa-rb1-snd-card",
+               sizeof("qcs404-wsa-rb1-snd-card")))
+        platform_info_init(PLATFORM_INFO_XML_PATH_WSA_RB1, my_data, PLATFORM);
     else if (my_data->is_internal_codec)
         platform_info_init(PLATFORM_INFO_XML_PATH_INTCODEC, my_data, PLATFORM);
     else {
