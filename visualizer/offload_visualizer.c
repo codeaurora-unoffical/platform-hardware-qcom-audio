@@ -192,11 +192,6 @@ int thread_status;
 
 #define DSP_OUTPUT_LATENCY_MS 0 /* Fudge factor for latency after capture point in audio DSP */
 
-/* Retry for delay for mixer open */
-#define RETRY_NUMBER 10
-#define RETRY_US 500000
-
-#define MIXER_CARD 0
 #define SOUND_CARD 0
 
 #ifndef CAPTURE_DEVICE
@@ -471,12 +466,12 @@ void *capture_thread_loop(void *arg)
 
     pthread_mutex_lock(&lock);
 
-    mixer = mixer_open(MIXER_CARD);
-    while (mixer == NULL && retry_num < RETRY_NUMBER) {
-        usleep(RETRY_US);
-        mixer = mixer_open(MIXER_CARD);
-        retry_num++;
-    }
+    sound_card =
+        parse_pcm_device("AFE-PROXY TX", SND_CARD_NUM);
+    sound_card =
+        (sound_card == -1)? SOUND_CARD : sound_card;
+
+    mixer = mixer_open(sound_card);
     if (mixer == NULL) {
         pthread_mutex_unlock(&lock);
         return NULL;
@@ -490,10 +485,6 @@ void *capture_thread_loop(void *arg)
             if (!capture_enabled) {
                 ret = configure_proxy_capture(mixer, 1);
                 if (ret == 0) {
-                    sound_card =
-                       parse_pcm_device("AFE-PROXY TX", SND_CARD_NUM);
-                    sound_card =
-                       (sound_card == -1)? SOUND_CARD : sound_card;
                     capture_device =
                        parse_pcm_device("AFE-PROXY TX", DEVICE_ID);
                     capture_device =
@@ -971,17 +962,19 @@ int visualizer_command(effect_context_t * context, uint32_t cmdCode, uint32_t cm
 
         if (context->state == EFFECT_STATE_ACTIVE) {
             int32_t latency_ms = visu_ctxt->latency;
-            const uint32_t delta_ms = visualizer_get_delta_time_ms_from_updated_time(visu_ctxt);
+            const int32_t delta_ms = visualizer_get_delta_time_ms_from_updated_time(visu_ctxt);
             latency_ms -= delta_ms;
             if (latency_ms < 0) {
                 latency_ms = 0;
             }
             const uint32_t delta_smp = context->config.inputCfg.samplingRate * latency_ms / 1000;
 
-            int32_t capture_point = visu_ctxt->capture_idx - visu_ctxt->capture_size - delta_smp;
-            int32_t capture_size = visu_ctxt->capture_size;
+            int64_t capture_point = visu_ctxt->capture_idx;
+            capture_point -= visu_ctxt->capture_size;
+            capture_point -= delta_smp;
+            int64_t capture_size = visu_ctxt->capture_size;
             if (capture_point < 0) {
-                int32_t size = -capture_point;
+                int64_t size = -capture_point;
                 if (size > capture_size)
                     size = capture_size;
 

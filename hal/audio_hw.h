@@ -236,10 +236,14 @@ enum {
     USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION,
     USECASE_AUDIO_PLAYBACK_NAV_GUIDANCE,
     USECASE_AUDIO_PLAYBACK_PHONE,
+    USECASE_AUDIO_PLAYBACK_FRONT_PASSENGER,
     USECASE_AUDIO_PLAYBACK_REAR_SEAT,
 
     /*Audio FM Tuner usecase*/
     USECASE_AUDIO_FM_TUNER_EXT,
+
+    /*In Car Communication Usecase*/
+    USECASE_ICC_CALL,
     AUDIO_USECASE_MAX
 };
 
@@ -308,18 +312,22 @@ typedef enum render_mode {
     RENDER_MODE_AUDIO_STC_MASTER,
 } render_mode_t;
 
-/* This defines the physical car streams supported in audio HAL,
- * limited by the available frontend PCM driver.
- * Max number of physical streams supported is currently 16 and is
+/* This defines the physical car audio streams supported in
+ * audio HAL, limited by the available frontend PCM devices.
+ * Max number of physical streams supported is 32 and is
  * represented by stream bit flag.
+ *     Primary zone: bit 0 - 7
+ *     Front passenger zone: bit 8 - 15
+ *     Rear seat zone: bit 16 - 23
  */
-#define MAX_CAR_AUDIO_STREAMS    16
+#define MAX_CAR_AUDIO_STREAMS    32
 enum {
     CAR_AUDIO_STREAM_MEDIA            = 0x1,
     CAR_AUDIO_STREAM_SYS_NOTIFICATION = 0x2,
     CAR_AUDIO_STREAM_NAV_GUIDANCE     = 0x4,
     CAR_AUDIO_STREAM_PHONE            = 0x8,
-    CAR_AUDIO_STREAM_REAR_SEAT        = 0x100,
+    CAR_AUDIO_STREAM_FRONT_PASSENGER  = 0x100,
+    CAR_AUDIO_STREAM_REAR_SEAT        = 0x10000,
 };
 
 struct stream_app_type_cfg {
@@ -516,6 +524,7 @@ typedef enum {
     TRANSCODE_LOOPBACK_RX,
     TRANSCODE_LOOPBACK_TX,
     PCM_PASSTHROUGH,
+    ICC_CALL,
     USECASE_TYPE_MAX
 } usecase_type_t;
 

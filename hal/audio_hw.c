@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -408,8 +408,10 @@ const char * const use_case_table[AUDIO_USECASE_MAX] = {
     [USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION] = "sys-notification-playback",
     [USECASE_AUDIO_PLAYBACK_NAV_GUIDANCE] = "nav-guidance-playback",
     [USECASE_AUDIO_PLAYBACK_PHONE] = "phone-playback",
+    [USECASE_AUDIO_PLAYBACK_FRONT_PASSENGER] = "front-passenger-playback",
     [USECASE_AUDIO_PLAYBACK_REAR_SEAT] = "rear-seat-playback",
     [USECASE_AUDIO_FM_TUNER_EXT] = "fm-tuner-ext",
+    [USECASE_ICC_CALL] = "icc-call",
 };
 
 static const audio_usecase_t offload_usecases[] = {
@@ -1852,9 +1854,10 @@ static int read_hdmi_sink_caps(struct stream_out *out)
     reset_hdmi_sink_caps(out);
 
     /* Cache ext disp type */
-    if (platform_get_ext_disp_type_v2(adev->platform,
+    ret = platform_get_ext_disp_type_v2(adev->platform,
                                       out->extconn.cs.controller,
-                                      out->extconn.cs.stream <= 0)) {
+                                      out->extconn.cs.stream);
+    if(ret < 0) {
         ALOGE("%s: Failed to query disp type, ret:%d", __func__, ret);
         return -EINVAL;
     }
@@ -2478,7 +2481,8 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
 
     if ((usecase->type == VOICE_CALL) ||
         (usecase->type == VOIP_CALL)  ||
-        (usecase->type == PCM_HFP_CALL)) {
+        (usecase->type == PCM_HFP_CALL)||
+        (usecase->type == ICC_CALL)) {
         if(usecase->stream.out == NULL) {
             ALOGE("%s: stream.out is NULL", __func__);
             return -EINVAL;
@@ -2953,6 +2957,9 @@ int start_input_stream(struct stream_in *in)
     else
         ALOGV("%s: usecase(%d)", __func__, in->usecase);
 
+    if (audio_extn_cin_attached_usecase(in))
+        audio_extn_cin_acquire_usecase(in);
+
     if (get_usecase_from_list(adev, in->usecase) != NULL) {
         ALOGE("%s: use case assigned already in use, stream(%p)usecase(%d: %s)",
             __func__, &in->stream, in->usecase, use_case_table[in->usecase]);
@@ -2993,7 +3000,7 @@ int start_input_stream(struct stream_in *in)
 
     android_atomic_acquire_cas(true, false, &(in->capture_stopped));
 
-    if (audio_extn_cin_attached_usecase(in->usecase)) {
+    if (audio_extn_cin_attached_usecase(in)) {
        ret = audio_extn_cin_open_input_stream(in);
        if (ret)
            goto error_open;
@@ -4529,7 +4536,7 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
 
     err = platform_get_controller_stream_from_params(parms, &ext_controller,
                                                        &ext_stream);
-    if (err >= 0) {
+    if (err == 0) {
         out->extconn.cs.controller = ext_controller;
         out->extconn.cs.stream = ext_stream;
         ALOGD("%s: usecase(%s) new controller/stream (%d/%d)", __func__,
@@ -4617,6 +4624,19 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
             (card = get_alive_usb_card(parms)) >= 0) {
 
             ALOGW("out_set_parameters() ignoring rerouting to non existing USB card %d", card);
+            pthread_mutex_unlock(&adev->lock);
+            pthread_mutex_unlock(&out->lock);
+            ret = -ENOSYS;
+            goto routing_fail;
+        }
+
+        // Workaround: If routing to an non existing hdmi device, fail gracefully
+        if (audio_is_output_device(new_dev) &&
+            (new_dev & AUDIO_DEVICE_OUT_AUX_DIGITAL) &&
+            (platform_get_edid_info_v2(adev->platform,
+                                       out->extconn.cs.controller,
+                                       out->extconn.cs.stream) != 0)) {
+            ALOGW("out_set_parameters() ignoring rerouting to non existing HDMI/DP");
             pthread_mutex_unlock(&adev->lock);
             pthread_mutex_unlock(&out->lock);
             ret = -ENOSYS;
@@ -6327,7 +6347,7 @@ static size_t in_get_buffer_size(const struct audio_stream *stream)
         return voice_extn_compress_voip_in_get_buffer_size(in);
     else if(audio_extn_compr_cap_usecase_supported(in->usecase))
         return audio_extn_compr_cap_get_buffer_size(in->config.format);
-    else if(audio_extn_cin_attached_usecase(in->usecase))
+    else if(audio_extn_cin_attached_usecase(in))
         return audio_extn_cin_get_buffer_size(in);
 
     return in->config.period_size * in->af_period_multiplier *
@@ -6392,7 +6412,7 @@ static int in_standby(struct audio_stream *stream)
                 in->mmap_shared_memory_fd = -1;
             }
         } else {
-            if (audio_extn_cin_attached_usecase(in->usecase))
+            if (audio_extn_cin_attached_usecase(in))
                 audio_extn_cin_close_input_stream(in);
         }
 
@@ -6721,7 +6741,7 @@ static ssize_t in_read(struct audio_stream_in *stream, void *buffer,
         goto exit;
     bool use_mmap = is_mmap_usecase(in->usecase) || in->realtime;
 
-    if (audio_extn_cin_attached_usecase(in->usecase)) {
+    if (audio_extn_cin_attached_usecase(in)) {
         ret = audio_extn_cin_read(in, buffer, bytes, &bytes_read);
     } else if (in->pcm) {
         if (audio_extn_ssr_get_stream() == in) {
@@ -6782,7 +6802,7 @@ exit:
             pthread_mutex_unlock(&adev->lock);
             in->standby = true;
         }
-        if (!audio_extn_cin_attached_usecase(in->usecase)) {
+        if (!audio_extn_cin_attached_usecase(in)) {
             bytes_read = bytes;
             memset(buffer, 0, bytes);
         }
@@ -7297,6 +7317,12 @@ int adev_open_output_stream(struct audio_hw_device *dev,
         devices = AUDIO_DEVICE_OUT_SPEAKER;
         ALOGW("%s: ignore set device to non existing USB card, use output device(%#x)",
               __func__, devices);
+        if (config->format == AUDIO_FORMAT_DEFAULT)
+            config->format = AUDIO_FORMAT_PCM_16_BIT;
+        if (config->sample_rate == 0)
+            config->sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
+        if (config->channel_mask == AUDIO_CHANNEL_NONE)
+            config->channel_mask = AUDIO_CHANNEL_OUT_STEREO;
     }
 
     *stream_out = NULL;
@@ -8416,8 +8442,8 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
     audio_extn_hfp_set_parameters(adev, parms);
     audio_extn_qdsp_set_parameters(adev, parms);
 
-    status = audio_extn_a2dp_set_parameters(parms, &a2dp_reconfig);
-    if (status >= 0 && a2dp_reconfig) {
+    ret = audio_extn_a2dp_set_parameters(parms, &a2dp_reconfig);
+    if (ret >= 0 && a2dp_reconfig) {
         struct audio_usecase *usecase;
         struct listnode *node;
         list_for_each(node, &adev->usecase_list) {
@@ -8437,6 +8463,15 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
                 usecase->stream.out->a2dp_compress_mute = false;
                 out_set_compr_volume(&usecase->stream.out->stream, usecase->stream.out->volume_l, usecase->stream.out->volume_r);
                 audio_extn_a2dp_set_handoff_mode(false);
+                pthread_mutex_unlock(&usecase->stream.out->lock);
+                break;
+            } else if ((usecase->stream.out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) &&
+                        usecase->stream.out->a2dp_compress_mute) {
+                pthread_mutex_unlock(&adev->lock);
+                lock_output_stream(usecase->stream.out);
+                pthread_mutex_lock(&adev->lock);
+                usecase->stream.out->devices = AUDIO_DEVICE_OUT_BLUETOOTH_A2DP;
+                check_a2dp_restore_l(adev, usecase->stream.out, true);
                 pthread_mutex_unlock(&usecase->stream.out->lock);
                 break;
             }
@@ -9254,7 +9289,7 @@ static void adev_close_input_stream(struct audio_hw_device *dev,
             audio_extn_compr_cap_format_supported(in->config.format))
         audio_extn_compr_cap_deinit();
 
-    if (audio_extn_cin_attached_usecase(in->usecase))
+    if (audio_extn_cin_attached_usecase(in))
         audio_extn_cin_free_input_stream_resources(in);
 
     if (in->is_st_session) {
@@ -9909,8 +9944,7 @@ static int adev_open(const hw_module_t *module, const char *name,
     audio_device_ref_count++;
 
     int trial;
-    if ((property_get("vendor.audio_hal.period_size", value, NULL) > 0) ||
-        (property_get("audio_hal.period_size", value, NULL) > 0)) {
+    if (property_get("vendor.audio_hal.period_size", value, NULL) > 0) {
         trial = atoi(value);
         if (period_size_is_plausible_for_low_latency(trial)) {
             pcm_config_low_latency.period_size = trial;
@@ -9931,8 +9965,7 @@ static int adev_open(const hw_module_t *module, const char *name,
 
     adev->camera_orientation = CAMERA_DEFAULT;
 
-    if ((property_get("vendor.audio_hal.period_multiplier",value,NULL) > 0) ||
-        (property_get("audio_hal.period_multiplier",value,NULL) > 0)) {
+    if (property_get("vendor.audio_hal.period_multiplier",value,NULL) > 0) {
         af_period_multiplier = atoi(value);
         if (af_period_multiplier < 0)
             af_period_multiplier = 2;

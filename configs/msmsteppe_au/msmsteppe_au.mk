@@ -76,8 +76,10 @@ AUDIO_FEATURE_ENABLED_EXT_HW_PLUGIN := true
 AUDIO_FEATURE_ENABLED_AUDIO_CONTROL_HAL := true
 ifneq ($(ENABLE_HYP),true)
 AUDIO_FEATURE_ENABLED_AUTO_AUDIOD := true
+AUDIO_FEATURE_ENABLED_DAEMON_SUPPORT := true
 endif
 AUDIO_FEATURE_ENABLED_FM_TUNER_EXT := true
+AUDIO_FEATURE_ENABLED_ICC := true
 ##AUTOMOTIVE_AUDIO_FEATURE_FLAGS
 
 ifneq ($(strip $(TARGET_USES_RRO)), true)
@@ -255,9 +257,11 @@ vendor.audio.use.sw.ape.decoder=true
 
 #enable hw aac encoder by default
 PRODUCT_PROPERTY_OVERRIDES += \
-vendor.audio.hw.aac.encoder=true
+vendor.audio.hw.aac.encoder=false
 
-#force offload using hardware decoders for FLAC, WMA & APE
+#force offload using hardware decoders for ALAC, FLAC, WMA & APE
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.use.hw.alac.decoder=true
 PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.use.hw.flac.decoder=true
 PRODUCT_PROPERTY_OVERRIDES += \
@@ -307,7 +311,7 @@ vendor.audio.volume.headset.gain.depcal=true
 
 #enable dualmic fluence for voice communication
 PRODUCT_PROPERTY_OVERRIDES += \
-persist.audio.fluence.voicecomm=true
+persist.vendor.audio.fluence.voicecomm=true
 
 #enable AAC frame ctl for A2DP sinks
 PRODUCT_PROPERTY_OVERRIDES += \
@@ -339,6 +343,7 @@ vendor.audio.feature.fm.enable=false \
 vendor.audio.feature.hdmi_edid.enable=false \
 vendor.audio.feature.hdmi_passthrough.enable=false \
 vendor.audio.feature.hfp.enable=true  \
+vendor.audio.feature.icc.enable=true  \
 vendor.audio.feature.hifi_audio.enable=false \
 vendor.audio.feature.hwdep_cal.enable=false  \
 vendor.audio.feature.incall_music.enable=true  \
@@ -384,6 +389,7 @@ vendor.audio.feature.fm.enable=true \
 vendor.audio.feature.hdmi_edid.enable=true \
 vendor.audio.feature.hdmi_passthrough.enable=true \
 vendor.audio.feature.hfp.enable=true \
+vendor.audio.feature.icc.enable=true  \
 vendor.audio.feature.hifi_audio.enable=false \
 vendor.audio.feature.hwdep_cal.enable=false \
 vendor.audio.feature.incall_music.enable=true \

@@ -716,6 +716,25 @@ typedef struct hfp_init_config {
 
 // END: HFP FEATURE ==================================================
 
+// START: ICC FEATURE ====================================================
+bool audio_extn_icc_is_active(struct audio_device *adev);
+audio_usecase_t audio_extn_icc_get_usecase();
+void audio_extn_icc_set_parameters(struct audio_device *adev,
+                                          struct str_parms *parms);
+
+typedef struct icc_init_config {
+    fp_platform_get_pcm_device_id_t              fp_platform_get_pcm_device_id;
+    fp_platform_set_echo_reference_t             fp_platform_set_echo_reference;
+    fp_select_devices_t                          fp_select_devices;
+    fp_audio_extn_ext_hw_plugin_usecase_start_t  fp_audio_extn_ext_hw_plugin_usecase_start;
+    fp_audio_extn_ext_hw_plugin_usecase_stop_t   fp_audio_extn_ext_hw_plugin_usecase_stop;
+    fp_get_usecase_from_list_t                   fp_get_usecase_from_list;
+    fp_disable_audio_route_t                     fp_disable_audio_route;
+    fp_disable_snd_device_t                      fp_disable_snd_device;
+} icc_init_config_t;
+
+//END: ICC FEAUTRE =======================================================
+
 // START: EXT_HW_PLUGIN FEATURE ==================================================
 void* audio_extn_ext_hw_plugin_init(struct audio_device *adev);
 int audio_extn_ext_hw_plugin_deinit(void *plugin);
@@ -1095,8 +1114,9 @@ int audio_extn_gef_retrieve_audio_cal(void* adev, int acdb_dev_id, int acdb_devi
 
 // START: COMPRESS_INPUT_ENABLED ===============================
 bool audio_extn_cin_applicable_stream(struct stream_in *in);
-bool audio_extn_cin_attached_usecase(audio_usecase_t uc_id);
+bool audio_extn_cin_attached_usecase(struct stream_in *in);
 bool audio_extn_cin_format_supported(audio_format_t format);
+int audio_extn_cin_acquire_usecase(struct stream_in *in);
 size_t audio_extn_cin_get_buffer_size(struct stream_in *in);
 int audio_extn_cin_open_input_stream(struct stream_in *in);
 void audio_extn_cin_stop_input_stream(struct stream_in *in);
@@ -1311,8 +1331,11 @@ int audio_extn_utils_get_license_params(const struct audio_device *adev,  struct
 #ifndef AUDIO_OUTPUT_FLAG_PHONE
 #define AUDIO_OUTPUT_FLAG_PHONE 0x800000
 #endif
+#ifndef AUDIO_OUTPUT_FLAG_FRONT_PASSENGER
+#define AUDIO_OUTPUT_FLAG_FRONT_PASSENGER 0x1000000
+#endif
 #ifndef AUDIO_OUTPUT_FLAG_REAR_SEAT
-#define AUDIO_OUTPUT_FLAG_REAR_SEAT 0x1000000
+#define AUDIO_OUTPUT_FLAG_REAR_SEAT 0x2000000
 #endif
 int audio_extn_auto_hal_init(struct audio_device *adev);
 void audio_extn_auto_hal_deinit(void);
