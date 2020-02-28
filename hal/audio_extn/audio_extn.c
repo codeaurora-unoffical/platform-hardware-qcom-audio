@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -95,8 +95,9 @@ int keep_alive_set_parameters(struct audio_device *adev,
                                          struct str_parms *parms);
 
 bool cin_applicable_stream(struct stream_in *in);
-bool cin_attached_usecase(audio_usecase_t uc_id);
+bool cin_attached_usecase(struct stream_in *in);
 bool cin_format_supported(audio_format_t format);
+int cin_acquire_usecase(struct stream_in *in);
 size_t cin_get_buffer_size(struct stream_in *in);
 int cin_open_input_stream(struct stream_in *in);
 void cin_stop_input_stream(struct stream_in *in);
@@ -1289,6 +1290,12 @@ static int32_t afe_proxy_set_channel_mapping(struct audio_device *adev,
         set_values[0] = PCM_CHANNEL_FL;
         set_values[1] = PCM_CHANNEL_FR;
         break;
+     case 4:
+        set_values[0] = PCM_CHANNEL_FL;
+        set_values[1] = PCM_CHANNEL_FR;
+        set_values[2] = PCM_CHANNEL_LS;
+        set_values[3] = PCM_CHANNEL_LFE;
+        break;
     case 6:
         set_values[0] = PCM_CHANNEL_FL;
         set_values[1] = PCM_CHANNEL_FR;
@@ -1385,7 +1392,7 @@ int32_t audio_extn_set_afe_proxy_channel_mixer(struct audio_device *adev,
     }
     mixer_ctl_set_enum_by_string(ctl, channel_cnt_str);
 
-    if (channel_count == 6 || channel_count == 8 || channel_count == 2) {
+    if (channel_count == 6 || channel_count == 8 || channel_count == 2 || channel_count == 4) {
         ret = afe_proxy_set_channel_mapping(adev, channel_count, snd_device);
     } else {
         ALOGE("%s: set unsupported channel count(%d)",  __func__, channel_count);
@@ -4570,6 +4577,107 @@ int audio_extn_hfp_set_mic_mute2(struct audio_device *adev, bool state)
 }
 // END: HFP ========================================================================
 
+// START: ICC ======================================================================
+#ifdef __LP64__
+#define ICC_LIB_PATH "/vendor/lib64/libicc.so"
+#else
+#define ICC_LIB_PATH "/vendor/lib/libicc.so"
+#endif
+
+static void *icc_lib_handle = NULL;
+
+typedef void (*icc_init_t)(icc_init_config_t);
+static icc_init_t icc_init;
+
+typedef bool (*icc_is_active_t)(struct audio_device *adev);
+static icc_is_active_t icc_is_active;
+
+typedef audio_usecase_t (*icc_get_usecase_t)();
+static icc_get_usecase_t icc_get_usecase;
+
+typedef void (*icc_set_parameters_t)(struct audio_device *adev,
+                                           struct str_parms *parms);
+static icc_set_parameters_t icc_set_parameters;
+
+int icc_feature_init(bool is_feature_enabled)
+{
+    ALOGD("%s: Called with feature %s", __func__,
+                  is_feature_enabled ? "Enabled" : "NOT Enabled");
+    if (is_feature_enabled) {
+        // dlopen lib
+        icc_lib_handle = dlopen(ICC_LIB_PATH, RTLD_NOW);
+
+        if (!icc_lib_handle) {
+            ALOGE("%s: dlopen failed", __func__);
+            goto feature_disabled;
+        }
+        if (!(icc_init = (icc_init_t)dlsym(
+                            icc_lib_handle, "icc_init")) ||
+            !(icc_is_active =
+                 (icc_is_active_t)dlsym(
+                            icc_lib_handle, "icc_is_active")) ||
+            !(icc_get_usecase =
+                 (icc_get_usecase_t)dlsym(
+                            icc_lib_handle, "icc_get_usecase")) ||
+            !(icc_set_parameters =
+                 (icc_set_parameters_t)dlsym(
+                            icc_lib_handle, "icc_set_parameters"))) {
+            ALOGE("%s: dlsym failed", __func__);
+            goto feature_disabled;
+        }
+        icc_init_config_t init_config;
+        init_config.fp_platform_get_pcm_device_id = platform_get_pcm_device_id;
+        init_config.fp_platform_set_echo_reference = platform_set_echo_reference;
+        init_config.fp_select_devices = select_devices;
+        init_config.fp_audio_extn_ext_hw_plugin_usecase_start =
+                                        audio_extn_ext_hw_plugin_usecase_start;
+        init_config.fp_audio_extn_ext_hw_plugin_usecase_stop =
+                                        audio_extn_ext_hw_plugin_usecase_stop;
+        init_config.fp_get_usecase_from_list = get_usecase_from_list;
+        init_config.fp_disable_audio_route = disable_audio_route;
+        init_config.fp_disable_snd_device = disable_snd_device;
+
+        icc_init(init_config);
+        ALOGD("%s:: ---- Feature ICC is Enabled ----", __func__);
+        return 0;
+    }
+
+feature_disabled:
+    if (icc_lib_handle) {
+        dlclose(icc_lib_handle);
+        icc_lib_handle = NULL;
+    }
+
+    icc_init = NULL;
+    icc_is_active = NULL;
+    icc_get_usecase = NULL;
+    icc_set_parameters = NULL;
+
+    ALOGW(":: %s: ---- Feature ICC is disabled ----", __func__);
+    return -ENOSYS;
+}
+
+bool audio_extn_icc_is_active(struct audio_device *adev)
+{
+    return ((icc_is_active) ?
+                    icc_is_active(adev): false);
+}
+
+audio_usecase_t audio_extn_icc_get_usecase()
+{
+    return ((icc_get_usecase) ?
+                    icc_get_usecase(): -1);
+}
+
+void audio_extn_icc_set_parameters(struct audio_device *adev,
+                                           struct str_parms *parms)
+{
+    ((icc_set_parameters) ?
+                    icc_set_parameters(adev, parms): NULL);
+}
+
+// END: ICC ========================================================================
+
 // START: EXT_HW_PLUGIN ===================================================================
 #ifdef __LP64__
 #define EXT_HW_PLUGIN_LIB_PATH "/vendor/lib64/libexthwplugin.so"
@@ -5092,13 +5200,17 @@ bool audio_extn_cin_applicable_stream(struct stream_in *in)
 {
     return (audio_extn_compress_in_enabled? cin_applicable_stream(in): false);
 }
-bool audio_extn_cin_attached_usecase(audio_usecase_t uc_id)
+bool audio_extn_cin_attached_usecase(struct stream_in *in)
 {
-    return (audio_extn_compress_in_enabled? cin_attached_usecase(uc_id): false);
+    return (audio_extn_compress_in_enabled? cin_attached_usecase(in): false);
 }
 bool audio_extn_cin_format_supported(audio_format_t format)
 {
     return (audio_extn_compress_in_enabled? cin_format_supported(format): false);
+}
+int audio_extn_cin_acquire_usecase(struct stream_in *in)
+{
+    return (audio_extn_compress_in_enabled? cin_acquire_usecase(in): 0);
 }
 size_t audio_extn_cin_get_buffer_size(struct stream_in *in)
 {
@@ -5256,7 +5368,8 @@ bool audio_extn_is_hifi_filter_enabled(struct audio_device* adev, struct stream_
     if (audio_extn_hifi_filter_enabled) {
         /*Restricting the feature for Tavil and WCD9375 codecs only*/
         if ((strstr(codec_variant, "WCD9385") || strstr(codec_variant, "WCD9375"))
-            && (na_mode == NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_DSP) && channels <=2) {
+            && (na_mode == NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_DSP || na_mode ==
+                       NATIVE_AUDIO_MODE_TRUE_44_1) && channels <=2) {
             /*Upsampling 8 time should be restricited to headphones playback only */
             if (snd_device == SND_DEVICE_OUT_HEADPHONES
                 || snd_device == SND_DEVICE_OUT_HEADPHONES_44_1
@@ -5872,6 +5985,9 @@ void audio_extn_feature_init()
     hfp_feature_init(
         property_get_bool("vendor.audio.feature.hfp.enable",
                            false));
+    icc_feature_init(
+        property_get_bool("vendor.audio.feature.icc.enable",
+                           false));
     ext_hw_plugin_feature_init(
         property_get_bool("vendor.audio.feature.ext_hw_plugin.enable",
                            false));
@@ -5935,6 +6051,7 @@ void audio_extn_set_parameters(struct audio_device *adev,
    audio_extn_set_aptx_dec_bt_addr(adev, parms);
    audio_extn_ffv_set_parameters(adev, parms);
    audio_extn_ext_hw_plugin_set_parameters(adev->ext_hw_plugin, parms);
+   audio_extn_icc_set_parameters(adev, parms);
 }
 
 void audio_extn_get_parameters(const struct audio_device *adev,

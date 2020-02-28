@@ -487,6 +487,12 @@ int auto_hal_open_output_stream(struct stream_out *out)
         if (out->flags == AUDIO_OUTPUT_FLAG_NONE)
             out->flags |= AUDIO_OUTPUT_FLAG_PHONE;
         break;
+    case CAR_AUDIO_STREAM_FRONT_PASSENGER:
+        out->usecase = USECASE_AUDIO_PLAYBACK_FRONT_PASSENGER;
+        out->config = pcm_config_system;
+        if (out->flags == AUDIO_OUTPUT_FLAG_NONE)
+            out->flags |= AUDIO_OUTPUT_FLAG_FRONT_PASSENGER;
+        break;
     case CAR_AUDIO_STREAM_REAR_SEAT:
         out->usecase = USECASE_AUDIO_PLAYBACK_REAR_SEAT;
         out->config = pcm_config_media;
@@ -537,6 +543,9 @@ snd_device_t auto_hal_get_snd_device_for_car_audio_stream(struct stream_out *out
         break;
     case CAR_AUDIO_STREAM_PHONE:
         snd_device = SND_DEVICE_OUT_BUS_PHN;
+        break;
+    case CAR_AUDIO_STREAM_FRONT_PASSENGER:
+        snd_device = SND_DEVICE_OUT_BUS_PAX;
         break;
     case CAR_AUDIO_STREAM_REAR_SEAT:
         snd_device = SND_DEVICE_OUT_BUS_RSE;
@@ -845,6 +854,9 @@ snd_device_t auto_hal_get_input_snd_device(struct audio_device *adev,
         case USECASE_VOICE_CALL:
             snd_device = SND_DEVICE_IN_VOICE_SPEAKER_MIC;
             break;
+        case USECASE_ICC_CALL:
+            snd_device = SND_DEVICE_IN_ICC;
+            break;
         default:
             ALOGE("%s: Usecase (%d) not supported", __func__, uc_id);
             return -EINVAL;
@@ -929,8 +941,14 @@ snd_device_t auto_hal_get_output_snd_device(struct audio_device *adev,
         case USECASE_AUDIO_PLAYBACK_PHONE:
             snd_device = SND_DEVICE_OUT_BUS_PHN;
             break;
+        case USECASE_AUDIO_PLAYBACK_FRONT_PASSENGER:
+            snd_device = SND_DEVICE_OUT_BUS_PAX;
+            break;
         case USECASE_AUDIO_PLAYBACK_REAR_SEAT:
             snd_device = SND_DEVICE_OUT_BUS_RSE;
+            break;
+        case USECASE_ICC_CALL:
+            snd_device = SND_DEVICE_OUT_ICC;
             break;
         default:
             ALOGE("%s: Usecase (%d) not supported", __func__, uc_id);
