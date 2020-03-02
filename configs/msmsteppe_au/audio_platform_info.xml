@@ -134,6 +134,22 @@
         <usecase name="USECASE_AUDIO_HFP_SCO_WB_DOWNLINK" type="out" id="36" />
         <usecase name="USECASE_ICC_CALL" type="in" id="33" />
         <usecase name="USECASE_ICC_CALL" type="out" id="33" />
+        <usecase name="USECASE_AUDIO_PRI_HFP_SCO" type="in" id="29" />
+        <usecase name="USECASE_AUDIO_PRI_HFP_SCO" type="out" id="29" />
+        <usecase name="USECASE_AUDIO_PRI_HFP_SCO_WB" type="in" id="29" />
+        <usecase name="USECASE_AUDIO_PRI_HFP_SCO_WB" type="out" id="29" />
+        <usecase name="USECASE_AUDIO_PRI_HFP_SCO_DOWNLINK" type="in" id="36" />
+        <usecase name="USECASE_AUDIO_PRI_HFP_SCO_DOWNLINK" type="out" id="36" />
+        <usecase name="USECASE_AUDIO_PRI_HFP_SCO_WB_DOWNLINK" type="in" id="36" />
+        <usecase name="USECASE_AUDIO_PRI_HFP_SCO_WB_DOWNLINK" type="out" id="36" />
+        <usecase name="USECASE_AUDIO_SEC_HFP_SCO" type="in" id="56" />
+        <usecase name="USECASE_AUDIO_SEC_HFP_SCO" type="out" id="56" />
+        <usecase name="USECASE_AUDIO_SEC_HFP_SCO_WB" type="in" id="56" />
+        <usecase name="USECASE_AUDIO_SEC_HFP_SCO_WB" type="out" id="56" />
+        <usecase name="USECASE_AUDIO_SEC_HFP_SCO_DOWNLINK" type="in" id="57" />
+        <usecase name="USECASE_AUDIO_SEC_HFP_SCO_DOWNLINK" type="out" id="57" />
+        <usecase name="USECASE_AUDIO_SEC_HFP_SCO_WB_DOWNLINK" type="in" id="57" />
+        <usecase name="USECASE_AUDIO_SEC_HFP_SCO_WB_DOWNLINK" type="out" id="57" />
     </pcm_ids>
 
     <config_params>
