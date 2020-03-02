@@ -240,6 +240,7 @@ static const int pcm_device_table[AUDIO_USECASE_MAX][2] = {
     [USECASE_AUDIO_SPKR_CALIB_TX] = {-1, SPKR_PROT_CALIB_TX_PCM_DEVICE},
     [USECASE_AUDIO_PLAYBACK_SILENCE] = {MULTIMEDIA9_PCM_DEVICE, -1},
     [USECASE_AUDIO_EC_REF_LOOPBACK] = {MULTIMEDIA9_PCM_DEVICE, MULTIMEDIA9_PCM_DEVICE}, /* pcm id updated from platform info file */
+    [USECASE_AUDIO_PLAYBACK_HAPTIC] = {HAPTIC_PLAYBACK_PCM_DEVICE, -1},
 };
 
 /* Array to store sound devices */
@@ -1198,6 +1199,7 @@ void *platform_init(struct audio_device *adev)
         ALOGE("failed to allocate platform data");
         return NULL;
     }
+    ALOGE("Ramjee platform init called");
 
     while (snd_card_num < MAX_SND_CARD) {
         adev->mixer = mixer_open(snd_card_num);
@@ -1367,6 +1369,9 @@ void *platform_init(struct audio_device *adev)
     }
     /* Initialize keep alive for HDMI/loopback silence */
     audio_extn_keep_alive_init(adev);
+    ALOGE("Ramjee haptic init called");
+    audio_extn_haptic_init(adev);
+    ALOGE("Ramjee haptic init returned");
     audio_extn_pm_vote();
 
 acdb_init_fail:
@@ -1408,6 +1413,9 @@ void platform_deinit(void *platform)
     /* deinit usb */
     audio_extn_usb_deinit();
     audio_extn_dap_hal_deinit();
+    ALOGE("Ramjee audio_extn_haptic_deinit called");
+    audio_extn_haptic_deinit();
+    ALOGE("Ramjee audio_extn_haptic_deinit returned");
 }
 
 int platform_is_acdb_initialized(void *platform)

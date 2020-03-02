@@ -232,6 +232,9 @@ enum {
 #define VOICEMMODE1_CALL_PCM_DEVICE 33
 #define VOICEMMODE2_CALL_PCM_DEVICE 28
 
+//TODO HAPTIC_PLAYBACK_PCM_DEVICE correct it to use proper pcm ID changing to Low latency device now
+#define HAPTIC_PLAYBACK_PCM_DEVICE  12
+
 #define LIB_CSD_CLIENT "libcsd-client.so"
 /* CSD-CLIENT related functions */
 typedef int (*init_t)();

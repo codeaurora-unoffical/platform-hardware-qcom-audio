@@ -533,4 +533,21 @@ int audio_extn_perf_lock_init(void);
 void audio_extn_perf_lock_acquire(void);
 void audio_extn_perf_lock_release(void);
 #endif /* KPI_OPTIMIZE_ENABLED */
+
+#ifndef HAPTIC_ENABLED
+ void audio_extn_haptic_init(struct audio_device *adev) do {} while(0)
+ void audio_extn_haptic_deinit() do {} while(0)
+ void audio_extn_haptic_start ( struct audio_device *adev)  do {} while(0)
+ void audio_extn_haptic_stop ( struct audio_device *adev)  do {} while(0)
+ void audio_extn_haptic_set_parameterss(struct audio_device *adev,
+                                   struct str_parms *parms)   do {} while(0)
+#else
+ void audio_extn_haptic_init(struct audio_device *adev);
+ void audio_extn_haptic_deinit();
+ void audio_extn_haptic_start( struct audio_device *adev);
+ void audio_extn_haptic_stop( struct audio_device *adev);
+ void audio_extn_haptic_set_parameterss(struct audio_device *adev,
+                                   struct str_parms *parms); 
+#endif
+
 #endif /* AUDIO_EXTN_H */
