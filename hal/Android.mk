@@ -263,6 +263,12 @@ ifeq ($(strip $(AUDIO_FEATURE_ENABLED_PM_SUPPORT)),true)
     LOCAL_SHARED_LIBRARIES += libperipheral_client
 endif
 
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_HAPTIC)), true)
+    LOCAL_CFLAGS += -DHAPTIC_ENABLED
+    LOCAL_SRC_FILES += audio_extn/haptic.c
+endif
+
+
 LOCAL_COPY_HEADERS_TO   := mm-audio
 LOCAL_COPY_HEADERS      := audio_extn/audio_defs.h
 

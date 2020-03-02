@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015, 2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2015, 2019-2020 The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -240,6 +240,7 @@ static const int pcm_device_table[AUDIO_USECASE_MAX][2] = {
     [USECASE_AUDIO_SPKR_CALIB_TX] = {-1, SPKR_PROT_CALIB_TX_PCM_DEVICE},
     [USECASE_AUDIO_PLAYBACK_SILENCE] = {MULTIMEDIA9_PCM_DEVICE, -1},
     [USECASE_AUDIO_EC_REF_LOOPBACK] = {MULTIMEDIA9_PCM_DEVICE, MULTIMEDIA9_PCM_DEVICE}, /* pcm id updated from platform info file */
+    [USECASE_AUDIO_PLAYBACK_HAPTIC] = {HAPTIC_PLAYBACK_PCM_DEVICE, -1},
 };
 
 /* Array to store sound devices */
@@ -1367,6 +1368,7 @@ void *platform_init(struct audio_device *adev)
     }
     /* Initialize keep alive for HDMI/loopback silence */
     audio_extn_keep_alive_init(adev);
+    audio_extn_haptic_init(adev);
     audio_extn_pm_vote();
 
 acdb_init_fail:
@@ -1408,6 +1410,7 @@ void platform_deinit(void *platform)
     /* deinit usb */
     audio_extn_usb_deinit();
     audio_extn_dap_hal_deinit();
+    audio_extn_haptic_deinit();
 }
 
 int platform_is_acdb_initialized(void *platform)

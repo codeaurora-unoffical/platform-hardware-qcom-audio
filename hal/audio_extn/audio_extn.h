@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015, 2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2015, 2019-2020 The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -500,7 +500,7 @@ typedef enum {
 #ifndef AUDIO_FORMAT_E_AC3_JOC
 #define AUDIO_FORMAT_E_AC3_JOC  0x19000000UL
 #endif
- 
+
 #ifndef AUDIO_FORMAT_DTS_LBR
 #define AUDIO_FORMAT_DTS_LBR 0x1E000000UL
 #endif
@@ -533,4 +533,21 @@ int audio_extn_perf_lock_init(void);
 void audio_extn_perf_lock_acquire(void);
 void audio_extn_perf_lock_release(void);
 #endif /* KPI_OPTIMIZE_ENABLED */
+
+#ifndef HAPTIC_ENABLED
+ void audio_extn_haptic_init(struct audio_device *adev) do {} while(0)
+ void audio_extn_haptic_deinit() do {} while(0)
+ void audio_extn_haptic_start ( struct audio_device *adev)  do {} while(0)
+ void audio_extn_haptic_stop ( struct audio_device *adev)  do {} while(0)
+ void audio_extn_haptic_set_parameters(struct audio_device *adev,
+                                   struct str_parms *parms)   do {} while(0)
+#else
+ void audio_extn_haptic_init(struct audio_device *adev);
+ void audio_extn_haptic_deinit();
+ void audio_extn_haptic_start( struct audio_device *adev);
+ void audio_extn_haptic_stop( struct audio_device *adev);
+ void audio_extn_haptic_set_parameters(struct audio_device *adev,
+                                   struct str_parms *parms);
+#endif
+
 #endif /* AUDIO_EXTN_H */

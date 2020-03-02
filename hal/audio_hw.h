@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2016, 2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2016, 2019-2020 The Linux Foundation. All rights reserved.
  * Not a contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -120,6 +120,7 @@ enum {
     USECASE_AUDIO_RECORD_VOIP,
     USECASE_AUDIO_PLAYBACK_SILENCE,
     USECASE_AUDIO_EC_REF_LOOPBACK,
+    USECASE_AUDIO_PLAYBACK_HAPTIC,
     AUDIO_USECASE_MAX
 };
 
