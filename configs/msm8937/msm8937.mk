@@ -30,11 +30,11 @@ MM_AUDIO_ENABLED_SAFX := true
 AUDIO_FEATURE_ENABLED_HW_ACCELERATED_EFFECTS := false
 AUDIO_FEATURE_ENABLED_DS2_DOLBY_DAP := false
 AUDIO_FEATURE_ENABLED_AUDIOSPHERE := true
-AUDIO_FEATURE_ENABLED_SPLIT_A2DP := true
 DOLBY_ENABLE := false
 endif
 
 USE_XML_AUDIO_POLICY_CONF := 1
+AUDIO_FEATURE_ENABLED_SPLIT_A2DP := true
 BOARD_SUPPORTS_SOUND_TRIGGER := true
 AUDIO_USE_LL_AS_PRIMARY_OUTPUT := true
 AUDIO_FEATURE_ENABLED_HIFI_AUDIO := true
@@ -72,8 +72,13 @@ DEVICE_PACKAGE_OVERLAYS += hardware/qcom/audio/configs/common/overlay
 # Audio configuration file
 ifeq ($(TARGET_USES_AOSP_FOR_AUDIO), true)
    ifeq ($(TARGET_SUPPORTS_WEARABLES), true)
-        PRODUCT_COPY_FILES += \
-                $(BOARD_COMMON_DIR)/media/audio_policy.conf:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy.conf
+      ifeq ($(AUDIO_FEATURE_ENABLED_SPLIT_A2DP), true)
+          PRODUCT_COPY_FILES += \
+                  hardware/qcom/audio/configs/msm8937/audio_policy.conf:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy.conf
+      else
+          PRODUCT_COPY_FILES += \
+                  $(BOARD_COMMON_DIR)/media/audio_policy.conf:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy.conf
+      endif
    else
         PRODUCT_COPY_FILES += \
                 device/qcom/common/media/audio_policy.conf:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy.conf
@@ -116,6 +121,10 @@ frameworks/native/data/etc/android.software.midi.xml:$(TARGET_COPY_OUT_VENDOR)/e
 
 #XML Audio configuration files
 ifeq ($(USE_XML_AUDIO_POLICY_CONF), 1)
+ifeq ($(AUDIO_FEATURE_ENABLED_SPLIT_A2DP), true)
+   PRODUCT_COPY_FILES += \
+   $(TOPDIR)hardware/qcom/audio/configs/msm8937/audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy_configuration.xml
+endif
 ifneq ($(TARGET_USES_AOSP_FOR_AUDIO), true)
 PRODUCT_COPY_FILES += \
     $(TOPDIR)hardware/qcom/audio/configs/msm8937/audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio/audio_policy_configuration.xml
@@ -255,10 +264,6 @@ ro.af.client_heap_size_kbyte=7168
 
 PRODUCT_PROPERTY_OVERRIDES += \
 persist.vendor.audio.hw.binder.size_kbyte=1024
-
-#Enable split a2dp
-PRODUCT_PROPERTY_OVERRIDES += \
-persist.vendor.bt.enable.splita2dp=true
 
 PRODUCT_PROPERTY_OVERRIDES += \
 persist.vendor.bt.a2dp_offload_cap=sbc
