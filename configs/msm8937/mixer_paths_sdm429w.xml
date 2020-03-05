@@ -1376,7 +1376,8 @@
     </path>
 
     <path name="voice-speaker">
-        <path name="speaker" />
+        <ctl name="mono Profile" value="Voice" />
+        <ctl name="mono Voice Playback Volume" value="3" />
     </path>
 
     <path name="voice-speaker-mic">
