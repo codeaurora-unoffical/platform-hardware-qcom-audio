@@ -714,8 +714,7 @@ struct audio_patch_record {
     audio_usecase_t usecase;
     audio_io_handle_t input_io_handle;
     audio_io_handle_t output_io_handle;
-    struct audio_port_config source;
-    struct audio_port_config sink;
+    struct audio_patch patch;
 };
 
 int select_devices(struct audio_device *adev,
@@ -754,7 +753,7 @@ int adev_open_output_stream(struct audio_hw_device *dev,
                             audio_output_flags_t flags,
                             struct audio_config *config,
                             struct audio_stream_out **stream_out,
-                            const char *address __unused);
+                            const char *address);
 void adev_close_output_stream(struct audio_hw_device *dev __unused,
                               struct audio_stream_out *stream);
 

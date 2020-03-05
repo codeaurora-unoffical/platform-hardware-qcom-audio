@@ -317,6 +317,7 @@ struct platform_data {
     bool gsm_mode_enabled;
     bool is_slimbus_interface;
     bool is_internal_codec;
+    bool is_default_be_config;
     int mono_speaker;
     bool voice_speaker_stereo;
     /* Audio calibration related functions */
@@ -1743,6 +1744,13 @@ static void update_codec_type_and_interface(struct platform_data * my_data,
          my_data->is_internal_codec = true;
          my_data->is_slimbus_interface = false;
      }
+
+    if (!strncmp(snd_card_name, "sdm670", strlen("sdm670")) ||
+        !strncmp(snd_card_name, "sdm660", strlen("sdm660")) ||
+        !strncmp(snd_card_name, "qcs605", strlen("qcs605")) ||
+        !strncmp(snd_card_name, "sdm439", strlen("sdm439"))) {
+        my_data->is_default_be_config = true;
+    }
 }
 
 static bool can_enable_mbdrc_on_device(snd_device_t snd_device)
@@ -3033,6 +3041,7 @@ void *platform_init(struct audio_device *adev)
 
     my_data->is_slimbus_interface = true;
     my_data->is_internal_codec = false;
+    my_data->is_default_be_config = false;
 
     my_data->hw_info = hw_info_init(snd_card_name);
     if (!my_data->hw_info) {
@@ -9375,10 +9384,24 @@ static bool platform_check_codec_backend_cfg(struct audio_device* adev,
             ALOGD("%s:becf: afe: set sample rate to default Sample Rate(48k)",__func__);
         }
 
-        /*set sample rate to 48khz if multiple sample rates are not supported in spkr and hdset*/
-        if (is_hdset_combo_device(usecase->devices) && !my_data->is_multiple_sample_rate_combo_supported)
-            sample_rate = CODEC_BACKEND_DEFAULT_SAMPLE_RATE;
-            ALOGD("%s:becf: afe: set default Sample Rate(48k) for combo device",__func__);
+        /*
+         * set sample rate to 48khz if any combo use case is present and
+         * device has only one clock source, it cannot
+         * support different sample rate for HS and SPKR
+         * devices.Use default sample rate in such concurrent use cases.
+        */
+        if (!my_data->is_multiple_sample_rate_combo_supported) {
+            struct listnode *node;
+            list_for_each(node, &adev->usecase_list) {
+                struct audio_usecase *uc;
+                uc = node_to_item(node, struct audio_usecase, list);
+                if (is_hdset_combo_device(uc->devices)) {
+                    ALOGD("%s:becf: afe: set default Sample Rate(48k) for combo device",__func__);
+                    sample_rate = CODEC_BACKEND_DEFAULT_SAMPLE_RATE;
+                    break;
+                }
+            }
+        }
     }
 
     if (backend_idx != platform_get_voice_call_backend(adev)
@@ -9665,7 +9688,9 @@ static bool platform_check_capture_codec_backend_cfg(struct audio_device* adev,
         bit_width = CODEC_BACKEND_DEFAULT_BIT_WIDTH;
         sample_rate =  CODEC_BACKEND_DEFAULT_SAMPLE_RATE;
         channels = CODEC_BACKEND_DEFAULT_TX_CHANNELS;
-    } else if (my_data->is_internal_codec && !audio_is_usb_in_device(snd_device)) {
+    } else if (my_data->is_internal_codec &&
+               my_data->is_default_be_config &&
+               !audio_is_usb_in_device(snd_device)) {
         sample_rate =  CODEC_BACKEND_DEFAULT_SAMPLE_RATE;
         channels = CODEC_BACKEND_DEFAULT_TX_CHANNELS;
         if (in && in->bit_width == 24)
