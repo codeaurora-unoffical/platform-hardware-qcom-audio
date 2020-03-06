@@ -38,12 +38,23 @@
 #include "audio_extn.h"
 #include "platform_api.h"
 #include <platform.h>
-#include<math.h>
+#include <math.h>
 
 
 #define AUDIO_PARAMETER_KEY_VIBRATE_OPEN "vibrate_open"
+#define AUDIO_PARAMETER_KEY_VIBRATE_ENABLED "vibrate_enabled"
+#define AUDIO_PARAMETER_KEY_VIBRATE_DURATION "vibrate_duration"
+
+#define DEFAULT_HAPTIC_DURATION_MS 500  //duration in mse
+#define HAPTIC_PCM_FRAME_TIME_MS   5
+#define SEC_TO_MS                  1000
 
 #define PI 3.14159265358979323846
+//#define DUMP_HAPTIC_FILE 1
+
+#ifdef DUMP_HAPTIC_FILE
+#define HAPTIC_PCM_FILE "/data/misc/audio/170hz_haptic_pcm"
+#endif
 
 static struct pcm_config pcm_config_haptic = {
     .channels = 1,
@@ -83,10 +94,14 @@ typedef struct {
     struct listnode cmd_list;
     pthread_cond_t  cond;
     state_t state;
+    bool done;
+    int duration;
+    void * userdata;
 } haptic_priv_t;
 
 haptic_priv_t hap;
 
+static int haptic_cleanup();
 
 static void send_cmd_l(request_t r)
 {
@@ -106,32 +121,29 @@ static void send_cmd_l(request_t r)
     pthread_cond_signal(&hap.cond);
 }
 
-static void gen_pcm(short buffer[], int length){
-
-    short i;
+static void gen_pcm (int16_t *buffer)
+{
+    int i;
+    int sample_rate = 48000;
     float frequency = 170.0f;
-    float sampling_ratio = 48000.0f;
-    float amplitude = 0.5f;
+    float amplitude = 0.8f;
 
-    for (i = 0; i < length; i++)
-    {
-        float theta = ((float)i / sampling_ratio) * PI;
-        buffer[i] = (short)(sin(theta * frequency) * 32767.0f * amplitude);
+    for (i = 0; i < sample_rate; i++) {
+        buffer[i] = (int16_t)(sin((float) 2 * PI * frequency *
+                    ((float)i / (float)sample_rate)) * 32767.0f * amplitude);
     }
-
 }
 
 static void * haptic_thread_loop(void *param __unused)
 {
     struct hap_cmd *cmd = NULL;
     struct listnode *item;
-    ALOGE("haptic_thread_loop entry");
+    uint8_t *hap_buffer = NULL;
+
+    ALOGV("%s: haptic_thread_loop entry", __func__);
     while (true) {
-        ALOGE("Ramjee line no = %d", __LINE__);
         pthread_mutex_lock(&hap.lock);
-        ALOGE("Ramjee line no = %d", __LINE__);
         if (list_empty(&hap.cmd_list)) {
-            ALOGE("Ramjee line no = %d", __LINE__);
             pthread_cond_wait(&hap.cond, &hap.lock);
             pthread_mutex_unlock(&hap.lock);
             continue;
@@ -139,93 +151,157 @@ static void * haptic_thread_loop(void *param __unused)
         item = list_head(&hap.cmd_list);
         cmd = node_to_item(item, struct hap_cmd, node);
         list_remove(item);
-        ALOGE("Ramjee line no = %d", __LINE__);
         if (cmd->req == REQUEST_QUIT) {
+            ALOGV ("%s: Received cmd REQUEST_QUIT ", __func__);
             free(cmd);
             pthread_mutex_unlock(&hap.lock);
             break;
-        } 
-        ALOGE("Ramjee line no = %d", __LINE__);
+        }
+        if (cmd->req == REQUEST_STOP) {
+            ALOGV ("%s: Received cmd REQUEST_STOP ", __func__);
+            free(cmd);
+            haptic_cleanup();
+            pthread_mutex_unlock(&hap.lock);
+            continue;
+        }
 
         free(cmd);
         hap.state = STATE_ACTIVE;
         ALOGV("State changed to Active");
-        ALOGE("Ramjee line no = %d", __LINE__);
         pthread_cond_signal(&hap.cond);
         pthread_mutex_unlock(&hap.lock);
-        ALOGE("Ramjee line no = %d", __LINE__);
-//TODO start pcm_write for X ms lock and unlock mutex
-        short durationSec = 10;
-        short size = 10 * 48000; 
-        short buffer[size];
-        int cnt = 0, frame_size = 480;
-        gen_pcm(buffer, size);
-        ALOGE("Ramjee line no = %d", __LINE__);
-        while (cnt < size) {
-	        pcm_write(hap.pcm, (void *)buffer, frame_size);
-                cnt += frame_size;
-        } 
-        ALOGE("Ramjee line no = %d", __LINE__);
+        int tot_samples = hap.duration * (pcm_config_haptic.rate / SEC_TO_MS);
+        // write 'x' msec pcm buffer
+        int num_frames = pcm_config_haptic.channels * HAPTIC_PCM_FRAME_TIME_MS
+                                              * (pcm_config_haptic.rate / SEC_TO_MS);
+        ALOGV("%s: Create haptic buffer, total samples = %d, num_frames = %d",
+                                           __func__, tot_samples, num_frames);
+        int cnt = 0, pos = 0;
+        if (hap_buffer == NULL) {
+            // Alloc buffer for 1 second
+            hap_buffer = (uint8_t *)calloc (1, pcm_config_haptic.rate * sizeof(int16_t));
+            if (hap_buffer == NULL) {
+                ALOGE("%s: hap.buffer is NULL", __func__);
+                goto thrd_exit;
+            }
+        }
+        gen_pcm(hap_buffer);
+
+#ifdef DUMP_HAPTIC_FILE
+    FILE *fp = NULL;
+    int rc = 0;
+    ALOGD ("%s: Create file %s to dump hap buffer", __func__, HAPTIC_PCM_FILE);
+    fp = fopen (HAPTIC_PCM_FILE, "wb");
+    if (!fp) {
+        ALOGD("Failed to create file %s", HAPTIC_PCM_FILE);
+    }
+#endif
+        while (cnt < tot_samples) {
+            if (hap.done) {
+                break;
+            }
+	    pcm_write(hap.pcm, (void *)(hap_buffer + pos), num_frames * sizeof(int16_t));
+
+#ifdef DUMP_HAPTIC_FILE
+            if (fp != NULL)
+                rc = fwrite(hap_buffer + pos, sizeof(int16_t), num_frames, fp);
+#endif
+            cnt += num_frames;
+            pos += (num_frames * sizeof(int16_t));
+            if (pos == pcm_config_haptic.rate * sizeof(int16_t))
+                pos = 0;
+        }
+#ifdef DUMP_HAPTIC_FILE
+    if (fp != NULL) {
+        fclose(fp);
+        fp = NULL;
+    }
+#endif
+
+thrd_exit:
+        if (hap_buffer != NULL) {
+            free(hap_buffer);
+            hap_buffer = NULL;
+        }
         pthread_mutex_lock(&hap.lock);
         hap.state = STATE_IDLE;
         pthread_cond_signal(&hap.cond);
         pthread_mutex_unlock(&hap.lock);
-   }
+
+        // Trigger haptic_stop if write completed
+        if (!hap.done && cnt >= tot_samples) {
+            ALOGV("%s : haptic pcm write complete",__func__);
+            haptic_stop();
+        }
+    }
     ALOGE("haptic_thread_loop exit");
     return 0;
 }
 
 void audio_extn_haptic_init(struct audio_device *adev)
 {
-    ALOGE("audio_extn_haptic_init entry");
+    hap.state = STATE_IDLE;
+    hap.pcm = NULL;
+
+    ALOGV("%s Entry ", __func__);
     if (property_get_bool("vendor.audio.haptic_audio", false) == false) {
         ALOGE("Haptic is disabled");
         hap.state = STATE_DISABLED;
         return;
     }
+    ALOGD ("%s: Feature HAPTIC_AUDIO playback enabled", __func__);
     pthread_mutex_init(&hap.lock, (const pthread_mutexattr_t *) NULL);
     pthread_cond_init(&hap.cond, (const pthread_condattr_t *) NULL);
     if (pthread_create(&hap.thread_id,  (const pthread_attr_t *) NULL,
                        haptic_thread_loop, NULL) < 0) {
         ALOGW("Failed to create haptic_thread_loop");
-        hap.state = STATE_DEINIT; 
+        hap.state = STATE_DEINIT;
     }
     hap.state = STATE_IDLE;
+    hap.userdata = adev;
     list_init(&hap.cmd_list);
-    ALOGE("audio_extn_haptic_init exit");
+    ALOGV("%s Exit ", __func__);
 }
 
 void audio_extn_haptic_deinit()
 {
-    ALOGE("audio_extn_haptic_deinit entry");
+    ALOGV("%s: Entry ", __func__);
     if (hap.state == STATE_DISABLED || hap.state == STATE_DEINIT)
         return;
+
+    hap.userdata = NULL;
+    hap.done = true;
     pthread_mutex_lock(&hap.lock);
     send_cmd_l(REQUEST_QUIT);
     pthread_mutex_unlock(&hap.lock);
     pthread_join(hap.thread_id, (void **) NULL);
     pthread_mutex_destroy(&hap.lock);
     pthread_cond_destroy(&hap.cond);
-    ALOGE("audio_extn_haptic_deinit entry");
+    ALOGV("%s: Exit ", __func__);
 }
 
 
 void haptic_stop(struct audio_device *adev)
 {
-    ALOGE("haptic_stop entry");
+    ALOGV("%s: Entry ", __func__);
     if ( hap.state == STATE_DISABLED || hap.state == STATE_DEINIT )
         return;
     pthread_mutex_lock(&hap.lock);
+    hap.done = true;
     send_cmd_l(REQUEST_STOP);
 exit:
     pthread_mutex_unlock(&hap.lock);
-    ALOGE("haptic_stop entry");
+    ALOGV("%s: Exit ", __func__);
 }
 
 void audio_extn_haptic_stop (struct audio_device *adev) {
-    ALOGE("audio_extn_haptic_stop entry");
-    haptic_stop(adev);
-    ALOGE("audio_extn_haptic_stop exit");
+    ALOGV("%s: Entry ", __func__);
+    if (hap.state == STATE_ACTIVE)
+        haptic_stop(adev);
+    else
+       ALOGV("%s: Haptic playback already stopped", __func__);
+
+    ALOGV("%s: Exit ", __func__);
 }
 
 void haptic_start(struct audio_device *adev)
@@ -235,37 +311,30 @@ void haptic_start(struct audio_device *adev)
     int rc = 0;
     unsigned int flags = PCM_OUT|PCM_MONOTONIC;
 
+    if (hap.state == STATE_DISABLED || hap.state == STATE_DEINIT) {
+        ALOGE("%s : Haptic feature not initialized, cannot start", __func__);
+        return;
+    }
+
     int hap_pcm_dev_id =
             platform_get_pcm_device_id(USECASE_AUDIO_PLAYBACK_HAPTIC,
                                        PCM_PLAYBACK);
-    ALOGE("haptic_start entry");
+    ALOGV("%s Entry ", __func__);
 
     pthread_mutex_lock(&hap.lock);
     if (hap.state == STATE_ACTIVE) {
         goto exit;
     }
 
-    hap.pcm = pcm_open(adev->snd_card, hap_pcm_dev_id,
-                      flags, &pcm_config_haptic);
-
-    if (hap.pcm == NULL || !pcm_is_ready(hap.pcm)) {
-        ALOGE("%s: %s", __func__, pcm_get_error(hap.pcm));
-        if (hap.pcm != NULL) {
-            pcm_close(hap.pcm);
-            hap.pcm = NULL;
-        }
-        goto exit;
-    }
-
-
     hap.out = (struct stream_out *)calloc(1, sizeof(struct stream_out));
     if (hap.out == NULL) {
-        ALOGE("%s: keep_alive out is NULL", __func__);
+        ALOGE("%s: hap.out is NULL", __func__);
         rc = -ENOMEM;
         goto exit;
     }
 
-/* Populate haptic out stream,  usecase and add to usecase list to select speaker always.*/
+    /* Populate haptic out stream,  usecase and add to usecase
+       list to select speaker always.*/
     hap.out->flags = 0;
     //Speaker is only supported device for haptic stream
     hap.out->devices = AUDIO_DEVICE_OUT_SPEAKER;
@@ -281,8 +350,8 @@ void haptic_start(struct audio_device *adev)
     if (usecase == NULL) {
         ALOGE("%s: usecase is NULL", __func__);
         rc = -ENOMEM;
-        // Free Out Stream 
-        free(hap.out);     
+        // Free Out Stream
+        free(hap.out);
         goto exit;
     }
     usecase->stream.out = hap.out;
@@ -291,6 +360,21 @@ void haptic_start(struct audio_device *adev)
     usecase->out_snd_device = SND_DEVICE_NONE;
     usecase->in_snd_device = SND_DEVICE_NONE;
     list_add_tail(&adev->usecase_list, &usecase->list);
+    select_devices(adev, USECASE_AUDIO_PLAYBACK_HAPTIC);
+
+    ALOGD("%s :Opening PCM device %d for haptic playback",
+                                     __func__, hap_pcm_dev_id);
+    hap.pcm = pcm_open(adev->snd_card, hap_pcm_dev_id,
+                      flags, &pcm_config_haptic);
+
+    if (hap.pcm == NULL || !pcm_is_ready(hap.pcm)) {
+        ALOGE("%s: %s", __func__, pcm_get_error(hap.pcm));
+        if (hap.pcm != NULL) {
+            pcm_close(hap.pcm);
+            hap.pcm = NULL;
+        }
+        goto exit;
+    }
 
     send_cmd_l(REQUEST_WRITE);
 /* Wait for thread to start pcm write of haptic data */
@@ -298,30 +382,90 @@ void haptic_start(struct audio_device *adev)
         pthread_cond_wait(&hap.cond, &hap.lock);
     }
 exit:
+    //cleanup
     pthread_mutex_unlock(&hap.lock);
-    ALOGE("haptic_start exit");
+    ALOGV("%s Exit ", __func__);
 }
 
 void audio_extn_haptic_start (struct audio_device *adev) {
     haptic_start(adev);
 }
+
+/* must be called with adev lock held */
+static int haptic_cleanup()
+{
+    struct audio_device * adev = (struct audio_device *)hap.userdata;
+    struct audio_usecase *uc_info;
+
+    ALOGV("%s: Enter", __func__);
+
+    if (hap.out != NULL)
+        free(hap.out);
+
+    while (hap.state != STATE_IDLE) {
+        pthread_cond_wait(&hap.cond, &hap.lock);
+    }
+    ALOGV("%s: haptic state changed to %x", __func__, hap.state);
+    uc_info = get_usecase_from_list(adev, USECASE_AUDIO_PLAYBACK_HAPTIC);
+    if (uc_info == NULL) {
+        ALOGE("%s: Could not find haptic usecase in the list", __func__);
+    } else {
+        disable_audio_route(adev, uc_info);
+        disable_snd_device(adev, uc_info->out_snd_device);
+        list_remove(&uc_info->list);
+        free(uc_info);
+    }
+    if (hap.pcm != NULL) {
+        ALOGD("%s: Closing Haptic PCM device", __func__);
+        pcm_close(hap.pcm);
+    }
+    hap.done = false;
+    hap.pcm = NULL;
+    ALOGV("%s: Exit ", __func__);
+    return 0;
+}
+
 void audio_extn_haptic_set_parameters(struct audio_device *adev,
                                   struct str_parms *parms)
 {
-    int ret, val;
+    int ret, duration;
     char value[32]={0};
+    bool hap_start = false;
+
 
     ALOGV("%s: enter", __func__);
-    ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_VIBRATE_OPEN,
-                               value, sizeof(value));
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_VIBRATE_ENABLED,
+                value, sizeof(value));
     if (ret >= 0) {
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_VIBRATE_ENABLED);
+        ALOGD("%s: key <%s> = %s", __func__, AUDIO_PARAMETER_KEY_VIBRATE_ENABLED,
+                                                                         value);
         if (!strncmp("true", value, sizeof("true"))) {
-            ALOGD("Start Haptic Audio");
-            haptic_start(adev);
+            hap_start = true;
         } else {
-            ALOGD("Stop Haptic Audio");
+            hap_start = false;
+            ALOGD("%s Stop Haptic Audio Playback", __func__);
             haptic_stop(adev);
+            return;
         }
     }
-}
+    // Parse duration value
+    ret = str_parms_get_int(parms, AUDIO_PARAMETER_KEY_VIBRATE_DURATION,
+                                                             &duration);
+    if (ret >= 0) {
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_VIBRATE_DURATION);
+        hap.duration = duration;
+        ALOGD("%s: key <%s> = %d", __func__, AUDIO_PARAMETER_KEY_VIBRATE_DURATION,
+                                                                 hap.duration);
+        if (hap.duration <= 0) {
+            ALOGE("%s: Invalid haptic duration %d, default to %d", __func__,
+                    hap.duration, DEFAULT_HAPTIC_DURATION_MS);
+            hap.duration = DEFAULT_HAPTIC_DURATION_MS;
+        }
+    }
 
+    if (hap_start) {
+        ALOGD("%s Start Haptic Audio Playback", __func__);
+        haptic_start(adev);
+    }
+}

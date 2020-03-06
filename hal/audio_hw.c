@@ -185,6 +185,7 @@ const char * const use_case_table[AUDIO_USECASE_MAX] = {
     [USECASE_AUDIO_RECORD_AFE_PROXY] = "afe-proxy-record",
     [USECASE_AUDIO_PLAYBACK_SILENCE] = "silence-playback",
     [USECASE_AUDIO_EC_REF_LOOPBACK] = "ec-ref-audio-capture",
+    [USECASE_AUDIO_PLAYBACK_HAPTIC] = "audio-haptic-playback",
 };
 
 static const audio_usecase_t offload_usecases[] = {
