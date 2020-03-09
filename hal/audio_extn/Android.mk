@@ -509,6 +509,10 @@ ifeq ($(TARGET_BOARD_AUTO),true)
   LOCAL_CFLAGS += -DPLATFORM_AUTO
 endif
 
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_DUAL_HFP)),true)
+  LOCAL_CFLAGS += -DDUAL_HFP_ENABLED
+endif
+
 LOCAL_SRC_FILES:= \
         hfp.c
 

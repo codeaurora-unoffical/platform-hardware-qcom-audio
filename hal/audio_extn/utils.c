@@ -909,12 +909,20 @@ void audio_extn_utils_update_stream_app_type_cfg_for_usecase(
         switch (usecase->id) {
         case USECASE_AUDIO_HFP_SCO:
         case USECASE_AUDIO_HFP_SCO_WB:
+        case USECASE_AUDIO_PRI_HFP_SCO:
+        case USECASE_AUDIO_PRI_HFP_SCO_WB:
+        case USECASE_AUDIO_SEC_HFP_SCO:
+        case USECASE_AUDIO_SEC_HFP_SCO_WB:
             audio_extn_btsco_get_sample_rate(usecase->out_snd_device,
                                              &usecase->out_app_type_cfg.sample_rate);
             usecase->in_app_type_cfg.sample_rate = usecase->out_app_type_cfg.sample_rate;
             break;
         case USECASE_AUDIO_HFP_SCO_DOWNLINK:
         case USECASE_AUDIO_HFP_SCO_WB_DOWNLINK:
+        case USECASE_AUDIO_PRI_HFP_SCO_DOWNLINK:
+        case USECASE_AUDIO_PRI_HFP_SCO_WB_DOWNLINK:
+        case USECASE_AUDIO_SEC_HFP_SCO_DOWNLINK:
+        case USECASE_AUDIO_SEC_HFP_SCO_WB_DOWNLINK:
             audio_extn_btsco_get_sample_rate(usecase->in_snd_device,
                                              &usecase->in_app_type_cfg.sample_rate);
             usecase->out_app_type_cfg.sample_rate = usecase->in_app_type_cfg.sample_rate;
@@ -1021,7 +1029,15 @@ static int audio_extn_utils_send_app_type_cfg_hfp(struct audio_device *adev,
     if ((usecase->id != USECASE_AUDIO_HFP_SCO) &&
         (usecase->id != USECASE_AUDIO_HFP_SCO_WB) &&
         (usecase->id != USECASE_AUDIO_HFP_SCO_DOWNLINK) &&
-        (usecase->id != USECASE_AUDIO_HFP_SCO_WB_DOWNLINK)) {
+        (usecase->id != USECASE_AUDIO_HFP_SCO_WB_DOWNLINK) &&
+        (usecase->id != USECASE_AUDIO_PRI_HFP_SCO) &&
+        (usecase->id != USECASE_AUDIO_PRI_HFP_SCO_WB) &&
+        (usecase->id != USECASE_AUDIO_PRI_HFP_SCO_DOWNLINK) &&
+        (usecase->id != USECASE_AUDIO_PRI_HFP_SCO_WB_DOWNLINK) &&
+        (usecase->id != USECASE_AUDIO_SEC_HFP_SCO) &&
+        (usecase->id != USECASE_AUDIO_SEC_HFP_SCO_WB) &&
+        (usecase->id != USECASE_AUDIO_SEC_HFP_SCO_DOWNLINK) &&
+        (usecase->id != USECASE_AUDIO_SEC_HFP_SCO_WB_DOWNLINK)) {
         ALOGV("%s: a usecase where app type cfg is not required", __func__);
         rc = 0;
         goto exit_send_app_type_cfg;
