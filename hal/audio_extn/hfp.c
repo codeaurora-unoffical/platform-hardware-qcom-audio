@@ -686,10 +686,9 @@ void hfp_set_parameters(struct audio_device *adev, struct str_parms *parms)
 
     ALOGD("%s: enter", __func__);
 
-#ifdef DUAL_HFP_ENABLED
     /* SCO_ID is valid only when dual hfp be enabled
      *     dual HFP enabled, pri HFP: SCO_ID == 0, hfp_num == 1
-     *     dual HFP enabled, sec HFP: SCO_ID == 0, hfp_num == 2
+     *     dual HFP enabled, sec HFP: SCO_ID == 1, hfp_num == 2
      *     dual HFP disabled, single HFP: No SCO_ID, hfp_num == 0
      */
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_SCO_ID, value,
@@ -697,12 +696,6 @@ void hfp_set_parameters(struct audio_device *adev, struct str_parms *parms)
     if (ret >= 0)
         current_hfp_num = atoi(value) + 1;
 
-    /* In case of dual hfp enabled: check current_hfp_num */
-    if (current_hfp_num != PRI_HFP && current_hfp_num != SEC_HFP) {
-        ALOGE("%s: Invalid config of DUAL hfp", __func__);
-        ret = -EINVAL;
-        goto exit;
-    }
     hfpmod = get_hfp_module(current_hfp_num);
     if (!hfpmod)
         goto exit;
@@ -719,17 +712,6 @@ void hfp_set_parameters(struct audio_device *adev, struct str_parms *parms)
         else
             ALOGE("hfp_mix=%s is unsupported", value);
     }
-#else
-    /* In case of dual hfp disabled: check current_hfp_num */
-    if (current_hfp_num != SIG_HFP) {
-        ALOGE("%s: Invalid config of SINGLE hfp", __func__);
-        ret = -EINVAL;
-        goto exit;
-    }
-    hfpmod = get_hfp_module(current_hfp_num);
-    if (!hfpmod)
-        goto exit;
-#endif
 
     memset(value, 0, sizeof(value));
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_HFP_ENABLE, value,
