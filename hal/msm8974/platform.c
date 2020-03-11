@@ -5204,8 +5204,18 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
     if (((usecase->type == PCM_HFP_CALL) || (usecase->type == ICC_CALL)) &&
           is_bus_dev_usecase) {
         num_devices = 2;
-        new_snd_device[0] = usecase->in_snd_device;
-        new_snd_device[1] = usecase->out_snd_device;
+        if ((usecase->id == USECASE_AUDIO_HFP_SCO_DOWNLINK) ||
+            (usecase->id == USECASE_AUDIO_HFP_SCO_WB_DOWNLINK) ||
+            (usecase->id == USECASE_AUDIO_PRI_HFP_SCO_DOWNLINK) ||
+            (usecase->id == USECASE_AUDIO_PRI_HFP_SCO_WB_DOWNLINK) ||
+            (usecase->id == USECASE_AUDIO_SEC_HFP_SCO_DOWNLINK) ||
+            (usecase->id == USECASE_AUDIO_SEC_HFP_SCO_WB_DOWNLINK)) {
+            new_snd_device[0] = usecase->out_snd_device;
+            new_snd_device[1] = usecase->in_snd_device;
+        } else {
+            new_snd_device[0] = usecase->in_snd_device;
+            new_snd_device[1] = usecase->out_snd_device;
+        }
     }
 
     for (i = 0; i < num_devices; i++) {
