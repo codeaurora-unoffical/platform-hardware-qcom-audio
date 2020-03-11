@@ -3774,6 +3774,8 @@ static int check_input_parameters(uint32_t sample_rate,
     case 96000:
     case 176400:
     case 192000:
+    case 352800:
+    case 384000:
         break;
     default:
         ret = -EINVAL;
@@ -7348,6 +7350,17 @@ int adev_open_output_stream(struct audio_hw_device *dev,
         } else if (flags & AUDIO_OUTPUT_FLAG_TTS) {
             out->usecase = USECASE_AUDIO_PLAYBACK_TTS;
             out->config = pcm_config_deep_buffer;
+        } else if (out->flags & AUDIO_OUTPUT_FLAG_VOICE_CALL) {
+            /* Voice call should not use primary path */
+            out->usecase = USECASE_VOICEMMODE1_CALL;
+            out->config = GET_PCM_CONFIG_AUDIO_PLAYBACK_PRIMARY(use_db_as_primary);
+            if(adev->voice_tx_output == NULL) {
+                adev->voice_tx_output = out;
+            } else {
+                ALOGE("%s: Voice output is already opened", __func__);
+                ret = -EEXIST;
+                goto error_open;
+            }
         } else {
             /* primary path is the default path selected if no other outputs are available/suitable */
             out->usecase = GET_USECASE_AUDIO_PLAYBACK_PRIMARY(use_db_as_primary);
@@ -7756,7 +7769,7 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
     audio_extn_hfp_set_parameters(adev, parms);
     audio_extn_qdsp_set_parameters(adev, parms);
 
-    status = audio_extn_a2dp_set_parameters(parms, &a2dp_reconfig);
+    ret = audio_extn_a2dp_set_parameters(parms, &a2dp_reconfig);
     if (ret >= 0 && a2dp_reconfig) {
         struct audio_usecase *usecase;
         struct listnode *node;

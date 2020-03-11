@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2011 The Android Open Source Project *
@@ -189,6 +189,11 @@ typedef enum {
 /* audio output flag for timestamp mode */
 #define QAHW_OUTPUT_FLAG_TIMESTAMP 0x20000000
 
+/* similar defination added into audio_defs.h and audio_extn.h
+ * AUDIO_OUTPUT_FLAG_VOICE_CAL
+ */
+#define QAHW_AUDIO_OUTPUT_FLAG_VOICE_CALL 0x2000000
+
 /* Query fm volume */
 #define QAHW_PARAMETER_KEY_FM_VOLUME "fm_volume"
 
@@ -248,6 +253,8 @@ typedef enum {
 /*TBD: Extend this based on stb requirement*/
 typedef enum {
  QAHW_META_DATA_FLAGS_NONE = 0,
+ QAHW_META_DATA_FLAGS_TIMESTAMP_VALID,
+ QAHW_META_DATA_FLAGS_TIMESTAMP_CONTINUE,
 } qahw_meta_data_flags_t;
 
 typedef struct {
@@ -298,6 +305,12 @@ struct aptx_dec_bt_addr {
 
 struct qahw_aptx_dec_param {
    struct aptx_dec_bt_addr bt_addr;
+};
+
+struct qahw_pll_dev_cfg {
+    int32_t clk_drift;
+    uint32_t audio_device;
+    bool    reset;
 };
 
 struct qahw_avt_device_drift_param {
@@ -544,6 +557,7 @@ typedef enum {
     QAHW_PARAM_DTMF_DETECT,
     QAHW_PARAM_TONE_GEN,
     QAHW_PARAM_IN_TTP_OFFSET,
+    QAHW_PARAM_PLL_DEVICE_CONFIG,
 } qahw_param_id;
 
 typedef union {

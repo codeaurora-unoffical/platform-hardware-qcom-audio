@@ -17,10 +17,10 @@ c_sources = audio_hw.c \
             audio_extn/audio_feature_manager.c \
             audio_extn/audio_hidl.cpp
 
-#if HDMI_EDID
-#AM_CFLAGS += -DHDMI_EDID
+if HDMI_EDID
+AM_CFLAGS += -DHDMI_EDID_ENABLED
 #c_sources += edid.c
-#endif
+endif
 
 #if FM_POWER_OPT
 #AM_CFLAGS += -DFM_POWER_OPT
@@ -70,6 +70,10 @@ endif
 #AM_CFLAGS += -DCOMPRESS_CAPTURE_ENABLED
 #c_sources += audio_extn/compress_capture.c
 #endif
+
+if FLUENCE_ENABLED
+AM_CFLAGS += -DFLUENCE_ENABLED
+endif
 
 if DTS_EAGLE
 AM_CFLAGS += -DDTS_EAGLE

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2015, 2017-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2015, 2017-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -124,6 +124,9 @@ typedef enum {
 #define AUDIO_INPUT_FLAG_TIMESTAMP 0x80000000
 #define AUDIO_INPUT_FLAG_COMPRESS  0x40000000
 #define AUDIO_INPUT_FLAG_PASSTHROUGH 0x20000000
+
+/* audio output flag for voice call */
+#define AUDIO_OUTPUT_FLAG_VOICE_CALL 0x2000000
 
 /* MAX SECTORS for sourcetracking feature */
 #define MAX_SECTORS 8
@@ -268,6 +271,12 @@ struct audio_device_cfg_param {
    uint16_t   channel_allocation;
 };
 
+struct audio_pll_device_cfg_param {
+   int32_t    drift;
+   audio_devices_t device;
+   bool       reset;
+};
+
 struct audio_device_config_param {
    bool use_client_dev_cfg;
    struct audio_device_cfg_param dev_cfg_params;
@@ -378,6 +387,7 @@ typedef enum {
     AUDIO_EXTN_PARAM_DTMF_DETECT,
     AUDIO_EXTN_PARAM_TONE_GEN,
     AUDIO_EXTN_PARAM_IN_TTP_OFFSET,
+    AUDIO_EXTN_PARAM_PLL_DEVICE_CONFIG,
 } audio_extn_param_id;
 
 typedef union {
@@ -401,5 +411,11 @@ typedef struct {
     audio_output_flags_t flags;
     struct audio_port_config *sink_config;
 } audio_extn_sink_port_config_t;
+
+typedef enum {
+    AUDIO_EXTN_META_DATA_FLAGS_NONE,
+    AUDIO_EXTN_META_DATA_FLAGS_TIMESTAMP_VALID,
+    AUDIO_EXTN_META_DATA_FLAGS_TIMESTAMP_CONTINUE,
+} audio_extn_meta_data_flags;
 
 #endif /* AUDIO_DEFS_H */

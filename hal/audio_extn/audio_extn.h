@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -141,10 +141,13 @@
 #define AUDIO_OUTPUT_FLAG_INTERACTIVE 0x4000000
 #endif
 
+#ifndef AUDIO_OUTPUT_FLAG_VOICE_CALL
+#define AUDIO_OUTPUT_FLAG_VOICE_CALL 0x2000000
+#endif
+
 #ifndef AUDIO_FORMAT_MAT
 #define AUDIO_FORMAT_MAT 0x30000000UL
 #endif
-
 
 int audio_extn_parse_compress_metadata(struct stream_out *out,
                                        struct str_parms *parms);
@@ -173,6 +176,12 @@ struct snd_card_split {
 };
 
 struct snd_card_split *audio_extn_get_snd_card_split();
+
+struct pll_device_config_params {
+    int32_t be_idx;
+    int32_t drift;
+    bool reset;
+} __attribute__((packed));
 
 // -- function pointers needed for audio extn
 typedef void (*fp_platform_make_cal_cfg_t)(acdb_audio_cal_cfg_t *, int, int,
@@ -266,7 +275,7 @@ bool audio_extn_qdsp_supported_usb();
 
 //END: EXTN_QDSP_PLUGIN      ===========================================
 
-#define MIN_OFFLOAD_BUFFER_DURATION_MS 5 /* 5ms */
+#define MIN_OFFLOAD_BUFFER_DURATION_MS 4 /* 4ms */
 #define MAX_OFFLOAD_BUFFER_DURATION_MS (100 * 1000) /* 100s */
 
 void audio_extn_set_parameters(struct audio_device *adev,
@@ -1037,6 +1046,8 @@ int audio_extn_out_get_param_data(struct stream_out *out,
                              audio_extn_param_payload *payload);
 int audio_extn_set_device_cfg_params(struct audio_device *adev,
                                      struct audio_device_cfg_param *payload);
+int audio_extn_set_pll_device_cfg_params(struct audio_device *adev,
+                struct audio_pll_device_cfg_param *payload);
 int audio_extn_utils_get_avt_device_drift(
                 struct audio_usecase *usecase,
                 struct audio_avt_device_drift_param *drift_param);

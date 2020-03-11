@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2016-2017, 2018-2019, The Linux Foundation. All rights reserved.
+* Copyright (c) 2016-2017, 2018-2020, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -41,6 +41,7 @@
 #include "audio_hw.h"
 #include "audio_extn.h"
 #include "audio_hw_extn_api.h"
+#include <sound/compress_offload.h>
 
 #ifdef DYNAMIC_LOG_ENABLED
 #include <log_xml_parser.h>
@@ -57,7 +58,8 @@ uint64_t timestamp;
 #endif
 
 ssize_t qahwi_out_write_v2(struct audio_stream_out *stream, const void* buffer,
-                          size_t bytes, int64_t* timestamp);
+                          size_t bytes, int64_t* timestamp,
+                          audio_extn_meta_data_flags flags);
 
 static void lock_output_stream(struct stream_out *out)
 {
@@ -88,7 +90,7 @@ int qahwi_out_set_param_data(struct audio_stream_out *stream,
             ALOGE("%s::qaf_out_set_param_data failed error %d", __func__ , ret);
     } else {
         if (out->standby && (out->flags & AUDIO_OUTPUT_FLAG_TIMESTAMP))
-            qahwi_out_write_v2(stream, NULL, 0, NULL);
+            qahwi_out_write_v2(stream, NULL, 0, NULL, 0);
         else if (out->standby && (param_id != AUDIO_EXTN_PARAM_OUT_CHANNEL_MAP))
             out->stream.write(&out->stream, NULL, 0);
         lock_output_stream(out);
@@ -116,7 +118,7 @@ int qahwi_out_get_param_data(struct audio_stream_out *stream,
             ALOGE("%s::qaf_out_get_param_data failed error %d", __func__, ret);
     } else  {
         if (out->standby && (out->flags & AUDIO_OUTPUT_FLAG_TIMESTAMP))
-            qahwi_out_write_v2(stream, NULL, 0, NULL);
+            qahwi_out_write_v2(stream, NULL, 0, NULL, 0);
         else if (out->standby)
             out->stream.write(&out->stream, NULL, 0);
 
@@ -224,6 +226,12 @@ int qahwi_set_param_data(struct audio_hw_device *adev,
 
         case AUDIO_EXTN_PARAM_DOLBY_MAT_DEC:
               audio_extn_set_dolby_mat_dec_params((struct dolby_mat_dec_param *)payload);
+              break;
+
+        case AUDIO_EXTN_PARAM_PLL_DEVICE_CONFIG:
+              ALOGV("%s:: Calling audio_extn_set_pll_device_cfg_params", __func__);
+              audio_extn_set_pll_device_cfg_params(dev,
+                               (struct audio_pll_device_cfg_param *)payload);
               break;
 
        default:
@@ -378,8 +386,10 @@ static int qahwi_open_input_stream(struct audio_hw_device *dev,
     return ret;
 }
 
+
 ssize_t qahwi_out_write_v2(struct audio_stream_out *stream, const void* buffer,
-                          size_t bytes, int64_t* timestamp)
+                          size_t bytes, int64_t* timestamp,
+                          audio_extn_meta_data_flags meta_data_flags)
 {
     struct stream_out *out = (struct stream_out *)stream;
     struct snd_codec_metadata *mdata = NULL;
@@ -401,6 +411,12 @@ ssize_t qahwi_out_write_v2(struct audio_stream_out *stream, const void* buffer,
             mdata->length = bytes;
             mdata->offset = mdata_size;
             mdata->timestamp = *timestamp;
+#ifdef SNDRV_COMPRESS_TIMESTAMP_VALID
+            if (meta_data_flags == AUDIO_EXTN_META_DATA_FLAGS_TIMESTAMP_CONTINUE)
+                mdata->flags = SNDRV_COMPRESS_TIMESTAMP_CONTINUE;
+            else
+                mdata->flags = SNDRV_COMPRESS_TIMESTAMP_VALID;
+#endif
         }
 
         if (bytes >  out->qahwi_out.buf_size) {
@@ -409,14 +425,18 @@ ssize_t qahwi_out_write_v2(struct audio_stream_out *stream, const void* buffer,
             return -EINVAL;
         }
         memcpy(buf + mdata_size, buffer, bytes);
-        ret = out->qahwi_out.base.write(&out->stream, (void *)buf, out->qahwi_out.buf_size);
+        if (!bytes)
+            ret = out->qahwi_out.base.write(&out->stream, NULL, 0);
+        else
+            ret = out->qahwi_out.base.write(&out->stream, (void *)buf, out->qahwi_out.buf_size);
         if (ret <= 0) {
             ALOGE("%s: error! write returned %zd", __func__, ret);
         } else {
             bytes_written = bytes;
         }
-        ALOGV("%s: flag 0x%x, bytes %zd, read %zd, ret %zd timestamp 0x%"PRIx64"",
-              __func__, out->flags, bytes, bytes_written, ret, timestamp == NULL ? 0 : *timestamp);
+        ALOGV("%s: flag 0x%x, bytes %zd, read %zd, ret %zd timestamp 0x%"PRIx64" meta data flags %d",
+              __func__, out->flags, bytes, bytes_written, ret,
+              timestamp == NULL ? 0 : *timestamp, meta_data_flags);
     } else {
         bytes_written = out->qahwi_out.base.write(&out->stream, buffer, bytes);
         ALOGV("%s: flag 0x%x, bytes %zd, read %zd, ret %zd",
