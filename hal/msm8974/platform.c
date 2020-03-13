@@ -9778,6 +9778,11 @@ static bool platform_check_capture_codec_backend_cfg(struct audio_device* adev,
                     channels = uc_channels;
             }
         }
+        if ((sample_rate % INPUT_SAMPLING_RATE_11025 == 0) &&
+            (!audio_is_usb_in_device(snd_device))) {
+            ALOGV("%s:txbecf: afe: set sample rate to default Sample Rate(48k)",__func__);
+            sample_rate = CODEC_BACKEND_DEFAULT_SAMPLE_RATE;
+        }
     }
     if (backend_idx == USB_AUDIO_TX_BACKEND) {
         audio_extn_usb_is_config_supported(&bit_width, &sample_rate, &channels, false);
