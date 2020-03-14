@@ -1898,7 +1898,8 @@ void platform_set_echo_reference(struct audio_device *adev, bool enable,
         else if (out_device & AUDIO_DEVICE_OUT_EARPIECE)
             strlcat(ec_ref_mixer_path, " handset",
                     MIXER_PATH_MAX_LENGTH);
-        else if (out_device & AUDIO_DEVICE_OUT_WIRED_HEADPHONE)
+        else if (out_device & AUDIO_DEVICE_OUT_WIRED_HEADPHONE ||
+                 out_device & AUDIO_DEVICE_OUT_WIRED_HEADSET)
             strlcat(ec_ref_mixer_path, " headphones",
                     MIXER_PATH_MAX_LENGTH);
         else if (out_device & AUDIO_DEVICE_OUT_USB_HEADSET)
@@ -3065,10 +3066,8 @@ void *platform_init(struct audio_device *adev)
         my_data->fluence_sb_enabled = true;
 
     my_data->fluence_type = FLUENCE_NONE;
-    if ((property_get("ro.vendor.audio.sdk.fluencetype",
-                      my_data->fluence_cap, NULL) > 0) ||
-        (property_get("ro.qc.sdk.audio.fluencetype",
-                      my_data->fluence_cap, NULL) > 0)) {
+    if (property_get("ro.vendor.audio.sdk.fluencetype",
+                      my_data->fluence_cap, NULL) > 0) {
         if (!strncmp("fluencepro", my_data->fluence_cap, sizeof("fluencepro"))) {
             my_data->fluence_type = FLUENCE_QUAD_MIC | FLUENCE_DUAL_MIC;
 
@@ -3086,21 +3085,19 @@ void *platform_init(struct audio_device *adev)
     }
 
     if (my_data->fluence_type != FLUENCE_NONE) {
-        if ((property_get("persist.vendor.audio.fluence.voicecall",
-                          value,NULL) > 0) ||
-            (property_get("persist.audio.fluence.voicecall",value,NULL) > 0)) {
+        if (property_get("persist.vendor.audio.fluence.voicecall",
+                          value,NULL) > 0) {
             if (!strncmp("true", value, sizeof("true")))
                 my_data->fluence_in_voice_call = true;
         }
 
-        if ((property_get("persist.vendor.audio.fluence.voicerec",
-                          value,NULL) > 0) ||
-            (property_get("persist.audio.fluence.voicerec",value,NULL) > 0)) {
+        if (property_get("persist.vendor.audio.fluence.voicerec",
+                          value,NULL) > 0) {
             if (!strncmp("true", value, sizeof("true")))
                 my_data->fluence_in_voice_rec = true;
         }
 
-        property_get("persist.audio.fluence.voicecomm",value,"");
+        property_get("persist.vendor.audio.fluence.voicecomm",value,"");
         if (!strncmp("true", value, sizeof("true"))) {
             my_data->fluence_in_voice_comm = true;
         }
@@ -3110,9 +3107,8 @@ void *platform_init(struct audio_device *adev)
             my_data->fluence_in_audio_rec = true;
         }
 
-        if ((property_get("persist.vendor.audio.fluence.speaker",
-                          value,NULL) > 0) ||
-            (property_get("persist.audio.fluence.speaker",value,NULL) > 0)) {
+        if (property_get("persist.vendor.audio.fluence.speaker",
+                          value,NULL) > 0) {
             if (!strncmp("true", value, sizeof("true"))) {
                 my_data->fluence_in_spkr_mode = true;
             }
@@ -4255,6 +4251,40 @@ bool platform_check_backends_match(snd_device_t snd_device1, snd_device_t snd_de
             result = false;
     } else if (NULL != be_itf1 && NULL == be_itf2 && (NULL == strstr(be_itf1, default_rx_backend))) {
             result = false;
+    }
+
+    ALOGV("%s: be_itf1 = %s, be_itf2 = %s, match %d", __func__, be_itf1, be_itf2, result);
+    return result;
+}
+
+bool platform_check_all_backends_match(snd_device_t snd_device1, snd_device_t snd_device2)
+{
+    bool result = true;
+
+    if ((snd_device1 < SND_DEVICE_MIN) || (snd_device1 >= SND_DEVICE_MAX)) {
+        ALOGE("%s: Invalid snd_device = %s", __func__,
+                platform_get_snd_device_name(snd_device1));
+        return false;
+    }
+
+    if ((snd_device2 < SND_DEVICE_MIN) || (snd_device2 >= SND_DEVICE_MAX)) {
+        ALOGE("%s: Invalid snd_device = %s", __func__,
+                platform_get_snd_device_name(snd_device2));
+        return false;
+    }
+
+    const char * be_itf1 = hw_interface_table[snd_device1];
+    const char * be_itf2 = hw_interface_table[snd_device2];
+
+    if (snd_device1 < SND_DEVICE_OUT_END && snd_device2 < SND_DEVICE_OUT_END)
+        return platform_check_backends_match(snd_device1, snd_device2);
+    else if (snd_device1 >= SND_DEVICE_IN_BEGIN && snd_device2 >= SND_DEVICE_IN_BEGIN) {
+        if (NULL != be_itf1 && NULL != be_itf2) {
+            if (strcmp(be_itf2, be_itf1))
+                result = false;
+        }
+    } else {
+        result = false;
     }
 
     ALOGV("%s: be_itf1 = %s, be_itf2 = %s, match %d", __func__, be_itf1, be_itf2, result);
@@ -6163,8 +6193,8 @@ snd_device_t platform_get_output_snd_device(void *platform, struct stream_out *o
                     snd_device = SND_DEVICE_OUT_VOICE_ANC_FB_HEADSET;
                 else
                     snd_device = SND_DEVICE_OUT_VOICE_ANC_HEADSET;
-            } else if (audio_extn_is_concurrent_capture_enabled() &&
-                        (devices & AUDIO_DEVICE_OUT_WIRED_HEADSET)) {
+            } else if (!platform_check_all_backends_match(SND_DEVICE_IN_VOICE_HEADSET_MIC,
+                       SND_DEVICE_IN_SPEAKER_MIC) && (devices & AUDIO_DEVICE_OUT_WIRED_HEADSET)) {
                 //Separate backend is added for headset-mic as part of concurrent capture
                 snd_device = SND_DEVICE_OUT_VOICE_HEADSET;
             } else {
@@ -9346,10 +9376,24 @@ static bool platform_check_codec_backend_cfg(struct audio_device* adev,
             ALOGD("%s:becf: afe: set sample rate to default Sample Rate(48k)",__func__);
         }
 
-        /*set sample rate to 48khz if multiple sample rates are not supported in spkr and hdset*/
-        if (is_hdset_combo_device(usecase->devices) && !my_data->is_multiple_sample_rate_combo_supported)
-            sample_rate = CODEC_BACKEND_DEFAULT_SAMPLE_RATE;
-            ALOGD("%s:becf: afe: set default Sample Rate(48k) for combo device",__func__);
+        /*
+         * set sample rate to 48khz if any combo use case is present and
+         * device has only one clock source, it cannot
+         * support different sample rate for HS and SPKR
+         * devices.Use default sample rate in such concurrent use cases.
+        */
+        if (!my_data->is_multiple_sample_rate_combo_supported) {
+            struct listnode *node;
+            list_for_each(node, &adev->usecase_list) {
+                struct audio_usecase *uc;
+                uc = node_to_item(node, struct audio_usecase, list);
+                if (is_hdset_combo_device(uc->devices)) {
+                    ALOGD("%s:becf: afe: set default Sample Rate(48k) for combo device",__func__);
+                    sample_rate = CODEC_BACKEND_DEFAULT_SAMPLE_RATE;
+                    break;
+                }
+            }
+        }
     }
 
     if (backend_idx != platform_get_voice_call_backend(adev)
