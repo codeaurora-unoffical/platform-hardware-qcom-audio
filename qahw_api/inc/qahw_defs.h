@@ -189,6 +189,11 @@ typedef enum {
 /* audio output flag for timestamp mode */
 #define QAHW_OUTPUT_FLAG_TIMESTAMP 0x20000000
 
+/* similar defination added into audio_defs.h and audio_extn.h
+ * AUDIO_OUTPUT_FLAG_VOICE_CAL
+ */
+#define QAHW_AUDIO_OUTPUT_FLAG_VOICE_CALL 0x2000000
+
 /* Query fm volume */
 #define QAHW_PARAMETER_KEY_FM_VOLUME "fm_volume"
 
@@ -248,6 +253,8 @@ typedef enum {
 /*TBD: Extend this based on stb requirement*/
 typedef enum {
  QAHW_META_DATA_FLAGS_NONE = 0,
+ QAHW_META_DATA_FLAGS_TIMESTAMP_VALID,
+ QAHW_META_DATA_FLAGS_TIMESTAMP_CONTINUE,
 } qahw_meta_data_flags_t;
 
 typedef struct {
@@ -610,6 +617,7 @@ typedef enum {
     QAHW_AUDIO_HOST_PCM_TX_RX,
     QAHW_AUDIO_AFE_LOOPBACK,                 /* Assumption is device[0] is RX and device[1] is TX */
     QAHW_AUDIO_TONE_RX,
+    QAHW_AUDIO_COMPRESSED_PLAYBACK_VOICE_CALL_MUSIC, /**< Offload incall music playback */
     QAHW_AUDIO_STREAM_TYPE_MAX,
 } qahw_audio_stream_type;
 

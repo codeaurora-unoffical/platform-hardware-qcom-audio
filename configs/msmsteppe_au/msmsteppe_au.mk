@@ -62,7 +62,9 @@ AUDIO_FEATURE_ENABLED_SOURCE_TRACKING := true
 AUDIO_FEATURE_ENABLED_GEF_SUPPORT := true
 BOARD_SUPPORTS_QAHW := false
 AUDIO_FEATURE_ENABLED_RAS := true
-AUDIO_FEATURE_ENABLED_SND_MONITOR := false
+ifeq ($(ENABLE_HYP),true)
+AUDIO_FEATURE_ENABLED_SND_MONITOR := true
+endif
 AUDIO_FEATURE_ENABLED_DLKM := true
 AUDIO_FEATURE_ENABLED_USB_BURST_MODE := false
 AUDIO_FEATURE_ENABLED_SVA_MULTI_STAGE := true
@@ -219,7 +221,7 @@ vendor.audio.use.sw.ape.decoder=true
 
 #enable hw aac encoder by default
 PRODUCT_PROPERTY_OVERRIDES += \
-vendor.audio.hw.aac.encoder=true
+vendor.audio.hw.aac.encoder=false
 
 #enable hardware decoders for WMA & APE by default
 PRODUCT_PROPERTY_OVERRIDES += \

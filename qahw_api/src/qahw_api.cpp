@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+* Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -106,6 +106,7 @@ static const char * const stream_name_map[QAHW_AUDIO_STREAM_TYPE_MAX] = {
     [QAHW_AUDIO_HOST_PCM_TX_RX]= "host-pcm-tx-rx",
     [QAHW_AUDIO_AFE_LOOPBACK] ="audio-afe-loopback",
     [QAHW_AUDIO_TONE_RX] = "audio-tone-playback",
+    [QAHW_AUDIO_COMPRESSED_PLAYBACK_VOICE_CALL_MUSIC] = "playback-compressed-in-call-music",
 };
 
 static const char * const tty_mode_map[QAHW_TTY_MODE_MAX] = {
@@ -2032,7 +2033,7 @@ int qahw_add_flags_source(struct qahw_stream_attributes attr,
         /*unsupported */
         break;
     case QAHW_VOICE_CALL:
-        *flags = AUDIO_OUTPUT_FLAG_PRIMARY;
+        *flags = QAHW_AUDIO_OUTPUT_FLAG_VOICE_CALL;
         break;
     case QAHW_AUDIO_TRANSCODE:
         /*TODO*/
@@ -2048,6 +2049,9 @@ int qahw_add_flags_source(struct qahw_stream_attributes attr,
         break;
     case QAHW_AUDIO_AFE_LOOPBACK:
     case QAHW_AUDIO_TONE_RX:
+        break;
+    case QAHW_AUDIO_COMPRESSED_PLAYBACK_VOICE_CALL_MUSIC:
+        *flags = AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD|AUDIO_OUTPUT_FLAG_NON_BLOCKING|AUDIO_OUTPUT_FLAG_DIRECT;
         break;
     default:
         rc = -EINVAL;
@@ -2106,6 +2110,7 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
             calloc(1, sizeof(struct qahw_channel_vol)*QAHW_CHANNELS_MAX);
     if (!vols) {
         ALOGE("%s: vol allocation failed ", __func__);
+        free(stream);
         return -ENOMEM;
     }
 
@@ -2131,7 +2136,8 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
         if (num_of_devices != 2 && attr.type != QAHW_VOICE_CALL) {
             ALOGE("%s: invalid num of streams %d for dir %d",
                   __func__, num_of_devices, attr.direction);
-            return rc;
+            rc = -EINVAL;
+            goto error_exit;
         }
         rc = qahw_open_output_stream(hw_module, handle, devices[0],
                                      (audio_output_flags_t)flags,
@@ -2157,7 +2163,8 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
         if (num_of_devices != 1) {
             ALOGE("%s: invalid num of streams %d for dir %d",
                   __func__, num_of_devices, attr.direction);
-            return rc;
+            rc = -EINVAL;
+            goto error_exit;
         }
         rc = qahw_open_output_stream(hw_module, handle, devices[0],
                                      (audio_output_flags_t)flags,
@@ -2174,7 +2181,8 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
         if (num_of_devices != 1) {
             ALOGE("%s: invalid num of streams %d for dir %d",
                   __func__, num_of_devices, attr.direction);
-            return rc;
+            rc = -EINVAL;
+            goto error_exit;
         }
         rc = qahw_open_input_stream(hw_module, handle, devices[0],
                                     &(attr.attr.shared.config),
@@ -2187,7 +2195,8 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
         if (num_of_devices > 2) {
             ALOGE("%s: invalid num of streams %d for dir %d",
                   __func__, num_of_devices, attr.direction);
-            return rc;
+            rc = -EINVAL;
+            goto error_exit;
         }
         ALOGV("%s: num of streams %d for dir %d",
                   __func__, num_of_devices, attr.direction);
@@ -2234,7 +2243,8 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
         break;
     default:
         ALOGE("%s: invalid stream direction %d ", __func__, attr.direction);
-        return rc;
+        rc = -EINVAL;
+        goto error_exit;
     }
     /*set the stream type as the handle add to list*/
     *stream_handle = (qahw_stream_handle_t *)stream;
@@ -2250,6 +2260,11 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
         ALOGE("%s: modifiers not currently supported\n", __func__);
     }
     ALOGV("%d:%s end",__LINE__, __func__);
+    return rc;
+
+error_exit:
+    free(stream);
+    free(vols);
     return rc;
 }
 
@@ -2983,8 +2998,9 @@ int32_t qahw_stream_get_buffer_size(const qahw_stream_handle_t *stream_handle,
         ALOGE("%d:%s invalid stream direction, cannot get size", __LINE__, __func__);
         break;
     }
-    ALOGV("%d:%s inSz %d outSz %d ret 0x%8x", __LINE__, __func__,((in_buffer)? *in_buffer : NULL),
-                                              ((out_buffer)? *out_buffer : NULL), rc);
+    ALOGV("%d:%s inSz %d outSz %d ret 0x%8x", __LINE__, __func__,
+          (in_buffer)?(*in_buffer):0,
+          (out_buffer)?(*out_buffer):0, rc);
     return rc;
 }
 

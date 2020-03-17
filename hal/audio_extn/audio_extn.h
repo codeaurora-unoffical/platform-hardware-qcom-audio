@@ -141,10 +141,13 @@
 #define AUDIO_OUTPUT_FLAG_INTERACTIVE 0x4000000
 #endif
 
+#ifndef AUDIO_OUTPUT_FLAG_VOICE_CALL
+#define AUDIO_OUTPUT_FLAG_VOICE_CALL 0x2000000
+#endif
+
 #ifndef AUDIO_FORMAT_MAT
 #define AUDIO_FORMAT_MAT 0x30000000UL
 #endif
-
 
 int audio_extn_parse_compress_metadata(struct stream_out *out,
                                        struct str_parms *parms);
@@ -272,7 +275,7 @@ bool audio_extn_qdsp_supported_usb();
 
 //END: EXTN_QDSP_PLUGIN      ===========================================
 
-#define MIN_OFFLOAD_BUFFER_DURATION_MS 5 /* 5ms */
+#define MIN_OFFLOAD_BUFFER_DURATION_MS 4 /* 4ms */
 #define MAX_OFFLOAD_BUFFER_DURATION_MS (100 * 1000) /* 100s */
 
 void audio_extn_set_parameters(struct audio_device *adev,

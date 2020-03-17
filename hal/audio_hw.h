@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -483,6 +483,7 @@ struct stream_in {
     int64_t frames_muted; /* total frames muted, not cleared when entering standby */
 
     bool dsd_config_updated;
+    uint64_t ttp_offset_cached;
 #ifndef LINUX_ENABLED
     error_log_t *error_log;
 #endif
@@ -680,8 +681,7 @@ struct audio_patch_record {
     audio_usecase_t usecase;
     audio_io_handle_t input_io_handle;
     audio_io_handle_t output_io_handle;
-    struct audio_port_config source;
-    struct audio_port_config sink;
+    struct audio_patch patch;
 };
 
 int select_devices(struct audio_device *adev,
@@ -722,7 +722,7 @@ int adev_open_output_stream(struct audio_hw_device *dev,
                             audio_output_flags_t flags,
                             struct audio_config *config,
                             struct audio_stream_out **stream_out,
-                            const char *address __unused);
+                            const char *address);
 void adev_close_output_stream(struct audio_hw_device *dev __unused,
                               struct audio_stream_out *stream);
 
