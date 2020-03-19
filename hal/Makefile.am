@@ -1,6 +1,7 @@
 AM_CFLAGS = -I ${WORKSPACE}/external/tinyalsa/include \
         -I ${WORKSPACE}/system/media/audio_effects/include \
         -I ${WORKSPACE}/system/media/audio_utils/include \
+        -I ${WORKSPACE}/audio/mm-audio/esp/lib/src/ \
         -I $(top_srcdir)/hal \
         -I $(top_srcdir)/hal/audio_extn \
         -I $(top_srcdir)/hal/voice_extn \
