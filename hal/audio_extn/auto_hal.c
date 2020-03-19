@@ -47,6 +47,9 @@
 
 #ifdef AUDIO_EXTN_AUTO_HAL_ENABLED
 
+#define MIN_VOLUME_GAIN 0.0f
+#define MAX_VOLUME_GAIN 1.0f
+
 typedef struct auto_hal_module {
     struct audio_device *adev;
     card_status_t card_status;
@@ -276,10 +279,14 @@ int audio_extn_auto_hal_create_audio_patch(struct audio_hw_device *dev,
     patch_record->usecase = usecase;
     patch_record->input_io_handle = input_io_handle;
     patch_record->output_io_handle = output_io_handle;
-    memcpy((void *)&patch_record->source, (void *)sources,
-        sizeof(struct audio_port_config));
-    memcpy((void *)&patch_record->sink, (void *)sinks,
-        sizeof(struct audio_port_config));
+    patch_record->patch.id = patch_record->handle;
+    patch_record->patch.num_sources = num_sources;
+    patch_record->patch.num_sinks = num_sinks;
+    for (unsigned int i = 0; i < num_sources; i++)
+        patch_record->patch.sources[i] = sources[i];
+    for (unsigned int i = 0; i < num_sinks; i++)
+        patch_record->patch.sinks[i] = sinks[i];
+
     list_add_tail(&adev->audio_patch_record_list, &patch_record->list);
     pthread_mutex_unlock(&adev->lock);
 
@@ -459,6 +466,7 @@ int32_t audio_extn_auto_hal_open_output_stream(struct stream_out *out)
         if (out->flags == AUDIO_OUTPUT_FLAG_NONE ||
             out->flags == AUDIO_OUTPUT_FLAG_PRIMARY)
             out->flags |= AUDIO_OUTPUT_FLAG_MEDIA;
+        out->volume_l = out->volume_r = MAX_VOLUME_GAIN;
         break;
     case CAR_AUDIO_STREAM_SYS_NOTIFICATION:
         /* sys notification bus stream shares pcm device with low-latency */
@@ -466,6 +474,7 @@ int32_t audio_extn_auto_hal_open_output_stream(struct stream_out *out)
         out->config = pcm_config_low_latency;
         if (out->flags == AUDIO_OUTPUT_FLAG_NONE)
             out->flags |= AUDIO_OUTPUT_FLAG_SYS_NOTIFICATION;
+        out->volume_l = out->volume_r = MAX_VOLUME_GAIN;
         break;
     case CAR_AUDIO_STREAM_NAV_GUIDANCE:
         out->usecase = USECASE_AUDIO_PLAYBACK_NAV_GUIDANCE;
@@ -479,12 +488,14 @@ int32_t audio_extn_auto_hal_open_output_stream(struct stream_out *out)
         }
         if (out->flags == AUDIO_OUTPUT_FLAG_NONE)
             out->flags |= AUDIO_OUTPUT_FLAG_NAV_GUIDANCE;
+        out->volume_l = out->volume_r = MAX_VOLUME_GAIN;
         break;
     case CAR_AUDIO_STREAM_PHONE:
         out->usecase = USECASE_AUDIO_PLAYBACK_PHONE;
         out->config = pcm_config_low_latency;
         if (out->flags == AUDIO_OUTPUT_FLAG_NONE)
             out->flags |= AUDIO_OUTPUT_FLAG_PHONE;
+        out->volume_l = out->volume_r = MAX_VOLUME_GAIN;
         break;
     default:
         ALOGE("%s: Car audio stream %x not supported", __func__,
@@ -572,9 +583,9 @@ int audio_extn_auto_hal_set_audio_port_config(struct audio_hw_device *dev,
                      * q13 = (10^(mdb/100/20))*(2^13)
                      */
                     if(config->gain.values[0] <= (MIN_VOLUME_VALUE_MB + STEP_VALUE_MB))
-                        volume = 0.0 ;
+                        volume = MIN_VOLUME_GAIN;
                     else
-                        volume = powf(10.0, ((float)config->gain.values[0] / 2000));
+                        volume = powf(10.0f, ((float)config->gain.values[0] / 2000));
                     ALOGV("%s: set volume to stream: %p", __func__,
                         &out_ctxt->output->stream);
                     /* set gain if output stream is active */
@@ -596,15 +607,15 @@ int audio_extn_auto_hal_set_audio_port_config(struct audio_hw_device *dev,
                                                     struct audio_patch_record,
                                                     list);
                 /* limit audio gain support for device -> bus device patch */
-                if (patch_record->source.type == AUDIO_PORT_TYPE_DEVICE &&
-                    patch_record->sink.type == AUDIO_PORT_TYPE_DEVICE &&
-                    patch_record->sink.role == AUDIO_PORT_ROLE_SINK &&
-                    patch_record->sink.ext.device.type == AUDIO_DEVICE_OUT_BUS &&
-                    patch_record->sink.ext.device.type == config->ext.device.type &&
-                    strcmp(patch_record->sink.ext.device.address,
+                if (patch_record->patch.sources[0].type == AUDIO_PORT_TYPE_DEVICE &&
+                    patch_record->patch.sinks[0].type == AUDIO_PORT_TYPE_DEVICE &&
+                    patch_record->patch.sinks[0].role == AUDIO_PORT_ROLE_SINK &&
+                    patch_record->patch.sinks[0].ext.device.type == AUDIO_DEVICE_OUT_BUS &&
+                    patch_record->patch.sinks[0].ext.device.type == config->ext.device.type &&
+                    strcmp(patch_record->patch.sinks[0].ext.device.address,
                         config->ext.device.address) == 0) {
                     /* cache audio port configuration for sink */
-                    memcpy((void *)&patch_record->sink, (void *)config,
+                    memcpy((void *)&patch_record->patch.sinks[0], (void *)config,
                         sizeof(struct audio_port_config));
 
                     struct audio_usecase *uc_info = get_usecase_from_list(adev,

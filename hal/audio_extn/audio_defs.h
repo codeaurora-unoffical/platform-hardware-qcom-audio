@@ -125,6 +125,9 @@ typedef enum {
 #define AUDIO_INPUT_FLAG_COMPRESS  0x40000000
 #define AUDIO_INPUT_FLAG_PASSTHROUGH 0x20000000
 
+/* audio output flag for voice call */
+#define AUDIO_OUTPUT_FLAG_VOICE_CALL 0x2000000
+
 /* MAX SECTORS for sourcetracking feature */
 #define MAX_SECTORS 8
 
@@ -408,5 +411,11 @@ typedef struct {
     audio_output_flags_t flags;
     struct audio_port_config *sink_config;
 } audio_extn_sink_port_config_t;
+
+typedef enum {
+    AUDIO_EXTN_META_DATA_FLAGS_NONE,
+    AUDIO_EXTN_META_DATA_FLAGS_TIMESTAMP_VALID,
+    AUDIO_EXTN_META_DATA_FLAGS_TIMESTAMP_CONTINUE,
+} audio_extn_meta_data_flags;
 
 #endif /* AUDIO_DEFS_H */
