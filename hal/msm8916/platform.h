@@ -227,6 +227,8 @@ enum {
 #define VOICEMMODE1_CALL_PCM_DEVICE 34
 #define VOICEMMODE2_CALL_PCM_DEVICE 28
 
+#define HAPTIC_PLAYBACK_PCM_DEVICE  41
+
 #define LIB_CSD_CLIENT "libcsd-client.so"
 /* CSD-CLIENT related functions */
 typedef int (*init_t)();
