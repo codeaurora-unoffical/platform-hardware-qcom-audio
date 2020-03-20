@@ -1423,3 +1423,8 @@ void platform_set_native_dsd_speaker_cfg(struct stream_out *out)
      ALOGE("%s: Not implemented", __func__);
      return;
 }
+
+bool platform_get_eccarstate(void *platform)
+{
+    return false;
+}
