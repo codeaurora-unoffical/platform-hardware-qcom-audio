@@ -162,6 +162,17 @@ static struct pcm_config pcm_config_hfp = {
     .avail_min = 0,
 };
 
+static struct pcm_config pcm_config_hfp_multichannel = {
+    .channels = 4,
+    .rate = 8000,
+    .period_size = 240,
+    .period_count = 2,
+    .format = PCM_FORMAT_S16_LE,
+    .start_threshold = 0,
+    .stop_threshold = INT_MAX,
+    .avail_min = 0,
+};
+
 /* global variable, updated by hfp_set_parameters() */
 static int current_hfp_num = SIG_HFP;
 
@@ -178,6 +189,7 @@ static fp_disable_snd_device_t                      fp_disable_snd_device;
 static fp_voice_get_mic_mute_t                      fp_voice_get_mic_mute;
 static fp_audio_extn_auto_hal_start_hfp_downlink_t  fp_audio_extn_auto_hal_start_hfp_downlink;
 static fp_audio_extn_auto_hal_stop_hfp_downlink_t   fp_audio_extn_auto_hal_stop_hfp_downlink;
+static fp_platform_get_eccarstate_t                 fp_platform_get_eccarstate;
 
 static struct hfp_module *get_hfp_module(int hfp_num)
 {
@@ -388,6 +400,7 @@ static int32_t start_hfp(struct audio_device *adev,
     struct audio_usecase *uc_info;
     struct hfp_module *hfpmod;
     int32_t pcm_dev_rx_id, pcm_dev_tx_id, pcm_dev_asm_rx_id, pcm_dev_asm_tx_id;
+    struct pcm_config *p_pcm_config_hfp = NULL;
 
     ALOGD("%s: enter", __func__);
 
@@ -450,17 +463,15 @@ static int32_t start_hfp(struct audio_device *adev,
         goto exit;
     }
 
-    /* enable multichannel asm loopback for MMECNS device and
-     * restore period size to original.
-     */
-    if (uc_info->in_snd_device == SND_DEVICE_IN_VOICE_SPEAKER_MIC_HFP_MMSECNS) {
-        pcm_config_hfp.channels = 4;
-        pcm_config_hfp.period_size = 240;
-    }
+    /* enable multichannel asm loopback for MMECNS device */
+    if (fp_platform_get_eccarstate((void *)adev->platform))
+        p_pcm_config_hfp = &pcm_config_hfp_multichannel;
+    else
+        p_pcm_config_hfp = &pcm_config_hfp;
 
     hfpmod->hfp_pcm_tx = pcm_open(adev->snd_card,
                                   pcm_dev_tx_id,
-                                  PCM_IN, &pcm_config_hfp);
+                                  PCM_IN, p_pcm_config_hfp);
     if (hfpmod->hfp_pcm_tx && !pcm_is_ready(hfpmod->hfp_pcm_tx)) {
         ALOGE("%s: %s", __func__, pcm_get_error(hfpmod->hfp_pcm_tx));
         ret = -EIO;
@@ -480,9 +491,6 @@ static int32_t start_hfp(struct audio_device *adev,
 
     if (fp_audio_extn_auto_hal_start_hfp_downlink(adev, uc_info))
         ALOGE("%s: start hfp downlink failed", __func__);
-
-    if (uc_info->out_snd_device == SND_DEVICE_OUT_VOICE_SPEAKER_HFP)
-        pcm_config_hfp.channels = 1;
 
     hfpmod->hfp_sco_rx = pcm_open(adev->snd_card,
                                  pcm_dev_asm_rx_id,
@@ -623,6 +631,7 @@ void hfp_init(hfp_init_config_t init_config)
                                 init_config.fp_audio_extn_auto_hal_start_hfp_downlink;
     fp_audio_extn_auto_hal_stop_hfp_downlink =
                                 init_config.fp_audio_extn_auto_hal_stop_hfp_downlink;
+    fp_platform_get_eccarstate = init_config.fp_platform_get_eccarstate;
 }
 
 bool hfp_is_active(struct audio_device *adev)
@@ -745,7 +754,7 @@ void hfp_set_parameters(struct audio_device *adev, struct str_parms *parms)
                 ALOGE("%s: Invalid hfp_num: %d", __func__, current_hfp_num);
                 break;
             }
-            pcm_config_hfp.rate = rate;
+            pcm_config_hfp_multichannel.rate = pcm_config_hfp.rate = rate;
         } else if (rate == HFP_WB_SAMPLE_RATE) {
             switch (current_hfp_num) {
             case SIG_HFP:
@@ -761,7 +770,7 @@ void hfp_set_parameters(struct audio_device *adev, struct str_parms *parms)
                 ALOGE("%s: Invalid hfp_num: %d", __func__, current_hfp_num);
                 break;
             }
-            pcm_config_hfp.rate = rate;
+            pcm_config_hfp_multichannel.rate = pcm_config_hfp.rate = rate;
         } else {
             ALOGE("Unsupported rate..");
         }

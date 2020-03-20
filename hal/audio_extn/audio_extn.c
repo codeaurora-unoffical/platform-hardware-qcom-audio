@@ -4522,6 +4522,7 @@ int hfp_feature_init(bool is_feature_enabled)
                                         audio_extn_auto_hal_start_hfp_downlink;
         init_config.fp_audio_extn_auto_hal_stop_hfp_downlink =
                                         audio_extn_auto_hal_stop_hfp_downlink;
+        init_config.fp_platform_get_eccarstate = platform_get_eccarstate;
 
         hfp_init(init_config);
         ALOGD("%s:: ---- Feature HFP is Enabled ----", __func__);
