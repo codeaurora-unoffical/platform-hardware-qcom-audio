@@ -563,6 +563,10 @@ static void update_hardware_info_kona(
                  sizeof("bengal-qrd-snd-card"))) {
         strlcpy(hw_info->name, "bengal", sizeof(hw_info->name));
         hw_info->is_stereo_spkr = false;
+    } else if (!strncmp(snd_card_name, "kona-iot-snd-card",
+                 sizeof("kona-iot-snd-card"))) {
+        strlcpy(hw_info->name, "kona", sizeof(hw_info->name));
+        hw_info->is_stereo_spkr = true;
     } else {
         ALOGW("%s: Not a kona device", __func__);
     }
