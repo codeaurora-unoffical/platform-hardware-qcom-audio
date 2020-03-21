@@ -644,9 +644,13 @@ enum {
 #define HFP_SCO_RX 28
 #endif
 #define HFP_ASM_RX_TX 29
+#define HFP_SEC_SCO_RX -1
+#define HFP_SEC_ASM_RX_TX -1
 #elif PLATFORM_BEAR_FAMILY
 #define HFP_SCO_RX 17
 #define HFP_ASM_RX_TX 18
+#define HFP_SEC_SCO_RX -1
+#define HFP_SEC_ASM_RX_TX -1
 #elif PLATFORM_AUTO
 #define HFP_SCO_RX 29
 #define HFP_ASM_RX_TX 36
@@ -655,9 +659,13 @@ enum {
 #elif defined (PLATFORM_MSMFALCON) || defined (PLATFORM_MSM8937)
 #define HFP_SCO_RX 17
 #define HFP_ASM_RX_TX 18
+#define HFP_SEC_SCO_RX -1
+#define HFP_SEC_ASM_RX_TX -1
 #else
 #define HFP_SCO_RX 23
 #define HFP_ASM_RX_TX 24
+#define HFP_SEC_SCO_RX -1
+#define HFP_SEC_ASM_RX_TX -1
 #endif
 
 #define TRANSCODE_LOOPBACK_RX_DEV_ID 43
@@ -693,6 +701,8 @@ enum {
 
 #ifdef PLATFORM_AUTO
 #define ICC_PCM_DEVICE 33
+#else
+#define ICC_PCM_DEVICE -1
 #endif
 
 #define PLATFORM_MAX_MIC_COUNT "input_mic_max_count"
