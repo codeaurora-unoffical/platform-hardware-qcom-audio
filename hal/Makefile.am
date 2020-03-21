@@ -17,7 +17,7 @@ c_sources = audio_hw.c \
 
 if HDMI_EDID
 AM_CFLAGS += -DHDMI_EDID
-c_sources += edid.c
+c_sources += audio_extn/edid.c
 endif
 
 if FM_POWER_OPT
@@ -225,13 +225,18 @@ lib_LTLIBRARIES = audio.primary.default.la
 audio_primary_default_la_SOURCES = $(c_sources)
 audio_primary_default_la_LIBADD = $(GLIB_LIBS) -llog -lcutils -ltinyalsa
 audio_primary_default_la_LIBADD += -ltinycompress -laudioroute -ldl -lexpat -laudioutils
+audio_primary_default_la_LIBADD += -lm -lc -lresolv
+
 if AUDIO_PARSER
 audio_primary_default_la_LIBADD += -laudioparsers
 endif
 audio_primary_default_la_CFLAGS = $(AM_CFLAGS) $(GLIB_CFLAGS)
 audio_primary_default_la_CFLAGS += -Dstrlcat=g_strlcat
 audio_primary_default_la_CFLAGS += -DINT_MAX=0x7fffffff
+audio_primary_default_la_CFLAGS += -DULONG_MAX=\(__LONG_MAX__*2UL+1UL\)
+audio_primary_default_la_CFLAGS += -DPATH_MAX=4096
 audio_primary_default_la_CFLAGS += -D__unused=__attribute__\(\(__unused__\)\)
 audio_primary_default_la_CFLAGS += -DLINUX_ENABLED $(TARGET_CFLAGS) -DAUDIO_EXTN_FORMATS_ENABLED
 audio_primary_default_la_CFLAGS += -DNDEBUG
+audio_primary_default_la_CFLAGS += -D_GNU_SOURCE
 audio_primary_default_la_LDFLAGS = -module -shared -avoid-version
