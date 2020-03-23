@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -105,6 +105,7 @@ enum {
     SND_DEVICE_OUT_VOICE_SPEAKER_2,
     SND_DEVICE_OUT_VOICE_SPEAKER_2_WSA,
     SND_DEVICE_OUT_VOICE_SPEAKER_2_VBAT,
+    SND_DEVICE_OUT_VOICE_SPEAKER_HFP,
     SND_DEVICE_OUT_VOICE_HEADPHONES,
     SND_DEVICE_OUT_VOICE_LINE,
     SND_DEVICE_OUT_HDMI,
@@ -182,6 +183,7 @@ enum {
     SND_DEVICE_IN_HEADSET_MIC,
     SND_DEVICE_IN_HEADSET_MIC_FLUENCE,
     SND_DEVICE_IN_VOICE_SPEAKER_MIC,
+    SND_DEVICE_IN_VOICE_SPEAKER_MIC_HFP,
     SND_DEVICE_IN_VOICE_HEADSET_MIC,
     SND_DEVICE_IN_HDMI_MIC,
     SND_DEVICE_IN_BT_SCO_MIC,
