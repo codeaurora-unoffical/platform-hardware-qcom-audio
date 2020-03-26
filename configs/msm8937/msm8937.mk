@@ -122,8 +122,13 @@ frameworks/native/data/etc/android.software.midi.xml:$(TARGET_COPY_OUT_VENDOR)/e
 #XML Audio configuration files
 ifeq ($(USE_XML_AUDIO_POLICY_CONF), 1)
 ifeq ($(AUDIO_FEATURE_ENABLED_SPLIT_A2DP), true)
+ifeq ($(TARGET_SUPPORTS_WEARABLES), true)
+   PRODUCT_COPY_FILES += \
+   $(TOPDIR)device/qcom/sdm429w/audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy_configuration.xml
+else
    PRODUCT_COPY_FILES += \
    $(TOPDIR)hardware/qcom/audio/configs/msm8937/audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy_configuration.xml
+endif
 endif
 ifneq ($(TARGET_USES_AOSP_FOR_AUDIO), true)
 PRODUCT_COPY_FILES += \
