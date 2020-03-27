@@ -1322,7 +1322,12 @@ void get_file_format(stream_config *stream_info)
         case FILE_APE:
             stream_info->config.offload_info.format = AUDIO_FORMAT_APE;
             break;
-
+        case FILE_AMR:
+            stream_info->config.offload_info.format = AUDIO_FORMAT_AMR_NB;
+            break;
+        case FILE_AMR_WB:
+            stream_info->config.offload_info.format = AUDIO_FORMAT_AMR_WB;
+            break;
         case FILE_MAT:
             stream_info->config.offload_info.format = AUDIO_FORMAT_MAT;
             break;
