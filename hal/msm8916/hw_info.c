@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2018, 2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -188,6 +188,8 @@ static void update_hardware_info_8x16(struct hardware_info *hw_info, const char 
     } else if (!strcmp(snd_card_name, "msm8909-skuq-snd-card")) {
         strlcpy(hw_info->type, "skuq", sizeof(hw_info->type));
         strlcpy(hw_info->name, "msm8909", sizeof(hw_info->name));
+    } else if (!strcmp(snd_card_name, "sdm429w-snd-card")) {
+        strlcpy(hw_info->name, "sdm429w", sizeof(hw_info->name));
     } else {
         ALOGW("%s: Not an 8x16/8909/8917/8920/8937/8939/8940/8952/8953/660 device", __func__);
     }
@@ -218,7 +220,7 @@ void *hw_info_init(const char *snd_card_name)
         strstr(snd_card_name, "msm8940") || strstr(snd_card_name, "msm8920") ||
         strstr(snd_card_name, "sdm660") || strstr(snd_card_name, "apq8009") ||
         strstr(snd_card_name, "mdm9607") || strstr(snd_card_name, "mdm-tasha") ||
-        strstr(snd_card_name, "sdm439")) {
+        strstr(snd_card_name, "sdm439") || strstr(snd_card_name, "sdm429w")) {
         ALOGV("8x16 - variant soundcard");
         update_hardware_info_8x16(hw_info, snd_card_name);
     } else {
