@@ -202,9 +202,6 @@ static void * haptic_thread_loop(void *param __unused)
     }
 #endif
         while (cnt < tot_samples) {
-            if (hap.done) {
-                break;
-            }
             pcm_write(hap.pcm, (void *)(hap_buffer + pos), num_frames * sizeof(int16_t));
 
 #ifdef DUMP_HAPTIC_FILE
@@ -215,7 +212,14 @@ static void * haptic_thread_loop(void *param __unused)
             pos += (num_frames * sizeof(int16_t));
             if (pos == pcm_config_haptic.rate * sizeof(int16_t))
                 pos = 0;
+            // Stop triggered
+            if (hap.done && cnt == tot_samples) {
+                break;
+            }
         }
+        // write completed
+        ALOGV("%s :Haptic write complete, written = %d, Total Samples = %d",
+                                                 __func__, cnt, tot_samples);
 #ifdef DUMP_HAPTIC_FILE
     if (fp != NULL) {
         fclose(fp);
@@ -228,17 +232,11 @@ thrd_exit:
             free(hap_buffer);
             hap_buffer = NULL;
         }
-        pthread_mutex_lock(&hap.lock);
         //Change to idle state
+        pthread_mutex_lock(&hap.lock);
         hap.state = STATE_IDLE;
         ALOGV("%s State changed to IDLE", __func__);
         pthread_mutex_unlock(&hap.lock);
-
-        // Trigger haptic_stop if write completed
-        if (!hap.done && cnt >= tot_samples) {
-            ALOGV("%s : haptic pcm write complete",__func__);
-            haptic_stop();
-        }
     }
     ALOGE("haptic_thread_loop exit");
     return 0;
@@ -324,7 +322,8 @@ void audio_extn_haptic_stop (struct audio_device *adev)
         ALOGV("%s :Haptic playback feature disabled", __func__);
         goto exit;
     }
-    if (hap.state != STATE_ACTIVE) {
+    if (hap.state != STATE_ACTIVE && hap.pcm == NULL &&
+        get_usecase_from_list(adev, USECASE_AUDIO_PLAYBACK_HAPTIC) == NULL) {
         ALOGV("%s: Haptic playback already stopped", __func__);
         goto exit;
     }
@@ -358,6 +357,11 @@ void haptic_start(struct audio_device *adev)
     if (hap.state == STATE_ACTIVE) {
         ALOGD("%s: Haptic playback is already ACTIVE", __func__);
         goto exit;
+    }
+    if (hap.state == STATE_IDLE && hap.pcm != NULL &&
+        get_usecase_from_list(adev, USECASE_AUDIO_PLAYBACK_HAPTIC) != NULL) {
+        ALOGD("%s: Haptic State IDLE, re-start vibrate playback", __func__);
+        goto start_write;
     }
 
     if (hap.out == NULL) {
@@ -412,6 +416,7 @@ void haptic_start(struct audio_device *adev)
         }
         goto exit;
     }
+start_write:
     send_cmd_l(REQUEST_WRITE);
 exit:
     //cleanup
@@ -500,4 +505,18 @@ void audio_extn_haptic_set_parameters(struct audio_device *adev,
         ALOGD("%s Start Haptic Audio Playback", __func__);
         audio_extn_haptic_start(adev);
     }
+}
+
+bool audio_extn_is_haptic_started(struct audio_device *adev)
+{
+    ALOGV("%s: Enter", __func__);
+    bool is_hap_started = false;
+
+    if (get_usecase_from_list(adev, USECASE_AUDIO_PLAYBACK_HAPTIC) != NULL &&
+        (hap.state == STATE_ACTIVE || hap.state == STATE_IDLE) &&
+        hap.pcm != NULL) {
+        is_hap_started = true;
+    }
+    ALOGV("%s: Exit", __func__);
+    return is_hap_started;
 }
