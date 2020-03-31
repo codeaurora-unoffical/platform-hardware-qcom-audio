@@ -1851,6 +1851,11 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
          *       playback to headset.
          */
         if (val != 0) {
+            if (audio_extn_is_haptic_started(adev) &&
+                            val != AUDIO_DEVICE_OUT_SPEAKER) {
+                ALOGD("%s Haptic started, routing to SPEAKER only", __func__);
+                val = AUDIO_DEVICE_OUT_SPEAKER;
+            }
             out->devices = val;
 
             if (!out->standby)
@@ -3344,7 +3349,7 @@ static void adev_close_input_stream(struct audio_hw_device *dev,
     } else
         in_standby(&stream->common);
 
-    if (audio_extn_ssr_get_enabled() && 
+    if (audio_extn_ssr_get_enabled() &&
             (audio_channel_count_from_in_mask(in->channel_mask) == 6)) {
         audio_extn_ssr_deinit();
     }
