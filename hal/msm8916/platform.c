@@ -8707,3 +8707,8 @@ int platform_get_display_port_ctl_index(int controller __unused,
 {
     return -EINVAL;
 }
+
+bool platform_get_eccarstate(void *platform)
+{
+    return false;
+}

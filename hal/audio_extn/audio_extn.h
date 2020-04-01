@@ -707,6 +707,7 @@ typedef struct hfp_init_config {
     fp_voice_get_mic_mute_t                      fp_voice_get_mic_mute;
     fp_audio_extn_auto_hal_start_hfp_downlink_t  fp_audio_extn_auto_hal_start_hfp_downlink;
     fp_audio_extn_auto_hal_stop_hfp_downlink_t   fp_audio_extn_auto_hal_stop_hfp_downlink;
+    fp_platform_get_eccarstate_t                 fp_platform_get_eccarstate;
 } hfp_init_config_t;
 
 
