@@ -242,6 +242,16 @@ typedef enum {
 #define QAHW_PCM_CHANNEL_RSD  34  /* Right side direct channel.                    */
 #define QAHW_PCM_CHANNEL_UNUSED  47  /* Mark unused channel.                       */
 
+/* Parameter to be passed when clock switch is needed */
+#define QAHW_PARAMETER_CLOCK "clock"
+#define QAHW_PARAMETER_CLOCK_FREQUENCY "clock_frequency"
+
+typedef enum {
+    QAHW_CLOCK_INTERNAL,
+    QAHW_CLOCK_EXTERNAL,
+    QAHW_CLOCK_MAX
+} qahw_clock_type;
+
 /* type of asynchronous write callback events. Mutually exclusive */
 typedef enum {
     QAHW_STREAM_CBK_EVENT_WRITE_READY, /* non blocking write completed */
