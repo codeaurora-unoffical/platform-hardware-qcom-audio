@@ -5347,17 +5347,7 @@ static int set_hd_voice(struct platform_data *my_data, bool state)
 
 bool platform_get_eccarstate(void *platform)
 {
-    struct platform_data *my_data = (struct platform_data *)platform;
-    return my_data->ec_car_state;
-}
-
-static int platform_set_eccarstate(struct platform_data *my_data, bool state)
-{
-    int ret = 0;
-    ALOGD("Setting EC Car state: %d", state);
-    my_data->ec_car_state = state;
-
-    return ret;
+    return false;
 }
 
 static int update_external_device_status(struct platform_data *my_data,
