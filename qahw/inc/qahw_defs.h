@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2011 The Android Open Source Project *
@@ -162,6 +162,7 @@ __BEGIN_DECLS
 #define QAHW_OFFLOAD_CODEC_APE_SEEK_TABLE_PRESENT "music_offload_seek_table_present"
 
 #define QAHW_OFFLOAD_CODEC_VORBIS_BITSTREAM_FMT "music_offload_vorbis_bitstream_fmt"
+#define QAHW_OFFLOAD_CODEC_AMRWBPLUS_BITSTREAM_FMT "music_offload_amrwbplus_bitstream_fmt"
 
 /* Set or Query stream profile type */
 #define QAHW_PARAMETER_STREAM_PROFILE "audio_stream_profile"
@@ -178,6 +179,11 @@ __BEGIN_DECLS
 
 /* audio output flag for timestamp mode */
 #define QAHW_OUTPUT_FLAG_TIMESTAMP 0x20000000
+
+/* similar defination added into audio_defs.h and audio_extn.h
+ * AUDIO_OUTPUT_FLAG_VOICE_CAL
+ */
+#define QAHW_AUDIO_OUTPUT_FLAG_VOICE_CALL 0x2000000
 
 /* Query fm volume */
 #define QAHW_PARAMETER_KEY_FM_VOLUME "fm_volume"
@@ -279,6 +285,8 @@ typedef enum {
 /*TBD: Extend this based on stb requirement*/
 typedef enum {
  QAHW_META_DATA_FLAGS_NONE = 0,
+ QAHW_META_DATA_FLAGS_TIMESTAMP_VALID,
+ QAHW_META_DATA_FLAGS_TIMESTAMP_CONTINUE,
 } qahw_meta_data_flags_t;
 
 typedef struct {
@@ -612,7 +620,7 @@ typedef enum {
     QAHW_STREAM_TYPE_INVALID,
     QAHW_AUDIO_PLAYBACK_LOW_LATENCY,      /**< low latency, higher power*/
     QAHW_AUDIO_PLAYBACK_DEEP_BUFFER,          /**< low power, higher latency*/
-    QAHW_AUDIO_PLAYBACK_COMPRESSED,           /**< compresssed audio*/
+    QAHW_AUDIO_PLAYBACK_COMPRESSED,           /**< non-blocking, direct, compresssed audio*/
     QAHW_AUDIO_PLAYBACK_VOIP,                 /**< pcm voip audio*/
     QAHW_AUDIO_PLAYBACK_VOICE_CALL_MUSIC,     /**< pcm voip audio*/
 
@@ -634,6 +642,7 @@ typedef enum {
     QAHW_AUDIO_HOST_PCM_TX_RX,
     QAHW_AUDIO_AFE_LOOPBACK,                 /* Assumption is device[0] is RX and device[1] is TX */
     QAHW_AUDIO_TONE_RX,
+    QAHW_AUDIO_COMPRESSED_PLAYBACK_VOICE_CALL_MUSIC, /**< Offload incall music playback */
     QAHW_AUDIO_STREAM_TYPE_MAX,
 } qahw_audio_stream_type;
 
@@ -641,7 +650,7 @@ typedef uint32_t qahw_device_t;
 
 /**< Key value pair to identify the topology of a usecase from default  */
 struct qahw_modifier_kv  {
-    uint32_t key;
+    char *key;
     uint32_t value;
 };
 

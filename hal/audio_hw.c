@@ -750,7 +750,10 @@ static bool is_supported_format(audio_format_t format)
         format == AUDIO_FORMAT_WMA_PRO ||
         format == AUDIO_FORMAT_APTX ||
         format == AUDIO_FORMAT_IEC61937 ||
-        format == AUDIO_FORMAT_MAT)
+        format == AUDIO_FORMAT_MAT ||
+        format == AUDIO_FORMAT_AMR_NB ||
+        format == AUDIO_FORMAT_AMR_WB ||
+        format == AUDIO_FORMAT_AMR_WB_PLUS)
            return true;
 
     return false;
@@ -3774,6 +3777,8 @@ static int check_input_parameters(uint32_t sample_rate,
     case 96000:
     case 176400:
     case 192000:
+    case 352800:
+    case 384000:
         break;
     default:
         ret = -EINVAL;
@@ -7348,6 +7353,17 @@ int adev_open_output_stream(struct audio_hw_device *dev,
         } else if (flags & AUDIO_OUTPUT_FLAG_TTS) {
             out->usecase = USECASE_AUDIO_PLAYBACK_TTS;
             out->config = pcm_config_deep_buffer;
+        } else if (out->flags & AUDIO_OUTPUT_FLAG_VOICE_CALL) {
+            /* Voice call should not use primary path */
+            out->usecase = USECASE_VOICEMMODE1_CALL;
+            out->config = GET_PCM_CONFIG_AUDIO_PLAYBACK_PRIMARY(use_db_as_primary);
+            if(adev->voice_tx_output == NULL) {
+                adev->voice_tx_output = out;
+            } else {
+                ALOGE("%s: Voice output is already opened", __func__);
+                ret = -EEXIST;
+                goto error_open;
+            }
         } else {
             /* primary path is the default path selected if no other outputs are available/suitable */
             out->usecase = GET_USECASE_AUDIO_PLAYBACK_PRIMARY(use_db_as_primary);

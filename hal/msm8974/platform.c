@@ -53,6 +53,7 @@
 #endif
 
 #define SOUND_TRIGGER_DEVICE_HANDSET_MONO_LOW_POWER_ACDB_ID (100)
+#define MAX_MIXER_XML_PATH  100
 #define MIXER_FILE_DELIMITER "_"
 #define MIXER_FILE_EXT ".xml"
 
@@ -69,10 +70,12 @@
 #define MIXER_XML_PATH_I2S "/etc/mixer_paths_i2s.xml"
 #define PLATFORM_INFO_XML_PATH_I2S "/etc/audio_platform_info_extcodec.xml"
 #define PLATFORM_INFO_XML_PATH_WSA  "/etc/audio_platform_info_wsa.xml"
+#define PLATFORM_INFO_XML_PATH_WSA_RB1  "/etc/audio_platform_info_wsa_rb1.xml"
 #define PLATFORM_INFO_XML_PATH_TDM  "/etc/audio_platform_info_tdm.xml"
 #define PLATFORM_INFO_XML_PATH_CSRA6 "/etc/audio_platform_info_csra6.xml"
 #define PLATFORM_INFO_XML_PATH_CSRA8 "/etc/audio_platform_info_csra8.xml"
 #define PLATFORM_INFO_XML_PATH_CSRA8PLUS2 "/etc/audio_platform_info_csra8plus2.xml"
+#define MIXER_XML_PATH_EXTCODEC_I2S "/etc/mixer_paths_extcodec_i2s.xml"
 #else
 #define PLATFORM_INFO_XML_PATH_INTCODEC  "/vendor/etc/audio_platform_info_intcodec.xml"
 #define PLATFORM_INFO_XML_PATH_SKUSH "/vendor/etc/audio_platform_info_skush.xml"
@@ -83,10 +86,12 @@
 #define MIXER_XML_PATH_I2S "/vendor/etc/mixer_paths_i2s.xml"
 #define PLATFORM_INFO_XML_PATH_I2S "/vendor/etc/audio_platform_info_i2s.xml"
 #define PLATFORM_INFO_XML_PATH_WSA  "/vendor/etc/audio_platform_info_wsa.xml"
+#define PLATFORM_INFO_XML_PATH_WSA_RB1  "/vendor/etc/audio_platform_info_wsa_rb1.xml"
 #define PLATFORM_INFO_XML_PATH_TDM  "/vendor/etc/audio_platform_info_tdm.xml"
 #define PLATFORM_INFO_XML_PATH_CSRA6 "/vendor/etc/audio_platform_info_csra6.xml"
 #define PLATFORM_INFO_XML_PATH_CSRA8 "/vendor/etc/audio_platform_info_csra8.xml"
 #define PLATFORM_INFO_XML_PATH_CSRA8PLUS2 "/vendor/etc/audio_platform_info_csra8plus2.xml"
+#define MIXER_XML_PATH_EXTCODEC_I2S "/etc/mixer_paths_extcodec_i2s.xml"
 #endif
 
 #include <linux/msm_audio.h>
@@ -108,6 +113,7 @@
 #define CVD_VERSION_MIXER_CTL "CVD Version"
 
 #define FLAC_COMPRESS_OFFLOAD_FRAGMENT_SIZE (256 * 1024)
+#define AMR_COMPRESS_OFFLOAD_FRAGMENT_SIZE (4 * 1024)
 #define MAX_COMPRESS_OFFLOAD_FRAGMENT_SIZE (2 * 1024 * 1024)
 #define MIN_COMPRESS_OFFLOAD_FRAGMENT_SIZE (2 * 1024)
 #define COMPRESS_OFFLOAD_FRAGMENT_SIZE_FOR_AV_STREAMING (2 * 1024)
@@ -577,6 +583,7 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_OUT_SPEAKER_SAFE_AND_BT_SCO_WB] = "speaker-safe-and-bt-sco-wb",
     [SND_DEVICE_OUT_SPEAKER2] = "speaker2",
     [SND_DEVICE_OUT_SPEAKER3] = "speaker3",
+    [SND_DEVICE_OUT_VOICE_DL_TX] = "voice-dl-tx",
 
     /* Capture sound devices */
     [SND_DEVICE_IN_HANDSET_MIC] = "handset-mic",
@@ -782,6 +789,7 @@ static int acdb_device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_OUT_VOICE_TTY_VCO_USB] = 17,
     [SND_DEVICE_OUT_VOICE_TX] = 45,
     [SND_DEVICE_OUT_VOICE_MUSIC_TX] = 3,
+    [SND_DEVICE_OUT_VOICE_DL_TX] = 45,
     [SND_DEVICE_OUT_AFE_PROXY] = 0,
     [SND_DEVICE_OUT_USB_HEADSET] = 45,
     [SND_DEVICE_OUT_VOICE_USB_HEADSET] = 45,
@@ -976,6 +984,7 @@ static struct name_to_index snd_device_name_index[SND_DEVICE_MAX] = {
     {TO_NAME_INDEX(SND_DEVICE_OUT_VOICE_TTY_FULL_USB)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_VOICE_TTY_VCO_USB)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_VOICE_TX)},
+    {TO_NAME_INDEX(SND_DEVICE_OUT_VOICE_DL_TX)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_AFE_PROXY)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_USB_HEADSET)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_VOICE_USB_HEADSET)},
@@ -1470,6 +1479,17 @@ static void update_codec_type_and_interface(struct platform_data * my_data,
      }
 }
 
+static void query_platform(const char *snd_card_name, char *mixer_xml_path)
+{
+     if (!strncmp(snd_card_name, "sdx-auto-i2s-snd-card",
+                   sizeof("sdx-auto-i2s-snd-card"))) {
+        strlcpy(mixer_xml_path, MIXER_XML_PATH_EXTCODEC_I2S,
+                 sizeof(MIXER_XML_PATH_EXTCODEC_I2S));
+     } else {
+        strlcpy(mixer_xml_path, MIXER_XML_PATH_I2S, sizeof(MIXER_XML_PATH_I2S));
+     }
+}
+
 static bool can_enable_mbdrc_on_device(snd_device_t snd_device)
 {
     bool ret = false;
@@ -1645,7 +1665,8 @@ void platform_set_echo_reference(struct audio_device *adev, bool enable,
         else if (out_device & AUDIO_DEVICE_OUT_EARPIECE)
             strlcat(ec_ref_mixer_path, " handset",
                     MIXER_PATH_MAX_LENGTH);
-        else if (out_device & AUDIO_DEVICE_OUT_WIRED_HEADPHONE)
+        else if ((out_device & AUDIO_DEVICE_OUT_WIRED_HEADPHONE) ||
+                 (out_device & AUDIO_DEVICE_OUT_LINE))
             strlcat(ec_ref_mixer_path, " headphones",
                     MIXER_PATH_MAX_LENGTH);
         else if (out_device & AUDIO_DEVICE_OUT_USB_HEADSET)
@@ -1832,7 +1853,9 @@ static bool platform_is_i2s_ext_modem(const char *snd_card_name,
         !strncmp(snd_card_name, "sda845-tavil-i2s-snd-card",
                  sizeof("sda845-tavil-i2s-snd-card")) ||
         !strncmp(snd_card_name, "sa6155-adp-star-snd-card",
-                 sizeof("sa6155-adp-star-snd-card"))) {
+                 sizeof("sa6155-adp-star-snd-card")) ||
+        !strncmp(snd_card_name, "sdx-auto-i2s-snd-card",
+                 sizeof("sdx-auto-i2s-snd-card"))) {
         plat_data->is_i2s_ext_modem = true;
     }
     ALOGV("%s, is_i2s_ext_modem:%d soundcard name is %s",__func__,
@@ -1887,6 +1910,7 @@ static void set_platform_defaults(struct platform_data * my_data)
     backend_tag_table[SND_DEVICE_OUT_DISPLAY_PORT] = strdup("display-port");
     backend_tag_table[SND_DEVICE_OUT_SPEAKER_AND_DISPLAY_PORT] = strdup("speaker-and-display-port");
     backend_tag_table[SND_DEVICE_OUT_VOICE_TX] = strdup("afe-proxy");
+    backend_tag_table[SND_DEVICE_OUT_VOICE_DL_TX] = strdup("voice-dl-tx");
     backend_tag_table[SND_DEVICE_IN_VOICE_RX] = strdup("afe-proxy");
     backend_tag_table[SND_DEVICE_OUT_AFE_PROXY] = strdup("afe-proxy");
     backend_tag_table[SND_DEVICE_OUT_USB_HEADSET] = strdup("usb-headset");
@@ -1984,6 +2008,7 @@ static void set_platform_defaults(struct platform_data * my_data)
     hw_interface_table[SND_DEVICE_OUT_VOICE_TTY_FULL_USB] = strdup("USB_AUDIO_RX");
     hw_interface_table[SND_DEVICE_OUT_VOICE_TTY_VCO_USB] = strdup("USB_AUDIO_RX");
     hw_interface_table[SND_DEVICE_OUT_VOICE_TX] = strdup("RT_PROXY_DAI_001_RX");
+    hw_interface_table[SND_DEVICE_OUT_VOICE_DL_TX] = strdup("VOICE_PLAYBACK_DL_TX");
     hw_interface_table[SND_DEVICE_OUT_AFE_PROXY] = strdup("RT_PROXY_DAI_001_RX");
     hw_interface_table[SND_DEVICE_OUT_USB_HEADSET] = strdup("USB_AUDIO_RX");
     hw_interface_table[SND_DEVICE_OUT_VOICE_USB_HEADSET] = strdup("USB_AUDIO_RX");
@@ -2405,11 +2430,11 @@ cleanup:
         free(cvd_version);
     if (!result) {
         my_data->is_acdb_initialized = true;
-        ALOGD("ACDB initialized");
+        ALOGD("%s: ACDB initialized", __func__);
         audio_hwdep_send_cal(my_data);
     } else {
         my_data->is_acdb_initialized = false;
-        ALOGD("ACDB initialization failed");
+        ALOGD("%s: ACDB initialization failed", __func__);
     }
     return result;
 }
@@ -2579,6 +2604,7 @@ void *platform_init(struct audio_device *adev)
     char platform[PROPERTY_VALUE_MAX];
     char baseband[PROPERTY_VALUE_MAX];
     char value[PROPERTY_VALUE_MAX];
+    char mixer_xml_path[MAX_MIXER_XML_PATH];
     struct platform_data *my_data = NULL;
     char *snd_card_name = NULL;
     char mixer_xml_file[MIXER_PATH_MAX_LENGTH]= {0};
@@ -2636,10 +2662,9 @@ void *platform_init(struct audio_device *adev)
 
     if (platform_is_i2s_ext_modem(snd_card_name, my_data) &&
         !is_auto_snd_card(snd_card_name)) {
-        ALOGD("%s: Call MIXER_XML_PATH_I2S", __func__);
-
-        adev->audio_route = audio_route_init(adev->snd_card,
-                                             MIXER_XML_PATH_I2S);
+        query_platform(snd_card_name, mixer_xml_path);
+        ALOGD("%s: Call %s", __func__, mixer_xml_path);
+        adev->audio_route = audio_route_init(adev->snd_card, mixer_xml_path);
     } else {
         /* Get the codec internal name from the sound card name
          * and form the mixer paths file name dynamically. This
@@ -2851,6 +2876,9 @@ void *platform_init(struct audio_device *adev)
     else if (!strncmp(snd_card_name, "qcs405-tdm-snd-card",
                sizeof("qcs405-tdm-snd-card")))
         platform_info_init(PLATFORM_INFO_XML_PATH_TDM, my_data, PLATFORM);
+    else if (!strncmp(snd_card_name, "qcs404-wsa-rb1-snd-card",
+               sizeof("qcs404-wsa-rb1-snd-card")))
+        platform_info_init(PLATFORM_INFO_XML_PATH_WSA_RB1, my_data, PLATFORM);
     else if (my_data->is_internal_codec)
         platform_info_init(PLATFORM_INFO_XML_PATH_INTCODEC, my_data, PLATFORM);
     else {
@@ -2985,11 +3013,11 @@ void *platform_init(struct audio_device *adev)
         int result = acdb_init_v2(adev->mixer);
         if (!result) {
             my_data->is_acdb_initialized = true;
-            ALOGD("ACDB initialized");
+            ALOGD("%s: ACDB initialized", __func__);
             audio_hwdep_send_cal(my_data);
         } else {
             my_data->is_acdb_initialized = false;
-            ALOGD("ACDB initialization failed");
+            ALOGD("%s: ACDB initialization failed", __func__);
         }
     }
 
@@ -4142,7 +4170,7 @@ int platform_get_default_app_type(void *platform)
 int platform_get_default_app_type_v2(void *platform, usecase_type_t  type)
 {
     ALOGV("%s: Platform: %p, type: %d", __func__, platform, type);
-    if(type == PCM_CAPTURE)
+    if((type == PCM_HFP_CALL) || (type == PCM_CAPTURE))
         return DEFAULT_APP_TYPE_TX_PATH;
     else
         return DEFAULT_APP_TYPE_RX_PATH;
@@ -5386,8 +5414,10 @@ snd_device_t platform_get_output_snd_device(void *platform, struct stream_out *o
                 snd_device = SND_DEVICE_OUT_ANC_HANDSET;
             else
                 snd_device = SND_DEVICE_OUT_VOICE_HANDSET;
-        } else if (devices & AUDIO_DEVICE_OUT_TELEPHONY_TX)
+        } else if (devices & AUDIO_DEVICE_OUT_TELEPHONY_TX) {
             snd_device = SND_DEVICE_OUT_VOICE_TX;
+        } else if (devices & AUDIO_DEVICE_OUT_ECHO_CANCELLER)
+            snd_device = SND_DEVICE_OUT_VOICE_DL_TX;
 
         if (snd_device != SND_DEVICE_NONE) {
             goto exit;
@@ -7733,6 +7763,10 @@ uint32_t platform_get_compress_offload_buffer_size(audio_offload_info_t* info)
         } else if (info->format == AUDIO_FORMAT_FLAC) {
             fragment_size = FLAC_COMPRESS_OFFLOAD_FRAGMENT_SIZE;
             ALOGV("FLAC fragment size %d", fragment_size);
+        } else if (((info->format == AUDIO_FORMAT_AMR_NB) ||
+            (info->format == AUDIO_FORMAT_AMR_WB)  ||  (info->format == AUDIO_FORMAT_AMR_WB_PLUS))) {
+            fragment_size = AMR_COMPRESS_OFFLOAD_FRAGMENT_SIZE;
+            ALOGV("AMR fragment size %d", fragment_size);
         } else if (info->format == AUDIO_FORMAT_DSD) {
             fragment_size = MAX_COMPRESS_OFFLOAD_FRAGMENT_SIZE;
             if((property_get("vendor.audio.native.dsd.buffer.size.kb", value, "")) &&
@@ -8459,8 +8493,8 @@ bool platform_check_and_set_codec_backend_cfg(struct audio_device* adev,
     backend_idx = platform_get_backend_index(snd_device);
 
     if ((usecase->type == TRANSCODE_LOOPBACK_RX)
-          || (usecase->type == AFE_LOOPBACK)
-           || (usecase->type == DTMF_PLAYBACK)) {
+         || (usecase->type == AFE_LOOPBACK)
+         || (usecase->type == DTMF_PLAYBACK)) {
         backend_cfg.bit_width = usecase->stream.inout->out_config.bit_width;
         backend_cfg.sample_rate = usecase->stream.inout->out_config.sample_rate;
         backend_cfg.format = usecase->stream.inout->out_config.format;

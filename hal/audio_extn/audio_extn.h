@@ -141,10 +141,13 @@
 #define AUDIO_OUTPUT_FLAG_INTERACTIVE 0x4000000
 #endif
 
+#ifndef AUDIO_OUTPUT_FLAG_VOICE_CALL
+#define AUDIO_OUTPUT_FLAG_VOICE_CALL 0x2000000
+#endif
+
 #ifndef AUDIO_FORMAT_MAT
 #define AUDIO_FORMAT_MAT 0x30000000UL
 #endif
-
 
 int audio_extn_parse_compress_metadata(struct stream_out *out,
                                        struct str_parms *parms);
@@ -1358,7 +1361,8 @@ int audio_extn_afe_loopback_create_audio_patch(struct audio_hw_device *dev,
 int audio_extn_afe_loopback_release_audio_patch(struct audio_hw_device *dev,
                                              audio_patch_handle_t handle);
 
-#define audio_extn_afe_loopback_set_audio_port_config(dev, config) (0)
+int audio_extn_afe_loopback_set_audio_port_config(struct audio_hw_device *dev,
+                        const struct audio_port_config *config);
 int audio_extn_afe_loopback_get_audio_port(struct audio_hw_device *dev,
                                     struct audio_port *port_in);
 int audio_extn_afe_loopback_init(struct audio_device *adev);
