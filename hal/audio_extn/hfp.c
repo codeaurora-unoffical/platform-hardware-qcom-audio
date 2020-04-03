@@ -301,6 +301,9 @@ static int32_t start_hfp(struct audio_device *adev,
             ALOGE("%s: failed to start ext hw plugin", __func__);
     }
 
+    /* Enable echo reference for hfp*/
+    platform_set_echo_reference(adev, true, uc_info->devices);
+
     pcm_dev_rx_id = platform_get_pcm_device_id(uc_info->id, PCM_PLAYBACK);
     pcm_dev_tx_id = platform_get_pcm_device_id(uc_info->id, PCM_CAPTURE);
     pcm_dev_asm_rx_id = hfpmod.hfp_pcm_dev_id;
@@ -325,6 +328,14 @@ static int32_t start_hfp(struct audio_device *adev,
         goto exit;
     }
 
+    /* enable multichannel asm loopback for MMECNS device and
+     * restore period size to original.
+     */
+    if (uc_info->in_snd_device == SND_DEVICE_IN_VOICE_SPEAKER_MIC_HFP_MMSECNS) {
+        pcm_config_hfp.channels = 4;
+        pcm_config_hfp.period_size = 240;
+    }
+
     hfpmod.hfp_pcm_tx = pcm_open(adev->snd_card,
                                  pcm_dev_tx_id,
                                  PCM_IN, &pcm_config_hfp);
@@ -347,6 +358,9 @@ static int32_t start_hfp(struct audio_device *adev,
 
     if (audio_extn_auto_hal_start_hfp_downlink(adev, uc_info))
         ALOGE("%s: start hfp downlink failed", __func__);
+
+    if (uc_info->out_snd_device == SND_DEVICE_OUT_VOICE_SPEAKER_HFP)
+        pcm_config_hfp.channels = 1;
 
     hfpmod.hfp_sco_rx = pcm_open(adev->snd_card,
                                   pcm_dev_asm_rx_id,

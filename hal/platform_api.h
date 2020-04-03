@@ -147,6 +147,7 @@ int platform_set_effect_config_data(snd_device_t snd_device,
 int platform_get_effect_config_data(snd_device_t snd_device,
                                       struct audio_effect_config *effect_config,
                                       effect_type_t effect_type);
+int platform_set_fluence_mmsecns_config(struct audio_fluence_mmsecns_config fluence_mmsecns_config);
 int platform_get_snd_device_bit_width(snd_device_t snd_device);
 int platform_set_acdb_metainfo_key(void *platform, char *name, int key);
 void platform_release_acdb_metainfo_key(void *platform);
@@ -342,6 +343,7 @@ int platform_get_active_microphones(void *platform, unsigned int channels,
                                     size_t *mic_count);
 
 int platform_get_license_by_product(void *platform, const char* product_name, int *product_id, char* product_license);
+bool platform_get_eccarstate(void *platform);
 struct audio_custom_mtmx_params *
     platform_get_custom_mtmx_params(void *platform,
                                     struct audio_custom_mtmx_params_info *info);
