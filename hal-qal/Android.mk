@@ -71,7 +71,14 @@ LOCAL_COPY_HEADERS      := \
                            audio_extn/audio_defs.h \
                            audio_extn/AudioExtn.h
 
+ifeq ($(TARGET_BOARD_AUTO),true)
+LOCAL_MODULE := audio.primary.$(TARGET_BOARD_PLATFORM).casa
+LOCAL_POST_INSTALL_CMD := \
+ln -sf /vendor/lib/hw/audio.primary.msmnile.casa.so $(TARGET_OUT_VENDOR)/lib/hw/audio.primary.msmnile.so; \
+ln -sf /vendor/lib64/hw/audio.primary.msmnile.casa.so $(TARGET_OUT_VENDOR)/lib64/hw/audio.primary.msmnile.so
+else
 LOCAL_MODULE := audio.primary.$(TARGET_BOARD_PLATFORM)
+endif
 
 LOCAL_MODULE_RELATIVE_PATH := hw
 
