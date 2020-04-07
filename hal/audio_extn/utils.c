@@ -722,7 +722,8 @@ void audio_extn_utils_update_stream_output_app_type_cfg(void *platform,
     char value[PROPERTY_VALUE_MAX] = {0};
 
      if ((devices & AUDIO_DEVICE_OUT_SPEAKER) &&
-         (format != AUDIO_FORMAT_DSD)) {
+         (format != AUDIO_FORMAT_DSD) &&
+        platform_spkr_use_default_sample_rate(platform)) {
         int bw = platform_get_snd_device_bit_width(SND_DEVICE_OUT_SPEAKER);
         if ((-ENOSYS != bw) && (bit_width > (uint32_t)bw))
             bit_width = (uint32_t)bw;
