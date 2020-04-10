@@ -3809,7 +3809,7 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
     else if (usecase->type == TRANSCODE_LOOPBACK_RX)
         snd_device = usecase->out_snd_device;
     else if ((usecase->type == AFE_LOOPBACK) || (usecase->type == DTMF_PLAYBACK))
-        snd_device = usecase->out_snd_device;
+        return 0;
 
     acdb_dev_id = acdb_device_table[platform_get_spkr_prot_snd_device(snd_device)];
 
@@ -5347,17 +5347,7 @@ static int set_hd_voice(struct platform_data *my_data, bool state)
 
 bool platform_get_eccarstate(void *platform)
 {
-    struct platform_data *my_data = (struct platform_data *)platform;
-    return my_data->ec_car_state;
-}
-
-static int platform_set_eccarstate(struct platform_data *my_data, bool state)
-{
-    int ret = 0;
-    ALOGD("Setting EC Car state: %d", state);
-    my_data->ec_car_state = state;
-
-    return ret;
+    return false;
 }
 
 static int update_external_device_status(struct platform_data *my_data,

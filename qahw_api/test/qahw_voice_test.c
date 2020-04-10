@@ -259,12 +259,13 @@ void usage() {
     printf(" \n Command \n");
     printf(" \n hal_voice_test <options>   - starts voice call\n");
     printf(" \n Options\n");
-    printf(" -i  --vsid <vsid>                   - vsid to use sim1<297816064> sim2<29965107>.\n");
+    printf(" -i  --vsid <vsid>                   - vsid to use sim1<11C05000> sim2<29965107>.\n");
     printf(" -d  --device <decimal value>        - see system/media/audio/include/system/audio.h for device values\n");
     printf(" -l  --length <call length>          - call length in sec.\n");
     printf(" -m  --multi_call <number of calls>  - number of calls to make.\n");
     printf(" -r  --in_call_rec <filename to record to> -t  - tp_dir <0 = DL, 1 = UL, 2 = BOTH >\n");
     printf(" -p  --in_call_playback <filename to play from>  play audio to voice call\n");
+    printf(" -o  --file_type <21 > AMRWB+, 20 > AMRWB, 19 > AMR \n");
     printf(" -v  --vol <val>               - volume.\n");
     printf(" -u  --mute <dir>              - <dir 0= tx, 1 = rx> .\n");
     printf(" -c  --dtmf_gen                                     .\n");
@@ -289,7 +290,7 @@ void *rec_start(void *thread_param) {
     qahw_module_handle_t *qahw_mod_handle = params->qahw_mod_handle;
     qahw_stream_handle_t *in_handle = NULL;
     uint32_t num_dev = 1;
-    audio_devices_t in_device[1] = { AUDIO_DEVICE_IN_BUILTIN_MIC };
+    audio_devices_t in_device[1] = { AUDIO_DEVICE_IN_TELEPHONY_RX };
     struct qahw_stream_attributes attr;
     qahw_buffer_t in_buf;
     int data_sz = 0;
@@ -461,7 +462,7 @@ void *playback_start(void *thread_param) {
     qahw_module_handle_t *qahw_mod_handle = params->qahw_mod_handle;
     qahw_stream_handle_t *out_handle = NULL;
     uint32_t num_dev = 1;
-    audio_devices_t out_device[1] = { AUDIO_DEVICE_OUT_WIRED_HEADSET };
+    audio_devices_t out_device[1] = { AUDIO_DEVICE_OUT_TELEPHONY_TX };
     struct qahw_stream_attributes attr;
     size_t bytes_wanted = 0;
     size_t write_length = 0;
@@ -475,6 +476,11 @@ void *playback_start(void *thread_param) {
     bool read_complete_file = true;
     int wav_header_len;
     char header[WAV_HEADER_LENGTH_MAX] = { 0 };
+    size_t bytes_to_read = 0;
+    size_t offset = 0;
+    bool is_offload = false;
+    struct qahw_modifier_kv modifier;
+    unsigned int total_bytes_read = 0;
 
     if (qahw_mod_handle == NULL) {
         fprintf(stderr, " qahw_load_module failed");
@@ -483,9 +489,25 @@ void *playback_start(void *thread_param) {
 
     attr.direction = QAHW_STREAM_OUTPUT;
     if(params->in_call_playback) {
-        attr.type = QAHW_AUDIO_PLAYBACK_VOICE_CALL_MUSIC;
-        attr.attr.audio.config.sample_rate = 48000;
-        attr.attr.audio.config.format = AUDIO_FORMAT_PCM_16_BIT;
+        if (params->file_type == FILE_WAV ) {
+            attr.attr.audio.config.sample_rate = 48000;
+            attr.type = QAHW_AUDIO_PLAYBACK_VOICE_CALL_MUSIC;
+            attr.attr.audio.config.format = AUDIO_FORMAT_PCM_16_BIT;
+        } else if ( params->file_type == FILE_AMR_WB_PLUS ) {
+            /* Currently the requirement is for AMRWB+ so hardcoding the values,
+             * can be changed if more formats supported for
+             * incall delivery */
+            attr.attr.audio.config.format = AUDIO_FORMAT_AMR_WB_PLUS;
+            attr.attr.audio.config.offload_info.sample_rate = 48000;
+            attr.attr.audio.config.offload_info.format = AUDIO_FORMAT_AMR_WB_PLUS;
+            attr.attr.audio.config.channel_mask = 0x3;
+            attr.type = QAHW_AUDIO_COMPRESSED_PLAYBACK_VOICE_CALL_MUSIC;
+            attr.attr.audio.config.offload_info.version = AUDIO_OFFLOAD_INFO_VERSION_CURRENT;
+            attr.attr.audio.config.offload_info.size = sizeof(audio_offload_info_t);
+            modifier.key = "music_offload_amrwbplus_bitstream_fmt";
+            modifier.value = 1;
+            is_offload = true;
+        }
     }
     if(params->hpcm) {
         switch(params->hpcm_tp) {
@@ -513,49 +535,65 @@ void *playback_start(void *thread_param) {
         }
     }
 
-    /*
-    * Read the wave header
-    */
-    if ((wav_header_len = get_wav_header_length(fp)) <= 0) {
-        fprintf(stderr, "wav header length is invalid:%d\n", wav_header_len);
-        pthread_exit(0);
+    if (params->file_type == FILE_WAV ) {
+        /*
+        * Read the wave header
+        */
+        if ((wav_header_len = get_wav_header_length(fp)) <= 0) {
+            fprintf(stderr, "wav header length is invalid:%d\n", wav_header_len);
+            pthread_exit(0);
+        }
+        fseek(fp, 0, SEEK_SET);
+        rc = fread(header, wav_header_len, 1, fp);
+        if (rc != 1) {
+            fprintf(stderr, "Error fread failed\n");
+            pthread_exit(0);
+        }
+        if (strncmp(header, "RIFF", 4) && strncmp(header + 8, "WAVE", 4)) {;
+            fprintf(stderr, "Not a wave format\n");
+            pthread_exit(0);
+        }
+        //memcpy (&stream_info->channels, &header[22], 2);
+        memcpy(&attr.attr.audio.config.offload_info.sample_rate, &header[24], 4);
+        memcpy(&attr.attr.audio.config.offload_info.bit_width, &header[34], 2);
+        if (attr.attr.audio.config.offload_info.bit_width == 32)
+            attr.attr.audio.config.offload_info.format = AUDIO_FORMAT_PCM_32_BIT;
+        else if (attr.attr.audio.config.offload_info.bit_width == 24)
+            attr.attr.audio.config.offload_info.format = AUDIO_FORMAT_PCM_24_BIT_PACKED;
+        else
+            attr.attr.audio.config.offload_info.format = AUDIO_FORMAT_PCM_16_BIT;
     }
-    fseek(fp, 0, SEEK_SET);
-    rc = fread(header, wav_header_len, 1, fp);
-    if (rc != 1) {
-        fprintf(stderr, "Error fread failed\n");
-        pthread_exit(0);
-    }
-    if (strncmp(header, "RIFF", 4) && strncmp(header + 8, "WAVE", 4)) {;
-        fprintf(stderr, "Not a wave format\n");
-        pthread_exit(0);
-    }
-    //memcpy (&stream_info->channels, &header[22], 2);
-    memcpy(&attr.attr.audio.config.offload_info.sample_rate, &header[24], 4);
-    memcpy(&attr.attr.audio.config.offload_info.bit_width, &header[34], 2);
-    if (attr.attr.audio.config.offload_info.bit_width == 32)
-        attr.attr.audio.config.offload_info.format = AUDIO_FORMAT_PCM_32_BIT;
-    else if (attr.attr.audio.config.offload_info.bit_width == 24)
-        attr.attr.audio.config.offload_info.format = AUDIO_FORMAT_PCM_24_BIT_PACKED;
-    else
-        attr.attr.audio.config.offload_info.format = AUDIO_FORMAT_PCM_16_BIT;
-
     attr.attr.audio.config.sample_rate = attr.attr.audio.config.offload_info.sample_rate;
     attr.attr.audio.config.format = attr.attr.audio.config.offload_info.format;
 
-    rc = qahw_stream_open(qahw_mod_handle,
-                          attr,
-                          num_dev,
-                          out_device,
-                          0,
-                          NULL,
-                          NULL,
-                          NULL,
-                          &(out_handle));
-
-    if (rc) {
-        fprintf(stderr, " open output device failed!\n");
-        pthread_exit(0);
+    if (is_offload) {
+        rc = qahw_stream_open(qahw_mod_handle,
+                              attr,
+                              num_dev,
+                              out_device,
+                              1,
+                              &modifier,
+                              async_callback,
+                              params,
+                              &(out_handle));
+        if (rc) {
+            fprintf(stderr, " open output device failed!\n");
+            pthread_exit(0);
+        }
+    } else {
+        rc = qahw_stream_open(qahw_mod_handle,
+                             attr,
+                             num_dev,
+                             out_device,
+                             0,
+                             NULL,
+                             NULL,
+                             NULL,
+                             &(out_handle));
+        if (rc) {
+            fprintf(stderr, " open output device failed!\n");
+            pthread_exit(0);
+        }
     }
     rc = qahw_stream_get_buffer_size(out_handle ,NULL, &bytes_wanted);
     data_ptr = (char *)malloc(bytes_wanted);
@@ -563,21 +601,51 @@ void *playback_start(void *thread_param) {
         fprintf(stderr, "failed to allocate data buffer\n");
         pthread_exit(0);
     }
+    bytes_to_read = -1;
+    read_complete_file = true;
 
     while (!exit && !stop) {
         if (!bytes_remaining) {
+            fprintf(stderr, "reading bytes %zd\n", bytes_wanted);
             bytes_read = fread(data_ptr, 1, bytes_wanted, fp);
             fprintf(stderr, "read bytes %zd\n", bytes_read);
+            if ((!read_complete_file && (bytes_to_read <= 0)) || (bytes_read <= 0)) {
+                fprintf(stderr, "end of file\n");
+                if (is_offload) {
+                    params->drain_received = false;
+                    qahw_stream_drain(out_handle, QAHW_DRAIN_ALL);
+                    if(!params->drain_received) {
+                        pthread_mutex_lock(&params->drain_lock);
+                        pthread_cond_wait(&params->drain_cond, &params->drain_lock);
+                        pthread_mutex_unlock(&params->drain_lock);
+                    }
+                    fprintf(stderr, "out of compress drain\n");
+                }
+                /*
+                 * Caution: Below ADL log shouldnt be altered without notifying
+                 * automation APT since it used for automation testing
+                 */
+                fprintf(stderr, "ADL: playback completed successfully\n");
+                exit = true;
+                continue;
+            } else {
+                if (!read_complete_file) {
+                    bytes_to_read -= bytes_read;
+                    if ((bytes_to_read > 0) && (bytes_to_read < bytes_wanted))
+                        bytes_wanted = bytes_to_read;
+                }
+            }
             bytes_remaining = write_length = bytes_read;
         }
 
+        offset = write_length - bytes_remaining;
+        fprintf(stderr, "writing to hal %zd bytes, offset %d, write length %zd\n",
+                bytes_remaining, offset, write_length);
+
         bytes_written = bytes_remaining;
-        memset(&out_buf, 0, sizeof(qahw_buffer_t));
-        out_buf.buffer = data_ptr;
-        out_buf.size = bytes_remaining;
-        bytes_written = qahw_stream_write(out_handle, &out_buf);
-        if (bytes_written <= 0) {
-            fprintf(stderr, "write end %d", bytes_written);
+        bytes_written = write_to_hal(out_handle, data_ptr+offset, bytes_remaining, params);
+        if (bytes_written < 0) {
+            fprintf(stderr, "write failed %d", bytes_written);
             exit = true;
             continue;
         }
@@ -891,6 +959,9 @@ int main(int argc, char *argv[]) {
         case 'c':
             stream_params.dtmf_gen_enable = true;
             break;
+        case 'o':
+            stream_params.file_type = atoll(optarg);
+            break;
         case 'h':
         default:
             usage();
@@ -966,14 +1037,14 @@ int main(int argc, char *argv[]) {
         }
         call_lenght = stream_params.call_length;
         if (stream_params.in_call_rec) {
-            fprintf(stderr, "\n Create %s in call record thread \n");
+            fprintf(stderr, "\n Create in call record thread \n");
             rc = pthread_create(&tid_rec, NULL, rec_start, (void *)&stream_params);
             if (rc) {
                 fprintf(stderr, "in call rec thread creation failed %d\n");
             }
         }
         if (stream_params.in_call_playback) {
-            fprintf(stderr, "\n Create %s incall playback thread \n");
+            fprintf(stderr, "\n Create incall playback thread \n");
             rc = pthread_create(&tid_pb, NULL, playback_start, (void *)&stream_params);
             if (rc) {
                 fprintf(stderr, "in call playback thread creation failed %d\n");
@@ -1065,5 +1136,6 @@ int main(int argc, char *argv[]) {
     }
     fprintf(stderr, "voice test ended\n");
  exit:
+    deinit_streams();
     return 0;
 }

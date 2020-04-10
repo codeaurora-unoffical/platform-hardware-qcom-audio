@@ -1388,6 +1388,8 @@ static int audio_extn_utils_check_input_parameters(uint32_t sample_rate,
     case 96000:
     case 176400:
     case 192000:
+    case 352800:
+    case 384000:
         break;
     default:
         ret = -EINVAL;
@@ -1771,11 +1773,18 @@ int get_snd_codec_id(audio_format_t format)
     case AUDIO_FORMAT_APTX:
         id = SND_AUDIOCODEC_APTX;
         break;
-
     case AUDIO_FORMAT_MAT:
         id = SND_AUDIOCODEC_MAT;
         break;
-
+    case AUDIO_FORMAT_AMR_NB:
+        id = SND_AUDIOCODEC_AMR;
+        break;
+    case AUDIO_FORMAT_AMR_WB:
+        id = SND_AUDIOCODEC_AMRWB;
+        break;
+    case AUDIO_FORMAT_AMR_WB_PLUS:
+        id = SND_AUDIOCODEC_AMRWBPLUS;
+        break;
     default:
         ALOGE("%s: Unsupported audio format :%x", __func__, format);
     }

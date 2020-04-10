@@ -750,7 +750,10 @@ static bool is_supported_format(audio_format_t format)
         format == AUDIO_FORMAT_WMA_PRO ||
         format == AUDIO_FORMAT_APTX ||
         format == AUDIO_FORMAT_IEC61937 ||
-        format == AUDIO_FORMAT_MAT)
+        format == AUDIO_FORMAT_MAT ||
+        format == AUDIO_FORMAT_AMR_NB ||
+        format == AUDIO_FORMAT_AMR_WB ||
+        format == AUDIO_FORMAT_AMR_WB_PLUS)
            return true;
 
     return false;
@@ -1215,6 +1218,7 @@ int enable_snd_device(struct audio_device *adev,
             return -EINVAL;
         }
         audio_extn_dev_arbi_acquire(snd_device);
+        audio_extn_set_clock_mixer(adev, snd_device);
         audio_route_apply_and_update_path(adev->audio_route, device_name);
 
         if (SND_DEVICE_OUT_HEADPHONES == snd_device &&
@@ -2269,7 +2273,7 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
             in_snd_device = platform_get_input_snd_device(adev->platform, usecase->stream.out->devices);
         }
         usecase->devices = usecase->stream.out->devices;
-    } else if ((usecase->type == TRANSCODE_LOOPBACK_RX) 
+    } else if ((usecase->type == TRANSCODE_LOOPBACK_RX)
             || (usecase->type == DTMF_PLAYBACK)) {
         if (usecase->stream.inout == NULL) {
             ALOGE("%s: stream.inout is NULL", __func__);
@@ -2404,6 +2408,9 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
             }
         }
     }
+
+    if (!list_empty(&adev->clock_switch_list))
+        audio_extn_update_clock_data_with_backend(adev, usecase);
 
     if (out_snd_device == usecase->out_snd_device &&
         in_snd_device == usecase->in_snd_device) {
@@ -8794,6 +8801,7 @@ static int adev_close(hw_device_t *device)
 {
     size_t i;
     struct audio_device *adev_temp = (struct audio_device *)device;
+    struct listnode *item;
 
     ALOGD("%s: enter", __func__);
 
@@ -8839,6 +8847,11 @@ static int adev_close(hw_device_t *device)
         if(adev->ext_hw_plugin)
             audio_extn_ext_hw_plugin_deinit(adev->ext_hw_plugin);
         audio_extn_auto_hal_deinit();
+        while (!list_empty(&adev->clock_switch_list)) {
+            item = list_head(&adev->clock_switch_list);
+            list_remove(item);
+            free(node_to_item(item, audio_clock_data_t, list));
+        }
         free(device);
         adev = NULL;
     }
@@ -9072,6 +9085,7 @@ static int adev_open(const hw_module_t *module, const char *name,
     list_init(&adev->active_inputs_list);
     list_init(&adev->active_outputs_list);
     list_init(&adev->audio_patch_record_list);
+    list_init(&adev->clock_switch_list);
     adev->audio_patch_index = 0;
     adev->cur_wfd_channels = 2;
     adev->offload_usecases_state = 0;

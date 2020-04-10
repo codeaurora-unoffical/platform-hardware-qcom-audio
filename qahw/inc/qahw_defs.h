@@ -162,6 +162,7 @@ __BEGIN_DECLS
 #define QAHW_OFFLOAD_CODEC_APE_SEEK_TABLE_PRESENT "music_offload_seek_table_present"
 
 #define QAHW_OFFLOAD_CODEC_VORBIS_BITSTREAM_FMT "music_offload_vorbis_bitstream_fmt"
+#define QAHW_OFFLOAD_CODEC_AMRWBPLUS_BITSTREAM_FMT "music_offload_amrwbplus_bitstream_fmt"
 
 /* Set or Query stream profile type */
 #define QAHW_PARAMETER_STREAM_PROFILE "audio_stream_profile"
@@ -250,6 +251,16 @@ __BEGIN_DECLS
 #define QAHW_PCM_CUSTOM_CHANNEL_MAP_14  61
 #define QAHW_PCM_CUSTOM_CHANNEL_MAP_15  62
 #define QAHW_PCM_CUSTOM_CHANNEL_MAP_16  63
+
+/* Parameter to be passed when clock switch is needed */
+#define QAHW_PARAMETER_CLOCK "clock"
+#define QAHW_PARAMETER_CLOCK_FREQUENCY "clock_frequency"
+
+typedef enum {
+    QAHW_CLOCK_INTERNAL,
+    QAHW_CLOCK_EXTERNAL,
+    QAHW_CLOCK_MAX
+} qahw_clock_type;
 
 /* type of asynchronous write callback events. Mutually exclusive */
 typedef enum {
@@ -619,7 +630,7 @@ typedef enum {
     QAHW_STREAM_TYPE_INVALID,
     QAHW_AUDIO_PLAYBACK_LOW_LATENCY,      /**< low latency, higher power*/
     QAHW_AUDIO_PLAYBACK_DEEP_BUFFER,          /**< low power, higher latency*/
-    QAHW_AUDIO_PLAYBACK_COMPRESSED,           /**< compresssed audio*/
+    QAHW_AUDIO_PLAYBACK_COMPRESSED,           /**< non-blocking, direct, compresssed audio*/
     QAHW_AUDIO_PLAYBACK_VOIP,                 /**< pcm voip audio*/
     QAHW_AUDIO_PLAYBACK_VOICE_CALL_MUSIC,     /**< pcm voip audio*/
 
@@ -641,6 +652,7 @@ typedef enum {
     QAHW_AUDIO_HOST_PCM_TX_RX,
     QAHW_AUDIO_AFE_LOOPBACK,                 /* Assumption is device[0] is RX and device[1] is TX */
     QAHW_AUDIO_TONE_RX,
+    QAHW_AUDIO_COMPRESSED_PLAYBACK_VOICE_CALL_MUSIC, /**< Offload incall music playback */
     QAHW_AUDIO_STREAM_TYPE_MAX,
 } qahw_audio_stream_type;
 
@@ -648,7 +660,7 @@ typedef uint32_t qahw_device_t;
 
 /**< Key value pair to identify the topology of a usecase from default  */
 struct qahw_modifier_kv  {
-    uint32_t key;
+    char *key;
     uint32_t value;
 };
 

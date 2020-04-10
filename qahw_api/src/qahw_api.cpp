@@ -41,7 +41,7 @@
 
 #include <hardware/audio.h>
 #include <cutils/properties.h>
-#include "qahw_api.h"
+#include <qahw_api.h>
 #include "qahw.h"
 #include <errno.h>
 
@@ -106,6 +106,7 @@ static const char * const stream_name_map[QAHW_AUDIO_STREAM_TYPE_MAX] = {
     [QAHW_AUDIO_HOST_PCM_TX_RX]= "host-pcm-tx-rx",
     [QAHW_AUDIO_AFE_LOOPBACK] ="audio-afe-loopback",
     [QAHW_AUDIO_TONE_RX] = "audio-tone-playback",
+    [QAHW_AUDIO_COMPRESSED_PLAYBACK_VOICE_CALL_MUSIC] = "playback-compressed-in-call-music",
 };
 
 static const char * const tty_mode_map[QAHW_TTY_MODE_MAX] = {
@@ -1285,6 +1286,9 @@ qahw_module_handle_t *qahw_load_module(const char *hw_module_id)
 
     ALOGV("%d:%s",__LINE__, __func__);
     g_binder_enabled = property_get_bool("persist.vendor.audio.qas.enabled", false);
+#ifdef QTI_AUDIO_SERVER_ENABLED
+    g_binder_enabled = true;
+#endif
     ALOGV("%d:%s: g_binder_enabled %d",__LINE__, __func__, g_binder_enabled);
     if (g_binder_enabled) {
         sp<Iqti_audio_server> qas = get_qti_audio_server();
@@ -1958,6 +1962,8 @@ qahw_module_handle_t *qahw_load_module(const char *hw_module_id)
     return module;
 }
 
+#endif
+
 #if QAHW_V1
 char * qahw_get_session_id(const char* vsid)
 {
@@ -1997,7 +2003,7 @@ int qahw_add_flags_source(struct qahw_stream_attributes attr,
         *flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
         break;
     case QAHW_AUDIO_PLAYBACK_COMPRESSED:
-        *flags = AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD;
+        *flags = AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD | AUDIO_OUTPUT_FLAG_NON_BLOCKING | AUDIO_OUTPUT_FLAG_DIRECT;
         break;
     case QAHW_AUDIO_PLAYBACK_VOIP:
         /*TODO*/
@@ -2049,6 +2055,9 @@ int qahw_add_flags_source(struct qahw_stream_attributes attr,
     case QAHW_AUDIO_AFE_LOOPBACK:
     case QAHW_AUDIO_TONE_RX:
         break;
+    case QAHW_AUDIO_COMPRESSED_PLAYBACK_VOICE_CALL_MUSIC:
+        *flags = AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD|AUDIO_OUTPUT_FLAG_NON_BLOCKING|AUDIO_OUTPUT_FLAG_DIRECT;
+        break;
     default:
         rc = -EINVAL;
         break;
@@ -2069,9 +2078,10 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
 
     ALOGV("%d:%s start",__LINE__, __func__);
     audio_io_handle_t handle = 0x999;
-    int rc = -EINVAL;
+    int rc = -EINVAL, i = 0;
     const char *address = stream_name_map[attr.type];
     const char *session_id;
+    char kv[QAHW_KV_PAIR_LENGTH];
     int flags = 0;
     audio_source_t source = AUDIO_SOURCE_MIC;
     qahw_api_stream_t *stream;
@@ -2140,11 +2150,12 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
                                      &(attr.attr.shared.config),
                                      &stream->out_stream,
                                      address);
-        /*set cb function */
-        if (rc)
-            rc = qahw_out_set_callback(stream->out_stream, cb, cookie);
-        if (rc)
-            ALOGE("%s: setting callback failed %d \n", __func__, rc);
+        /* cache cb function now, set later as adsp stream handler registered
+           after voice start */
+        if ((!rc) && (attr.type == QAHW_VOICE_CALL)) {
+            stream->cb = cb;
+            stream->cookie = cookie;
+        }
 
         if (attr.type != QAHW_VOICE_CALL) {
             rc = qahw_open_input_stream(hw_module, handle, devices[1],
@@ -2167,11 +2178,15 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
                                      &(attr.attr.shared.config),
                                      &stream->out_stream,
                                      address);
-        /*set cb function */
-        if (rc)
+        /*ToDO: set cb function, currently registration of callback not supported
+          for all stream ignore error incase fails */
+        if (!rc) {
             rc = qahw_out_set_callback(stream->out_stream, cb, cookie);
-        if (rc)
-            ALOGE("%s: setting callback failed %d \n", __func__, rc);
+            if (rc) {
+                ALOGE("%s: setting callback failed %d \n", __func__, rc);
+                rc = 0;
+            }
+        }
         break;
     case QAHW_STREAM_INPUT:
         if (num_of_devices != 1) {
@@ -2252,10 +2267,24 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
         ALOGV("%s: sess_id_call_state %s\n", __func__, stream->sess_id_call_state);
     }
 
-    if(no_of_modifiers){
-        ALOGE("%s: modifiers not currently supported\n", __func__);
+    if (no_of_modifiers) {
+        /* Currently we support single modifiers */
+        if ( no_of_modifiers > 1 ) {
+            return -EINVAL;
+        }
+        ALOGV("%s: Adding KV (%s) with value (%d)\n",  __func__, modifiers[0].key,
+                                                                 modifiers[0].value);
+        rc = snprintf(kv, QAHW_KV_PAIR_LENGTH, "%s=%u;",
+                                          modifiers[0].key, modifiers[0].value);
+        if (rc < 0) {
+             ALOGE("%s: More modifiers than expected", __func__);
+             return -EINVAL;
+        }
+        ALOGV("%s: written bytes %d\n",  __func__, rc);
+        ALOGV("%s: KV (%s)\n",  __func__, kv);
+        rc = qahw_out_set_parameters(stream->out_stream, kv);
     }
-    ALOGV("%d:%s end",__LINE__, __func__);
+    ALOGV("%s: end", __func__);
     return rc;
 
 error_exit:
@@ -2994,8 +3023,9 @@ int32_t qahw_stream_get_buffer_size(const qahw_stream_handle_t *stream_handle,
         ALOGE("%d:%s invalid stream direction, cannot get size", __LINE__, __func__);
         break;
     }
-    ALOGV("%d:%s inSz %d outSz %d ret 0x%8x", __LINE__, __func__,((in_buffer)? *in_buffer : NULL),
-                                              ((out_buffer)? *out_buffer : NULL), rc);
+    ALOGV("%d:%s inSz %d outSz %d ret 0x%8x", __LINE__, __func__,
+          (in_buffer)?(*in_buffer):0,
+          (out_buffer)?(*out_buffer):0, rc);
     return rc;
 }
 
@@ -3012,13 +3042,14 @@ int32_t qahw_stream_set_dtmf_gen_params(qahw_api_stream_t *stream,
     if(stream->type == QAHW_VOICE_CALL) {
         if(dtmf_params->enable) {
             snprintf(kv, QAHW_KV_PAIR_LENGTH,
-                     "dtmf_low_freq=%d;dtmf_high_freq=%d;dtmf_tone_gain=%d",
-                     dtmf_params->low_freq,
-                     dtmf_params->high_freq,
-                     dtmf_params->gain);
-           ALOGV("%d:%s kv set is %s", __LINE__, __func__, kv);
+               "dtmf_tone_gain=%d;dtmf_low_freq=%d;dtmf_high_freq=%d;dtmf_duration_ms=%d",
+                dtmf_params->gain,
+                dtmf_params->low_freq,
+                dtmf_params->high_freq,
+                dtmf_params->duration_ms);
         } else
             snprintf(kv, QAHW_KV_PAIR_LENGTH, "dtmf_tone_off");
+        ALOGV("%d:%s kv set is %s", __LINE__, __func__, kv);
         rc = qahw_out_set_parameters(stream->out_stream,kv);
     } else
         ALOGE("%d:%s cannot set dtmf on non voice stream", __LINE__, __func__);
@@ -3335,6 +3366,4 @@ int32_t qahw_stream_get_parameters(qahw_stream_handle_t *stream_handle,
     ALOGE("%s is an unsupported api", __func__);
     return -ENOTSUP;
 }
-#endif
-
 #endif

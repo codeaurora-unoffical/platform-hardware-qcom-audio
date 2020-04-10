@@ -113,6 +113,7 @@
 #define CVD_VERSION_MIXER_CTL "CVD Version"
 
 #define FLAC_COMPRESS_OFFLOAD_FRAGMENT_SIZE (256 * 1024)
+#define AMR_COMPRESS_OFFLOAD_FRAGMENT_SIZE (4 * 1024)
 #define MAX_COMPRESS_OFFLOAD_FRAGMENT_SIZE (2 * 1024 * 1024)
 #define MIN_COMPRESS_OFFLOAD_FRAGMENT_SIZE (2 * 1024)
 #define COMPRESS_OFFLOAD_FRAGMENT_SIZE_FOR_AV_STREAMING (2 * 1024)
@@ -7762,6 +7763,10 @@ uint32_t platform_get_compress_offload_buffer_size(audio_offload_info_t* info)
         } else if (info->format == AUDIO_FORMAT_FLAC) {
             fragment_size = FLAC_COMPRESS_OFFLOAD_FRAGMENT_SIZE;
             ALOGV("FLAC fragment size %d", fragment_size);
+        } else if (((info->format == AUDIO_FORMAT_AMR_NB) ||
+            (info->format == AUDIO_FORMAT_AMR_WB)  ||  (info->format == AUDIO_FORMAT_AMR_WB_PLUS))) {
+            fragment_size = AMR_COMPRESS_OFFLOAD_FRAGMENT_SIZE;
+            ALOGV("AMR fragment size %d", fragment_size);
         } else if (info->format == AUDIO_FORMAT_DSD) {
             fragment_size = MAX_COMPRESS_OFFLOAD_FRAGMENT_SIZE;
             if((property_get("vendor.audio.native.dsd.buffer.size.kb", value, "")) &&
@@ -7896,7 +7901,9 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
             struct  mixer_ctl *ctl = NULL;
 
             if (backend_idx == USB_AUDIO_RX_BACKEND ||
-                    backend_idx == USB_AUDIO_TX_BACKEND) {
+                    backend_idx == USB_AUDIO_TX_BACKEND ||
+                    ((backend_idx == DEFAULT_CODEC_BACKEND) &&
+                    (my_data->use_sprk_default_sample_rate == false)) ) {
                 switch (sample_rate) {
                 case 32000:
                         rate_str = "KHZ_32";
@@ -8488,8 +8495,8 @@ bool platform_check_and_set_codec_backend_cfg(struct audio_device* adev,
     backend_idx = platform_get_backend_index(snd_device);
 
     if ((usecase->type == TRANSCODE_LOOPBACK_RX)
-          || (usecase->type == AFE_LOOPBACK)
-           || (usecase->type == DTMF_PLAYBACK)) {
+         || (usecase->type == AFE_LOOPBACK)
+         || (usecase->type == DTMF_PLAYBACK)) {
         backend_cfg.bit_width = usecase->stream.inout->out_config.bit_width;
         backend_cfg.sample_rate = usecase->stream.inout->out_config.sample_rate;
         backend_cfg.format = usecase->stream.inout->out_config.format;
