@@ -241,7 +241,8 @@ bool audio_extn_ip_hdlr_intf_supported(audio_format_t format,
        return true;
    } else {
        asm_event_enable = false;
-       return false;
+   }
+   return false;
 }
 
 int audio_extn_ip_hdlr_intf_event_adm(void *stream_handle __unused,
