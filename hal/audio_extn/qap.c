@@ -1856,6 +1856,12 @@ static void qap_session_callback(qap_session_handle_t session_handle __unused,
                         new_config->channels,
                         config.channel_mask,
                         device);
+                    memcpy(&qap_mod->session_outputs_config.output_config[0],
+                          &qap_mod->session_outputs_config.output_config[index],
+                          sizeof(qap_mod->session_outputs_config.output_config[index]));
+                    memset(&qap_mod->session_outputs_config.output_config[index], 0,
+                          sizeof(qap_mod->session_outputs_config.output_config[index]));
+                    qap_mod->new_out_format_index = 1;
                 }
             }
 
