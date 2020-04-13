@@ -959,7 +959,7 @@ void *start_stream_playback (void* stream_data)
            params->file_stream = fopen(params->gapless_playlist_handle.file_names[current_file_indx], "r");
 
            if (params->file_stream == NULL) {
-               fprintf(stderr, "Not able to '%s' open file, gapless playback ending \n", params->file_stream);
+               fprintf(stderr, "Not able to open file, gapless playback ending \n");
                break;
            }
            get_file_format(params);

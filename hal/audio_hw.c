@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -4596,7 +4596,8 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
                 if ((bitwidth_src == 0) || (bitwidth_dst == 0)) {
                     ALOGE("%s: Error bitwidth == 0", __func__);
                     ATRACE_END();
-                    return -EINVAL;
+                    ret = -EINVAL;
+                    goto exit;
                 }
 
                 uint32_t frames = bytes / format_to_bitwidth_table[src_format];

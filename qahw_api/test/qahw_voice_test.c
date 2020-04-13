@@ -486,7 +486,7 @@ void *playback_start(void *thread_param) {
         fprintf(stderr, " qahw_load_module failed");
         pthread_exit(0);
     }
-
+    attr.type = 0;
     attr.direction = QAHW_STREAM_OUTPUT;
     if(params->in_call_playback) {
         if (params->file_type == FILE_WAV ) {
@@ -527,13 +527,13 @@ void *playback_start(void *thread_param) {
     }
 
 
-    if (params->playback_file != NULL)
+    if (params->playback_file != NULL) {
         fp = fopen(params->playback_file, "r");
-    if (fp == NULL) {
+        if (fp == NULL) {
         fprintf(stderr, "failed to open file %s\n", params->playback_file);
         pthread_exit(0);
+        }
     }
-
     if (params->file_type == FILE_WAV ) {
         /*
         * Read the wave header
@@ -699,7 +699,7 @@ void *playback_dl_start(void *thread_param) {
         fprintf(stderr, " qahw_load_module failed");
         pthread_exit(0);
     }
-
+    attr.type = 0;
     attr.direction = QAHW_STREAM_OUTPUT;
     if(params->in_dl_call_playback) {
         if (params->file_type == FILE_WAV ) {

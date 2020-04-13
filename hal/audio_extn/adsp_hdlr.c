@@ -704,7 +704,7 @@ int audio_extn_adsp_hdlr_stream_open(void **handle,
     stream_data = (struct adsp_hdlr_stream_data *) calloc(1,
                                    sizeof(struct adsp_hdlr_stream_data));
     if (stream_data == NULL) {
-        ret = -ENOMEM;
+        return -ENOMEM;
     }
     stream_data->config = *config;
     *handle = (void **)stream_data;
