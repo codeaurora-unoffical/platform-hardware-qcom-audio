@@ -246,6 +246,10 @@ AM_CFLAGS += -DDOLBY_MAT_THD_ENABLED
 c_sources += audio_extn/dolby.c
 endif
 
+if SPDIF_PLAYBACK
+AM_CFLAGS += -DSPDIF_PLAYBACK_ENABLED
+endif
+
 AM_CFLAGS += -DMAX_TARGET_SPECIFIC_CHANNEL_CNT="14"
 
 h_sources = audio_extn/audio_defs.h \

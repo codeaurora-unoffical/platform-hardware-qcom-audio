@@ -586,7 +586,8 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_OUT_SPEAKER3] = "speaker3",
     [SND_DEVICE_OUT_VOICE_DL_TX] = "voice-dl-tx",
     [SND_DEVICE_OUT_ECALL] = "handset",
-
+    [SND_DEVICE_OUT_SPDIF] = "spdif",
+    [SND_DEVICE_OUT_OPTICAL] = "optical",
 
     /* Capture sound devices */
     [SND_DEVICE_IN_HANDSET_MIC] = "handset-mic",
@@ -932,6 +933,8 @@ static int acdb_device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_EC_REF_LOOPBACK_QUAD] = 4,
     [SND_DEVICE_IN_BUS] = 11,
     [SND_DEVICE_IN_ECALL] = 4,
+    [SND_DEVICE_OUT_SPDIF] = 19,
+    [SND_DEVICE_OUT_OPTICAL] = 19,
 };
 
 struct name_to_index {
@@ -1022,6 +1025,8 @@ static struct name_to_index snd_device_name_index[SND_DEVICE_MAX] = {
     {TO_NAME_INDEX(SND_DEVICE_OUT_BUS_PHN)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_SPEAKER2)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_SPEAKER3)},
+    {TO_NAME_INDEX(SND_DEVICE_OUT_SPDIF)},
+    {TO_NAME_INDEX(SND_DEVICE_OUT_OPTICAL)},
     {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_MIC)},
     {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_MIC_EXTERNAL)},
     {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_MIC_AEC)},
@@ -1966,6 +1971,8 @@ static void set_platform_defaults(struct platform_data * my_data)
     backend_tag_table[SND_DEVICE_OUT_SPEAKER2] = strdup("speaker2");
     backend_tag_table[SND_DEVICE_OUT_SPEAKER3] = strdup("speaker3");
     backend_tag_table[SND_DEVICE_IN_VOICE_SPEAKER_MIC_HFP_MMSECNS] = strdup("bt-sco-mmsecns");
+    backend_tag_table[SND_DEVICE_OUT_SPDIF] = strdup("spdif");
+    backend_tag_table[SND_DEVICE_OUT_OPTICAL] = strdup("optical");
 
     hw_interface_table[SND_DEVICE_OUT_HANDSET] = strdup("SLIMBUS_0_RX");
     hw_interface_table[SND_DEVICE_OUT_SPEAKER] = strdup("SLIMBUS_0_RX");
@@ -2155,6 +2162,8 @@ static void set_platform_defaults(struct platform_data * my_data)
     hw_interface_table[SND_DEVICE_IN_INCALL_REC_TX] = strdup("INCALL_RECORD_TX");
     hw_interface_table[SND_DEVICE_IN_LINE] = strdup("SLIMBUS_0_TX");
     hw_interface_table[SND_DEVICE_IN_BUS] = strdup("TERT_TDM_TX_0");
+    hw_interface_table[SND_DEVICE_OUT_SPDIF] = strdup("PRI_SPDIF_RX");
+    hw_interface_table[SND_DEVICE_OUT_OPTICAL] = strdup("SEC_SPDIF_RX");
 
     my_data->max_mic_count = PLATFORM_DEFAULT_MIC_COUNT;
 
@@ -3240,6 +3249,20 @@ acdb_init_fail:
                 strdup("VA_CDC_DMA_TX_0 Format");
             my_data->current_backend_cfg[DEFAULT_CODEC_TX_BACKEND].samplerate_mixer_ctl =
                 strdup("VA_CDC_DMA_TX_0 SampleRate");
+
+            my_data->current_backend_cfg[SPDIF_RX_BACKEND].bitwidth_mixer_ctl =
+                strdup("PRIM_SPDIF_RX Format");
+            my_data->current_backend_cfg[SPDIF_RX_BACKEND].samplerate_mixer_ctl =
+                strdup("PRIM_SPDIF_RX SampleRate");
+            my_data->current_backend_cfg[SPDIF_RX_BACKEND].channels_mixer_ctl =
+                strdup("PRIM_SPDIF_RX Channels");
+
+            my_data->current_backend_cfg[OPTICAL_RX_BACKEND].bitwidth_mixer_ctl =
+                strdup("SEC_SPDIF_RX Format");
+            my_data->current_backend_cfg[OPTICAL_RX_BACKEND].samplerate_mixer_ctl =
+                strdup("SEC_SPDIF_RX SampleRate");
+            my_data->current_backend_cfg[OPTICAL_RX_BACKEND].channels_mixer_ctl =
+                strdup("SEC_SPDIF_RX Channels");
         } else {
             my_data->current_backend_cfg[DEFAULT_CODEC_TX_BACKEND].bitwidth_mixer_ctl =
                 strdup("SLIM_0_TX Format");
@@ -4425,6 +4448,10 @@ int platform_get_backend_index(snd_device_t snd_device)
                 else if (!strncmp(platform_get_snd_device_backend_interface(snd_device),
                          "QUAT_MI2S_RX", sizeof("QUAT_MI2S_RX")))
                         port = QUAT_MI2S_RX_BACKEND;
+                else if (strcmp(backend_tag_table[snd_device], "spdif") == 0)
+                        port = SPDIF_RX_BACKEND;
+                else if (strcmp(backend_tag_table[snd_device], "optical") == 0)
+                        port = OPTICAL_RX_BACKEND;
         }
     } else if (snd_device >= SND_DEVICE_IN_BEGIN && snd_device < SND_DEVICE_IN_END) {
         port = DEFAULT_CODEC_TX_BACKEND;
@@ -5531,6 +5558,11 @@ snd_device_t platform_get_output_snd_device(void *platform, struct stream_out *o
         snd_device = SND_DEVICE_OUT_AFE_PROXY;
     } else if (devices & AUDIO_DEVICE_OUT_BUS) {
         snd_device = audio_extn_auto_hal_get_output_snd_device(adev, out->usecase);
+    } else if (audio_extn_utils_is_spdif_device(devices)) {
+        if (devices & AUDIO_DEVICE_OUT_SPDIF)
+            snd_device = SND_DEVICE_OUT_SPDIF;
+        else if (devices & AUDIO_DEVICE_OUT_OPTICAL)
+            snd_device = SND_DEVICE_OUT_OPTICAL;
     } else {
         ALOGE("%s: Unknown device(s) %#x", __func__, devices);
     }
@@ -7834,7 +7866,6 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
     int ret = -EINVAL;
     int backend_idx = platform_get_backend_index(snd_device);
     struct platform_data *my_data = (struct platform_data *)adev->platform;
-    backend_idx = platform_get_backend_index(snd_device);
     unsigned int bit_width = backend_cfg.bit_width;
     unsigned int sample_rate = backend_cfg.sample_rate;
     unsigned int channels = backend_cfg.channels;
@@ -7940,7 +7971,9 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
                 case 32000:
                     if (passthrough_enabled || (backend_idx == SPDIF_TX_BACKEND ) ||
                         (backend_idx == HDMI_TX_BACKEND ) ||
-                        (backend_idx == HDMI_ARC_TX_BACKEND )) {
+                        (backend_idx == HDMI_ARC_TX_BACKEND ) ||
+                        (backend_idx == SPDIF_RX_BACKEND ) ||
+                        (backend_idx == OPTICAL_RX_BACKEND )) {
                         rate_str = "KHZ_32";
                         break;
                     }
@@ -9506,7 +9539,9 @@ void platform_check_and_update_copp_sample_rate(void* platform, snd_device_t snd
          *sample_rate = stream_sr;
 
     if ((snd_device == SND_DEVICE_OUT_HDMI) || (snd_device == SND_DEVICE_OUT_DISPLAY_PORT) ||
-                  (snd_device == SND_DEVICE_OUT_USB_HEADSET))
+                  (snd_device == SND_DEVICE_OUT_USB_HEADSET) ||
+                  (snd_device == SND_DEVICE_OUT_SPDIF) ||
+                  (snd_device == SND_DEVICE_OUT_OPTICAL))
         *sample_rate = platform_get_supported_copp_sampling_rate(stream_sr);
 
      ALOGI("sn_device %d device sr %d stream sr %d copp sr %d", snd_device, device_sr, stream_sr, *sample_rate);

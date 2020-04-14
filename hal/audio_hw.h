@@ -576,6 +576,14 @@ typedef struct streams_output_ctxt {
     struct stream_out *output;
 } streams_output_ctxt_t;
 
+typedef struct spdif_channel_status {
+    uint32_t sample_rate_ch_a;
+    uint32_t sample_rate_ch_b;
+    uint32_t bit_width_ch_a;
+    uint32_t bit_width_ch_b;
+    bool channel_status_set;
+} spdif_channel_status_t;
+
 typedef void* (*adm_init_t)();
 typedef void (*adm_deinit_t)(void *);
 typedef void (*adm_register_output_stream_t)(void *, audio_io_handle_t, audio_output_flags_t);
@@ -696,7 +704,8 @@ struct audio_device {
     int ip_hdlr_asm_cnt;
     int ip_hdlr_adm_cnt;
     bool ecall_flag;
-
+    spdif_channel_status_t spdif_coaxial_status;
+    spdif_channel_status_t spdif_optical_status;
 };
 
 struct audio_patch_record {

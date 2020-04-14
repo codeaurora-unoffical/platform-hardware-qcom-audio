@@ -91,7 +91,7 @@
 
 #define APP_TYPE_VOIP_AUDIO 0x1113A
 
-#ifdef AUDIO_EXTERNAL_HDMI_ENABLED
+#if defined(AUDIO_EXTERNAL_HDMI_ENABLED) || defined(SPDIF_PLAYBACK_ENABLED)
 #define PROFESSIONAL        (1<<0)      /* 0 = consumer, 1 = professional */
 #define NON_LPCM            (1<<1)      /* 0 = audio, 1 = non-audio */
 #define SR_44100            (0<<0)      /* 44.1kHz */
@@ -104,7 +104,17 @@
 #define SR_96000            (10<<0)     /* 96kHz */
 #define SR_176400           (12<<0)     /* 176.4kHz */
 #define SR_192000           (14<<0)     /* 192kHz */
+#define SR_768000           (9 << 0)    /* 768kHz */
 
+#endif
+
+#ifdef SPDIF_PLAYBACK_ENABLED
+#define CSI_SR_BYTE_CH_A            3
+#define CSI_SR_BYTE_CH_B            27
+#define CSI_BIT_WIDTH_BYTE_CH_A     4
+#define CSI_BIT_WIDTH_BYTE_CH_B     28
+#define CSI_BIT_WIDTH_16            (0 << 0)
+#define CSI_BIT_WIDTH_24            (11 << 0)
 #endif
 
 /* ToDo: Check and update a proper value in msec */
@@ -1224,7 +1234,9 @@ static int send_app_type_cfg_for_device(struct audio_device *adev,
 
         } else if ((snd_device == SND_DEVICE_OUT_HDMI ||
                     snd_device == SND_DEVICE_OUT_USB_HEADSET ||
-                    snd_device == SND_DEVICE_OUT_DISPLAY_PORT) &&
+                    snd_device == SND_DEVICE_OUT_DISPLAY_PORT ||
+                    snd_device == SND_DEVICE_OUT_SPDIF ||
+                    snd_device == SND_DEVICE_OUT_OPTICAL) &&
                    (usecase->stream.out->sample_rate >= OUTPUT_SAMPLING_RATE_44100)) {
              /*
               * To best utlize DSP, check if the stream sample rate is supported/multiple of
@@ -2001,6 +2013,346 @@ int audio_extn_utils_get_codec_version(const char *snd_card_name,
     return 0;
 }
 
+#ifdef SPDIF_PLAYBACK_ENABLED
+bool audio_extn_utils_is_spdif_device(audio_devices_t devices)
+{
+    bool rc = false;
+
+    if ((devices & AUDIO_DEVICE_OUT_SPDIF) ||
+        (devices & AUDIO_DEVICE_OUT_OPTICAL))
+        rc = true;
+
+    return rc;
+}
+
+bool audio_extn_util_init_spdif_channel_status(struct stream_out *out)
+{
+    bool ret = false;
+    uint32_t sample_rate_ch_a = 0;
+    uint32_t sample_rate_ch_b = 0;
+    uint32_t sample_rate = out->sample_rate;
+    uint32_t bit_width = out->bit_width;
+    uint32_t bit_width_ch_a = 16;
+    uint32_t bit_width_ch_b = 16;
+    struct audio_device *adev = out->dev;
+    bool is_channel_status_set = false;
+
+    /* Set CSI, if current config and CSI rates are different */
+    if (out->devices == AUDIO_DEVICE_OUT_SPDIF) {
+        sample_rate_ch_a = adev->spdif_coaxial_status.sample_rate_ch_a;
+        sample_rate_ch_b = adev->spdif_coaxial_status.sample_rate_ch_b;
+        bit_width_ch_a = adev->spdif_coaxial_status.bit_width_ch_a;
+        bit_width_ch_b = adev->spdif_coaxial_status.bit_width_ch_b;
+        is_channel_status_set = adev->spdif_coaxial_status.channel_status_set;
+    } else if (out->devices == AUDIO_DEVICE_OUT_OPTICAL) {
+        sample_rate_ch_a = adev->spdif_optical_status.sample_rate_ch_a;
+        sample_rate_ch_b = adev->spdif_optical_status.sample_rate_ch_b;
+        bit_width_ch_a = adev->spdif_optical_status.bit_width_ch_a;
+        bit_width_ch_b = adev->spdif_optical_status.bit_width_ch_b;
+        is_channel_status_set = adev->spdif_optical_status.channel_status_set;
+    } else {
+        goto exit;
+    }
+
+    ALOGV("%s: sr %u bw %u ch_a sr %u ch_b sr %u bw_a %u bw_b %u ch status %d", __func__,
+              sample_rate, bit_width, sample_rate_ch_a, sample_rate_ch_b, bit_width_ch_a,
+                                                   bit_width_ch_b, is_channel_status_set);
+
+    if ((sample_rate != sample_rate_ch_a) ||
+        (sample_rate != sample_rate_ch_b) ||
+        (bit_width != bit_width_ch_a) ||
+        (bit_width != bit_width_ch_b) ||
+        (!is_channel_status_set))
+        ret = true;
+
+exit:
+    return ret;
+}
+
+
+void set_lpcm_channel_status (struct stream_out *out, unsigned char *channel_status)
+{
+    /* First 24 bytes are for CH_A and next 24 bytes are for CH_B */
+    /* Set channel status in bits from 24 - 27 as per IEC60958 standard */
+    switch (out->sample_rate) {
+        case 22050:
+            channel_status[CSI_SR_BYTE_CH_A] |= SR_22050;
+            break;
+        case 24000:
+            channel_status[CSI_SR_BYTE_CH_A] |= SR_24000;
+            break;
+        case 32000:
+            channel_status[CSI_SR_BYTE_CH_A] |= SR_32000;
+            break;
+        case 44100:
+            channel_status[CSI_SR_BYTE_CH_A] |= SR_44100;
+            break;
+        case 48000:
+            channel_status[CSI_SR_BYTE_CH_A] |= SR_48000;
+            break;
+        case 88200:
+            channel_status[CSI_SR_BYTE_CH_A] |= SR_88200;
+            break;
+        case 96000:
+            channel_status[CSI_SR_BYTE_CH_A] |= SR_96000;
+            break;
+        case 176400:
+            channel_status[CSI_SR_BYTE_CH_A] |= SR_176400;
+            break;
+        case 192000:
+            channel_status[CSI_SR_BYTE_CH_A] |= SR_192000;
+            break;
+        case 768000:
+            channel_status[CSI_SR_BYTE_CH_A] |= SR_768000;
+            break;
+        default:
+            ALOGD("%s: inavlid sample rate %u", __func__, out->sample_rate);
+            break;
+    }
+
+    switch (out->bit_width) {
+        case 16:
+            channel_status[CSI_BIT_WIDTH_BYTE_CH_A] |= CSI_BIT_WIDTH_16;
+            break;
+        case 24:
+            /* Set max word length as 24 bit */
+            channel_status[CSI_BIT_WIDTH_BYTE_CH_A] |= CSI_BIT_WIDTH_24;
+            break;
+        default:
+            ALOGD("%s: invalid bit width %u", __func__, out->bit_width);
+            break;
+    }
+
+    /* Copying CH_A config to CH_B */
+    channel_status[CSI_SR_BYTE_CH_B] |= channel_status[CSI_SR_BYTE_CH_A];
+    channel_status[CSI_BIT_WIDTH_BYTE_CH_B] |= channel_status[CSI_BIT_WIDTH_BYTE_CH_A];
+}
+
+void audio_extn_utils_set_spdif_channel_status_from_config (struct stream_out *out)
+{
+    struct audio_out_channel_status_info channel_status_info;
+    int ret = 0;
+
+    ALOGI("%s: Setting CSI from configs format %u", __func__, out->format);
+
+    memset(channel_status_info.channel_status, 0, CSI_LENGTH_PER_CHANNEL * 2); /* 48 bytes */
+
+    set_lpcm_channel_status(out, channel_status_info.channel_status);
+
+    ret = audio_extn_utils_set_spdif_channel_status(out, &channel_status_info);
+    if (ret)
+        ALOGE("%s: set spdif channel status failed", __func__);
+}
+
+int audio_extn_utils_set_spdif_channel_status (struct stream_out *out,
+            struct audio_out_channel_status_info *channel_status_info)
+{
+    struct snd_aes_iec958 iec958;
+    struct audio_device *adev = out->dev;
+    const char *mixer_ctl_name_ch_a = NULL;
+    const char *mixer_ctl_name_ch_b = NULL;
+    struct mixer_ctl *ctl = NULL;
+    int ret = 0;
+    int i = 0;
+    audio_format_t format_ch_a = AUDIO_FORMAT_PCM_16_BIT;
+    audio_format_t format_ch_b = AUDIO_FORMAT_PCM_16_BIT;
+
+    if (out->devices == AUDIO_DEVICE_OUT_SPDIF) {
+        mixer_ctl_name_ch_a = "IEC958 PRI_SPDIF_CH_A Playback PCM Stream";
+        mixer_ctl_name_ch_b = "IEC958 PRI_SPDIF_CH_B Playback PCM Stream";
+        adev->spdif_coaxial_status.channel_status_set = true;
+
+        adev->spdif_coaxial_status.sample_rate_ch_a =
+                audio_extn_utils_parse_sample_rate_from_ch_status(
+                            channel_status_info->channel_status[CSI_SR_BYTE_CH_A]);
+
+        adev->spdif_coaxial_status.sample_rate_ch_b =
+                audio_extn_utils_parse_sample_rate_from_ch_status(
+                           channel_status_info->channel_status[CSI_SR_BYTE_CH_B]);
+
+        format_ch_a =audio_extn_utils_parse_format_from_ch_status(
+                     channel_status_info->channel_status[CSI_BIT_WIDTH_BYTE_CH_A]);
+        adev->spdif_coaxial_status.bit_width_ch_a =
+                            (format_ch_a == AUDIO_FORMAT_PCM_16_BIT) ? 16 : 24;
+
+        format_ch_b = audio_extn_utils_parse_format_from_ch_status(
+                      channel_status_info->channel_status[CSI_BIT_WIDTH_BYTE_CH_B]);
+        adev->spdif_coaxial_status.bit_width_ch_b =
+                            (format_ch_b == AUDIO_FORMAT_PCM_16_BIT) ? 16 : 24;
+    } else if (out->devices == AUDIO_DEVICE_OUT_OPTICAL) {
+        mixer_ctl_name_ch_a = "IEC958 SEC_SPDIF_CH_A Playback PCM Stream";
+        mixer_ctl_name_ch_b = "IEC958 SEC_SPDIF_CH_B Playback PCM Stream";
+        adev->spdif_optical_status.channel_status_set = true;
+
+        adev->spdif_optical_status.sample_rate_ch_a =
+                audio_extn_utils_parse_sample_rate_from_ch_status(
+                            channel_status_info->channel_status[CSI_SR_BYTE_CH_A]);
+
+        adev->spdif_optical_status.sample_rate_ch_b =
+                audio_extn_utils_parse_sample_rate_from_ch_status(
+                            channel_status_info->channel_status[CSI_SR_BYTE_CH_B]);
+
+        format_ch_a = audio_extn_utils_parse_format_from_ch_status(
+                      channel_status_info->channel_status[CSI_BIT_WIDTH_BYTE_CH_A]);
+        adev->spdif_optical_status.bit_width_ch_a =
+                            (format_ch_a == AUDIO_FORMAT_PCM_16_BIT) ? 16 : 24;
+
+        format_ch_b = audio_extn_utils_parse_format_from_ch_status(
+                      channel_status_info->channel_status[CSI_BIT_WIDTH_BYTE_CH_B]);
+        adev->spdif_optical_status.bit_width_ch_b =
+                            (format_ch_b == AUDIO_FORMAT_PCM_16_BIT) ? 16 : 24;
+    } else {
+        ALOGE("%s: Invalid device %d", __func__, out->devices);
+        ret = -EINVAL;
+        goto fail;
+    }
+
+    ALOGV("%s: mixer name CH A %s, CH B %s devices %x", __func__, mixer_ctl_name_ch_a,
+                                                      mixer_ctl_name_ch_b, out->devices);
+
+    memcpy(iec958.status, channel_status_info->channel_status, sizeof(iec958.status));
+
+    /* First 24 bytes for CH_A */
+    for(i = 0; i < CSI_LENGTH_PER_CHANNEL; i++)
+        ALOGV("iec958 status[%d] = %d", i, iec958.status[i]);
+
+    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name_ch_a);
+    if (!ctl) {
+        ALOGE("%s: Could not get ctl for mixer cmd - %s", __func__, mixer_ctl_name_ch_a);
+        ret = -EINVAL;
+        goto fail;
+    }
+
+    if (mixer_ctl_set_array(ctl, &iec958, sizeof(iec958)) < 0) {
+        ALOGE("%s: Could not set channel status for %s", __func__, mixer_ctl_name_ch_a);
+        ret = -EINVAL;
+        goto fail;
+    }
+
+    memcpy(iec958.status, &(channel_status_info->channel_status[24]), sizeof(iec958.status));
+
+    /* Second 24 bytes for CH_B */
+    for(i = 0; i < CSI_LENGTH_PER_CHANNEL; i++)
+        ALOGV("iec958 status[%d] = %d", i, iec958.status[i]);
+
+    ctl = NULL;
+    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name_ch_b);
+    if (!ctl) {
+        ALOGE("%s: Could not get ctl for mixer cmd - %s", __func__, mixer_ctl_name_ch_b);
+        ret = -EINVAL;
+        goto fail;
+    }
+
+    if (mixer_ctl_set_array(ctl, &iec958, sizeof(iec958)) < 0) {
+        ALOGE("%s: Could not set channel status for %s", __func__, mixer_ctl_name_ch_b);
+        ret = -EINVAL;
+        goto fail;
+    }
+
+    return ret;
+fail:
+    if (out->devices == AUDIO_DEVICE_OUT_SPDIF)
+        adev->spdif_coaxial_status.channel_status_set = false;
+    else if (out->devices == AUDIO_DEVICE_OUT_OPTICAL)
+        adev->spdif_optical_status.channel_status_set = false;
+
+    return ret;
+}
+
+uint32_t audio_extn_utils_parse_sample_rate_from_ch_status(char ch_status_rate_bits)
+{
+    uint32_t sample_rate_bits = 0;
+    uint32_t sample_rate = 0;
+
+    /* Get sample rate */
+    sample_rate_bits = (ch_status_rate_bits & 0b00001111);
+    switch (sample_rate_bits) {
+        case 0b0100:
+            sample_rate = 22050;
+            break;
+        case 0b0000:
+            sample_rate = 44100;
+            break;
+        case 0b1000:
+            sample_rate = 88200;
+            break;
+        case 0b1100:
+            sample_rate = 176400;
+            break;
+        case 0b0110:
+            sample_rate = 24000;
+            break;
+        case 0b0010:
+            sample_rate = 48000;
+            break;
+        case 0b1010:
+            sample_rate = 96000;
+            break;
+        case 0b1110:
+            sample_rate = 192000;
+            break;
+        case 0b0011:
+            sample_rate = 32000;
+            break;
+        case 0b1001:
+            sample_rate = 768000;
+            break;
+        default:
+            ALOGD("%s: invalid combination");
+            break;
+    }
+
+    return sample_rate;
+}
+
+audio_format_t audio_extn_utils_parse_format_from_ch_status(char ch_status_bw_bits)
+{
+    uint8_t wordlength;
+    uint8_t max_wordlength;
+    audio_format_t fmt = AUDIO_FORMAT_PCM_16_BIT;
+
+    /* Get max word length */
+    max_wordlength = ch_status_bw_bits & 0b00000001;
+
+    if (max_wordlength == 0b00000000) {
+        /* Get format */
+        wordlength = ch_status_bw_bits & 0b00001110;
+
+        /* Default fmt is set as 16 bit PCM */
+        if ((wordlength & 0b00000010) || !(wordlength & 0b00000000))
+            fmt = AUDIO_FORMAT_PCM_16_BIT;
+        else
+            fmt = AUDIO_FORMAT_PCM_24_BIT_PACKED;
+    } else {
+        /* Return 24bit format if max word length is 24 */
+        fmt = AUDIO_FORMAT_PCM_24_BIT_PACKED;
+    }
+
+    return fmt;
+}
+
+int audio_extn_utils_parse_configs_from_ch_status (struct stream_out *out,
+              struct audio_out_channel_status_info *channel_status_info)
+{
+    int rc = 0;
+
+    /* TODO: Sample rate & BW in CH A and CH B of CSI are assumed to be same */
+    out->sample_rate = audio_extn_utils_parse_sample_rate_from_ch_status(
+                        channel_status_info->channel_status[CSI_SR_BYTE_CH_A]);
+
+    out->format = audio_extn_utils_parse_format_from_ch_status(
+                        channel_status_info->channel_status[CSI_BIT_WIDTH_BYTE_CH_A]);
+
+    out->bit_width = (out->format == AUDIO_FORMAT_PCM_16_BIT) ? 16 : 24;
+
+    /* No need to update channel mask as its always 2ch for SPDIF */
+    /* If stream is not running, start_output_stream will call select_devices internally */
+    if (out->playback_started)
+        rc = select_devices(out->dev, out->usecase);
+
+    return rc;
+}
+#endif
 
 #ifdef AUDIO_EXTERNAL_HDMI_ENABLED
 

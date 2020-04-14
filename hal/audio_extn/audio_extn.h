@@ -73,6 +73,16 @@
 #define AUDIO_DEVICE_OUT_SPEAKER3 0x20000000
 #endif
 
+#ifndef AUDIO_DEVICE_OUT_OPTICAL
+#ifdef SPDIF_PLAYBACK_ENABLED
+#define CSI_LENGTH_PER_CHANNEL 24
+#define AUDIO_DEVICE_OUT_OPTICAL 0x40000 /* Reusing HDMI OUT ARC */
+#else
+#define CSI_LENGTH_PER_CHANNEL 0
+#define AUDIO_DEVICE_OUT_OPTICAL AUDIO_DEVICE_NONE
+#endif /* SPDIF_PLAYBACK_ENABLED */
+#endif /* AUDIO_DEVICE_OUT_OPTICAL */
+
 #if 0
 // these formats should have been enabled by default now
 #ifndef FLAC_OFFLOAD_ENABLED
@@ -858,7 +868,26 @@ void audio_extn_perf_lock_acquire(int *handle, int duration,
                                  int *opts, int size);
 void audio_extn_perf_lock_release(int *handle);
 
-
+#ifdef SPDIF_PLAYBACK_ENABLED
+bool audio_extn_utils_is_spdif_device(audio_devices_t devices);
+bool audio_extn_util_init_spdif_channel_status(struct stream_out *out);
+void audio_extn_utils_set_spdif_channel_status_from_config(struct stream_out *out);
+int audio_extn_utils_set_spdif_channel_status (struct stream_out *out,
+            struct audio_out_channel_status_info *channel_status_info);
+uint32_t audio_extn_utils_parse_sample_rate_from_ch_status(char ch_status_rate_bits);
+audio_format_t audio_extn_utils_parse_format_from_ch_status(char ch_status_bw_bits);
+int audio_extn_utils_parse_configs_from_ch_status (struct stream_out *out,
+                struct audio_out_channel_status_info *channel_status_info);
+#else
+#define audio_extn_utils_is_spdif_device(devices) (0)
+#define audio_extn_util_init_spdif_channel_status(out) (0)
+#define audio_extn_utils_set_spdif_channel_status_from_config(out) (0)
+#define audio_extn_utils_set_spdif_channel_status(out,\
+                                                  channel_status_info) (0)
+#define audio_extn_utils_parse_sample_rate_from_ch_status(ch_status_rate_bits) (0)
+#define audio_extn_utils_parse_format_from_ch_status(ch_status_bw_bits) (0)
+#define audio_extn_utils_parse_configs_from_ch_status(out, channel_status_info) (0)
+#endif
 
 #ifndef AUDIO_EXTERNAL_HDMI_ENABLED
 #define audio_utils_set_hdmi_channel_status(out, buffer, bytes) (0)
@@ -1058,6 +1087,8 @@ int audio_extn_set_device_cfg_params(struct audio_device *adev,
                                      struct audio_device_cfg_param *payload);
 int audio_extn_set_pll_device_cfg_params(struct audio_device *adev,
                 struct audio_pll_device_cfg_param *payload);
+int audio_extn_set_ch_status_bit_mask (struct audio_device *adev,
+               struct audio_device_channel_bit_mask *ch_bit_mask);
 int audio_extn_utils_get_avt_device_drift(
                 struct audio_usecase *usecase,
                 struct audio_avt_device_drift_param *drift_param);
