@@ -841,9 +841,6 @@ typedef enum {
     DAP_STATE_ON = 0,
     DAP_STATE_BYPASS,
 } dap_state;
-#ifndef AUDIO_FORMAT_E_AC3_JOC
-#define AUDIO_FORMAT_E_AC3_JOC  0x19000000UL
-#endif
 #ifndef AUDIO_FORMAT_DTS_LBR
 #define AUDIO_FORMAT_DTS_LBR 0x1E000000UL
 #endif

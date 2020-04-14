@@ -8433,7 +8433,8 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
                 select_devices(adev, usecase->id);
                 ALOGD("Unmuting the stream after select_devices");
                 usecase->stream.out->a2dp_compress_mute = false;
-                out_set_compr_volume(&usecase->stream.out->stream, usecase->stream.out->volume_l, usecase->stream.out->volume_r);
+                if(!(property_get_bool("vendor.audio.qap.enabled", false)))
+                    out_set_compr_volume(&usecase->stream.out->stream, usecase->stream.out->volume_l, usecase->stream.out->volume_r);
                 audio_extn_a2dp_set_handoff_mode(false);
                 pthread_mutex_unlock(&usecase->stream.out->lock);
                 break;
