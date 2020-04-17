@@ -692,6 +692,7 @@ struct audio_device {
     void *ip_hdlr_handle;
     int ip_hdlr_asm_cnt;
     int ip_hdlr_adm_cnt;
+    bool ecall_flag;
 
 };
 

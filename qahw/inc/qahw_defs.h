@@ -177,6 +177,7 @@ __BEGIN_DECLS
 #define QAHW_AUDIO_FLAG_HPCM_TX 0x00020000
 #define QAHW_AUDIO_FLAG_HPCM_RX 0x00040000
 
+
 /* audio output flag for timestamp mode */
 #define QAHW_OUTPUT_FLAG_TIMESTAMP 0x20000000
 
@@ -184,6 +185,9 @@ __BEGIN_DECLS
  * AUDIO_OUTPUT_FLAG_VOICE_CAL
  */
 #define QAHW_AUDIO_OUTPUT_FLAG_VOICE_CALL 0x2000000
+
+#define QAHW_AUDIO_OUTPUT_FLAG_ECALL 0x8000
+
 
 /* Query fm volume */
 #define QAHW_PARAMETER_KEY_FM_VOLUME "fm_volume"
@@ -653,6 +657,7 @@ typedef enum {
     QAHW_AUDIO_AFE_LOOPBACK,                 /* Assumption is device[0] is RX and device[1] is TX */
     QAHW_AUDIO_TONE_RX,
     QAHW_AUDIO_COMPRESSED_PLAYBACK_VOICE_CALL_MUSIC, /**< Offload incall music playback */
+    QAHW_ECALL,									/**< ecall */
     QAHW_AUDIO_STREAM_TYPE_MAX,
 } qahw_audio_stream_type;
 

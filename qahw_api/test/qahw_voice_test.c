@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2019, The Linux Foundation. All rights reserved.
+* Copyright (c) 2019-2020 The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -87,6 +87,7 @@ static void init_stream(void) {
     stream_params.dtmf_freq_high =  1209;
     stream_params.dtmf_gain = 100;
     stream_params.file_type = FILE_WAV;
+    stream_params.stream_type = 1;
     pthread_mutex_init(&stream_params.write_lock, (const pthread_mutexattr_t *)NULL);
     pthread_cond_init(&stream_params.write_cond, (const pthread_condattr_t *) NULL);
     pthread_mutex_init(&stream_params.drain_lock, (const pthread_mutexattr_t *)NULL);
@@ -271,6 +272,7 @@ void usage() {
     printf(" -c  --dtmf_gen                                     .\n");
     printf(" -y  --tty_mode                - <MODE_OFF = 0, MODE_FULL = 1, MODE_VCO  = 2, MODE_HCO = 3\n");
     printf(" -e  --in_dl_call_playback <filename to play from> play downlink audio to voice call\n");
+    printf(" -n  --stream type             - <1 = QAHW_VOICECALL, 2 = QAHW_ECALL \n");
 }
 
 void stop_signal_handler(int signal __unused) {
@@ -898,12 +900,13 @@ int main(int argc, char *argv[]) {
         { "dtmf_gen", no_argument,  0, 'c' },
         { "file_type",  required_argument,  0, 'o' },
         { "in_dl_call_playback",  required_argument,  0, 'e' },
+        { "stream_type", no_argument,  0, 'n' },
         { 0, 0, 0, 0 }
     };
 
     while ((opt = getopt_long(argc,
                               argv,
-                              "-v:d:l:m:p:r:t:f:a:b:h:i:u:y:c:o:e:",
+                                "-v:d:l:m:p:r:t:f:a:b:h:i:u:y:c:o:e:n:",
                               long_options,
                               &option_index)) != -1) {
 
@@ -962,6 +965,9 @@ int main(int argc, char *argv[]) {
         case 'o':
             stream_params.file_type = atoll(optarg);
             break;
+        case 'n':
+            stream_params.stream_type = atoll(optarg);
+            break;
         case 'h':
         default:
             usage();
@@ -987,7 +993,19 @@ int main(int argc, char *argv[]) {
 
     struct qahw_stream_attributes attr;
 
+    switch(stream_params.stream_type){
+            case 1:
+                attr.type = QAHW_VOICE_CALL;
+                break;
+            case 2:
+                attr.type = QAHW_ECALL;
+                break;
+            default:
+                fprintf(stderr, "unsupported stream type %d taking default for voice call\n", stream_params.stream_type);
     attr.type = QAHW_VOICE_CALL;
+                break;
+        }
+
     attr.direction = QAHW_STREAM_INPUT_OUTPUT;
     attr.attr.voice.vsid = stream_params.vsid;
     stream_params.out_voice_handle = NULL;

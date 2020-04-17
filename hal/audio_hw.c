@@ -2426,6 +2426,12 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
         return 0;
     }
 
+    if (adev->ecall_flag == true) {
+       in_snd_device = SND_DEVICE_IN_ECALL;
+       out_snd_device = SND_DEVICE_OUT_ECALL;
+    }
+
+
     if (out_snd_device != SND_DEVICE_NONE &&
             out_snd_device != adev->last_logged_snd_device[uc_id][0]) {
         ALOGD("%s: changing use case %s output device from(%d: %s, acdb %d) to (%d: %s, acdb %d)",
@@ -7368,6 +7374,18 @@ int adev_open_output_stream(struct audio_hw_device *dev,
                 ret = -EEXIST;
                 goto error_open;
             }
+        } else if (out->flags & AUDIO_OUTPUT_FLAG_ECALL) {
+            /* Voice call should not use primary path */
+            adev->ecall_flag = true;
+            out->usecase = USECASE_VOICEMMODE1_CALL;
+            out->config = GET_PCM_CONFIG_AUDIO_PLAYBACK_PRIMARY(use_db_as_primary);
+            if(adev->voice_tx_output == NULL) {
+                adev->voice_tx_output = out;
+            } else {
+                ALOGE("%s: Voice output is already opened", __func__);
+                ret = -EEXIST;
+                goto error_open;
+            }
         } else {
             /* primary path is the default path selected if no other outputs are available/suitable */
             out->usecase = GET_USECASE_AUDIO_PLAYBACK_PRIMARY(use_db_as_primary);
@@ -7597,6 +7615,9 @@ void adev_close_output_stream(struct audio_hw_device *dev __unused,
 #endif
     if (adev->primary_output == out)
         adev->primary_output = NULL;
+
+    if (adev->ecall_flag == true)
+        adev->ecall_flag = false;
 
     pthread_cond_destroy(&out->cond);
     pthread_mutex_destroy(&out->lock);
