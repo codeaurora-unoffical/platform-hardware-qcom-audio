@@ -169,7 +169,17 @@ static void * haptic_thread_loop(void *param __unused)
             pthread_mutex_unlock(&hap.lock);
             continue;
         }
-
+        // check if start command and pcm is initialized properly
+        if (cmd->req == REQUEST_WRITE) {
+            struct audio_device * adev = (struct audio_device *)hap.userdata;
+            if (hap.pcm == NULL || hap.out == NULL ||
+                get_usecase_from_list(adev, USECASE_AUDIO_PLAYBACK_HAPTIC) == NULL) {
+                ALOGE("%s Haptic playback not initialized!", __func__);
+                free(cmd);
+                pthread_mutex_unlock(&hap.lock);
+                continue;
+            }
+        }
         free(cmd);
         //Change to active state
         hap.state = STATE_ACTIVE;
@@ -305,7 +315,13 @@ void haptic_stop()
     ALOGV("%s: Entry ", __func__);
     pthread_mutex_lock(&hap.lock);
     hap.done = true;
-    send_cmd_l(REQUEST_STOP);
+    if (hap.state == STATE_ACTIVE)
+        send_cmd_l(REQUEST_STOP);
+    // If haptic playback stopped & IDLE , call haptic_cleanup
+    else if (hap.state == STATE_IDLE) {
+        ALOGV("%s Haptic state is IDLE, cleanup!", __func__);
+        haptic_cleanup();
+    }
 exit:
     pthread_mutex_unlock(&hap.lock);
     ALOGV("%s: Exit ", __func__);
@@ -434,7 +450,7 @@ void audio_extn_haptic_start (struct audio_device *adev) {
 static int haptic_cleanup()
 {
     struct audio_device * adev = (struct audio_device *)hap.userdata;
-    struct audio_usecase *uc_info;
+    struct audio_usecase *uc_info = NULL;
 
     ALOGV("%s: Enter", __func__);
 
