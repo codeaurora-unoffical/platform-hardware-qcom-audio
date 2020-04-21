@@ -2122,7 +2122,7 @@ static void qap_session_callback(qap_session_handle_t session_handle __unused,
                 /* CASE 3: PCM output.
                  */
 
-                if (!p_qap->hdmi_connect) {
+                if (!p_qap->hdmi_connect || p_qap->passthrough_enabled) {
                     close_all_hdmi_output_l();
                     close_qap_passthrough_stream_l();
                 }
