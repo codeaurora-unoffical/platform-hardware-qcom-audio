@@ -9143,6 +9143,19 @@ int platform_set_stream_channel_map(void *platform, audio_channel_mask_t channel
                     channel_map[7] = PCM_CHANNEL_RS;
                 }
                 break;
+            case 10:
+                /* AUDIO_CHANNEL_OUT_7POINT1POINT2 */
+                channel_map[0] = PCM_CHANNEL_FL;
+                channel_map[1] = PCM_CHANNEL_FR;
+                channel_map[2] = PCM_CHANNEL_FC;
+                channel_map[3] = PCM_CHANNEL_LFE;
+                channel_map[4] = PCM_CHANNEL_LB;
+                channel_map[5] = PCM_CHANNEL_RB;
+                channel_map[6] = PCM_CHANNEL_LS;
+                channel_map[7] = PCM_CHANNEL_RS;
+                channel_map[8] = PCM_CHANNEL_TFL;
+                channel_map[9] = PCM_CHANNEL_TFR;
+                break;
            case 12:
                 /* AUDIO_CHANNEL_OUT_7POINT1POINT4 */
                 channel_map[0] = PCM_CHANNEL_FL;
