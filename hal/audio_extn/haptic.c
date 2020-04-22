@@ -126,11 +126,12 @@ static void gen_pcm (int16_t *buffer)
 {
     int i;
     int sample_rate = 48000;
-    float amplitude = 0.8f;
+    float amplitude = 1.0f;
 
     float frequency = (float)property_get_int32("vendor.audio.haptic_freq",
                                                     DEFAULT_HAPTIC_FREQ_HZ);
-    ALOGV("%s Generate haptic data with frequency %f", __func__, frequency);
+    ALOGV("%s Generate haptic data with frequency %f, amplitude %f",
+                                  __func__, frequency, amplitude);
 
     for (i = 0; i < sample_rate; i++) {
         buffer[i] = (int16_t)(sin((float) 2 * PI * frequency *
