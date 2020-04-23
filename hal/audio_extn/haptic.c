@@ -78,7 +78,6 @@ typedef enum {
 
 typedef enum {
     REQUEST_WRITE,
-    REQUEST_STOP,
     REQUEST_QUIT,
 } request_t;
 
@@ -146,6 +145,17 @@ static void * haptic_thread_loop(void *param __unused)
     int rc = 0;
 
     ALOGV("%s: haptic_thread_loop entry", __func__);
+    /* Generate the haptic buffer data once */
+    if (hap_buffer == NULL) {
+        // Alloc buffer for 1 second
+        hap_buffer = (uint8_t *)calloc (1, pcm_config_haptic.rate * sizeof(int16_t));
+        if (hap_buffer == NULL) {
+            ALOGE("%s: hap.buffer is NULL", __func__);
+            goto thrd_exit;
+        }
+    }
+    gen_pcm(hap_buffer);
+
     while (true) {
         pthread_mutex_lock(&hap.lock);
         if (list_empty(&hap.cmd_list)) {
@@ -161,13 +171,6 @@ static void * haptic_thread_loop(void *param __unused)
             free(cmd);
             pthread_mutex_unlock(&hap.lock);
             break;
-        }
-        if (cmd->req == REQUEST_STOP) {
-            ALOGV ("%s: Received cmd REQUEST_STOP ", __func__);
-            free(cmd);
-            haptic_cleanup();
-            pthread_mutex_unlock(&hap.lock);
-            continue;
         }
         // check if start command and pcm is initialized properly
         if (cmd->req == REQUEST_WRITE) {
@@ -189,27 +192,18 @@ static void * haptic_thread_loop(void *param __unused)
         // write 'x' msec pcm buffer
         int num_frames = pcm_config_haptic.channels * HAPTIC_PCM_FRAME_TIME_MS
                                               * (pcm_config_haptic.rate / SEC_TO_MS);
-        ALOGV("%s: Create haptic buffer, total samples = %d, num_frames = %d",
-                                           __func__, tot_samples, num_frames);
+        ALOGV("%s: Total samples = %d, num_frames = %d", __func__,
+                                              tot_samples, num_frames);
         int cnt = 0, pos = 0;
-        if (hap_buffer == NULL) {
-            // Alloc buffer for 1 second
-            hap_buffer = (uint8_t *)calloc (1, pcm_config_haptic.rate * sizeof(int16_t));
-            if (hap_buffer == NULL) {
-                ALOGE("%s: hap.buffer is NULL", __func__);
-                goto thrd_exit;
-            }
-        }
-        gen_pcm(hap_buffer);
 
 #ifdef DUMP_HAPTIC_FILE
-    FILE *fp = NULL;
-    int rc = 0;
-    ALOGD ("%s: Create file %s to dump hap buffer", __func__, HAPTIC_PCM_FILE);
-    fp = fopen (HAPTIC_PCM_FILE, "wb");
-    if (!fp) {
-        ALOGD("Failed to create file %s", HAPTIC_PCM_FILE);
-    }
+        FILE *fp = NULL;
+        int rc = 0;
+        ALOGD ("%s: Create file %s to dump hap buffer", __func__, HAPTIC_PCM_FILE);
+        fp = fopen (HAPTIC_PCM_FILE, "wb");
+        if (!fp) {
+            ALOGD("Failed to create file %s", HAPTIC_PCM_FILE);
+        }
 #endif
         while (cnt < tot_samples) {
             pcm_write(hap.pcm, (void *)(hap_buffer + pos), num_frames * sizeof(int16_t));
@@ -231,22 +225,23 @@ static void * haptic_thread_loop(void *param __unused)
         ALOGV("%s :Haptic write complete, written = %d, Total Samples = %d",
                                                  __func__, cnt, tot_samples);
 #ifdef DUMP_HAPTIC_FILE
-    if (fp != NULL) {
-        fclose(fp);
-        fp = NULL;
-    }
-#endif
-
-thrd_exit:
-        if (hap_buffer != NULL) {
-            free(hap_buffer);
-            hap_buffer = NULL;
+        if (fp != NULL) {
+            fclose(fp);
+            fp = NULL;
         }
+#endif
         //Change to idle state
         pthread_mutex_lock(&hap.lock);
         hap.state = STATE_IDLE;
         ALOGV("%s State changed to IDLE", __func__);
+        pthread_cond_signal(&hap.cond);
         pthread_mutex_unlock(&hap.lock);
+    }
+thrd_exit:
+    if (hap_buffer != NULL) {
+        free(hap_buffer);
+        hap_buffer = NULL;
+        ALOGV("%s Freed haptic buffer data", __func__);
     }
     ALOGE("haptic_thread_loop exit");
     return 0;
@@ -281,12 +276,13 @@ static void haptic_deinit_once()
     if (hap.state == STATE_DISABLED || hap.state == STATE_DEINIT)
         return;
 
-    hap.userdata = NULL;
     hap.done = true;
     pthread_mutex_lock(&hap.lock);
     send_cmd_l(REQUEST_QUIT);
     pthread_mutex_unlock(&hap.lock);
     pthread_join(hap.thread_id, (void **) NULL);
+    haptic_cleanup();
+    hap.userdata = NULL;
     pthread_mutex_destroy(&hap.lock);
     pthread_cond_destroy(&hap.cond);
     ALOGV("%s: Exit ", __func__);
@@ -315,10 +311,13 @@ void haptic_stop()
     ALOGV("%s: Entry ", __func__);
     pthread_mutex_lock(&hap.lock);
     hap.done = true;
-    if (hap.state == STATE_ACTIVE)
-        send_cmd_l(REQUEST_STOP);
+
+    //Wait for haptic playback to complete
+    while (hap.state != STATE_IDLE) {
+        pthread_cond_wait(&hap.cond, &hap.lock);
+    }
     // If haptic playback stopped & IDLE , call haptic_cleanup
-    else if (hap.state == STATE_IDLE) {
+    if (hap.state == STATE_IDLE) {
         ALOGV("%s Haptic state is IDLE, cleanup!", __func__);
         haptic_cleanup();
     }
