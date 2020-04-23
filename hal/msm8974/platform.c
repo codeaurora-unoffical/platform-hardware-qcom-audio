@@ -5961,6 +5961,10 @@ snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_d
                     }
                 }
             }
+        } else if (in_device & AUDIO_DEVICE_IN_WIRED_HEADSET) {
+            snd_device = SND_DEVICE_IN_HEADSET_MIC;
+        } else if (in_device & AUDIO_DEVICE_IN_LINE) {
+            snd_device = SND_DEVICE_IN_LINE;
         } else {
             snd_device = SND_DEVICE_NONE;
             ALOGW("%s: Unsupported input configuration for generic handset capture", __func__);
