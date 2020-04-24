@@ -2767,8 +2767,11 @@ int start_input_stream(struct stream_in *in)
     }
 
     if ((in->format == AUDIO_FORMAT_DSD) && (in->dsd_config_updated == false)) {
-        if (strstr(platform_get_snd_device_backend_interface(
-            platform_get_input_snd_device(adev->platform, in->device)), "MI2S")) {
+
+        const char *hw_interface_name = platform_get_snd_device_backend_interface(
+                                            platform_get_input_snd_device(adev->platform, in->device));
+
+        if ((hw_interface_name != NULL) && (strstr(hw_interface_name, "MI2S"))) {
             in->bit_width = 32;
            /*
             *  In case of MI2S backend, DSD data comes in 32bit and each data line of MI2S
@@ -3399,7 +3402,9 @@ int start_output_stream(struct stream_out *out)
     if ((out->format == AUDIO_FORMAT_DSD) && (out->dsd_config_updated == false)) {
         /* set DSD block size as 1 to maintain backward compatibility */
         blk_size = 1;
-        if (strstr(platform_get_snd_device_backend_interface(platform_get_output_snd_device(adev->platform, out)), "MI2S")) {
+        const char *hw_interface_name = platform_get_snd_device_backend_interface(platform_get_output_snd_device(adev->platform, out));
+
+        if ((hw_interface_name != NULL) && (strstr(hw_interface_name, "MI2S"))) {
             out->bit_width = 32;
             /*
              * In case of MI2S backend, DSD data comes in 32bit and each data line of MI2S
