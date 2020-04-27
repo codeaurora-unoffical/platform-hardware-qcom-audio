@@ -1287,9 +1287,6 @@ qahw_module_handle_t *qahw_load_module(const char *hw_module_id)
 
     ALOGV("%d:%s",__LINE__, __func__);
     g_binder_enabled = property_get_bool("persist.vendor.audio.qas.enabled", false);
-#ifdef QTI_AUDIO_SERVER_ENABLED
-    g_binder_enabled = true;
-#endif
     ALOGV("%d:%s: g_binder_enabled %d",__LINE__, __func__, g_binder_enabled);
     if (g_binder_enabled) {
         sp<Iqti_audio_server> qas = get_qti_audio_server();
