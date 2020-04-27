@@ -4322,7 +4322,8 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
     struct audio_device *adev = out->dev;
     struct str_parms *parms;
     char value[32];
-    int ret = 0, val = 0, err;
+    int ret = 0, err, base = 10;
+    uint32_t val = 0;
     bool bypass_a2dp = false;
     bool reconfig = false;
     unsigned long service_interval = 0;
@@ -4336,7 +4337,7 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
         goto error;
     err = str_parms_get_str(parms, AUDIO_PARAMETER_STREAM_ROUTING, value, sizeof(value));
     if (err >= 0) {
-        val = atoi(value);
+        val = strtoul(value, NULL, base);
         lock_output_stream(out);
         pthread_mutex_lock(&adev->lock);
 
@@ -4583,7 +4584,7 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
         }
     }
 
-    err = str_parms_get_int(parms, AUDIO_PARAMETER_STREAM_DSD_FMT, &val);
+    err = str_parms_get_int(parms, AUDIO_PARAMETER_STREAM_DSD_FMT, (int*)(&val));
     if (err >= 0) {
         out->dsd_format = val;
     }
@@ -6070,7 +6071,8 @@ static int in_set_parameters(struct audio_stream *stream, const char *kvpairs)
     struct audio_device *adev = in->dev;
     struct str_parms *parms;
     char value[32];
-    int ret = 0, val = 0, err;
+    int ret = 0, err, base = 10;
+    uint32_t val = 0;
 
     ALOGD("%s: enter: kvpairs=%s", __func__, kvpairs);
     parms = str_parms_create_str(kvpairs);
@@ -6084,7 +6086,7 @@ static int in_set_parameters(struct audio_stream *stream, const char *kvpairs)
     if (err >= 0) {
         val = atoi(value);
         /* no audio source uses val == 0 */
-        if ((in->source != val) && (val != 0)) {
+        if ((in->source != (int)val) && (val != 0)) {
             in->source = val;
             if ((in->source == AUDIO_SOURCE_VOICE_COMMUNICATION) &&
                 (in->dev->mode == AUDIO_MODE_IN_COMMUNICATION) &&
@@ -6103,8 +6105,8 @@ static int in_set_parameters(struct audio_stream *stream, const char *kvpairs)
 
     err = str_parms_get_str(parms, AUDIO_PARAMETER_STREAM_ROUTING, value, sizeof(value));
     if (err >= 0) {
-        val = atoi(value);
-        if (((int)in->device != val) && (val != 0) && audio_is_input_device(val) ) {
+        val = strtoul(value, NULL, base);
+        if ((in->device != val) && (val != 0) && audio_is_input_device(val) ) {
 
             // Workaround: If routing to an non existing usb device, fail gracefully
             // The routing request will otherwise block during 10 second
@@ -6142,7 +6144,7 @@ static int in_set_parameters(struct audio_stream *stream, const char *kvpairs)
                                                           in->profile, &in->app_type_cfg);
     }
 
-    err = str_parms_get_int(parms, AUDIO_PARAMETER_STREAM_DSD_FMT, &val);
+    err = str_parms_get_int(parms, AUDIO_PARAMETER_STREAM_DSD_FMT, (int*)(&val));
     if (err >= 0) {
         in->dsd_format = val;
     }
