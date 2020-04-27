@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -530,6 +530,7 @@ static const char * const device_table[SND_DEVICE_MAX] = {
 #endif
     [SND_DEVICE_OUT_SPEAKER2] = "speaker2",
     [SND_DEVICE_OUT_SPEAKER3] = "speaker3",
+    [SND_DEVICE_OUT_ECALL] = "handset",
 
     /* Capture sound devices */
     [SND_DEVICE_IN_HANDSET_MIC] = "handset-mic",
@@ -616,6 +617,7 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_INCALL_REC_RX_TX] = "incall-rec-rx-tx",
     [SND_DEVICE_IN_LINE] = "line-in",
     [SND_DEVICE_IN_EC_REF_LOOPBACK_QUAD] = "ec-ref-loopback-quad",
+    [SND_DEVICE_IN_ECALL] = "handset-mic",
 };
 
 // Platform specific backend bit width table
@@ -716,7 +718,7 @@ static int acdb_device_table[SND_DEVICE_MAX] = {
 #endif
     [SND_DEVICE_OUT_SPEAKER2] = 14,
     [SND_DEVICE_OUT_SPEAKER3] = 14,
-
+    [SND_DEVICE_OUT_ECALL] = 7,
     [SND_DEVICE_IN_HANDSET_MIC] = 4,
     [SND_DEVICE_IN_HANDSET_MIC_EXTERNAL] = 4,
     [SND_DEVICE_IN_HANDSET_MIC_AEC] = 106,
@@ -798,6 +800,7 @@ static int acdb_device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_HANDSET_GENERIC_QMIC] = 150,
     [SND_DEVICE_IN_LINE] = 4,
     [SND_DEVICE_IN_EC_REF_LOOPBACK_QUAD] = 4,
+    [SND_DEVICE_IN_ECALL] = 4,
 };
 
 struct name_to_index {
