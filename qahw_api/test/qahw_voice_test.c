@@ -533,7 +533,11 @@ void *playback_start(void *thread_param) {
         fprintf(stderr, "failed to open file %s\n", params->playback_file);
         pthread_exit(0);
         }
+    } else {
+        fprintf(stderr, "invalid playback file" );
+        pthread_exit(0);
     }
+
     if (params->file_type == FILE_WAV ) {
         /*
         * Read the wave header
