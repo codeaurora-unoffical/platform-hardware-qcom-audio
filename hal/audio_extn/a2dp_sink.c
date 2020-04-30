@@ -76,6 +76,7 @@
 #define MIXER_DEC_BIT_FORMAT       "AFE Output Bit Format"
 #define MIXER_SINK_SAMPLE_RATE     "BT_TX SampleRate"
 #define MIXER_AFE_SINK_CHANNELS    "AFE Output Channels"
+#define MIXER_ADM_CHANNELS    "SLIM9_TX ADM Channels"
 #define DEFAULT_SINK_LATENCY_SBC       140
 #define DEFAULT_SINK_LATENCY_APTX      160
 #define DEFAULT_SINK_LATENCY_APTX_HD   180
@@ -331,6 +332,17 @@ static bool a2dp_set_backend_cfg()
     } else {
         if (mixer_ctl_set_enum_by_string(ctrl_channels, channels) != 0) {
             ALOGE("%s: Failed to set AFE channels =%s", __func__, channels);
+            is_configured = false;
+            goto fail;
+        }
+    }
+    ctrl_channels = mixer_get_ctl_by_name(a2dp_sink.adev->mixer,
+                                          MIXER_ADM_CHANNELS);
+    if (!ctrl_channels) {
+        ALOGE(" ERROR ADM channels mixer control not identified");
+    } else {
+        if (mixer_ctl_set_enum_by_string(ctrl_channels, channels) != 0) {
+            ALOGE("%s: Failed to set ADM channels =%s", __func__, channels);
             is_configured = false;
             goto fail;
         }
