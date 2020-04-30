@@ -134,7 +134,8 @@ endif
 endif
 ifneq ($(TARGET_USES_AOSP_FOR_AUDIO), true)
 PRODUCT_COPY_FILES += \
-    $(TOPDIR)hardware/qcom/audio/configs/msm8937/audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio/audio_policy_configuration.xml
+    $(TOPDIR)hardware/qcom/audio/configs/msm8937/audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio/audio_policy_configuration.xml \
+    $(TOPDIR)hardware/qcom/audio/configs/msm8937/audio_policy_configuration_a2dp.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio/audio_policy_configuration_a2dp.xml
 endif
 PRODUCT_COPY_FILES += \
     $(TOPDIR)hardware/qcom/audio/configs/common/audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy_configuration.xml \
