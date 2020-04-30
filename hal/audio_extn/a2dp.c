@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
+* Copyright (c) 2015-2018,2020, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -719,7 +719,7 @@ static bool a2dp_set_backend_cfg(uint8_t direction)
             break;
         }
 
-        ALOGD("%s: set afe dec channels =%d", __func__, channels);
+        ALOGD("%s: set afe dec channels =%s", __func__, channels);
         ctrl_channels = mixer_get_ctl_by_name(a2dp.adev->mixer,
                                             MIXER_AFE_SINK_CHANNELS);
     } else {
@@ -734,7 +734,7 @@ static bool a2dp_set_backend_cfg(uint8_t direction)
             break;
         }
 
-        ALOGD("%s: set afe enc channels =%d", __func__, channels);
+        ALOGD("%s: set afe enc channels =%s", __func__, channels);
         ctrl_channels = mixer_get_ctl_by_name(a2dp.adev->mixer,
                                             MIXER_AFE_IN_CHANNELS);
     }
@@ -743,7 +743,7 @@ static bool a2dp_set_backend_cfg(uint8_t direction)
         ALOGE(" ERROR AFE channels mixer control not identified");
     } else {
         if (mixer_ctl_set_enum_by_string(ctrl_channels, channels) != 0) {
-            ALOGE("%s: Failed to set AFE channels =%d", __func__, channels);
+            ALOGE("%s: Failed to set AFE channels =%s", __func__, channels);
             is_configured = false;
             goto fail;
         }
@@ -925,7 +925,6 @@ static bool configure_a2dp_dsp_decoder_format()
     codec_t codec_type = CODEC_TYPE_INVALID;
     bool is_configured = false;
     struct mixer_ctl *ctl_dec_data = NULL;
-    int ret = 0;
 
     if (!a2dp.audio_get_dec_config) {
         ALOGE(" a2dp handle is not identified, ignoring a2dp decoder config");
