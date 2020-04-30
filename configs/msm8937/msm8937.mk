@@ -113,9 +113,13 @@ hardware/qcom/audio/configs/msm8937/mixer_paths_wcd9326.xml:$(TARGET_COPY_OUT_VE
 hardware/qcom/audio/configs/msm8937/mixer_paths_qrd_skun.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_qrd_skun.xml \
 hardware/qcom/audio/configs/msm8937/mixer_paths_qrd_sku1.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_qrd_sku1.xml \
 hardware/qcom/audio/configs/msm8937/mixer_paths_qrd_sku2.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_qrd_sku2.xml \
-hardware/qcom/audio/configs/msm8937/mixer_paths_sdm429w.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_sdm429w.xml \
-hardware/qcom/audio/configs/msm8937/audio_platform_info.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info.xml \
-hardware/qcom/audio/configs/msm8937/audio_platform_info_extcodec.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info_extcodec.xml \
+hardware/qcom/audio/configs/msm8937/mixer_paths_sdm429w.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_sdm429w.xml
+ifeq ($(TARGET_SUPPORTS_WEARABLES), true)
+PRODUCT_COPY_FILES += hardware/qcom/audio/configs/msm8937/audio_platform_info_sdm429w.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info.xml
+else
+PRODUCT_COPY_FILES += hardware/qcom/audio/configs/msm8937/audio_platform_info.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info.xml
+endif
+PRODUCT_COPY_FILES += hardware/qcom/audio/configs/msm8937/audio_platform_info_extcodec.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info_extcodec.xml \
 hardware/qcom/audio/configs/msm8937/audio_tuning_mixer.txt:$(TARGET_COPY_OUT_VENDOR)/etc/audio_tuning_mixer.txt \
 frameworks/native/data/etc/android.software.midi.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.software.midi.xml
 
