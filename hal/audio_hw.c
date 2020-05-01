@@ -2426,12 +2426,6 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
         return 0;
     }
 
-    if (adev->ecall_flag == true) {
-       in_snd_device = SND_DEVICE_IN_ECALL;
-       out_snd_device = SND_DEVICE_OUT_ECALL;
-    }
-
-
     if (out_snd_device != SND_DEVICE_NONE &&
             out_snd_device != adev->last_logged_snd_device[uc_id][0]) {
         ALOGD("%s: changing use case %s output device from(%d: %s, acdb %d) to (%d: %s, acdb %d)",
@@ -2537,8 +2531,7 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
     if (usecase->type == VOICE_CALL || usecase->type == VOIP_CALL) {
         status = platform_switch_voice_call_device_post(adev->platform,
                                                         out_snd_device,
-                                                        in_snd_device);
-        enable_audio_route_for_voice_usecases(adev, usecase);
+                                                        in_snd_device);    
     }
 
     usecase->in_snd_device = in_snd_device;
@@ -4236,7 +4229,11 @@ static int parse_compress_metadata(struct stream_out *out, struct str_parms *par
 
 static bool output_drives_call(struct audio_device *adev, struct stream_out *out)
 {
-    return out == adev->primary_output || out == adev->voice_tx_output;
+
+    if (out->usecase == USECASE_VOICEMMODE2_CALL)
+        return out == adev->primary_output || out == adev->voice2_tx_output;
+    else
+        return out == adev->primary_output || out == adev->voice_tx_output;
 }
 
 // note: this call is safe only if the stream_cb is
@@ -4440,22 +4437,7 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
             out->devices = new_dev;
 
             if (output_drives_call(adev, out)) {
-                if (!voice_is_call_state_active(adev)) {
-                    if (adev->mode == AUDIO_MODE_IN_CALL) {
-                        adev->current_call_output = out;
-                        if (audio_is_usb_out_device(out->devices & AUDIO_DEVICE_OUT_ALL_USB)) {
-                            service_interval = audio_extn_usb_find_service_interval(true, true /*playback*/);
-                            audio_extn_usb_set_service_interval(true /*playback*/,
-                                                                service_interval,
-                                                                &reconfig);
-                            ALOGD("%s, svc_int(%ld),reconfig(%d)",__func__,service_interval, reconfig);
-                         }
-                         ret = voice_start_call(adev);
-                    }
-                } else {
-                    adev->current_call_output = out;
-                    voice_update_devices_for_all_voice_usecases(adev);
-                }
+                ret = voice_start_call(adev);
             }
 
             if (!out->standby) {
@@ -4495,6 +4477,14 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
                 } else if (out->usecase == USECASE_AUDIO_PLAYBACK_VOIP) {
                     out_set_voip_volume(&out->stream, out->volume_l, out->volume_r);
                 }
+            }
+        } else if (val == 0) {
+            if (output_drives_call(adev, out)) {
+                  if (out->usecase == USECASE_VOICEMMODE2_CALL)
+                       adev->voice.session[MMODE2_SESS_IDX].state.new = CALL_INACTIVE;
+                  else if (out->usecase == USECASE_VOICEMMODE1_CALL)
+                       adev->voice.session[MMODE1_SESS_IDX].state.new = CALL_INACTIVE;
+                  ret = voice_stop_call(adev);
             }
         }
 
@@ -6727,15 +6717,6 @@ int adev_open_output_stream(struct audio_hw_device *dev,
 
     *stream_out = NULL;
 
-    pthread_mutex_lock(&adev->lock);
-    if (out_get_stream(adev, handle) != NULL) {
-        ALOGW("%s, output stream already opened", __func__);
-        ret = -EEXIST;
-    }
-    pthread_mutex_unlock(&adev->lock);
-    if (ret)
-        return ret;
-
     out = (struct stream_out *)calloc(1, sizeof(struct stream_out));
 
     ALOGD("%s: enter: format(%#x) sample_rate(%d) channel_mask(%#x) devices(%#x) flags(%#x)\
@@ -7370,19 +7351,18 @@ int adev_open_output_stream(struct audio_hw_device *dev,
             if(adev->voice_tx_output == NULL) {
                 adev->voice_tx_output = out;
             } else {
-                ALOGE("%s: Voice output is already opened", __func__);
+                ALOGE("%s: Voice 1 outputs already opened", __func__);
                 ret = -EEXIST;
                 goto error_open;
             }
-        } else if (out->flags & AUDIO_OUTPUT_FLAG_ECALL) {
+        } else if (out->flags & AUDIO_OUTPUT_FLAG_VOICE2_CALL) {
             /* Voice call should not use primary path */
-            adev->ecall_flag = true;
-            out->usecase = USECASE_VOICEMMODE1_CALL;
+            out->usecase = USECASE_VOICEMMODE2_CALL;
             out->config = GET_PCM_CONFIG_AUDIO_PLAYBACK_PRIMARY(use_db_as_primary);
-            if(adev->voice_tx_output == NULL) {
-                adev->voice_tx_output = out;
+            if(adev->voice2_tx_output == NULL) {
+			   adev->voice2_tx_output = out;
             } else {
-                ALOGE("%s: Voice output is already opened", __func__);
+		ALOGE("%s: Voice 2 output already opened", __func__);
                 ret = -EEXIST;
                 goto error_open;
             }
@@ -7609,15 +7589,15 @@ void adev_close_output_stream(struct audio_hw_device *dev __unused,
     if (adev->voice_tx_output == out)
         adev->voice_tx_output = NULL;
 
+    if (adev->voice2_tx_output == out)
+        adev->voice2_tx_output = NULL;
+
 #ifndef LINUX_ENABLED
     error_log_destroy(out->error_log);
     out->error_log = NULL;
 #endif
     if (adev->primary_output == out)
         adev->primary_output = NULL;
-
-    if (adev->ecall_flag == true)
-        adev->ecall_flag = false;
 
     pthread_cond_destroy(&out->cond);
     pthread_mutex_destroy(&out->lock);
@@ -7981,7 +7961,7 @@ static int adev_set_mode(struct audio_hw_device *dev, audio_mode_t mode)
                 }
             }
 
-            voice_stop_call(adev);
+
             platform_set_gsm_mode(adev->platform, false);
             adev->current_call_output = NULL;
         }

@@ -585,7 +585,6 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_OUT_SPEAKER2] = "speaker2",
     [SND_DEVICE_OUT_SPEAKER3] = "speaker3",
     [SND_DEVICE_OUT_VOICE_DL_TX] = "voice-dl-tx",
-    [SND_DEVICE_OUT_ECALL] = "handset",
 
 
     /* Capture sound devices */
@@ -709,7 +708,6 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_HANDSET_GENERIC_QMIC_AND_EC_REF_LOOPBACK] = "handset-qmic-and-ec-ref-loopback",
     [SND_DEVICE_IN_HANDSET_GENERIC_6MIC_AND_EC_REF_LOOPBACK] = "handset-6mic-and-ec-ref-loopback",
     [SND_DEVICE_IN_HANDSET_GENERIC_8MIC_AND_EC_REF_LOOPBACK] = "handset-8mic-and-ec-ref-loopback",
-    [SND_DEVICE_IN_ECALL] = "handset-mic",
 };
 
 // Platform specific backend bit width table
@@ -826,7 +824,6 @@ static int acdb_device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_OUT_BUS_PHN] = 94,
     [SND_DEVICE_OUT_SPEAKER2] = 14,
     [SND_DEVICE_OUT_SPEAKER3] = 14,
-    [SND_DEVICE_OUT_ECALL] = 7,
     [SND_DEVICE_IN_HANDSET_MIC] = 4,
     [SND_DEVICE_IN_HANDSET_MIC_EXTERNAL] = 4,
     [SND_DEVICE_IN_HANDSET_MIC_AEC] = 106,
@@ -931,7 +928,6 @@ static int acdb_device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_LINE] = 4,
     [SND_DEVICE_IN_EC_REF_LOOPBACK_QUAD] = 4,
     [SND_DEVICE_IN_BUS] = 11,
-    [SND_DEVICE_IN_ECALL] = 4,
 };
 
 struct name_to_index {

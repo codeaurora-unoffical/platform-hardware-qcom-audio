@@ -129,7 +129,7 @@ typedef enum {
 
 /* audio output flag for voice call */
 #define AUDIO_OUTPUT_FLAG_VOICE_CALL 0x2000000
-#define AUDIO_OUTPUT_FLAG_ECALL  0x8000
+#define AUDIO_OUTPUT_FLAG_VOICE2_CALL  0x10000
 
 
 /* MAX SECTORS for sourcetracking feature */

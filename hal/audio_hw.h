@@ -598,6 +598,7 @@ struct audio_device {
     struct stream_in *active_input;
     struct stream_out *primary_output;
     struct stream_out *voice_tx_output;
+    struct stream_out *voice2_tx_output;
     struct stream_out *current_call_output;
     bool bluetooth_nrec;
     bool screen_off;
