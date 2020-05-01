@@ -618,15 +618,7 @@ static bool configure_aptx_classic_dec_format(audio_aptx_classic_dec_config_t *a
 
     is_configured = true;
     a2dp_sink.bt_decoder_format = CODEC_TYPE_APTX;
-    switch(aptx_classic_bt_cfg->sampling_rate) {
-        case APTX_44_1:
-            a2dp_sink.dec_sampling_rate = 44100;
-            break;
-        case APTX_48:
-        default:
-            a2dp_sink.dec_sampling_rate = 48000;
-            break;
-    }
+    a2dp_sink.dec_sampling_rate = aptx_classic_bt_cfg->sampling_rate;
     a2dp_sink.dec_channels = aptx_classic_bt_cfg->channel_mode;
 
     ALOGV("Successfully updated Aptx classic dec format");
