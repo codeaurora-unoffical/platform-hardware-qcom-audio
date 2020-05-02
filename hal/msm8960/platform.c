@@ -1442,3 +1442,8 @@ int platform_get_active_microphones(void *platform __unused, unsigned int channe
                                     size_t *mic_count __unused) {
     return -ENOSYS;
 }
+
+bool platform_get_eccarstate(void *platform)
+{
+    return false;
+}
