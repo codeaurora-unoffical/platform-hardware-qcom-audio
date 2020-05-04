@@ -359,6 +359,14 @@ const char * const use_case_table[AUDIO_USECASE_MAX] = {
     [USECASE_AUDIO_HFP_SCO_WB] = "hfp-sco-wb",
     [USECASE_AUDIO_HFP_SCO_DOWNLINK] = "hfp-sco-downlink",
     [USECASE_AUDIO_HFP_SCO_WB_DOWNLINK] = "hfp-sco-wb-downlink",
+    [USECASE_AUDIO_PRI_HFP_SCO] = "pri-hfp-sco",
+    [USECASE_AUDIO_PRI_HFP_SCO_WB] = "pri-hfp-sco-wb",
+    [USECASE_AUDIO_PRI_HFP_SCO_DOWNLINK] = "pri-hfp-sco-downlink",
+    [USECASE_AUDIO_PRI_HFP_SCO_WB_DOWNLINK] = "pri-hfp-sco-wb-downlink",
+    [USECASE_AUDIO_SEC_HFP_SCO] = "sec-hfp-sco",
+    [USECASE_AUDIO_SEC_HFP_SCO_WB] = "sec-hfp-sco-wb",
+    [USECASE_AUDIO_SEC_HFP_SCO_DOWNLINK] = "sec-hfp-sco-downlink",
+    [USECASE_AUDIO_SEC_HFP_SCO_WB_DOWNLINK] = "sec-hfp-sco-wb-downlink",
 
     [USECASE_VOICE_CALL] = "voice-call",
     [USECASE_VOICE2_CALL] = "voice2-call",
@@ -412,6 +420,7 @@ const char * const use_case_table[AUDIO_USECASE_MAX] = {
     [USECASE_AUDIO_PLAYBACK_REAR_SEAT] = "rear-seat-playback",
     [USECASE_AUDIO_FM_TUNER_EXT] = "fm-tuner-ext",
     [USECASE_ICC_CALL] = "icc-call",
+    [USECASE_AUDIO_PLAYBACK_SYNTHESIZER] = "synth-loopback",
 };
 
 static const audio_usecase_t offload_usecases[] = {
@@ -1305,12 +1314,13 @@ int enable_snd_device(struct audio_device *adev,
             goto err;
         }
 
-        if (((SND_DEVICE_OUT_BT_SCO_SWB == snd_device) ||
-             (SND_DEVICE_IN_BT_SCO_MIC_SWB_NREC == snd_device) ||
-             (SND_DEVICE_IN_BT_SCO_MIC_SWB == snd_device)) &&
-            (audio_extn_sco_start_configuration() < 0)) {
-            ALOGE(" fail to configure sco control path ");
-            goto err;
+        if ((SND_DEVICE_OUT_BT_SCO_SWB == snd_device) ||
+            (SND_DEVICE_IN_BT_SCO_MIC_SWB_NREC == snd_device) ||
+            (SND_DEVICE_IN_BT_SCO_MIC_SWB == snd_device)) {
+            if (!adev->bt_sco_on || (audio_extn_sco_start_configuration() < 0)) {
+                ALOGE(" fail to configure sco control path ");
+                goto err;
+            }
         }
 
         configure_btsco_sample_rate(snd_device);
@@ -2482,7 +2492,8 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
     if ((usecase->type == VOICE_CALL) ||
         (usecase->type == VOIP_CALL)  ||
         (usecase->type == PCM_HFP_CALL)||
-        (usecase->type == ICC_CALL)) {
+        (usecase->type == ICC_CALL) ||
+        (usecase->type == SYNTH_LOOPBACK)) {
         if(usecase->stream.out == NULL) {
             ALOGE("%s: stream.out is NULL", __func__);
             return -EINVAL;
@@ -3595,7 +3606,7 @@ int start_output_stream(struct stream_out *out)
         CARD_STATUS_OFFLINE == adev->card_status) {
         ALOGW("out->card_status or adev->card_status offline, try again");
         ret = -EIO;
-        goto error_config;
+        goto error_fatal;
     }
 
     //Update incall music usecase to reflect correct voice session
@@ -3804,8 +3815,15 @@ int start_output_stream(struct stream_out *out)
             out_set_pcm_volume(&out->stream, out->volume_l, out->volume_r);
         }
     } else {
-        platform_set_stream_channel_map(adev->platform, out->channel_mask,
-                   out->pcm_device_id, &out->channel_map_param.channel_map[0]);
+        /*
+         * set custom channel map if:
+         *   1. neither mono nor stereo clips i.e. channels > 2 OR
+         *   2. custom channel map has been set by client
+         * else default channel map of FC/FR/FL can always be set to DSP
+         */
+        if (popcount(out->channel_mask) > 2 || out->channel_map_param.channel_map[0])
+            platform_set_stream_channel_map(adev->platform, out->channel_mask,
+                       out->pcm_device_id, &out->channel_map_param.channel_map[0]);
         audio_enable_asm_bit_width_enforce_mode(adev->mixer,
                                                 adev->dsp_bit_width_enforce_mode,
                                                 true);
@@ -3929,12 +3947,13 @@ error_open:
     audio_streaming_hint_end();
     audio_extn_perf_lock_release(&adev->perf_lock_handle);
     stop_output_stream(out);
-error_config:
+error_fatal:
     /*
      * sleep 50ms to allow sufficient time for kernel
      * drivers to recover incases like SSR.
      */
     usleep(50000);
+error_config:
     ATRACE_END();
     enable_gcov();
     return ret;
@@ -4506,15 +4525,6 @@ static void out_snd_mon_cb(void * stream, struct str_parms * parms)
     return;
 }
 
-static int get_alive_usb_card(struct str_parms* parms) {
-    int card;
-    if ((str_parms_get_int(parms, "card", &card) >= 0) &&
-        !audio_extn_usb_alive(card)) {
-        return card;
-    }
-    return -ENODEV;
-}
-
 static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
 {
     struct stream_out *out = (struct stream_out *)stream;
@@ -4580,7 +4590,7 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
                 val = AUDIO_DEVICE_OUT_SPEAKER;
         }
         /*
-        * When USB headset is disconnected the music platback paused
+        * When USB headset is disconnected the music playback paused
         * and the policy manager send routing=0. But if the USB is connected
         * back before the standby time, AFE is not closed and opened
         * when USB is connected back. So routing to speker will guarantee
@@ -4588,7 +4598,7 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
         */
         if ((out->devices & AUDIO_DEVICE_OUT_ALL_USB) &&
                 (val == AUDIO_DEVICE_NONE) &&
-                 !audio_extn_usb_connected(parms)) {
+                 !audio_extn_usb_connected(NULL)) {
                  val = AUDIO_DEVICE_OUT_SPEAKER;
          }
         /* To avoid a2dp to sco overlapping / BT device improper state
@@ -4619,11 +4629,10 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
 
         // Workaround: If routing to an non existing usb device, fail gracefully
         // The routing request will otherwise block during 10 second
-        int card;
-        if (audio_is_usb_out_device(new_dev) &&
-            (card = get_alive_usb_card(parms)) >= 0) {
+        if ((new_dev & AUDIO_DEVICE_OUT_ALL_USB) &&
+            !audio_extn_usb_connected(NULL)) {
 
-            ALOGW("out_set_parameters() ignoring rerouting to non existing USB card %d", card);
+            ALOGW("out_set_parameters() ignoring rerouting to non existing USB card");
             pthread_mutex_unlock(&adev->lock);
             pthread_mutex_unlock(&out->lock);
             ret = -ENOSYS;
@@ -5549,6 +5558,12 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
         }
     }
 
+    if ((out->devices & AUDIO_DEVICE_OUT_ALL_USB) &&
+            !audio_extn_usb_connected(NULL)) {
+        ret = -EIO;
+        goto exit;
+    }
+
     if (out->standby) {
         out->standby = false;
         pthread_mutex_lock(&adev->lock);
@@ -6172,9 +6187,17 @@ static void adjust_mmap_period_count(struct pcm_config *config, int32_t min_size
 // This is to workaround apparent inaccuracies in the timing information that
 // is used by the AAudio timing model. The inaccuracies can cause glitches.
 static int64_t get_mmap_out_time_offset() {
+#ifndef LINUX_ENABLED
     const int32_t kDefaultOffsetMicros = 0;
     int32_t mmap_time_offset_micros = property_get_int32(
         "persist.vendor.audio.out_mmap_delay_micros", kDefaultOffsetMicros);
+#else
+    char value[PROPERTY_VALUE_MAX] = {0};
+    int32_t mmap_time_offset_micros = 0;
+    if(property_get("persist.vendor.audio.out_mmap_delay_micros", value, "0"))
+        mmap_time_offset_micros = atoi(value);
+#endif
+
     ALOGI("mmap_time_offset_micros = %d for output", mmap_time_offset_micros);
     return mmap_time_offset_micros * (int64_t)1000;
 }
@@ -6423,9 +6446,6 @@ static int in_standby(struct audio_stream *stream)
             in->pcm = NULL;
         }
 
-        if (in->source == AUDIO_SOURCE_VOICE_COMMUNICATION)
-            adev->enable_voicerx = false;
-
         if (do_stop)
             status = stop_input_stream(in);
 
@@ -6546,11 +6566,9 @@ static int in_set_parameters(struct audio_stream *stream, const char *kvpairs)
 
             // Workaround: If routing to an non existing usb device, fail gracefully
             // The routing request will otherwise block during 10 second
-            int card;
             if (audio_is_usb_in_device(val) &&
-                (card = get_alive_usb_card(parms)) >= 0) {
-
-                ALOGW("in_set_parameters() ignoring rerouting to non existing USB card %d", card);
+                !audio_extn_usb_connected(NULL)) {
+                ALOGW("in_set_parameters() ignoring rerouting to non existing USB");
                 ret = -ENOSYS;
             } else {
 
@@ -7058,9 +7076,16 @@ static int in_start(const struct audio_stream_in* stream)
 // This is to workaround apparent inaccuracies in the timing information that
 // is used by the AAudio timing model. The inaccuracies can cause glitches.
 static int64_t in_get_mmap_time_offset() {
+#ifndef LINUX_ENABLED
     const int32_t kDefaultOffsetMicros = 0;
     int32_t mmap_time_offset_micros = property_get_int32(
             "persist.vendor.audio.in_mmap_delay_micros", kDefaultOffsetMicros);
+#else
+    char value[PROPERTY_VALUE_MAX] = {0};
+    int32_t mmap_time_offset_micros = 0;
+    if(property_get("vendor.audio.hal.maj.version", value, "0"))
+        mmap_time_offset_micros = atoi(value);
+#endif
     ALOGI("mmap_time_offset_micros = %d for input", mmap_time_offset_micros);
     return mmap_time_offset_micros * (int64_t)1000;
 }
@@ -9025,10 +9050,6 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
         in->stream.create_mmap_buffer = in_create_mmap_buffer;
         in->stream.get_mmap_position = in_get_mmap_position;
         ALOGV("%s: USECASE_AUDIO_RECORD_MMAP", __func__);
-    } else if (in->realtime) {
-        in->config = pcm_config_audio_capture_rt;
-        in->config.format = pcm_format_from_audio_format(config->format);
-        in->af_period_multiplier = af_period_multiplier;
     } else if (is_usb_dev && may_use_hifi_record) {
         in->usecase = USECASE_AUDIO_RECORD_HIFI;
         in->config = pcm_config_audio_capture;
@@ -9275,6 +9296,10 @@ static void adev_close_input_stream(struct audio_hw_device *dev,
     pthread_mutex_lock(&adev->lock);
     if (in->usecase == USECASE_AUDIO_RECORD) {
         adev->pcm_record_uc_state = 0;
+    }
+
+    if (in->source == AUDIO_SOURCE_VOICE_COMMUNICATION) {
+        adev->enable_voicerx = false;
     }
 
     if (audio_extn_ssr_get_stream() == in) {
@@ -9722,8 +9747,10 @@ static int adev_open(const hw_module_t *module, const char *name,
 
     pthread_mutex_init(&adev->lock, (const pthread_mutexattr_t *) NULL);
 
+#ifdef AHAL_EXT_ENABLED
     // register audio ext hidl at the earliest
     audio_extn_hidl_init();
+#endif
 #ifdef DYNAMIC_LOG_ENABLED
     register_for_dynamic_logging("hal");
 #endif
@@ -9791,6 +9818,8 @@ static int adev_open(const hw_module_t *module, const char *name,
     adev->enable_hfp = false;
     adev->use_old_pspd_mix_ctrl = false;
     adev->adm_routing_changed = false;
+
+    audio_extn_perf_lock_init();
 
     /* Loads platform specific libraries dynamically */
     adev->platform = platform_init(adev);
@@ -9984,7 +10013,6 @@ static int adev_open(const hw_module_t *module, const char *name,
         adev->adm_data = adev->adm_init();
 
     qahwi_init(*device);
-    audio_extn_perf_lock_init();
     audio_extn_adsp_hdlr_init(adev->mixer);
 
     audio_extn_snd_mon_init();

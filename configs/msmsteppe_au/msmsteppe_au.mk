@@ -37,7 +37,6 @@ AUDIO_FEATURE_ENABLED_EXTENDED_COMPRESS_FORMAT := true
 endif
 
 USE_XML_AUDIO_POLICY_CONF := 1
-AUDIO_FEATURE_ENABLED_DLKM := true
 BOARD_SUPPORTS_SOUND_TRIGGER := true
 AUDIO_FEATURE_ENABLED_INSTANCE_ID := true
 AUDIO_USE_DEEP_AS_PRIMARY_OUTPUT := false
@@ -65,7 +64,10 @@ AUDIO_FEATURE_ENABLED_SOURCE_TRACKING := true
 AUDIO_FEATURE_ENABLED_GEF_SUPPORT := true
 BOARD_SUPPORTS_QAHW := false
 AUDIO_FEATURE_ENABLED_RAS := true
-AUDIO_FEATURE_ENABLED_SND_MONITOR := false
+ifeq ($(ENABLE_HYP),true)
+AUDIO_FEATURE_ENABLED_SND_MONITOR := true
+endif
+AUDIO_FEATURE_ENABLED_DLKM := true
 AUDIO_FEATURE_ENABLED_USB_BURST_MODE := false
 AUDIO_FEATURE_ENABLED_SVA_MULTI_STAGE := true
 AUDIO_FEATURE_ENABLED_BATTERY_LISTENER := false
@@ -74,6 +76,7 @@ AUDIO_FEATURE_ENABLED_BATTERY_LISTENER := false
 AUDIO_FEATURE_ENABLED_AUTO_HAL := true
 AUDIO_FEATURE_ENABLED_EXT_HW_PLUGIN := true
 AUDIO_FEATURE_ENABLED_AUDIO_CONTROL_HAL := true
+AUDIO_FEATURE_ENABLED_DUAL_HFP := true
 ifneq ($(ENABLE_HYP),true)
 AUDIO_FEATURE_ENABLED_AUTO_AUDIOD := true
 AUDIO_FEATURE_ENABLED_DAEMON_SUPPORT := true
@@ -362,8 +365,8 @@ vendor.audio.feature.deepbuffer_as_primary.enable=false \
 vendor.audio.feature.vbat.enable=false \
 vendor.audio.feature.wsa.enable=false \
 vendor.audio.feature.audiozoom.enable=false \
-vendor.audio.feature.snd_mon.enable=false \
-vendor.audio.feature.auto_hal.enable=true
+vendor.audio.feature.auto_hal.enable=true \
+vendor.audio.feature.synth.enable=true
 else
 # Non-Generic ODM varient related
 PRODUCT_ODM_PROPERTIES += \
@@ -408,8 +411,13 @@ vendor.audio.feature.deepbuffer_as_primary.enable=false \
 vendor.audio.feature.vbat.enable=true \
 vendor.audio.feature.wsa.enable=false \
 vendor.audio.feature.audiozoom.enable=false \
-vendor.audio.feature.snd_mon.enable=false \
-vendor.audio.feature.auto_hal.enable=true
+vendor.audio.feature.auto_hal.enable=true \
+vendor.audio.feature.synth.enable=true
+endif
+
+ifeq ($(ENABLE_HYP),true)
+PRODUCT_ODM_PROPERTIES += \
+vendor.audio.feature.snd_mon.enable=true
 endif
 
 # for HIDL related packages

@@ -60,10 +60,6 @@
 // #define AUDIO_OUTPUT_FLAG_INCALL_MUSIC 0x80000000 //0x8000
 // #endif
 
-#ifndef AUDIO_DEVICE_OUT_FM_TX
-#define AUDIO_DEVICE_OUT_FM_TX 0x8000000
-#endif
-
 #ifndef AUDIO_FORMAT_AAC_LATM
 #define AUDIO_FORMAT_AAC_LATM 0x80000000UL
 #define AUDIO_FORMAT_AAC_LATM_LC   (AUDIO_FORMAT_AAC_LATM |\
@@ -711,6 +707,7 @@ typedef struct hfp_init_config {
     fp_voice_get_mic_mute_t                      fp_voice_get_mic_mute;
     fp_audio_extn_auto_hal_start_hfp_downlink_t  fp_audio_extn_auto_hal_start_hfp_downlink;
     fp_audio_extn_auto_hal_stop_hfp_downlink_t   fp_audio_extn_auto_hal_stop_hfp_downlink;
+    fp_platform_get_eccarstate_t                 fp_platform_get_eccarstate;
 } hfp_init_config_t;
 
 
@@ -1387,6 +1384,20 @@ typedef struct auto_hal_init_config {
     fp_platform_get_eccarstate_t                 fp_platform_get_eccarstate;
 } auto_hal_init_config_t;
 // END: AUTO_HAL FEATURE ==================================================
+
+// START: SYNTH_HAL FEATURE ==================================================
+bool audio_extn_synth_is_active(struct audio_device *adev);
+void audio_extn_synth_set_parameters(struct audio_device *adev,
+                                struct str_parms *parms);
+
+typedef struct synth_init_config {
+    fp_get_usecase_from_list_t                   fp_get_usecase_from_list;
+    fp_platform_get_pcm_device_id_t              fp_platform_get_pcm_device_id;
+    fp_disable_audio_route_t                     fp_disable_audio_route;
+    fp_disable_snd_device_t                      fp_disable_snd_device;
+    fp_select_devices_t                          fp_select_devices;
+} synth_init_config_t;
+// END: SYNTH_HAL FEATURE ==================================================
 
 bool audio_extn_edid_is_supported_sr(edid_audio_info* info, int sr);
 bool audio_extn_edid_is_supported_bps(edid_audio_info* info, int bps);

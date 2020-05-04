@@ -1,6 +1,6 @@
 bin_PROGRAMS = hal_play_test
 
-PLAY_CFLAGS = -Wno-sign-compare -Werror
+PLAY_CFLAGS = -Wno-sign-compare
 PLAY_CFLAGS += -D__unused=__attribute__\(\(__unused__\)\)
 PLAY_INCLUDES = -I $(top_srcdir)/qahw_api/inc
 PLAY_INCLUDES += -I $(top_srcdir)/qahw/inc
@@ -38,14 +38,14 @@ trans_loopback_test_INCLUDES = -I $(top_srcdir)/qahw_api/inc
 
 trans_loopback_test_SOURCES = trans_loopback_test.c
 
-trans_loopback_test_CFLAGS  = $(AM_CFLAGS) -Wno-sign-compare -Werror
+trans_loopback_test_CFLAGS  = $(AM_CFLAGS) -Wno-sign-compare -Wno-error=format
 trans_loopback_test_CFLAGS  += $(trans_loopback_test_INCLUDES)
 trans_loopback_test_LDADD = -llog  -lutils ../libqahw.la -lcutils -lm
 
 if QAHW_V1
 bin_PROGRAMS += hal_voice_test
 
-VOICE_CFLAGS = -Wno-sign-compare -Werror
+VOICE_CFLAGS = -Wno-sign-compare
 VOICE_CFLAGS += -D__unused=__attribute__\(\(__unused__\)\)
 VOICE_INCLUDES = -I $(top_srcdir)/qahw_api/inc
 VOICE_INCLUDES += -I $(top_srcdir)/qahw/inc
