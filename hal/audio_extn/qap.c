@@ -48,6 +48,7 @@
 #define QAP_DEFAULT_PASSTHROUGH_HANDLE 1003
 
 #define COMPRESS_OFFLOAD_PLAYBACK_LATENCY 300
+#define MS12_LATENCY 310
 
 #define MIN_PCM_OFFLOAD_FRAGMENT_SIZE 512
 #define MAX_PCM_OFFLOAD_FRAGMENT_SIZE (240 * 1024)
@@ -1356,14 +1357,8 @@ static int qap_get_rendered_frames(struct stream_out *out, uint64_t *frames)
         return -EINVAL;
     }
 
-    if (delay_event_fired == true) {
-        module_latency += main_delay_event_data.algo_delay;
-        module_latency += main_delay_event_data.buffering_delay;
-//      module_latency += main_delay_event_data.non_main_data_length;
-//      module_latency += main_delay_event_data.non_main_data_offset;
-        // MS12 gives latency in terms of samples convert them to time domain
-        module_latency = (module_latency*1000)/48000;
-     }
+
+     module_latency = MS12_LATENCY;
     //Get kernel Latency
     for (i = MAX_QAP_MODULE_OUT - 1; i >= 0; i--) {
         if (qap_mod->stream_out[i] == NULL) {
@@ -1861,6 +1856,12 @@ static void qap_session_callback(qap_session_handle_t session_handle __unused,
                         new_config->channels,
                         config.channel_mask,
                         device);
+                    memcpy(&qap_mod->session_outputs_config.output_config[0],
+                          &qap_mod->session_outputs_config.output_config[index],
+                          sizeof(qap_mod->session_outputs_config.output_config[index]));
+                    memset(&qap_mod->session_outputs_config.output_config[index], 0,
+                          sizeof(qap_mod->session_outputs_config.output_config[index]));
+                    qap_mod->new_out_format_index = 1;
                 }
             }
 
