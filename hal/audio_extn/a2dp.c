@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2015-2018, The Linux Foundation. All rights reserved.
+* Copyright (c) 2015-2018, 2020 The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -771,16 +771,32 @@ static void open_a2dp_output()
                           dlsym(a2dp.bt_lib_handle, "audio_stream_open");
             a2dp.audio_start_stream = (audio_start_stream_t)
                           dlsym(a2dp.bt_lib_handle, "audio_start_stream");
+            if (a2dp.audio_start_stream == NULL) {
+                a2dp.audio_start_stream = (audio_start_stream_t)
+                          dlsym(a2dp.bt_lib_handle, "audio_stream_start");
+            }
             a2dp.audio_get_codec_config = (audio_get_codec_config_t)
                           dlsym(a2dp.bt_lib_handle, "audio_get_codec_config");
             a2dp.audio_suspend_stream = (audio_suspend_stream_t)
                           dlsym(a2dp.bt_lib_handle, "audio_suspend_stream");
+            if (a2dp.audio_suspend_stream == NULL) {
+                a2dp.audio_suspend_stream = (audio_suspend_stream_t)
+                          dlsym(a2dp.bt_lib_handle, "audio_stream_suspend");
+            }
             a2dp.audio_handoff_triggered = (audio_handoff_triggered_t)
                           dlsym(a2dp.bt_lib_handle, "audio_handoff_triggered");
             a2dp.clear_a2dpsuspend_flag = (clear_a2dpsuspend_flag_t)
                           dlsym(a2dp.bt_lib_handle, "clear_a2dpsuspend_flag");
+            if (a2dp.clear_a2dpsuspend_flag == NULL) {
+                a2dp.clear_a2dpsuspend_flag = (clear_a2dpsuspend_flag_t)
+                          dlsym(a2dp.bt_lib_handle, "clear_a2dp_suspend_flag");
+            }
             a2dp.audio_stop_stream = (audio_stop_stream_t)
                           dlsym(a2dp.bt_lib_handle, "audio_stop_stream");
+            if (a2dp.audio_stop_stream == NULL) {
+                a2dp.audio_stop_stream = (audio_stop_stream_t)
+                          dlsym(a2dp.bt_lib_handle, "audio_stream_stop");
+            }
             a2dp.audio_stream_close = (audio_stream_close_t)
                           dlsym(a2dp.bt_lib_handle, "audio_stream_close");
             a2dp.audio_check_a2dp_ready = (audio_check_a2dp_ready_t)

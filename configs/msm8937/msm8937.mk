@@ -34,6 +34,7 @@ DOLBY_ENABLE := false
 endif
 
 USE_XML_AUDIO_POLICY_CONF := 1
+AUDIO_FEATURE_ENABLED_SPLIT_A2DP := true
 BOARD_SUPPORTS_SOUND_TRIGGER := true
 AUDIO_USE_LL_AS_PRIMARY_OUTPUT := true
 AUDIO_FEATURE_ENABLED_HIFI_AUDIO := true
@@ -71,8 +72,13 @@ DEVICE_PACKAGE_OVERLAYS += hardware/qcom/audio/configs/common/overlay
 # Audio configuration file
 ifeq ($(TARGET_USES_AOSP_FOR_AUDIO), true)
    ifeq ($(TARGET_SUPPORTS_WEARABLES), true)
-        PRODUCT_COPY_FILES += \
-                $(BOARD_COMMON_DIR)/media/audio_policy.conf:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy.conf
+      ifeq ($(AUDIO_FEATURE_ENABLED_SPLIT_A2DP), true)
+          PRODUCT_COPY_FILES += \
+                  hardware/qcom/audio/configs/msm8937/audio_policy.conf:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy.conf
+      else
+          PRODUCT_COPY_FILES += \
+                  $(BOARD_COMMON_DIR)/media/audio_policy.conf:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy.conf
+      endif
    else
         PRODUCT_COPY_FILES += \
                 device/qcom/common/media/audio_policy.conf:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy.conf
@@ -107,14 +113,27 @@ hardware/qcom/audio/configs/msm8937/mixer_paths_wcd9326.xml:$(TARGET_COPY_OUT_VE
 hardware/qcom/audio/configs/msm8937/mixer_paths_qrd_skun.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_qrd_skun.xml \
 hardware/qcom/audio/configs/msm8937/mixer_paths_qrd_sku1.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_qrd_sku1.xml \
 hardware/qcom/audio/configs/msm8937/mixer_paths_qrd_sku2.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_qrd_sku2.xml \
-hardware/qcom/audio/configs/msm8937/mixer_paths_sdm429w.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_sdm429w.xml \
-hardware/qcom/audio/configs/msm8937/audio_platform_info.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info.xml \
-hardware/qcom/audio/configs/msm8937/audio_platform_info_extcodec.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info_extcodec.xml \
+hardware/qcom/audio/configs/msm8937/mixer_paths_sdm429w.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_sdm429w.xml
+ifeq ($(TARGET_SUPPORTS_WEARABLES), true)
+PRODUCT_COPY_FILES += hardware/qcom/audio/configs/msm8937/audio_platform_info_sdm429w.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info.xml
+else
+PRODUCT_COPY_FILES += hardware/qcom/audio/configs/msm8937/audio_platform_info.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info.xml
+endif
+PRODUCT_COPY_FILES += hardware/qcom/audio/configs/msm8937/audio_platform_info_extcodec.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info_extcodec.xml \
 hardware/qcom/audio/configs/msm8937/audio_tuning_mixer.txt:$(TARGET_COPY_OUT_VENDOR)/etc/audio_tuning_mixer.txt \
 frameworks/native/data/etc/android.software.midi.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.software.midi.xml
 
 #XML Audio configuration files
 ifeq ($(USE_XML_AUDIO_POLICY_CONF), 1)
+ifeq ($(AUDIO_FEATURE_ENABLED_SPLIT_A2DP), true)
+ifeq ($(TARGET_SUPPORTS_WEARABLES), true)
+   PRODUCT_COPY_FILES += \
+   $(TOPDIR)device/qcom/sdm429w/audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy_configuration.xml
+else
+   PRODUCT_COPY_FILES += \
+   $(TOPDIR)hardware/qcom/audio/configs/msm8937/audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy_configuration.xml
+endif
+endif
 ifneq ($(TARGET_USES_AOSP_FOR_AUDIO), true)
 PRODUCT_COPY_FILES += \
     $(TOPDIR)hardware/qcom/audio/configs/msm8937/audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio/audio_policy_configuration.xml
@@ -254,6 +273,9 @@ ro.af.client_heap_size_kbyte=7168
 
 PRODUCT_PROPERTY_OVERRIDES += \
 persist.vendor.audio.hw.binder.size_kbyte=1024
+
+PRODUCT_PROPERTY_OVERRIDES += \
+persist.vendor.bt.a2dp_offload_cap=sbc
 
 # for HIDL related packages
 PRODUCT_PACKAGES += \
