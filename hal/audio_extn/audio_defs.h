@@ -73,6 +73,7 @@
 #define AUDIO_OFFLOAD_CODEC_APE_SEEK_TABLE_PRESENT "music_offload_seek_table_present"
 
 #define AUDIO_OFFLOAD_CODEC_VORBIS_BITSTREAM_FMT "music_offload_vorbis_bitstream_fmt"
+#define AUDIO_OFFLOAD_CODEC_AMR_WB_PLUS_BITSTREAM_FMT "music_offload_amrwbplus_bitstream_fmt"
 
 /* Query handle fm parameter*/
 #define AUDIO_PARAMETER_KEY_HANDLE_FM "handle_fm"
@@ -125,8 +126,11 @@ typedef enum {
 #define AUDIO_INPUT_FLAG_COMPRESS  0x40000000
 #define AUDIO_INPUT_FLAG_PASSTHROUGH 0x20000000
 
+
 /* audio output flag for voice call */
 #define AUDIO_OUTPUT_FLAG_VOICE_CALL 0x2000000
+#define AUDIO_OUTPUT_FLAG_ECALL  0x8000
+
 
 /* MAX SECTORS for sourcetracking feature */
 #define MAX_SECTORS 8

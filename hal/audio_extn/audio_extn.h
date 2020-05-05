@@ -141,8 +141,14 @@
 #define AUDIO_OUTPUT_FLAG_INTERACTIVE 0x4000000
 #endif
 
+
 #ifndef AUDIO_OUTPUT_FLAG_VOICE_CALL
 #define AUDIO_OUTPUT_FLAG_VOICE_CALL 0x2000000
+#endif
+
+
+#ifndef AUDIO_OUTPUT_FLAG_ECALL
+#define AUDIO_OUTPUT_FLAG_ECALL 0x8000
 #endif
 
 #ifndef AUDIO_FORMAT_MAT
@@ -285,7 +291,12 @@ void audio_extn_get_parameters(const struct audio_device *adev,
                                struct str_parms *query,
                                struct str_parms *reply);
 
-
+void audio_extn_set_clock_mixer(struct audio_device *adev,
+                                snd_device_t snd_device);
+void audio_extn_set_clock_switch_params(struct audio_device *adev,
+                                        struct str_parms *parms);
+void audio_extn_update_clock_data_with_backend(struct audio_device *adev,
+                                               struct audio_usecase *usecase);
 bool audio_extn_get_anc_enabled(void);
 bool audio_extn_should_use_fb_anc(void);
 bool audio_extn_should_use_handset_anc(int in_channels);
@@ -532,7 +543,6 @@ int audio_extn_fbsp_set_parameters(struct str_parms *parms);
 int audio_extn_fbsp_get_parameters(struct str_parms *query,
                                    struct str_parms *reply);
 int audio_extn_get_spkr_prot_snd_device(snd_device_t snd_device);
-
 
 // START: COMPRESS_CAPTURE FEATURE =========================
 void compr_cap_feature_init(bool is_feature_enabled);
@@ -1361,7 +1371,8 @@ int audio_extn_afe_loopback_create_audio_patch(struct audio_hw_device *dev,
 int audio_extn_afe_loopback_release_audio_patch(struct audio_hw_device *dev,
                                              audio_patch_handle_t handle);
 
-#define audio_extn_afe_loopback_set_audio_port_config(dev, config) (0)
+int audio_extn_afe_loopback_set_audio_port_config(struct audio_hw_device *dev,
+                        const struct audio_port_config *config);
 int audio_extn_afe_loopback_get_audio_port(struct audio_hw_device *dev,
                                     struct audio_port *port_in);
 int audio_extn_afe_loopback_init(struct audio_device *adev);
