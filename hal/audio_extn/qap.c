@@ -100,6 +100,8 @@
 #define QAP_DEEP_BUFFER_OUTPUT_PERIOD_SIZE 1536
 
 #define MS12_ATMOS_LOCK_MASK  2
+#define MS12_CHMOD_LOCK_MASK  3
+
 #include <stdlib.h>
 #include <pthread.h>
 #include <errno.h>
@@ -214,7 +216,7 @@ struct qap {
     bool hdmi_connect;
     char ms12_out_format[4];
     int hdmi_sink_channels;
-    //bit 0: atmos_lock, bit 1: chmod_lock, bit 2: request for atmos_lock, bit 3: request for chmod_lock
+    //bit 0: atmos_lock, bit 1: chmod_lock, bit 2: request for atmos_lock, bit 3: request for chmod_
     char ms12_lock;
 
     //Flag to indicate if QAP transcode output stream is enabled from any mm module.
@@ -665,8 +667,6 @@ static int set_ms12_atmos_lock(int lock)
         cmd_data[0] = MS12_SESSION_CFG_ATMOS_LOCK;
         cmd_data[1] = lock;
         check_and_activate_output_thread(true);
-
-        check_and_activate_output_thread(true);
         if (qap_mod->session_handle != NULL) {
             ret = qap_session_cmd(qap_mod->session_handle,
                   QAP_SESSION_CMD_SET_PARAM,
@@ -691,6 +691,52 @@ static int set_ms12_atmos_lock(int lock)
     return ret;
 }
 
+static int set_ms12_channel_mode_lock(int lock)
+{
+    int ret = 0;
+    int32_t cmd_data[2] = {0};
+    struct qap_module *qap_mod = &(p_qap->qap_mod[MS12]);
+
+    DEBUG_MSG_VV("%s:%d Entry", __func__, __LINE__);
+    if (p_qap) {
+       if (!p_qap->qap_mod[MS12].session_handle) {
+           p_qap->ms12_lock = p_qap->ms12_lock | lock << 1;
+           p_qap->ms12_lock = p_qap->ms12_lock | (1 << MS12_CHMOD_LOCK_MASK); //bit 2: save request for atmos_lock before session open
+           ERROR_MSG("request recieved but session is not setup, caching request");
+           return ret;
+       }
+    }
+
+    if (!(p_qap->ms12_lock & (1 << MS12_CHMOD_LOCK_MASK)))
+          pthread_mutex_lock(&p_qap->lock);
+
+    if (!p_qap->bypass_enable) {
+        cmd_data[0] = MS12_SESSION_CFG_CHMOD_LOCKING;
+        cmd_data[1] = lock;
+
+        check_and_activate_output_thread(true);
+        if (qap_mod->session_handle != NULL) {
+            ret = qap_session_cmd(qap_mod->session_handle,
+                  QAP_SESSION_CMD_SET_PARAM,
+                  sizeof(cmd_data),
+                  &cmd_data[0],
+                  NULL,
+                  NULL);
+           if (ret != QAP_STATUS_OK) {
+               ERROR_MSG("channel mode lock set failed");
+           }
+        } else {
+           DEBUG_MSG("qap module is not yet opened!! channel_mod_lock cannot be configured");
+        }
+        check_and_activate_output_thread(false);
+    } else {
+        ERROR_MSG("in bypass mode, channel mode lock can't be enabled/disabled");
+        ret = -1;
+    }
+    pthread_mutex_unlock(&p_qap->lock);
+    DEBUG_MSG_VV("Exit");
+    return ret;
+}
 /*
 * get the MS12 o/p stream and update the volume
 */
@@ -1869,6 +1915,8 @@ static void qap_session_callback(qap_session_handle_t session_handle __unused,
                 config.format = config.offload_info.format = AUDIO_FORMAT_PCM_16_BIT;
                 config.offload_info.bit_width = CODEC_BACKEND_DEFAULT_BIT_WIDTH;
                 config.offload_info.channel_mask = config.channel_mask = AUDIO_CHANNEL_OUT_STEREO;
+                if (qap_check_and_get_compressed_device_format(device, &format))
+                    config.offload_info.channel_mask = config.channel_mask = AUDIO_CHANNEL_OUT_5POINT1;
 
                 need_to_recreate_stream = false;
                 index = get_media_fmt_array_index_for_output_id_l(qap_mod, device);
@@ -1997,7 +2045,6 @@ static void qap_session_callback(qap_session_handle_t session_handle __unused,
                     audio_devices_t devices;
 
                     config.format = config.offload_info.format = format;
-                    config.offload_info.channel_mask = config.channel_mask = AUDIO_CHANNEL_OUT_5POINT1;
 
                     flags = (AUDIO_OUTPUT_FLAG_NON_BLOCKING
                              | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD
@@ -2586,6 +2633,11 @@ static int qap_set_hdmi_configuration_to_module()
                     return ret;
                 }
                 passth_support = true;
+            }
+
+            if ((p_qap->ms12_lock & (1 << MS12_CHMOD_LOCK_MASK))) {
+                if (!set_ms12_channel_mode_lock(((int)p_qap->ms12_lock)))
+                    p_qap->ms12_lock = (p_qap->ms12_lock & (~(1 << MS12_CHMOD_LOCK_MASK)));
             }
         }
 
@@ -3591,6 +3643,21 @@ int audio_extn_qap_set_parameters(struct audio_device *adev, struct str_parms *p
         return status;
     }
 
+    status = str_parms_get_int(parms, "ms12_chmod_lock", &val);
+    if (status >= 0) {
+        if (val)
+            p_qap->ms12_lock = (p_qap->ms12_lock | (~0 & (val << 1))); //set
+        else
+            p_qap->ms12_lock = (p_qap->ms12_lock & (~(1 << 1))); //reset
+        p_qap->ms12_lock = (p_qap->ms12_lock | (1 << MS12_CHMOD_LOCK_MASK));
+
+        status = set_ms12_channel_mode_lock(val);
+        if (!status)
+            p_qap->ms12_lock = (p_qap->ms12_lock & (~(1 << MS12_CHMOD_LOCK_MASK)));
+        DEBUG_MSG("Set ms12 channel_mode_lock to %d:%d is %s", val, p_qap->ms12_lock, status ? "failed" : "success");
+        return status;
+    }
+
     DEBUG_MSG("Exit");
     return status;
 }
@@ -3652,6 +3719,9 @@ int audio_extn_qap_init(struct audio_device *adev)
             p_qap->ms12_lock = p_qap->ms12_lock & (~1);
             //bit 2:reset atmos lock request bit
             p_qap->ms12_lock = (p_qap->ms12_lock & (~(1 << MS12_ATMOS_LOCK_MASK)));
+            //default chmod_lock is enabled
+            p_qap->ms12_lock = p_qap->ms12_lock | (1 << 1);
+
         } else if (i == DTS_M8) {
             property_get("vendor.audio.qap.m8.library", value, NULL);
             if (value[0] != 0) {
