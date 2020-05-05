@@ -205,6 +205,7 @@ struct qap_module {
     pthread_mutex_t session_output_lock;
     pthread_cond_t drain_output_cond;
 
+    int  interpolation;
 };
 
 struct qap {
@@ -737,6 +738,49 @@ static int set_ms12_channel_mode_lock(int lock)
     DEBUG_MSG_VV("Exit");
     return ret;
 }
+
+static int qap_ms12_volume_easing_cmd(struct stream_out *out, float left, __unused float right, int32_t b_pause)
+{
+    int ret = 0;
+    struct qap_module *qap_mod = get_qap_module_for_input_stream_l(out);
+    int32_t cmd_data[4] = {0};
+
+    if (is_offload_usecase(out->usecase))
+        cmd_data[0] = MS12_SESSION_CFG_MAIN1_MIXING_GAIN;
+    else if ((out->usecase == USECASE_AUDIO_PLAYBACK_LOW_LATENCY) ||
+             (out->usecase == USECASE_AUDIO_PLAYBACK_DEEP_BUFFER)) {
+             DEBUG_MSG("Request for volume set for %s usecase not supported",
+                      (out->usecase == USECASE_AUDIO_PLAYBACK_LOW_LATENCY) ? "low_latency":"deepbuffer");
+             unlock_qap_stream_in(out);
+             return -ENOSYS;
+     }
+
+     /*take left as default level and MS12 doenst support left and right seperately*/
+     cmd_data[1] = AmpToDb(left);
+     if(!b_pause)
+        cmd_data[2] = property_get_int32("vendor.audio.qap.volumeramp.duration", 20); /* default duration 20ms */
+     else
+        cmd_data[2] = property_get_int32("vendor.audio.qap.pauseramp.duration", 20); /* default duration 20ms */
+     cmd_data[3] = qap_mod->interpolation; /* apply gain linearly*/
+
+     check_and_activate_output_thread(true);
+     if (qap_mod->session_handle != NULL) {
+         ret = qap_session_cmd(qap_mod->session_handle,
+                QAP_SESSION_CMD_SET_PARAM,
+                sizeof(cmd_data),
+                &cmd_data[0],
+                NULL,
+                NULL);
+          if (ret != QAP_STATUS_OK) {
+              ERROR_MSG("vol set failed");
+          }
+     } else
+        DEBUG_MSG("qap module is not yet opened!!, vol cannot be applied");
+     check_and_activate_output_thread(false);
+
+     return ret;
+}
+
 /*
 * get the MS12 o/p stream and update the volume
 */
@@ -744,42 +788,12 @@ static int qap_set_stream_volume(struct audio_stream_out *stream, float left, fl
 {
     int ret = 0;
     struct stream_out *out = (struct stream_out *)stream;
-    struct qap_module *qap_mod = get_qap_module_for_input_stream_l(out);
-    int32_t cmd_data[4] = {0};
 
     DEBUG_MSG("Left %f, Right %f", left, right);
 
     lock_qap_stream_in(out);
     if (!p_qap->bypass_enable) {
-        if (is_offload_usecase(out->usecase))
-            cmd_data[0] = MS12_SESSION_CFG_SYSSOUND_MIXING_GAIN_INPUT1;
-        else if ((out->usecase == USECASE_AUDIO_PLAYBACK_LOW_LATENCY) ||
-            (out->usecase == USECASE_AUDIO_PLAYBACK_DEEP_BUFFER)) {
-            DEBUG_MSG("Request for volume set for %s usecase not supported",
-                      (out->usecase == USECASE_AUDIO_PLAYBACK_LOW_LATENCY) ? "low_latency":"deepbuffer");
-             unlock_qap_stream_in(out);
-             return -ENOSYS;
-        }
-
-        /*take left as default level and MS12 doenst support left and right seperately*/
-        cmd_data[1] = AmpToDb(left);
-        cmd_data[2] = 0;/* apply gain instantly*/
-        cmd_data[3] = 0;/* apply gain linearly*/
-
-        check_and_activate_output_thread(true);
-        if (qap_mod->session_handle != NULL) {
-           ret = qap_session_cmd(qap_mod->session_handle,
-                  QAP_SESSION_CMD_SET_PARAM,
-                  sizeof(cmd_data),
-                  &cmd_data[0],
-                  NULL,
-                  NULL);
-           if (ret != QAP_STATUS_OK) {
-              ERROR_MSG("vol set failed");
-           }
-        } else
-           DEBUG_MSG("qap module is not yet opened!!, vol cannot be applied");
-        check_and_activate_output_thread(false);
+        qap_ms12_volume_easing_cmd(out, left, right, 0);
     } else {
         ret = p_qap->hal_stream_ops.set_volume(stream, left, right);
     }
@@ -3658,6 +3672,14 @@ int audio_extn_qap_set_parameters(struct audio_device *adev, struct str_parms *p
         return status;
     }
 
+    status = str_parms_get_int(parms, "ms12_volume_interpolation", &val);
+    if (status >= 0) {
+        pthread_mutex_lock(&p_qap->lock);
+        p_qap->qap_mod[MS12].interpolation = val;
+        pthread_mutex_unlock(&p_qap->lock);
+        DEBUG_MSG("Set ms12 volume interpolation %d is %s", val, status ? "failed" : "success");
+        return status;
+    }
     DEBUG_MSG("Exit");
     return status;
 }
@@ -3722,6 +3744,7 @@ int audio_extn_qap_init(struct audio_device *adev)
             //default chmod_lock is enabled
             p_qap->ms12_lock = p_qap->ms12_lock | (1 << 1);
 
+            qap_mod->interpolation = 0; /*apply gain linearly*/
         } else if (i == DTS_M8) {
             property_get("vendor.audio.qap.m8.library", value, NULL);
             if (value[0] != 0) {

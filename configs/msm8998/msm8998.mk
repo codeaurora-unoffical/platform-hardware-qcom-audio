@@ -344,6 +344,12 @@ persist.vendor.audio.qap.ecref=off
 PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.qap.output.block.handling=true
 
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.qap.pauseramp.duration =20
+
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.qap.volumeramp.duration=20
+
 # for HIDL related packages
 PRODUCT_PACKAGES += \
     android.hardware.audio@2.0-service \
