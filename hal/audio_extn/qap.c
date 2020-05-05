@@ -99,6 +99,7 @@
 //TODO: Need to handle for DTS
 #define QAP_DEEP_BUFFER_OUTPUT_PERIOD_SIZE 1536
 
+#define MS12_ATMOS_LOCK_MASK  2
 #include <stdlib.h>
 #include <pthread.h>
 #include <errno.h>
@@ -213,6 +214,8 @@ struct qap {
     bool hdmi_connect;
     char ms12_out_format[4];
     int hdmi_sink_channels;
+    //bit 0: atmos_lock, bit 1: chmod_lock, bit 2: request for atmos_lock, bit 3: request for chmod_lock
+    char ms12_lock;
 
     //Flag to indicate if QAP transcode output stream is enabled from any mm module.
     bool passthrough_enabled;
@@ -636,6 +639,56 @@ static float AmpToDb(float amplification)
              return DSD_VOLUME_MIN_DB;
      }
      return db;
+}
+
+static int set_ms12_atmos_lock(int lock)
+{
+    int ret = 0;
+    int32_t cmd_data[2] = {0};
+    struct qap_module *qap_mod = &(p_qap->qap_mod[MS12]);
+
+    DEBUG_MSG_VV("%s:%d Entry", __func__, __LINE__);
+    if (p_qap) {
+       if (!p_qap->qap_mod[MS12].session_handle) {
+           p_qap->ms12_lock = p_qap->ms12_lock | lock;
+           //bit 2: save request for atmos_lock before session open
+           p_qap->ms12_lock = p_qap->ms12_lock | (1 << MS12_ATMOS_LOCK_MASK);
+           ERROR_MSG("request recieved but session is not setup, caching request");
+           return ret;
+       }
+    }
+
+    if (!(p_qap->ms12_lock & (1 << MS12_ATMOS_LOCK_MASK)))
+        pthread_mutex_lock(&p_qap->lock);
+
+    if (!p_qap->bypass_enable) {
+        cmd_data[0] = MS12_SESSION_CFG_ATMOS_LOCK;
+        cmd_data[1] = lock;
+        check_and_activate_output_thread(true);
+
+        check_and_activate_output_thread(true);
+        if (qap_mod->session_handle != NULL) {
+            ret = qap_session_cmd(qap_mod->session_handle,
+                  QAP_SESSION_CMD_SET_PARAM,
+                  sizeof(cmd_data),
+                  &cmd_data[0],
+                  NULL,
+                  NULL);
+
+           if (ret != QAP_STATUS_OK) {
+              ERROR_MSG("atmos_lock set failed");
+           }
+        } else
+           DEBUG_MSG("qap module is not yet opened!!,atmos_lock cannot be configured");
+        check_and_activate_output_thread(false);
+    } else {
+        ERROR_MSG("in bypass mode, atmos lock can't be enabled/disabled");
+        ret = -1;
+    }
+
+    pthread_mutex_unlock(&p_qap->lock);
+    DEBUG_MSG_VV("Exit");
+    return ret;
 }
 
 /*
@@ -2556,6 +2609,14 @@ static int qap_set_hdmi_configuration_to_module()
             }
         }
     }
+
+    //Check for atmos lock request
+    if ((p_qap->ms12_lock & (1 << MS12_ATMOS_LOCK_MASK))) {
+        if (!set_ms12_atmos_lock((int)p_qap->ms12_lock))
+            //on success clear atmos lock request bit.
+            p_qap->ms12_lock = (p_qap->ms12_lock & (~(1 << MS12_ATMOS_LOCK_MASK)));
+    }
+
     //Compressed passthrough is not enabled.
     if (!passth_support) {
 
@@ -3513,6 +3574,23 @@ int audio_extn_qap_set_parameters(struct audio_device *adev, struct str_parms *p
         //TODO else if: Need to consider other devices.
     }
 
+    status = str_parms_get_int(parms, "ms12_atmos_lock", &val);
+    if (status >= 0) {
+        if (val)
+            p_qap->ms12_lock = p_qap->ms12_lock | val;
+        else
+            p_qap->ms12_lock = (p_qap->ms12_lock & (~1));
+        p_qap->ms12_lock = (p_qap->ms12_lock | (1 << MS12_ATMOS_LOCK_MASK));
+
+        status = set_ms12_atmos_lock(val);
+        if (!status) {
+            //on success clear atmos lock request bit.
+            p_qap->ms12_lock = (p_qap->ms12_lock & (~(1 << MS12_ATMOS_LOCK_MASK)));
+        }
+        DEBUG_MSG("Set ms12_atmos_lock to %d:%d is %s", val, p_qap->ms12_lock, status ? "failed" : "success");
+        return status;
+    }
+
     DEBUG_MSG("Exit");
     return status;
 }
@@ -3570,6 +3648,10 @@ int audio_extn_qap_init(struct audio_device *adev)
                 pthread_cond_init(&qap_mod->session_output_cond, (const pthread_condattr_t *)NULL);
                 pthread_cond_init(&qap_mod->drain_output_cond, (const pthread_condattr_t *)NULL);
             }
+            //bit 0:atmos lock will be disabled by default
+            p_qap->ms12_lock = p_qap->ms12_lock & (~1);
+            //bit 2:reset atmos lock request bit
+            p_qap->ms12_lock = (p_qap->ms12_lock & (~(1 << MS12_ATMOS_LOCK_MASK)));
         } else if (i == DTS_M8) {
             property_get("vendor.audio.qap.m8.library", value, NULL);
             if (value[0] != 0) {
