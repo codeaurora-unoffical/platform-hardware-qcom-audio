@@ -2589,7 +2589,15 @@ exit:
             pthread_mutex_unlock(&adev->lock);
             out->standby = true;
         }
-        adev->offload_error = true;
+
+        if ((is_offload_usecase(out->usecase)) ||
+            (out->flags & AUDIO_OUTPUT_FLAG_DIRECT_PCM)) {
+            ALOGI("%s: adev->offload_error updated to true.", __func__);
+            adev->offload_error = true;
+        } else {
+            ALOGI("%s: adev->offload_error not updated", __func__);
+        }
+
         out_on_error(&out->stream.common);
         usleep(bytes * 1000000 / audio_stream_out_frame_size(stream) /
                         out_get_sample_rate(&out->stream.common));
