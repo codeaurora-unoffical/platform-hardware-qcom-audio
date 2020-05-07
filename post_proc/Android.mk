@@ -31,7 +31,9 @@ LOCAL_MODULE:= libqcompostprocbundle
 LOCAL_C_INCLUDES := \
 	external/tinyalsa/include \
 	$(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include \
-	vendor/qcom/opensource/audio-kernel/include/uapi \
+	$(TARGET_OUT_INTERMEDIATES)/vendor/qcom/opensource/audio-kernel/include \
 	$(call include-path-for, audio-effects)
+
+LOCAL_ADDITIONAL_DEPENDENCIES += $(BOARD_VENDOR_KERNEL_MODULES)
 
 include $(BUILD_SHARED_LIBRARY)
