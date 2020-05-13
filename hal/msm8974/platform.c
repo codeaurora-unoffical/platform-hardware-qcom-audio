@@ -565,7 +565,11 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_OUT_SPEAKER_AND_DISPLAY_PORT] = "speaker-and-display-port",
     [SND_DEVICE_OUT_SPEAKER_AND_DISPLAY_PORT1] = "speaker-and-display-port1",
     [SND_DEVICE_OUT_BT_SCO] = "bt-sco-headset",
+    [SND_DEVICE_OUT_BT_PRI_SCO] = "bt-pri-sco-headset",
+    [SND_DEVICE_OUT_BT_SEC_SCO] = "bt-sec-sco-headset",
     [SND_DEVICE_OUT_BT_SCO_WB] = "bt-sco-headset-wb",
+    [SND_DEVICE_OUT_BT_PRI_SCO_WB] = "bt-pri-sco-headset-wb",
+    [SND_DEVICE_OUT_BT_SEC_SCO_WB] = "bt-sec-sco-headset-wb",
     [SND_DEVICE_OUT_BT_SCO_SWB] = "bt-sco-headset-swb",
     [SND_DEVICE_OUT_BT_A2DP] = "bt-a2dp",
     [SND_DEVICE_OUT_SPEAKER_AND_BT_A2DP] = "speaker-and-bt-a2dp",
@@ -673,8 +677,12 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_HDMI_MIC] = "hdmi-in",
     [SND_DEVICE_IN_HDMI_ARC] = "hdmi-arc-in",
     [SND_DEVICE_IN_BT_SCO_MIC] = "bt-sco-mic",
+    [SND_DEVICE_IN_BT_PRI_SCO_MIC] = "bt-pri-sco-mic",
+    [SND_DEVICE_IN_BT_SEC_SCO_MIC] = "bt-sec-sco-mic",
     [SND_DEVICE_IN_BT_SCO_MIC_NREC] = "bt-sco-mic",
     [SND_DEVICE_IN_BT_SCO_MIC_WB] = "bt-sco-mic-wb",
+    [SND_DEVICE_IN_BT_PRI_SCO_MIC_WB] = "bt-pri-sco-mic-wb",
+    [SND_DEVICE_IN_BT_SEC_SCO_MIC_WB] = "bt-sec-sco-mic-wb",
     [SND_DEVICE_IN_BT_SCO_MIC_WB_NREC] = "bt-sco-mic-wb",
     [SND_DEVICE_IN_BT_SCO_MIC_SWB] = "bt-sco-mic-swb",
     [SND_DEVICE_IN_BT_SCO_MIC_SWB_NREC] = "bt-sco-mic-swb",
@@ -855,8 +863,12 @@ static int acdb_device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_OUT_SPEAKER_AND_DISPLAY_PORT] = 14,
     [SND_DEVICE_OUT_SPEAKER_AND_DISPLAY_PORT1] = 14,
     [SND_DEVICE_OUT_BT_SCO] = 22,
+    [SND_DEVICE_OUT_BT_PRI_SCO] = 22,
+    [SND_DEVICE_OUT_BT_SEC_SCO] = 22,
     [SND_DEVICE_OUT_SPEAKER_SAFE_AND_BT_SCO] = 14,
     [SND_DEVICE_OUT_BT_SCO_WB] = 39,
+    [SND_DEVICE_OUT_BT_PRI_SCO_WB] = 39,
+    [SND_DEVICE_OUT_BT_SEC_SCO_WB] = 39,
     [SND_DEVICE_OUT_BT_SCO_SWB] = 39,
     [SND_DEVICE_OUT_SPEAKER_SAFE_AND_BT_SCO_WB] = 14,
     [SND_DEVICE_OUT_SPEAKER_SAFE_AND_BT_SCO_SWB] = 14,
@@ -953,8 +965,12 @@ static int acdb_device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_HDMI_MIC] = 143,
     [SND_DEVICE_IN_HDMI_ARC] = 143,
     [SND_DEVICE_IN_BT_SCO_MIC] = 21,
+    [SND_DEVICE_IN_BT_PRI_SCO_MIC] = 21,
+    [SND_DEVICE_IN_BT_SEC_SCO_MIC] = 21,
     [SND_DEVICE_IN_BT_SCO_MIC_NREC] = 122,
     [SND_DEVICE_IN_BT_SCO_MIC_WB] = 38,
+    [SND_DEVICE_IN_BT_PRI_SCO_MIC_WB] = 38,
+    [SND_DEVICE_IN_BT_SEC_SCO_MIC_WB] = 38,
     [SND_DEVICE_IN_BT_SCO_MIC_WB_NREC] = 123,
     [SND_DEVICE_IN_BT_SCO_MIC_SWB] = 38,
     [SND_DEVICE_IN_BT_SCO_MIC_SWB_NREC] = 123,
@@ -1090,8 +1106,12 @@ static struct name_to_index snd_device_name_index[SND_DEVICE_MAX] = {
     {TO_NAME_INDEX(SND_DEVICE_OUT_DISPLAY_PORT1)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_SPEAKER_AND_DISPLAY_PORT)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_BT_SCO)},
+    {TO_NAME_INDEX(SND_DEVICE_OUT_BT_PRI_SCO)},
+    {TO_NAME_INDEX(SND_DEVICE_OUT_BT_SEC_SCO)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_SPEAKER_SAFE_AND_BT_SCO)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_BT_SCO_WB)},
+    {TO_NAME_INDEX(SND_DEVICE_OUT_BT_PRI_SCO_WB)},
+    {TO_NAME_INDEX(SND_DEVICE_OUT_BT_SEC_SCO_WB)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_BT_SCO_SWB)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_SPEAKER_SAFE_AND_BT_SCO_WB)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_SPEAKER_SAFE_AND_BT_SCO_SWB)},
@@ -1193,8 +1213,12 @@ static struct name_to_index snd_device_name_index[SND_DEVICE_MAX] = {
     {TO_NAME_INDEX(SND_DEVICE_IN_HDMI_MIC)},
     {TO_NAME_INDEX(SND_DEVICE_IN_HDMI_ARC)},
     {TO_NAME_INDEX(SND_DEVICE_IN_BT_SCO_MIC)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_BT_PRI_SCO_MIC)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_BT_SEC_SCO_MIC)},
     {TO_NAME_INDEX(SND_DEVICE_IN_BT_SCO_MIC_NREC)},
     {TO_NAME_INDEX(SND_DEVICE_IN_BT_SCO_MIC_WB)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_BT_PRI_SCO_MIC_WB)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_BT_SEC_SCO_MIC_WB)},
     {TO_NAME_INDEX(SND_DEVICE_IN_BT_SCO_MIC_WB_NREC)},
     {TO_NAME_INDEX(SND_DEVICE_IN_BT_SCO_MIC_SWB)},
     {TO_NAME_INDEX(SND_DEVICE_IN_BT_SCO_MIC_SWB_NREC)},
@@ -2200,7 +2224,11 @@ static void set_platform_defaults(struct platform_data * my_data)
 
     // To overwrite these go to the audio_platform_info.xml file.
     backend_tag_table[SND_DEVICE_IN_BT_SCO_MIC] = strdup("bt-sco");
+    backend_tag_table[SND_DEVICE_IN_BT_PRI_SCO_MIC] = strdup("bt-pri-sco");
+    backend_tag_table[SND_DEVICE_IN_BT_SEC_SCO_MIC] = strdup("bt-sec-sco");
     backend_tag_table[SND_DEVICE_IN_BT_SCO_MIC_WB] = strdup("bt-sco-wb");
+    backend_tag_table[SND_DEVICE_IN_BT_PRI_SCO_MIC_WB] = strdup("bt-pri-sco-wb");
+    backend_tag_table[SND_DEVICE_IN_BT_SEC_SCO_MIC_WB] = strdup("bt-sec-sco-wb");
     backend_tag_table[SND_DEVICE_IN_BT_SCO_MIC_NREC] = strdup("bt-sco");
     backend_tag_table[SND_DEVICE_IN_BT_SCO_MIC_WB_NREC] = strdup("bt-sco-wb");
     backend_tag_table[SND_DEVICE_IN_BT_SCO_MIC_SWB] = strdup("bt-sco-swb");
@@ -2209,7 +2237,11 @@ static void set_platform_defaults(struct platform_data * my_data)
     backend_tag_table[SND_DEVICE_IN_HDMI_MIC] = strdup("hdmi-in");
     backend_tag_table[SND_DEVICE_IN_HDMI_ARC] = strdup("hdmi-arc-in");
     backend_tag_table[SND_DEVICE_OUT_BT_SCO] = strdup("bt-sco");
+    backend_tag_table[SND_DEVICE_OUT_BT_PRI_SCO] = strdup("bt-pri-sco");
+    backend_tag_table[SND_DEVICE_OUT_BT_SEC_SCO] = strdup("bt-sec-sco");
     backend_tag_table[SND_DEVICE_OUT_BT_SCO_WB] = strdup("bt-sco-wb");
+    backend_tag_table[SND_DEVICE_OUT_BT_PRI_SCO_WB] = strdup("bt-pri-sco-wb");
+    backend_tag_table[SND_DEVICE_OUT_BT_SEC_SCO_WB] = strdup("bt-sec-sco-wb");
     backend_tag_table[SND_DEVICE_OUT_BT_SCO_SWB] = strdup("bt-sco-swb");
     backend_tag_table[SND_DEVICE_OUT_HDMI] = strdup("hdmi");
     backend_tag_table[SND_DEVICE_OUT_SPEAKER_AND_HDMI] = strdup("speaker-and-hdmi");
@@ -2311,7 +2343,11 @@ static void set_platform_defaults(struct platform_data * my_data)
     hw_interface_table[SND_DEVICE_OUT_SPEAKER_AND_DISPLAY_PORT] = strdup("SLIMBUS_0_RX-and-DISPLAY_PORT");
     hw_interface_table[SND_DEVICE_OUT_SPEAKER_AND_DISPLAY_PORT1] = strdup("SLIMBUS_0_RX-and-DISPLAY_PORT1");
     hw_interface_table[SND_DEVICE_OUT_BT_SCO] = strdup("SLIMBUS_7_RX");
+    hw_interface_table[SND_DEVICE_OUT_BT_PRI_SCO] = strdup("PRI_TDM_RX_0");
+    hw_interface_table[SND_DEVICE_OUT_BT_SEC_SCO] = strdup("PRI_TDM_RX_1");
     hw_interface_table[SND_DEVICE_OUT_BT_SCO_WB] = strdup("SLIMBUS_7_RX");
+    hw_interface_table[SND_DEVICE_OUT_BT_PRI_SCO_WB] = strdup("PRI_TDM_RX_0");
+    hw_interface_table[SND_DEVICE_OUT_BT_SEC_SCO_WB] = strdup("PRI_TDM_RX_1");
     hw_interface_table[SND_DEVICE_OUT_BT_SCO_SWB] = strdup("SLIMBUS_7_RX");
     hw_interface_table[SND_DEVICE_OUT_BT_A2DP] = strdup("SLIMBUS_7_RX");
     hw_interface_table[SND_DEVICE_OUT_SPEAKER_AND_BT_A2DP] = strdup("SLIMBUS_0_RX-and-SLIMBUS_7_RX");
@@ -2414,8 +2450,12 @@ static void set_platform_defaults(struct platform_data * my_data)
     hw_interface_table[SND_DEVICE_IN_HDMI_MIC] = strdup("SEC_MI2S_TX");
     hw_interface_table[SND_DEVICE_IN_HDMI_ARC] = strdup("SEC_SPDIF_TX");
     hw_interface_table[SND_DEVICE_IN_BT_SCO_MIC] = strdup("SLIMBUS_7_TX");
+    hw_interface_table[SND_DEVICE_IN_BT_PRI_SCO_MIC] = strdup("PRI_TDM_TX_0");
+    hw_interface_table[SND_DEVICE_IN_BT_SEC_SCO_MIC] = strdup("PRI_TDM_TX_1");
     hw_interface_table[SND_DEVICE_IN_BT_SCO_MIC_NREC] = strdup("SLIMBUS_7_TX");
     hw_interface_table[SND_DEVICE_IN_BT_SCO_MIC_WB] = strdup("SLIMBUS_7_TX");
+    hw_interface_table[SND_DEVICE_IN_BT_PRI_SCO_MIC_WB] = strdup("PRI_TDM_TX_0");
+    hw_interface_table[SND_DEVICE_IN_BT_SEC_SCO_MIC_WB] = strdup("PRI_TDM_TX_1");
     hw_interface_table[SND_DEVICE_IN_BT_SCO_MIC_WB_NREC] = strdup("SLIMBUS_7_TX");
     hw_interface_table[SND_DEVICE_IN_BT_SCO_MIC_SWB] = strdup("SLIMBUS_7_TX");
     hw_interface_table[SND_DEVICE_IN_BT_SCO_MIC_SWB_NREC] = strdup("SLIMBUS_7_TX");
@@ -9309,7 +9349,11 @@ static bool platform_check_codec_backend_cfg(struct audio_device* adev,
     /*BT devices backend is not configured from HAL hence skip*/
     if (snd_device == SND_DEVICE_OUT_BT_A2DP ||
         snd_device == SND_DEVICE_OUT_BT_SCO ||
+        snd_device == SND_DEVICE_OUT_BT_PRI_SCO ||
+        snd_device == SND_DEVICE_OUT_BT_SEC_SCO ||
         snd_device == SND_DEVICE_OUT_BT_SCO_WB ||
+        snd_device == SND_DEVICE_OUT_BT_PRI_SCO_WB ||
+        snd_device == SND_DEVICE_OUT_BT_SEC_SCO_WB ||
         snd_device == SND_DEVICE_OUT_BT_SCO_SWB ||
         snd_device == SND_DEVICE_IN_BT_A2DP ||
         snd_device == SND_DEVICE_OUT_AFE_PROXY) {

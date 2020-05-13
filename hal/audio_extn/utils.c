@@ -842,12 +842,20 @@ static void audio_extn_btsco_get_sample_rate(int snd_device, int *sample_rate)
 {
     switch (snd_device) {
     case SND_DEVICE_OUT_BT_SCO:
+    case SND_DEVICE_OUT_BT_PRI_SCO:
+    case SND_DEVICE_OUT_BT_SEC_SCO:
     case SND_DEVICE_IN_BT_SCO_MIC:
+    case SND_DEVICE_IN_BT_PRI_SCO_MIC:
+    case SND_DEVICE_IN_BT_SEC_SCO_MIC:
     case SND_DEVICE_IN_BT_SCO_MIC_NREC:
         *sample_rate = 8000;
         break;
     case SND_DEVICE_OUT_BT_SCO_WB:
+    case SND_DEVICE_OUT_BT_PRI_SCO_WB:
+    case SND_DEVICE_OUT_BT_SEC_SCO_WB:
     case SND_DEVICE_IN_BT_SCO_MIC_WB:
+    case SND_DEVICE_IN_BT_PRI_SCO_MIC_WB:
+    case SND_DEVICE_IN_BT_SEC_SCO_MIC_WB:
     case SND_DEVICE_IN_BT_SCO_MIC_WB_NREC:
         *sample_rate = 16000;
         break;

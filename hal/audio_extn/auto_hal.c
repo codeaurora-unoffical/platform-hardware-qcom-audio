@@ -884,14 +884,22 @@ snd_device_t auto_hal_get_input_snd_device(struct audio_device *adev,
                 fp_platform_set_echo_reference(adev, true, out_device);
             break;
         case USECASE_AUDIO_HFP_SCO_DOWNLINK:
-        case USECASE_AUDIO_PRI_HFP_SCO_DOWNLINK:
-        case USECASE_AUDIO_SEC_HFP_SCO_DOWNLINK:
             snd_device = SND_DEVICE_IN_BT_SCO_MIC;
             break;
+        case USECASE_AUDIO_PRI_HFP_SCO_DOWNLINK:
+            snd_device = SND_DEVICE_IN_BT_PRI_SCO_MIC;
+            break;
+        case USECASE_AUDIO_SEC_HFP_SCO_DOWNLINK:
+            snd_device = SND_DEVICE_IN_BT_SEC_SCO_MIC;
+            break;
         case USECASE_AUDIO_HFP_SCO_WB_DOWNLINK:
-        case USECASE_AUDIO_PRI_HFP_SCO_WB_DOWNLINK:
-        case USECASE_AUDIO_SEC_HFP_SCO_WB_DOWNLINK:
             snd_device = SND_DEVICE_IN_BT_SCO_MIC_WB;
+            break;
+        case USECASE_AUDIO_PRI_HFP_SCO_WB_DOWNLINK:
+            snd_device = SND_DEVICE_IN_BT_PRI_SCO_MIC_WB;
+            break;
+        case USECASE_AUDIO_SEC_HFP_SCO_WB_DOWNLINK:
+            snd_device = SND_DEVICE_IN_BT_SEC_SCO_MIC_WB;
             break;
         case USECASE_VOICE_CALL:
             snd_device = SND_DEVICE_IN_VOICE_SPEAKER_MIC;
@@ -950,14 +958,22 @@ snd_device_t auto_hal_get_output_snd_device(struct audio_device *adev,
         /* usecase->id is token as judgement for HFP calls */
         switch (usecase->id) {
         case USECASE_AUDIO_HFP_SCO:
-        case USECASE_AUDIO_PRI_HFP_SCO:
-        case USECASE_AUDIO_SEC_HFP_SCO:
             snd_device = SND_DEVICE_OUT_BT_SCO;
             break;
+        case USECASE_AUDIO_PRI_HFP_SCO:
+            snd_device = SND_DEVICE_OUT_BT_PRI_SCO;
+            break;
+        case USECASE_AUDIO_SEC_HFP_SCO:
+            snd_device = SND_DEVICE_OUT_BT_SEC_SCO;
+            break;
         case USECASE_AUDIO_HFP_SCO_WB:
-        case USECASE_AUDIO_PRI_HFP_SCO_WB:
-        case USECASE_AUDIO_SEC_HFP_SCO_WB:
             snd_device = SND_DEVICE_OUT_BT_SCO_WB;
+            break;
+        case USECASE_AUDIO_PRI_HFP_SCO_WB:
+            snd_device = SND_DEVICE_OUT_BT_PRI_SCO_WB;
+            break;
+        case USECASE_AUDIO_SEC_HFP_SCO_WB:
+            snd_device = SND_DEVICE_OUT_BT_SEC_SCO_WB;
             break;
         case USECASE_AUDIO_HFP_SCO_DOWNLINK:
         case USECASE_AUDIO_HFP_SCO_WB_DOWNLINK:
