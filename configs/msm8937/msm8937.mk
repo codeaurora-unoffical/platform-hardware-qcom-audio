@@ -244,9 +244,11 @@ vendor.audio.flac.sw.decoder.24bit=true
 PRODUCT_PROPERTY_OVERRIDES += \
 ro.af.client_heap_size_kbyte=7168
 
-#Disable split a2dp
+#Enable split a2dp by default
 PRODUCT_PROPERTY_OVERRIDES += \
-persist.vendor.bt.enable.splita2dp=false
+persist.vendor.bt.enable.splita2dp=true
+PRODUCT_PROPERTY_OVERRIDES += \
+persist.vendor.bt.a2dp_offload_cap=sbc
 
 ifneq ($(strip $(TARGET_HAS_LOW_RAM)),true)
 android.hardware.audio@2.0-service
