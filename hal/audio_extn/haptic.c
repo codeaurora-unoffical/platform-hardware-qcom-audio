@@ -50,6 +50,7 @@
 #define DEFAULT_HAPTIC_DURATION_MS 500  //duration in msec
 #define HAPTIC_PCM_FRAME_TIME_MS   5
 #define SEC_TO_MS                  1000
+#define DEFAULT_HAPTIC_AMP_PERCENT 100 //haptic percentage amplitude
 
 #define PI 3.14159265358979323846
 //#define DUMP_HAPTIC_FILE 1
@@ -129,9 +130,12 @@ static void gen_pcm (int16_t *buffer)
 
     float frequency = (float)property_get_int32("vendor.audio.haptic_freq",
                                                     DEFAULT_HAPTIC_FREQ_HZ);
+    int ampl_percent = property_get_int32("vendor.audio.haptic_ampl",
+                                                DEFAULT_HAPTIC_AMP_PERCENT);
+    ALOGV ("%s ampl_percent = %d", __func__, ampl_percent);
+    amplitude = amplitude * (float)ampl_percent / DEFAULT_HAPTIC_AMP_PERCENT;
     ALOGV("%s Generate haptic data with frequency %f, amplitude %f",
                                   __func__, frequency, amplitude);
-
     for (i = 0; i < sample_rate; i++) {
         buffer[i] = (int16_t)(sin((float) 2 * PI * frequency *
                     ((float)i / (float)sample_rate)) * 32767.0f * amplitude);
