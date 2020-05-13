@@ -60,11 +60,7 @@ enum {
  * as standard android device AUDIO_DEVICE_OUT_WIRED_HEADPHONE
  * for other layers.
  */
-#define AUDIO_DEVICE_OUT_ALL_CODEC_BACKEND \
-    (AUDIO_DEVICE_OUT_EARPIECE | AUDIO_DEVICE_OUT_SPEAKER | \
-     AUDIO_DEVICE_OUT_SPEAKER_SAFE | \
-     AUDIO_DEVICE_OUT_WIRED_HEADSET | AUDIO_DEVICE_OUT_WIRED_HEADPHONE | \
-     AUDIO_DEVICE_OUT_LINE)
+#define AUDIO_DEVICE_OUT_ALL_CODEC_BACKEND 0
 
 /*
  * Below are the input devices for which back end is same, SLIMBUS_0_TX.
@@ -72,13 +68,9 @@ enum {
  * enable any one of these devices at any time
  */
 #ifdef CONCURRENT_CAPTURE_ENABLED
-#define AUDIO_DEVICE_IN_ALL_CODEC_BACKEND \
-    (AUDIO_DEVICE_IN_BUILTIN_MIC | AUDIO_DEVICE_IN_BACK_MIC | \
-     AUDIO_DEVICE_IN_VOICE_CALL) & ~AUDIO_DEVICE_BIT_IN
+#define AUDIO_DEVICE_IN_ALL_CODEC_BACKEND 0
 #else
-#define AUDIO_DEVICE_IN_ALL_CODEC_BACKEND \
-    (AUDIO_DEVICE_IN_BUILTIN_MIC | AUDIO_DEVICE_IN_BACK_MIC | \
-     AUDIO_DEVICE_IN_WIRED_HEADSET | AUDIO_DEVICE_IN_VOICE_CALL) & ~AUDIO_DEVICE_BIT_IN
+#define AUDIO_DEVICE_IN_ALL_CODEC_BACKEND 0
 #endif
 /* Sound devices specific to the platform
  * The DEVICE_OUT_* and DEVICE_IN_* should be mapped to these sound
