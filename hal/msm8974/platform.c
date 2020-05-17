@@ -357,14 +357,14 @@ struct platform_data {
     uint32_t declared_mic_count;
     struct audio_microphone_characteristic_t microphones[AUDIO_MICROPHONE_MAX_COUNT];
     struct snd_device_to_mic_map mic_map[SND_DEVICE_MAX];
-    struct  spkr_device_chmap *spkr_ch_map;
-    struct  spkr_device_chmap *capture_ch_map;
+    struct device_chmap *spkr_ch_map;
+    struct device_chmap *capture_ch_map;
     bool use_sprk_default_sample_rate;
     struct listnode custom_mtmx_params_list;
     struct listnode custom_mtmx_in_params_list;
 };
 
-struct  spkr_device_chmap {
+struct device_chmap {
     int num_ch;
     char chmap[AUDIO_CHANNEL_COUNT_MAX];
 };
@@ -6824,7 +6824,7 @@ static void platform_spkr_device_set_params(struct platform_data *platform,
     err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_SPKR_DEVICE_CHMAP,
                             value, len);
     if (err >= 0) {
-        platform->spkr_ch_map = calloc(1, sizeof(struct spkr_device_chmap));
+        platform->spkr_ch_map = calloc(1, sizeof(struct device_chmap));
         if (!platform->spkr_ch_map) {
             ALOGE("%s: failed to allocate mem for adm channel map\n", __func__);
             str_parms_del(parms, AUDIO_PARAMETER_KEY_SPKR_DEVICE_CHMAP);
@@ -6872,7 +6872,7 @@ static void platform_capture_device_set_params(struct platform_data *platform,
     err = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_CAPTURE_DEVICE_CHMAP,
                             value, len);
     if (err >= 0) {
-        platform->capture_ch_map = calloc(1, sizeof(struct spkr_device_chmap));
+        platform->capture_ch_map = calloc(1, sizeof(struct device_chmap));
         if (!platform->capture_ch_map) {
             ALOGE("%s: failed to allocate mem for adm channel map\n", __func__);
             str_parms_del(parms, AUDIO_PARAMETER_KEY_CAPTURE_DEVICE_CHMAP);
@@ -8735,9 +8735,17 @@ bool platform_check_and_set_capture_codec_backend_cfg(struct audio_device* adev,
 
     if ((my_data->capture_ch_map != NULL) &&
         ((platform_get_backend_index(snd_device) == HDMI_TX_BACKEND) ||
-        (platform_get_backend_index(snd_device) == HDMI_DSD_TX_BACKEND)))
+        (platform_get_backend_index(snd_device) == HDMI_DSD_TX_BACKEND))) {
         platform_set_channel_map(my_data, my_data->capture_ch_map->num_ch,
                                  my_data->capture_ch_map->chmap, -2);
+        if (backend_idx == HDMI_TX_BACKEND) {
+            adev->in_channel_map_param.channels = my_data->capture_ch_map->num_ch;
+            for (int i = 0; i< my_data->capture_ch_map->num_ch; i++)
+                adev->in_channel_map_param.channel_map[i] = my_data->capture_ch_map->chmap[i];
+
+            backend_cfg.channels = backend_cfg.channels > 2 ? 8 : 2;
+        }
+    }
 
     ALOGI("%s:txbecf: afe: bitwidth %d, samplerate %d, channel %d format %d"
           ", backend_idx %d usecase = %d device (%s)", __func__,

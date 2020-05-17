@@ -1087,7 +1087,11 @@ int enable_audio_route(struct audio_device *adev,
         if (in && is_loopback_input_device(in->device)) {
             ALOGD("%s: set custom mtmx params v1", __func__);
             audio_extn_set_custom_mtmx_params_v1(adev, usecase, true);
+        } else if ((platform_get_backend_index(snd_device) == HDMI_TX_BACKEND) &&
+                   (usecase->stream.in->channel_map_param)) {
+            audio_extn_set_custom_mtmx_params_v2(adev, usecase, true);
         }
+
     } else {
         audio_extn_set_custom_mtmx_params_v2(adev, usecase, true);
     }
@@ -3768,7 +3772,9 @@ static int check_input_parameters(uint32_t sample_rate,
     case 2:
     case 3:
     case 4:
+    case 5:
     case 6:
+    case 7:
     case 8:
     case 10:
     case 12:
@@ -8211,6 +8217,7 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
     in->af_period_multiplier = 1;
 
     in->dsd_config_updated = false;
+    in->channel_map_param = NULL;
 
     ALOGV("%s: source = %d, config->channel_mask = %d", __func__, source, config->channel_mask);
     if (source == AUDIO_SOURCE_VOICE_UPLINK ||
@@ -8564,6 +8571,11 @@ static void adev_close_input_stream(struct audio_hw_device *dev,
     error_log_destroy(in->error_log);
     in->error_log = NULL;
 #endif
+
+    if (in->channel_map_param) {
+        free(in->channel_map_param);
+        in->channel_map_param = NULL;
+    }
 
     if (in->usecase == USECASE_COMPRESS_VOIP_CALL) {
         pthread_mutex_lock(&adev->lock);
