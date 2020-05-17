@@ -1365,7 +1365,9 @@ static int audio_extn_utils_check_input_parameters(uint32_t sample_rate,
     case 2:
     case 3:
     case 4:
+    case 5:
     case 6:
+    case 7:
     case 8:
     case 10:
     case 12:

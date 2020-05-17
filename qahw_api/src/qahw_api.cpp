@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
+* Copyright (c) 2016-2018, 2020, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -624,6 +624,17 @@ int qahw_in_standby(qahw_stream_handle_t *in_handle)
     } else {
         return qahw_in_standby_l(in_handle);
     }
+}
+
+int qahw_in_set_param_data(qahw_stream_handle_t *in_handle,
+                            qahw_param_id param_id,
+                            qahw_param_payload *payload)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    if (g_binder_enabled)
+        return -ENODEV;
+    else
+        return qahw_in_set_param_data_l(in_handle, param_id, payload);
 }
 
 int qahw_in_set_parameters(qahw_stream_handle_t *in_handle, const char *kv_pairs)
@@ -1576,6 +1587,14 @@ int qahw_in_get_capture_position(const qahw_stream_handle_t *in_handle,
 {
     ALOGV("%d:%s",__LINE__, __func__);
     return qahw_in_get_capture_position_l(in_handle, frames, time);
+}
+
+int qahw_in_set_param_data(qahw_stream_handle_t *in_handle,
+                            qahw_param_id param_id,
+                            qahw_param_payload *payload)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_in_set_param_data_l(in_handle, param_id, payload);
 }
 
 int qahw_init_check(const qahw_module_handle_t *hw_module)
