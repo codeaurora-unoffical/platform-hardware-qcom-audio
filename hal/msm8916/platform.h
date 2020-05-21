@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -161,6 +161,7 @@ enum {
     SND_DEVICE_OUT_BUS_MEDIA,
     SND_DEVICE_OUT_SPEAKER_SAFE_AND_HEADPHONES,
     SND_DEVICE_OUT_SPEAKER_SAFE_AND_LINE,
+    SND_DEVICE_OUT_ECALL,
     SND_DEVICE_OUT_END,
 
     /*
@@ -261,6 +262,7 @@ enum {
     SND_DEVICE_IN_HANDSET_8MIC_AND_EC_REF_LOOPBACK,
     SND_DEVICE_IN_HANDSET_DMIC_STEREO,
     SND_DEVICE_IN_VOICE_SPEAKER_MIC_HFP_MMSECNS,
+    SND_DEVICE_IN_ECALL,
     SND_DEVICE_IN_END,
 
     SND_DEVICE_MAX = SND_DEVICE_IN_END,
