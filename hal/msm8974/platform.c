@@ -1454,6 +1454,8 @@ static void update_codec_type_and_interface(struct platform_data * my_data,
                    sizeof("sm6150-qrd-snd-card")) ||
          !strncmp(snd_card_name, "sm6150-idp-snd-card",
                    sizeof("sm6150-idp-snd-card")) ||
+         !strncmp(snd_card_name, "sm6150-ipc-snd-card",
+                   sizeof("sm6150-ipc-snd-card")) ||
          !strncmp(snd_card_name, "qcs605-lc-snd-card",
                    sizeof("qcs605-lc-snd-card")) ||
          !strncmp(snd_card_name, "kona-mtp-snd-card",
