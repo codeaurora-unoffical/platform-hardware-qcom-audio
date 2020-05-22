@@ -204,8 +204,8 @@ struct qap_module {
     pthread_cond_t session_output_cond;
     pthread_mutex_t session_output_lock;
     pthread_cond_t drain_output_cond;
-
     int  interpolation;
+    bool pause;
 };
 
 struct qap {
@@ -788,12 +788,15 @@ static int qap_set_stream_volume(struct audio_stream_out *stream, float left, fl
 {
     int ret = 0;
     struct stream_out *out = (struct stream_out *)stream;
+    struct qap_module *qap_mod = get_qap_module_for_input_stream_l(out);
 
     DEBUG_MSG("Left %f, Right %f", left, right);
 
     lock_qap_stream_in(out);
     if (!p_qap->bypass_enable) {
         qap_ms12_volume_easing_cmd(out, left, right, 0);
+        if (!qap_mod->pause)
+             qap_mod->vol_left = left;
     } else {
         ret = p_qap->hal_stream_ops.set_volume(stream, left, right);
     }
@@ -1005,6 +1008,7 @@ static int qap_stream_pause_l(struct stream_out *out)
 {
     struct qap_module *qap_mod = NULL;
     int ret = -EINVAL;
+    float left = 0.0f;
 
     qap_mod = get_qap_module_for_input_stream_l(out);
     if (!qap_mod || !qap_mod->session_handle|| !out->qap_stream_handle) {
@@ -1013,6 +1017,9 @@ static int qap_stream_pause_l(struct stream_out *out)
         return -EINVAL;
     }
 
+    qap_ms12_volume_easing_cmd(out, left, left, 1);
+
+    check_and_activate_output_thread(true);
     ret = qap_module_cmd(out->qap_stream_handle,
                             QAP_MODULE_CMD_PAUSE,
                             sizeof(QAP_MODULE_CMD_PAUSE),
@@ -1023,6 +1030,8 @@ static int qap_stream_pause_l(struct stream_out *out)
         ERROR_MSG("pause failed %d", ret);
         return -EINVAL;
     }
+    qap_mod->pause = true;
+    check_and_activate_output_thread(false);
 
     return ret;
 }
@@ -3232,6 +3241,7 @@ static int qap_out_resume(struct audio_stream_out* stream)
 {
     struct stream_out *out = (struct stream_out *)stream;
     int status = 0;
+    struct qap_module *qap_mod = get_qap_module_for_input_stream_l(out);;
     DEBUG_MSG("Output Stream %p", out);
 
     lock_qap_stream_in(out);
@@ -3249,6 +3259,7 @@ static int qap_out_resume(struct audio_stream_out* stream)
           }
           pthread_mutex_unlock(&p_qap->lock);
        } else {
+          qap_mod->pause = true;
           //Flush the module input stream.
           status = qap_stream_start_l(out);
        }
@@ -3680,6 +3691,16 @@ int audio_extn_qap_set_parameters(struct audio_device *adev, struct str_parms *p
         DEBUG_MSG("Set ms12 volume interpolation %d is %s", val, status ? "failed" : "success");
         return status;
     }
+
+    status = str_parms_get_int(parms, "ms12_continuous_output", &val);
+    if (status >= 0) {
+        pthread_mutex_lock(&p_qap->lock);
+        p_qap->qap_output_block_handling = val? 0 : 1;
+        pthread_mutex_unlock(&p_qap->lock);
+        DEBUG_MSG("Set ms12 continuous_output to %d is %s", val, status ? "failed" : "success");
+        return status;
+    }
+
     DEBUG_MSG("Exit");
     return status;
 }
@@ -3743,8 +3764,10 @@ int audio_extn_qap_init(struct audio_device *adev)
             p_qap->ms12_lock = (p_qap->ms12_lock & (~(1 << MS12_ATMOS_LOCK_MASK)));
             //default chmod_lock is enabled
             p_qap->ms12_lock = p_qap->ms12_lock | (1 << 1);
+            p_qap->qap_output_block_handling = 0;
 
             qap_mod->interpolation = 0; /*apply gain linearly*/
+            qap_mod->pause = false;
         } else if (i == DTS_M8) {
             property_get("vendor.audio.qap.m8.library", value, NULL);
             if (value[0] != 0) {
