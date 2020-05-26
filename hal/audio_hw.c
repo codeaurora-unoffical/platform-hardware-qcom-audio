@@ -3294,8 +3294,7 @@ static void *offload_thread_loop(void *context)
 
     ALOGV("%s", __func__);
     lock_output_stream(out);
-    out->offload_state = OFFLOAD_STATE_IDLE;
-    out->playback_started = 0;
+    pthread_cond_signal(&out->cond);
     for (;;) {
         struct offload_cmd *cmd = NULL;
         stream_callback_event_t event;
@@ -3417,8 +3416,11 @@ static int create_offload_callback_thread(struct stream_out *out)
 {
     pthread_cond_init(&out->offload_cond, (const pthread_condattr_t *) NULL);
     list_init(&out->offload_cmd_list);
+    lock_output_stream(out);
     pthread_create(&out->offload_thread, (const pthread_attr_t *) NULL,
                     offload_thread_loop, out);
+    pthread_cond_wait(&out->cond, &out->lock);
+    pthread_mutex_unlock(&out->lock);
     return 0;
 }
 
