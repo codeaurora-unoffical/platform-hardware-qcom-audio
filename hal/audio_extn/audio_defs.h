@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2015, 2017-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2015, 2017-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -212,6 +212,15 @@ typedef enum {
                                                  */
 } audio_extn_callback_id;
 
+typedef int audio_stream_callback_t(audio_extn_callback_id event,
+                                    void *param,
+                                    void *cookie);
+
+struct audio_stream_callback_param {
+    audio_stream_callback_t *cb;    /* callback function */
+    void *cookie;                   /* callback context */
+};
+
 #define AUDIO_MAX_ADSP_STREAM_CMD_PAYLOAD_LEN 504
 
 typedef enum {
@@ -317,6 +326,7 @@ typedef enum {
 
 typedef union {
     struct audio_out_render_window_param render_window_params;
+    struct audio_stream_callback_param stream_callback_params;
 } audio_extn_loopback_param_payload;
 
 typedef enum {

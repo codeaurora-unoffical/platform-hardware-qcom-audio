@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+* Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -435,6 +435,27 @@ int audio_extn_hw_loopback_set_render_window(struct audio_hw_device *dev,
     return 0;
 }
 #endif
+
+int audio_extn_hw_loopback_set_callback(audio_patch_handle_t handle,
+        audio_extn_loopback_param_payload *payload)
+{
+    int ret = 0;
+    loopback_patch_t *active_loopback_patch = get_active_loopback_patch(handle);
+
+    if (active_loopback_patch == NULL) {
+        ALOGE("%s: Invalid patch handle", __func__);
+        return -EINVAL;
+    }
+
+    if (active_loopback_patch->patch_stream.adsp_hdlr_stream_handle) {
+        ret = audio_extn_adsp_hdlr_stream_set_callback(
+            active_loopback_patch->patch_stream.adsp_hdlr_stream_handle,
+            payload->stream_callback_params.cb,
+            payload->stream_callback_params.cookie);
+    }
+
+    return ret;
+}
 
 #if defined SNDRV_COMPRESS_LATENCY_MODE
 static void transcode_loopback_util_set_latency_mode(
