@@ -1680,7 +1680,15 @@
         <path name="pri-hfp-sco" />
     </path>
 
+    <path name="pri-hfp-sco bt-pri-sco">
+        <path name="pri-hfp-sco" />
+    </path>
+
     <path name="sec-hfp-sco bt-sco">
+        <path name="sec-hfp-sco" />
+    </path>
+
+    <path name="sec-hfp-sco bt-sec-sco">
         <path name="sec-hfp-sco" />
     </path>
 
@@ -1713,7 +1721,15 @@
         <path name="pri-hfp-sco-wb" />
     </path>
 
+    <path name="pri-hfp-sco-wb bt-pri-sco-wb">
+        <path name="pri-hfp-sco-wb" />
+    </path>
+
     <path name="sec-hfp-sco-wb bt-sco-wb">
+        <path name="sec-hfp-sco-wb" />
+    </path>
+
+    <path name="sec-hfp-sco-wb bt-sec-sco-wb">
         <path name="sec-hfp-sco-wb" />
     </path>
 
@@ -1721,7 +1737,6 @@
         <ctl name="TERT_TDM_TX_0 Channels" value="Four" />
         <path name="hfp-sco-wb" />
     </path>
-
 
     <path name="hfp-sco-wb headset">
         <path name="hfp-sco headphones" />
