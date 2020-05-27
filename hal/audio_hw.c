@@ -150,6 +150,7 @@ static unsigned int configured_low_latency_capture_period_size =
 #define MMAP_PERIOD_COUNT_MAX 512
 #define MMAP_PERIOD_COUNT_DEFAULT (MMAP_PERIOD_COUNT_MAX)
 
+
 /* This constant enables extended precision handling.
  * TODO The flag is off until more testing is done.
  */
@@ -2272,7 +2273,80 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
                                                             usecase->stream.out);
             in_snd_device = platform_get_input_snd_device(adev->platform, usecase->stream.out->devices);
         }
+
         usecase->devices = usecase->stream.out->devices;
+
+        if (((in_snd_device == SND_DEVICE_IN_VOICE_DMIC)||(in_snd_device == SND_DEVICE_IN_HANDSET_DMIC)||
+           (in_snd_device == SND_DEVICE_IN_SPEAKER_DMIC)||(in_snd_device == SND_DEVICE_IN_HANDSET_DMIC_AEC)
+           ||(in_snd_device == SND_DEVICE_IN_SPEAKER_DMIC)||(in_snd_device == SND_DEVICE_IN_SPEAKER_DMIC)||
+           (in_snd_device == SND_DEVICE_IN_SPEAKER_DMIC)||(in_snd_device == SND_DEVICE_IN_SPEAKER_DMIC)||
+           (in_snd_device == SND_DEVICE_IN_SPEAKER_DMIC)) && (usecase->stream.out->ecall != 1)) {
+            ALOGE("Fluence cannot be enabled in non-ecall scenario");
+            return -EINVAL;
+	    }
+
+        ALOGE("just before ecall flag check in select_devices");
+        if (usecase->stream.out->ecall == 1)
+        {
+            ALOGE("ecall is set in select_devices in_snd_device:(%d) and out_snd_device: (%d)", in_snd_device, out_snd_device);
+
+            switch(in_snd_device){
+            case SND_DEVICE_IN_HANDSET_MIC:
+                in_snd_device = SND_DEVICE_IN_ECALL_HANDSET_MIC;
+                break;
+            case SND_DEVICE_IN_SPEAKER_MIC:
+                in_snd_device = SND_DEVICE_IN_ECALL_SPEAKER_MIC;
+                break;
+            case SND_DEVICE_IN_VOICE_SPEAKER_MIC:
+                in_snd_device = SND_DEVICE_IN_ECALL_SPEAKER_MIC;
+                break;
+            case SND_DEVICE_IN_HEADSET_MIC:
+                in_snd_device = SND_DEVICE_IN_ECALL_HEADSET_MIC;
+                break;
+            case SND_DEVICE_IN_VOICE_HEADSET_MIC:
+                in_snd_device = SND_DEVICE_IN_ECALL_HEADSET_MIC;
+                break;
+            case SND_DEVICE_IN_VOICE_DMIC:
+            case SND_DEVICE_IN_HANDSET_DMIC:
+            case SND_DEVICE_IN_SPEAKER_DMIC:
+            case SND_DEVICE_IN_HANDSET_DMIC_AEC:
+            case SND_DEVICE_IN_HANDSET_DMIC_NS:
+            case SND_DEVICE_IN_HANDSET_DMIC_AEC_NS:
+            case SND_DEVICE_IN_SPEAKER_DMIC_AEC:
+            case SND_DEVICE_IN_SPEAKER_DMIC_NS:
+            case SND_DEVICE_IN_SPEAKER_DMIC_AEC_NS:
+                break;
+            default:
+                ALOGE(" default ecall in snd case");
+                in_snd_device = SND_DEVICE_IN_ECALL_HANDSET_MIC;
+                break;
+            }
+
+            switch(out_snd_device){
+            case SND_DEVICE_OUT_HANDSET:
+                out_snd_device = SND_DEVICE_OUT_ECALL_HANDSET;
+                break;
+            case SND_DEVICE_OUT_VOICE_HANDSET:
+                out_snd_device = SND_DEVICE_OUT_ECALL_HANDSET;
+                break;
+            case SND_DEVICE_OUT_SPEAKER:
+                out_snd_device = SND_DEVICE_OUT_ECALL_SPEAKER;
+                break;
+            case SND_DEVICE_OUT_VOICE_SPEAKER:
+                out_snd_device = SND_DEVICE_OUT_ECALL_SPEAKER;
+                break;
+            case SND_DEVICE_OUT_VOICE_HEADPHONES:
+                out_snd_device = SND_DEVICE_OUT_ECALL_HEADPHONES;
+                break;
+            default:
+                ALOGE(" default ecall out snd case");
+                out_snd_device = SND_DEVICE_OUT_ECALL_HANDSET;
+                break;
+            }
+
+            usecase->devices = out_snd_device;
+        }
+
     } else if ((usecase->type == TRANSCODE_LOOPBACK_RX)
             || (usecase->type == DTMF_PLAYBACK)) {
         if (usecase->stream.inout == NULL) {
@@ -2531,7 +2605,7 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
     if (usecase->type == VOICE_CALL || usecase->type == VOIP_CALL) {
         status = platform_switch_voice_call_device_post(adev->platform,
                                                         out_snd_device,
-                                                        in_snd_device);    
+                                                        in_snd_device);
     }
 
     usecase->in_snd_device = in_snd_device;
@@ -4582,6 +4656,16 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
     err = str_parms_get_int(parms, AUDIO_PARAMETER_STREAM_DSD_FMT, &val);
     if (err >= 0) {
         out->dsd_format = val;
+    }
+
+    err = str_parms_get_str(parms, "ecall", value, sizeof(value));
+    if (err >= 0) {
+        if (strcmp(value, AUDIO_PARAMETER_VALUE_ON) == 0) {
+            out->ecall = 1;
+            ALOGV("ecall flag is set");
+        }
+        else
+            out->ecall = 0;
     }
 
     //end suspend, resume handling block

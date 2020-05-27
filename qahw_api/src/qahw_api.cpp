@@ -2039,6 +2039,7 @@ int qahw_add_flags_source(struct qahw_stream_attributes attr,
         /*unsupported */
         break;
     case QAHW_VOICE_CALL:
+    case QAHW_ECALL:
         *flags = QAHW_AUDIO_OUTPUT_FLAG_VOICE_CALL;
         break;
     case QAHW_AUDIO_TRANSCODE:
@@ -2169,7 +2170,7 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
                                      address);
         /* cache cb function now, set later as adsp stream handler registered
            after voice start */
-        if ((!rc) && (attr.type == QAHW_VOICE_CALL)) {
+        if ((!rc) && ((attr.type == QAHW_VOICE_CALL)||(attr.type == QAHW_ECALL))) {
             stream->cb = cb;
             stream->cookie = cookie;
         }
@@ -2278,10 +2279,16 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
     *stream_handle = (qahw_stream_handle_t *)stream;
 
     /*if voice call get vsid and call state/mode cache it and use during stream start*/
-    if (attr.type == QAHW_VOICE_CALL) {
+    if ((attr.type == QAHW_VOICE_CALL) ||(attr.type == QAHW_ECALL)){
         session_id = qahw_get_session_id(attr.attr.voice.vsid);
         strlcpy(stream->sess_id_call_state, session_id, QAHW_KV_PAIR_LENGTH);
         ALOGV("%s: sess_id_call_state %s\n", __func__, stream->sess_id_call_state);
+    }
+
+    if(attr.type == QAHW_ECALL) {
+	    const char* ecall = "ecall=on";
+	    rc = qahw_out_set_parameters(stream->out_stream, ecall);
+	    ALOGV("%s: set ecall return (%d)\n",  __func__, rc);
     }
 
     if (no_of_modifiers) {
@@ -2300,6 +2307,7 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
         ALOGV("%s: written bytes %d\n",  __func__, rc);
         ALOGV("%s: KV (%s)\n",  __func__, kv);
         rc = qahw_out_set_parameters(stream->out_stream, kv);
+
     }
     ALOGV("%s: end", __func__);
     return rc;
@@ -2377,7 +2385,7 @@ int qahw_stream_start(qahw_stream_handle_t *stream_handle) {
 
     ALOGV("%d:%s start",__LINE__, __func__);
     /*set call state and call mode for voice */
-    if (stream->type == QAHW_VOICE_CALL) {
+    if ((stream->type == QAHW_VOICE_CALL) || (stream->type == QAHW_ECALL)) {
         rc = qahw_set_parameters(stream->hw_module, stream->sess_id_call_state);
         if (rc) {
             ALOGE("%s: setting vsid/call state failed %d \n", __func__, rc);
@@ -2417,7 +2425,7 @@ int qahw_stream_stop(qahw_stream_handle_t *stream_handle) {
     ALOGV("%d:%s start",__LINE__, __func__);
 
     /*reset call state and call mode for voice */
-    if (stream->type == QAHW_VOICE_CALL) {
+    if ((stream->type == QAHW_VOICE_CALL) || (stream->type == QAHW_ECALL)) {
 		memset(&devices[0], 0, sizeof(devices));
         rc = qahw_set_parameters(stream->hw_module, "call_state=1");
         qahw_stream_set_device(stream, 1, &devices[0]);
@@ -2452,7 +2460,7 @@ int qahw_stream_set_device(qahw_stream_handle_t *stream_handle,
     strlcpy(device_route, "routing=", QAHW_MAX_INT_STRING);
 
     if (num_of_devices && devices) {
-        if (stream->type == QAHW_VOICE_CALL)
+        if ((stream->type == QAHW_VOICE_CALL) || (stream->type == QAHW_ECALL))
             is_voice = true;
 
         switch (stream->dir) {
