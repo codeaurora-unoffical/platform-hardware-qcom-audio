@@ -7840,7 +7840,9 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
             struct  mixer_ctl *ctl = NULL;
 
             if (backend_idx == USB_AUDIO_RX_BACKEND ||
-                    backend_idx == USB_AUDIO_TX_BACKEND) {
+                    backend_idx == USB_AUDIO_TX_BACKEND ||
+                    ((backend_idx == DEFAULT_CODEC_BACKEND) &&
+                    (my_data->use_sprk_default_sample_rate == false)) ) {
                 switch (sample_rate) {
                 case 32000:
                         rate_str = "KHZ_32";
