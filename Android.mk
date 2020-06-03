@@ -1,5 +1,5 @@
 ifneq ($(filter mpq8092 msm8960 msm8226 msm8x26 msm8610 msm8974 msm8x74 apq8084 msm8916 msm8994 msm8992 msm8909 msm8996 msm8952 msm8937 thorium msm8953 msmgold msm8998 sdm660 sdm845 sdm710 apq8098_latv qcs605 msmnile $(MSMSTEPPE) $(TRINKET) kona,$(TARGET_BOARD_PLATFORM)),)
-
+ifneq ($(TARGET_SUPPORTS_ANDROID_WEAR_KERNEL_4_14),true)
 MY_LOCAL_PATH := $(call my-dir)
 
 ifeq ($(BOARD_USES_LEGACY_ALSA_AUDIO),true)
@@ -22,4 +22,5 @@ ifeq ($(USE_LEGACY_AUDIO_DAEMON), true)
 include $(MY_LOCAL_PATH)/audiod/Android.mk
 endif
 
+endif
 endif
