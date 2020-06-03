@@ -2294,14 +2294,22 @@ bool is_btsco_device(snd_device_t out_snd_device, snd_device_t in_snd_device)
 {
    bool ret=false;
    if ((out_snd_device == SND_DEVICE_OUT_BT_SCO ||
+        out_snd_device == SND_DEVICE_OUT_BT_PRI_SCO ||
+        out_snd_device == SND_DEVICE_OUT_BT_SEC_SCO ||
         out_snd_device == SND_DEVICE_OUT_BT_SCO_WB ||
+        out_snd_device == SND_DEVICE_OUT_BT_PRI_SCO_WB ||
+        out_snd_device == SND_DEVICE_OUT_BT_SEC_SCO_WB ||
         out_snd_device == SND_DEVICE_OUT_BT_SCO_SWB) ||
         in_snd_device == SND_DEVICE_IN_BT_SCO_MIC_WB_NREC ||
         in_snd_device == SND_DEVICE_IN_BT_SCO_MIC_WB ||
+        in_snd_device == SND_DEVICE_IN_BT_PRI_SCO_MIC_WB ||
+        in_snd_device == SND_DEVICE_IN_BT_SEC_SCO_MIC_WB ||
         in_snd_device == SND_DEVICE_IN_BT_SCO_MIC_SWB ||
         in_snd_device == SND_DEVICE_IN_BT_SCO_MIC_NREC ||
         in_snd_device == SND_DEVICE_IN_BT_SCO_MIC ||
-        in_snd_device == SND_DEVICE_IN_BT_SCO_MIC_SWB_NREC)
+        in_snd_device == SND_DEVICE_IN_BT_SCO_MIC_SWB_NREC ||
+        in_snd_device == SND_DEVICE_IN_BT_PRI_SCO_MIC ||
+        in_snd_device == SND_DEVICE_IN_BT_SEC_SCO_MIC)
         ret = true;
 
    return ret;
@@ -2351,18 +2359,26 @@ static int configure_btsco_sample_rate(snd_device_t snd_device)
 
         switch (snd_device) {
         case SND_DEVICE_OUT_BT_SCO:
+        case SND_DEVICE_OUT_BT_PRI_SCO:
+        case SND_DEVICE_OUT_BT_SEC_SCO:
             rate_str = "KHZ_8";
             break;
         case SND_DEVICE_IN_BT_SCO_MIC_NREC:
         case SND_DEVICE_IN_BT_SCO_MIC:
+        case SND_DEVICE_IN_BT_PRI_SCO_MIC:
+        case SND_DEVICE_IN_BT_SEC_SCO_MIC:
             rate_str = "KHZ_8";
             is_rx_dev = false;
             break;
         case SND_DEVICE_OUT_BT_SCO_WB:
+        case SND_DEVICE_OUT_BT_PRI_SCO_WB:
+        case SND_DEVICE_OUT_BT_SEC_SCO_WB:
             rate_str = "KHZ_16";
             break;
         case SND_DEVICE_IN_BT_SCO_MIC_WB_NREC:
         case SND_DEVICE_IN_BT_SCO_MIC_WB:
+        case SND_DEVICE_IN_BT_PRI_SCO_MIC_WB:
+        case SND_DEVICE_IN_BT_SEC_SCO_MIC_WB:
             rate_str = "KHZ_16";
             is_rx_dev = false;
             break;
