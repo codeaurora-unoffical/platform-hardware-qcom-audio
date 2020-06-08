@@ -415,6 +415,11 @@ struct qahw_adsp_event {
     void *payload;                 /* the actual payload */
 };
 
+struct qahw_in_channel_map_param {
+   uint8_t       channels;                               /* Input Channels */
+   uint8_t       channel_map[AUDIO_CHANNEL_COUNT_MAX];   /* Input Channel Map */
+};
+
 struct qahw_out_channel_map_param {
    uint8_t       channels;                               /* Input Channels */
    uint8_t       channel_map[AUDIO_CHANNEL_COUNT_MAX];   /* Input Channel Map */
@@ -552,6 +557,7 @@ typedef union {
     struct qahw_out_enable_drift_correction drift_enable_param;
     struct qahw_out_correct_drift drift_correction_param;
     struct qahw_adsp_event adsp_event_params;
+    struct qahw_in_channel_map_param in_channel_map_params;
     struct qahw_out_channel_map_param channel_map_params;
     struct qahw_device_cfg_param device_cfg_params;
     struct qahw_mix_matrix_params mix_matrix_params;
@@ -579,7 +585,7 @@ typedef enum {
     /* param to set drift value to be adjusted by dsp */
     QAHW_PARAM_OUT_CORRECT_DRIFT,
     QAHW_PARAM_ADSP_STREAM_CMD,
-    QAHW_PARAM_OUT_CHANNEL_MAP,    /* PARAM to set i/p channel map */
+    QAHW_PARAM_OUT_CHANNEL_MAP,    /* PARAM to set o/p channel map */
     QAHW_PARAM_DEVICE_CONFIG,      /* PARAM to set device config */
     QAHW_PARAM_OUT_MIX_MATRIX_PARAMS,
     QAHW_PARAM_CH_MIX_MATRIX_PARAMS,
@@ -594,6 +600,7 @@ typedef enum {
     QAHW_PARAM_TONE_GEN,
     QAHW_PARAM_IN_TTP_OFFSET,
     QAHW_PARAM_PLL_DEVICE_CONFIG,
+    QAHW_PARAM_IN_CHANNEL_MAP,     /* PARAM to set i/p channel map */
 } qahw_param_id;
 
 typedef union {

@@ -362,11 +362,13 @@ static void audio_extn_ext_disp_set_parameters(const struct audio_device *adev,
 }
 
 static int update_custom_mtmx_coefficients_v2(struct audio_device *adev,
+                                              struct audio_usecase *usecase,
                                               struct audio_custom_mtmx_params *params,
                                               int pcm_device_id)
 {
     struct mixer_ctl *ctl = NULL;
-    char *mixer_name_prefix = "AudStr";
+    char *playback_mixer_name_prefix = "AudStr";
+    char *capture_mixer_name_prefix = "AudStr Capture";
     char *mixer_name_suffix = "ChMixer Weight Ch";
     char mixer_ctl_name[128] = {0};
     struct audio_custom_mtmx_params_info *pinfo = &params->info;
@@ -404,8 +406,12 @@ static int update_custom_mtmx_coefficients_v2(struct audio_device *adev,
         ALOGD("%s: Mixer ctl set for %s success", __func__, mixer_ctl_name);
     } else {
         for (i = 0; i < (int)pinfo->op_channels; i++) {
-            snprintf(mixer_ctl_name, sizeof(mixer_ctl_name), "%s %d %s %d",
-                    mixer_name_prefix, pcm_device_id, mixer_name_suffix, i+1);
+            if (usecase->type == PCM_CAPTURE)
+                snprintf(mixer_ctl_name, sizeof(mixer_ctl_name), "%s %d %s %d",
+                        capture_mixer_name_prefix, pcm_device_id, mixer_name_suffix, i+1);
+            else
+                snprintf(mixer_ctl_name, sizeof(mixer_ctl_name), "%s %d %s %d",
+                        playback_mixer_name_prefix, pcm_device_id, mixer_name_suffix, i+1);
 
             ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
             if (!ctl) {
@@ -426,11 +432,13 @@ static int update_custom_mtmx_coefficients_v2(struct audio_device *adev,
 }
 
 static void set_custom_mtmx_params_v2(struct audio_device *adev,
+                                      struct audio_usecase *usecase,
                                       struct audio_custom_mtmx_params_info *pinfo,
                                       int pcm_device_id, bool enable)
 {
     struct mixer_ctl *ctl = NULL;
-    char *mixer_name_prefix = "AudStr";
+    char *playback_mixer_name_prefix = "AudStr";
+    char *capture_mixer_name_prefix = "AudStr Capture";
     char *mixer_name_suffix = "ChMixer Cfg";
     char mixer_ctl_name[128] = {0};
     int chmixer_cfg[5] = {0}, len = 0;
@@ -441,8 +449,13 @@ static void set_custom_mtmx_params_v2(struct audio_device *adev,
     ALOGI("%s: ip_channels %d,op_channels %d,pcm_device_id %d,be_id %d",
           __func__, pinfo->ip_channels, pinfo->op_channels, pcm_device_id, be_id);
 
-    snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
-             "%s %d %s", mixer_name_prefix, pcm_device_id, mixer_name_suffix);
+    if (usecase->type == PCM_CAPTURE)
+        snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
+                 "%s %d %s", capture_mixer_name_prefix, pcm_device_id, mixer_name_suffix);
+    else
+        snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
+                 "%s %d %s", playback_mixer_name_prefix, pcm_device_id, mixer_name_suffix);
+
     ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
     if (!ctl) {
         ALOGE("%s: ERROR. Could not get ctl for mixer cmd - %s",
@@ -460,23 +473,48 @@ static void set_custom_mtmx_params_v2(struct audio_device *adev,
         ALOGE("%s: ERROR. Mixer ctl set failed", __func__);
 }
 
-static struct audio_custom_mtmx_params *update_channel_weightage_params(audio_channel_mask_t channel_mask,
-                                        struct audio_out_channel_map_param *channel_map_param,
-                                        struct audio_device_config_param *adev_device_cfg_ptr)
+static int update_and_set_custom_mtmx_param_v2(struct audio_device *adev,
+                                      struct audio_usecase *usecase,
+                                      struct audio_custom_mtmx_params *params,
+                                      int pcm_device_id, bool enable)
+{
+    int ret = 0;
+    if (!adev || !usecase || !params) {
+        ALOGE("%s: invalid params", __func__);
+        return -EINVAL;
+    }
+
+    if (enable) {
+        ret = update_custom_mtmx_coefficients_v2(adev, usecase, params, pcm_device_id);
+        if (ret < 0) {
+            ALOGE("%s: error updating mtmx coeffs err:%d", __func__, ret);
+            free(params);
+            return -EINVAL;
+        }
+    }
+
+    set_custom_mtmx_params_v2(adev, usecase, &params->info, pcm_device_id, enable);
+    free(params);
+    return 0;
+}
+
+static struct audio_custom_mtmx_params *update_channel_weightage_params(struct audio_custom_mtmx_params_info *pinfo,
+                                                                    uint8_t *input_channel_map,
+                                                                    uint8_t *output_channel_map)
 {
     struct audio_custom_mtmx_params *params = NULL;
-    uint32_t ip_channels = audio_channel_count_from_out_mask(channel_mask);
-    uint8_t *input_channel_map = NULL;
-    uint32_t size = sizeof(struct audio_custom_mtmx_params), op_channels = 0;
+    uint32_t ip_channels = 0;
+    uint32_t op_channels = 0;
+    uint32_t size = sizeof(struct audio_custom_mtmx_params);
     int i = 0, j = 0;
 
-    if (!channel_map_param || !adev_device_cfg_ptr) {
+    if (!pinfo || !input_channel_map || !output_channel_map) {
         ALOGE("%s: invalid params", __func__);
         return NULL;
     }
 
-    input_channel_map = &channel_map_param->channel_map[0];
-    op_channels = adev_device_cfg_ptr->dev_cfg_params.channels;
+    ip_channels = pinfo->ip_channels;
+    op_channels = pinfo->op_channels;
 
     /*
      * Allocate memory for coefficients in audio_custom_mtmx_params.
@@ -493,11 +531,13 @@ static struct audio_custom_mtmx_params *update_channel_weightage_params(audio_ch
     params->info.ip_channels = ip_channels;
     params->info.op_channels = op_channels;
 
+    ALOGD("%s: ip_channels: %d, op_channels: %d", __func__, ip_channels, op_channels);
+
     for (i = 0; i < (int)op_channels; i++) {
         for (j = 0; j < (int)ip_channels; j++) {
-            if (adev_device_cfg_ptr->dev_cfg_params.channel_map[i] == input_channel_map[j])
+            if (output_channel_map[i] == input_channel_map[j])
                 params->coeffs[ip_channels * i + j] = Q14_GAIN_UNITY;
-            ALOGV("%s: op %d ip %d wght %d", __func__, i, j, params->coeffs[ip_channels * i + j]);
+            ALOGD("%s: op %d ip %d wght %d", __func__, i, j, params->coeffs[ip_channels * i + j]);
         }
     }
 
@@ -517,7 +557,6 @@ void audio_extn_set_custom_mtmx_params_v2(struct audio_device *adev,
     struct audio_device_config_param *adev_device_cfg_ptr = adev->device_cfg_params;
     int backend_idx = DEFAULT_CODEC_BACKEND;
     struct audio_out_channel_map_param *channel_map_param = NULL;
-    audio_channel_mask_t channel_mask = 0;
 
     switch(usecase->type) {
     case PCM_PLAYBACK:
@@ -568,25 +607,51 @@ void audio_extn_set_custom_mtmx_params_v2(struct audio_device *adev,
         adev_device_cfg_ptr += backend_idx;
         if (adev_device_cfg_ptr && adev_device_cfg_ptr->use_client_dev_cfg &&
                 (usecase->type == PCM_PLAYBACK)) {
-            channel_mask = usecase->stream.out->channel_mask;
             channel_map_param = &usecase->stream.out->channel_map_param;
-            params = update_channel_weightage_params(channel_mask,
-                                     channel_map_param, adev_device_cfg_ptr);
-            if (!params)
+            info.ip_channels = audio_channel_count_from_out_mask(
+                                       usecase->stream.out->channel_mask);
+            info.op_channels = adev_device_cfg_ptr->dev_cfg_params.channels;
+            params = update_channel_weightage_params(&info,
+                                               &channel_map_param->channel_map[0],
+                                               &adev_device_cfg_ptr->dev_cfg_params.channel_map[0]);
+            if (!params){
+                ALOGE("%s: error update_channel_weightage_params", __func__);
                 return;
-
-            if (enable) {
-                ret = update_custom_mtmx_coefficients_v2(adev, params, pcm_device_id);
-                if (ret < 0) {
-                    ALOGE("%s: error updating mtmx coeffs err:%d", __func__, ret);
-                    free(params);
-                    return;
-                }
             }
 
             params->info.snd_device = new_snd_devices[i];
-            set_custom_mtmx_params_v2(adev, &params->info, pcm_device_id, enable);
-            free(params);
+
+            ret = update_and_set_custom_mtmx_param_v2(adev, usecase, params, pcm_device_id, enable);
+            if (ret < 0) {
+                ALOGE("%s: error updating mtmx coeffs err:%d", __func__, ret);
+                free(params);
+                return;
+            }
+        } else if ((usecase->type == PCM_CAPTURE) &&
+                   (usecase->stream.in->channel_map_param)) {
+            platform_get_codec_backend_cfg(adev, new_snd_devices[i], &backend_cfg);
+            channel_map_param = usecase->stream.in->channel_map_param;
+            info.ip_channels = backend_cfg.channels;
+            info.op_channels = audio_channel_count_from_in_mask(
+                                       usecase->stream.in->channel_mask);
+            ALOGD("%s: Trigger update_channel_weightage_params", __func__);
+            params = update_channel_weightage_params(&info,
+                                                    &adev->in_channel_map_param.channel_map[0],
+                                                    &channel_map_param->channel_map[0]);
+
+            if (!params) {
+                ALOGE("%s: error update_channel_weightage_params", __func__);
+                return;
+            }
+
+            params->info.snd_device = new_snd_devices[i];
+
+            ret = update_and_set_custom_mtmx_param_v2(adev, usecase, params, pcm_device_id, enable);
+            if (ret < 0) {
+                ALOGE("%s: error update_and_set_custom_mtmx_param_v2 err:%d", __func__, ret);
+                free(params);
+                return;
+            }
         } else {
             info.snd_device = new_snd_devices[i];
             platform_get_codec_backend_cfg(adev, info.snd_device, &backend_cfg);
@@ -603,12 +668,12 @@ void audio_extn_set_custom_mtmx_params_v2(struct audio_device *adev,
             params = platform_get_custom_mtmx_params(adev->platform, &info, &idx);
             if (params) {
                 if (enable)
-                    ret = update_custom_mtmx_coefficients_v2(adev, params,
+                    ret = update_custom_mtmx_coefficients_v2(adev, usecase, params,
                                                           pcm_device_id);
                 if (ret < 0)
                     ALOGE("%s: error updating mtmx coeffs err:%d", __func__, ret);
                 else
-                   set_custom_mtmx_params_v2(adev, &info, pcm_device_id, enable);
+                   set_custom_mtmx_params_v2(adev, usecase, &info, pcm_device_id, enable);
             }
         }
     }
@@ -3807,6 +3872,30 @@ int audio_extn_out_get_param_data(struct stream_out *out,
     return ret;
 }
 
+int audio_extn_in_set_channel_map(struct stream_in *in,
+                                  struct audio_in_channel_map_param *in_channel_map_param) {
+
+    if (!in || !in_channel_map_param) {
+        ALOGE("%s:: Invalid Param",__func__);
+        return -EINVAL;
+    }
+
+    if (in->channel_map_param == NULL) {
+        in->channel_map_param = calloc(1, sizeof(struct audio_in_channel_map_param));
+        if (!in->channel_map_param) {
+            ALOGE("%s: failed to allocate mem for channel map param", __func__);
+            return -EINVAL;
+        }
+    }
+
+    memcpy(in->channel_map_param, in_channel_map_param, sizeof(struct audio_in_channel_map_param));
+    ALOGD("%s: In Set channels:%d", __func__, in->channel_map_param->channels);
+    for(int i=0; i < in->channel_map_param->channels; i++)
+        ALOGD("%s: In Set channel map[%d] = %d", __func__, i, in->channel_map_param->channel_map[i]);
+
+    return 0;
+}
+
 /* API to set capture stream specific config parameters */
 int audio_extn_in_set_param_data(struct stream_in *in,
                              audio_extn_param_id param_id,
@@ -3825,6 +3914,10 @@ int audio_extn_in_set_param_data(struct stream_in *in,
         case AUDIO_EXTN_PARAM_IN_TTP_OFFSET:
             ret = audio_extn_compress_in_set_ttp_offset(in,
                     (struct audio_in_ttp_offset_param *)(payload));
+            break;
+        case AUDIO_EXTN_PARAM_IN_CHANNEL_MAP:
+            ret = audio_extn_in_set_channel_map(in,
+                    (struct audio_in_channel_map_param *)(payload));
             break;
         default:
             ALOGE("%s:: unsupported param_id %d", __func__, param_id);

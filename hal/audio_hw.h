@@ -468,6 +468,7 @@ struct stream_in {
     int pcm_device_id;
     audio_devices_t device;
     audio_channel_mask_t channel_mask;
+    struct audio_in_channel_map_param *channel_map_param; /* input channel map */
     audio_usecase_t usecase;
     bool enable_aec;
     bool enable_ns;
@@ -641,6 +642,8 @@ struct audio_device {
     int (*offload_effects_stop_output)(audio_io_handle_t, int);
 
     int (*offload_effects_set_hpx_state)(bool);
+
+    struct audio_in_channel_map_param in_channel_map_param;
 
     void *adm_data;
     void *adm_lib;
