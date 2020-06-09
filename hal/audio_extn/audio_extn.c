@@ -557,6 +557,7 @@ void audio_extn_set_custom_mtmx_params_v2(struct audio_device *adev,
     struct audio_device_config_param *adev_device_cfg_ptr = adev->device_cfg_params;
     int backend_idx = DEFAULT_CODEC_BACKEND;
     struct audio_out_channel_map_param *channel_map_param = NULL;
+    struct audio_in_channel_map_param *in_channel_map_param = NULL;
 
     switch(usecase->type) {
     case PCM_PLAYBACK:
@@ -630,14 +631,14 @@ void audio_extn_set_custom_mtmx_params_v2(struct audio_device *adev,
         } else if ((usecase->type == PCM_CAPTURE) &&
                    (usecase->stream.in->channel_map_param)) {
             platform_get_codec_backend_cfg(adev, new_snd_devices[i], &backend_cfg);
-            channel_map_param = usecase->stream.in->channel_map_param;
+            in_channel_map_param = usecase->stream.in->channel_map_param;
             info.ip_channels = backend_cfg.channels;
             info.op_channels = audio_channel_count_from_in_mask(
                                        usecase->stream.in->channel_mask);
             ALOGD("%s: Trigger update_channel_weightage_params", __func__);
             params = update_channel_weightage_params(&info,
                                                     &adev->in_channel_map_param.channel_map[0],
-                                                    &channel_map_param->channel_map[0]);
+                                                    &in_channel_map_param->channel_map[0]);
 
             if (!params) {
                 ALOGE("%s: error update_channel_weightage_params", __func__);
