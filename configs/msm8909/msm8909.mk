@@ -22,7 +22,7 @@ AUDIO_FEATURE_ENABLED_RECORD_PLAY_CONCURRENCY := true
 AUDIO_FEATURE_ENABLED_DS2_DOLBY_DAP := false
 MM_AUDIO_ENABLED_SAFX := true
 DOLBY_ENABLE := false
-
+AUDIO_FEATURE_ENABLED_AHAL_EXT := true
 endif
 USE_XML_AUDIO_POLICY_CONF := 1
 BOARD_SUPPORTS_SOUND_TRIGGER := true
@@ -171,6 +171,9 @@ vendor.audio.rec.playback.conc.disabled=true
 #property to enable image unload by audio HAL
 PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.sys.init=false
+
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.hw.aac.encoder=false
 
 #Enable DS2 feature for Dolby
 PRODUCT_PROPERTY_OVERRIDES += \
