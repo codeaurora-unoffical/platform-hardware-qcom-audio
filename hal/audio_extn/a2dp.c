@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2015-2018, 2020 The Linux Foundation. All rights reserved.
+* Copyright (c) 2015-2018, 2020, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -94,10 +94,12 @@
 //To Do: Fine Tune Encoder CELT/LDAC latency.
 #define ENCODER_LATENCY_CELT       40
 #define ENCODER_LATENCY_LDAC       40
+#define ENCODER_LATENCY_PCM        50
 #define DEFAULT_SINK_LATENCY_SBC       140
 #define DEFAULT_SINK_LATENCY_APTX      160
 #define DEFAULT_SINK_LATENCY_APTX_HD   180
 #define DEFAULT_SINK_LATENCY_AAC       180
+#define DEFAULT_SINK_LATENCY_PCM       140
 //To Do: Fine Tune Default CELT/LDAC Latency.
 #define DEFAULT_SINK_LATENCY_CELT      180
 #define DEFAULT_SINK_LATENCY_LDAC      180
@@ -136,6 +138,7 @@ typedef enum {
     ENC_CODEC_TYPE_LDAC = AUDIO_FORMAT_LDAC, // 0x23000000UL
     ENC_CODEC_TYPE_CELT = 603979776u, // 0x24000000UL
     ENC_CODEC_TYPE_APTX_AD = 620756992u, // 0x25000000UL
+    ENC_CODEC_TYPE_PCM = AUDIO_FORMAT_PCM_16_BIT, // 0x1u
 }enc_codec_t;
 
 /*
@@ -904,6 +907,10 @@ static int a2dp_set_backend_cfg()
     } else if (a2dp.bt_encoder_format == ENC_CODEC_TYPE_APTX_AD &&
                sampling_rate_rx == SAMPLING_RATE_48K) {
         sampling_rate_rx *= 2;
+    }
+    // No need to configure backend for PCM format.
+    if (a2dp.bt_encoder_format == ENC_CODEC_TYPE_PCM) {
+        return 0;
     }
 
     // Set Rx backend sample rate
@@ -1839,6 +1846,11 @@ bool configure_a2dp_encoder_format()
                 (configure_aptx_enc_format(&aptx_encoder_cfg) &&
                  configure_a2dp_decoder_format(ENC_MEDIA_FMT_APTX_AD));
             break;
+         case ENC_CODEC_TYPE_PCM:
+             ALOGD("Received PCM format for BT device");
+             a2dp.bt_encoder_format = ENC_CODEC_TYPE_PCM;
+             is_configured = true;
+             break;
         default:
             ALOGD(" Received Unsupported encoder formar");
             is_configured = false;
@@ -2241,6 +2253,10 @@ uint32_t audio_extn_a2dp_get_encoder_latency()
             break;
         case ENC_CODEC_TYPE_APTX_AD: // for aptx adaptive the latency depends on the mode (HQ/LL) and
             latency = slatency;      // BT IPC will take care of accomodating the mode factor and return latency
+            break;
+        case ENC_CODEC_TYPE_PCM:
+            latency = ENCODER_LATENCY_PCM;
+            latency += DEFAULT_SINK_LATENCY_PCM;
             break;
         default:
             latency = 200;
