@@ -108,6 +108,14 @@ if (test x$TARGET_SUPPORT = xsdxprairie); then
 fi
 AC_SUBST([TARGET_CFLAGS])
 
+AC_ARG_WITH([ion],
+      AC_HELP_STRING([--with-ion],
+          [enable ion package, specify ion headers location]),
+                [CPPFLAGS="$CPPFLAGS -I$withval"] [ION_ENABLE=yes],
+          [ION_ENABLE=no])
+
+AM_CONDITIONAL([USE_LIBION_LIBRARY],[test x$ION_ENABLE = xyes])
+
 AM_CONDITIONAL([QTI_AUDIO_SERVER_ENABLED],[test x$BOARD_SUPPORTS_QTI_AUDIO_SERVER = xtrue])
 AM_CONDITIONAL([QAHW_SUPPORT], [test x$BOARD_SUPPORTS_QAHW = xtrue])
 AM_CONDITIONAL([HDMI_EDID],    [test x$AUDIO_FEATURE_ENABLED_HDMI_EDID = xtrue])
@@ -171,7 +179,8 @@ AC_CONFIG_FILES([ \
         post_proc/Makefile \
         qahw_api/Makefile \
         qahw_api/test/Makefile \
-        hdmi_in_test/Makefile
+        hdmi_in_test/Makefile \
+        standalone_test_app/Makefile
         ])
 
 AC_OUTPUT
