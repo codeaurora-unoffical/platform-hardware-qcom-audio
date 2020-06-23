@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2016-2017, 2018-2019, The Linux Foundation. All rights reserved.
+* Copyright (c) 2016-2017, 2018-2020, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -63,6 +63,13 @@ static void lock_output_stream(struct stream_out *out)
     pthread_mutex_unlock(&out->pre_lock);
 }
 
+static void lock_input_stream(struct stream_in *in)
+{
+    pthread_mutex_lock(&in->pre_lock);
+    pthread_mutex_lock(&in->lock);
+    pthread_mutex_unlock(&in->pre_lock);
+}
+
 /* API to send playback stream specific config parameters */
 int qahwi_out_set_param_data(struct audio_stream_out *stream,
                              audio_extn_param_id param_id,
@@ -112,6 +119,25 @@ int qahwi_out_get_param_data(struct audio_stream_out *stream,
         pthread_mutex_unlock(&out->lock);
     }
 
+    return ret;
+}
+
+/* API to send capture stream specific config parameters */
+int qahwi_in_set_param_data(struct audio_stream_in *stream,
+                             audio_extn_param_id param_id,
+                             audio_extn_param_payload *payload) {
+    int ret = 0;
+    struct stream_in *in = (struct stream_in *)stream;
+
+    if (audio_extn_is_qaf_stream(in)) {
+        ALOGE("%s::qaf in_set_param_data not supported", __func__);
+    } else {
+        lock_input_stream(in);
+        ret = audio_extn_in_set_param_data(in, param_id, payload);
+        if (ret)
+            ALOGE("%s::audio_extn_out_set_param_data error %d", __func__, ret);
+        pthread_mutex_unlock(&in->lock);
+    }
     return ret;
 }
 

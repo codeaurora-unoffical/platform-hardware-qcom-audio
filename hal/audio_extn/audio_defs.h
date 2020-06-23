@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2015, 2017-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2015, 2017-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -249,6 +249,11 @@ struct audio_adsp_event {
  void    *payload;                           /* the actual payload */
 };
 
+struct audio_in_channel_map_param {
+   uint8_t       channels;                              /* Input Channels */
+   uint8_t       channel_map[AUDIO_CHANNEL_COUNT_MAX];  /* Input Channel Map */
+};
+
 struct audio_out_channel_map_param {
    uint8_t       channels;                              /* Input Channels */
    uint8_t       channel_map[AUDIO_CHANNEL_COUNT_MAX];  /* Input Channel Map */
@@ -334,6 +339,7 @@ typedef union {
     struct audio_out_enable_drift_correction drift_enable_param;
     struct audio_out_correct_drift drift_correction_param;
     struct audio_adsp_event adsp_event_params;
+    struct audio_in_channel_map_param in_channel_map_param;
     struct audio_out_channel_map_param channel_map_param;
     struct audio_device_cfg_param device_cfg;
     struct mix_matrix_params mm_params;
@@ -367,6 +373,8 @@ typedef enum {
     AUDIO_EXTN_PARAM_DOLBY_THD_DEC,
     AUDIO_EXTN_PARAM_DOLBY_MAT_DEC,
     AUDIO_EXTN_PARAM_OUT_PRESENTATION_POSITION,
+    /* param to set input channel map for capture */
+    AUDIO_EXTN_PARAM_IN_CHANNEL_MAP,
 } audio_extn_param_id;
 
 typedef union {
