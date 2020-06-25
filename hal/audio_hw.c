@@ -2294,13 +2294,22 @@ bool is_btsco_device(snd_device_t out_snd_device, snd_device_t in_snd_device)
 {
    bool ret=false;
    if ((out_snd_device == SND_DEVICE_OUT_BT_SCO ||
+        out_snd_device == SND_DEVICE_OUT_BT_PRI_SCO ||
+        out_snd_device == SND_DEVICE_OUT_BT_SEC_SCO ||
         out_snd_device == SND_DEVICE_OUT_BT_SCO_WB ||
+        out_snd_device == SND_DEVICE_OUT_BT_PRI_SCO_WB ||
+        out_snd_device == SND_DEVICE_OUT_BT_SEC_SCO_WB ||
         out_snd_device == SND_DEVICE_OUT_BT_SCO_SWB) ||
         in_snd_device == SND_DEVICE_IN_BT_SCO_MIC_WB_NREC ||
         in_snd_device == SND_DEVICE_IN_BT_SCO_MIC_WB ||
+        in_snd_device == SND_DEVICE_IN_BT_PRI_SCO_MIC_WB ||
+        in_snd_device == SND_DEVICE_IN_BT_SEC_SCO_MIC_WB ||
         in_snd_device == SND_DEVICE_IN_BT_SCO_MIC_SWB ||
         in_snd_device == SND_DEVICE_IN_BT_SCO_MIC_NREC ||
-        in_snd_device == SND_DEVICE_IN_BT_SCO_MIC)
+        in_snd_device == SND_DEVICE_IN_BT_SCO_MIC ||
+        in_snd_device == SND_DEVICE_IN_BT_SCO_MIC_SWB_NREC ||
+        in_snd_device == SND_DEVICE_IN_BT_PRI_SCO_MIC ||
+        in_snd_device == SND_DEVICE_IN_BT_SEC_SCO_MIC)
         ret = true;
 
    return ret;
@@ -2350,18 +2359,26 @@ static int configure_btsco_sample_rate(snd_device_t snd_device)
 
         switch (snd_device) {
         case SND_DEVICE_OUT_BT_SCO:
+        case SND_DEVICE_OUT_BT_PRI_SCO:
+        case SND_DEVICE_OUT_BT_SEC_SCO:
             rate_str = "KHZ_8";
             break;
         case SND_DEVICE_IN_BT_SCO_MIC_NREC:
         case SND_DEVICE_IN_BT_SCO_MIC:
+        case SND_DEVICE_IN_BT_PRI_SCO_MIC:
+        case SND_DEVICE_IN_BT_SEC_SCO_MIC:
             rate_str = "KHZ_8";
             is_rx_dev = false;
             break;
         case SND_DEVICE_OUT_BT_SCO_WB:
+        case SND_DEVICE_OUT_BT_PRI_SCO_WB:
+        case SND_DEVICE_OUT_BT_SEC_SCO_WB:
             rate_str = "KHZ_16";
             break;
         case SND_DEVICE_IN_BT_SCO_MIC_WB_NREC:
         case SND_DEVICE_IN_BT_SCO_MIC_WB:
+        case SND_DEVICE_IN_BT_PRI_SCO_MIC_WB:
+        case SND_DEVICE_IN_BT_SEC_SCO_MIC_WB:
             rate_str = "KHZ_16";
             is_rx_dev = false;
             break;
@@ -3293,8 +3310,7 @@ static void *offload_thread_loop(void *context)
 
     ALOGV("%s", __func__);
     lock_output_stream(out);
-    out->offload_state = OFFLOAD_STATE_IDLE;
-    out->playback_started = 0;
+    pthread_cond_signal(&out->cond);
     for (;;) {
         struct offload_cmd *cmd = NULL;
         stream_callback_event_t event;
@@ -3416,8 +3432,11 @@ static int create_offload_callback_thread(struct stream_out *out)
 {
     pthread_cond_init(&out->offload_cond, (const pthread_condattr_t *) NULL);
     list_init(&out->offload_cmd_list);
+    lock_output_stream(out);
     pthread_create(&out->offload_thread, (const pthread_attr_t *) NULL,
                     offload_thread_loop, out);
+    pthread_cond_wait(&out->cond, &out->lock);
+    pthread_mutex_unlock(&out->lock);
     return 0;
 }
 
@@ -4174,26 +4193,32 @@ size_t get_output_period_size(uint32_t sample_rate,
 static uint64_t get_actual_pcm_frames_rendered(struct stream_out *out, struct timespec *timestamp)
 {
     uint64_t actual_frames_rendered = 0;
-    size_t kernel_buffer_size = out->compr_config.fragment_size * out->compr_config.fragments;
+    uint64_t written_frames = 0;
+    uint64_t kernel_frames = 0;
+    uint64_t dsp_frames = 0;
+    uint64_t signed_frames = 0;
+    size_t kernel_buffer_size = 0;
 
     /* This adjustment accounts for buffering after app processor.
      * It is based on estimated DSP latency per use case, rather than exact.
      */
-    int64_t platform_latency =  platform_render_latency(out->usecase) *
-                                out->sample_rate / 1000000LL;
+    dsp_frames = platform_render_latency(out->usecase) *
+        out->sample_rate / 1000000LL;
 
     pthread_mutex_lock(&out->position_query_lock);
+    written_frames = out->written /
+        (audio_bytes_per_sample(out->hal_ip_format) * popcount(out->channel_mask));
+
     /* not querying actual state of buffering in kernel as it would involve an ioctl call
      * which then needs protection, this causes delay in TS query for pcm_offload usecase
      * hence only estimate.
      */
-    uint64_t signed_frames = 0;
-    if (out->written >= kernel_buffer_size)
-        signed_frames = out->written - kernel_buffer_size;
+    kernel_buffer_size = out->compr_config.fragment_size * out->compr_config.fragments;
+    kernel_frames = kernel_buffer_size /
+        (audio_bytes_per_sample(out->hal_op_format) * popcount(out->channel_mask));
 
-    signed_frames = signed_frames / (audio_bytes_per_sample(out->format) * popcount(out->channel_mask));
-    if (signed_frames >= platform_latency)
-        signed_frames = signed_frames - platform_latency;
+    if (written_frames >= (kernel_frames + dsp_frames))
+        signed_frames = written_frames - kernel_frames - dsp_frames;
 
     if (signed_frames > 0) {
         actual_frames_rendered = signed_frames;
@@ -4204,11 +4229,8 @@ static uint64_t get_actual_pcm_frames_rendered(struct stream_out *out, struct ti
     }
     pthread_mutex_unlock(&out->position_query_lock);
 
-    ALOGVV("%s signed frames %lld out_written %lld kernel_buffer_size %d"
-            "bytes/sample %zu channel count %d", __func__, signed_frames,
-             (long long int)out->written, (int)kernel_buffer_size,
-             audio_bytes_per_sample(out->compr_config.codec->format),
-             popcount(out->channel_mask));
+    ALOGVV("%s signed frames %lld written frames %lld kernel frames %lld dsp frames %lld",
+            __func__, signed_frames, written_frames, kernel_frames, dsp_frames);
 
     return actual_frames_rendered;
 }
@@ -8473,8 +8495,10 @@ static int adev_set_parameters(struct audio_hw_device *dev, const char *kvpairs)
         struct listnode *node;
         list_for_each(node, &adev->usecase_list) {
             usecase = node_to_item(node, struct audio_usecase, list);
-            if (usecase->stream.out && (usecase->type == PCM_PLAYBACK) &&
-                (usecase->devices & AUDIO_DEVICE_OUT_ALL_A2DP)){
+            if ((usecase->stream.out == NULL) || (usecase->type != PCM_PLAYBACK))
+                continue;
+
+            if (usecase->devices & AUDIO_DEVICE_OUT_ALL_A2DP) {
                 ALOGD("reconfigure a2dp... forcing device switch");
                 pthread_mutex_unlock(&adev->lock);
                 lock_output_stream(usecase->stream.out);
