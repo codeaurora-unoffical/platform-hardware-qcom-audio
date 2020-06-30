@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019, 2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -60,26 +60,26 @@ void AHalConfigHelper::initDefaultConfig(bool isVendorEnhancedFwk)
         mConfigs = {
             true,        /* SND_MONITOR */
             false,       /* COMPRESS_CAPTURE */
-            true,        /* SOURCE_TRACK */
-            true,        /* SSREC */
-            true,        /* AUDIOSPHERE */
+            false,       /* SOURCE_TRACK */
+            false,       /* SSREC */
+            false,       /* AUDIOSPHERE */
             true,        /* AFE_PROXY */
             false,       /* USE_DEEP_AS_PRIMARY_OUTPUT */
-            true,        /* HDMI_EDID */
-            true,        /* KEEP_ALIVE */
+            false,       /* HDMI_EDID */
+            false,       /* KEEP_ALIVE */
             false,       /* HIFI_AUDIO */
-            true,        /* RECEIVER_AIDED_STEREO */
-            true,        /* KPI_OPTIMIZE */
-            true,        /* DISPLAY_PORT */
+            false,       /* RECEIVER_AIDED_STEREO */
+            false,       /* KPI_OPTIMIZE */
+            false,       /* DISPLAY_PORT */
             true,        /* FLUENCE */
-            true,        /* CUSTOM_STEREO */
-            true,        /* ANC_HEADSET */
+            false,       /* CUSTOM_STEREO */
+            false,       /* ANC_HEADSET */
             false,       /* DSM_FEEDBACK */
-            true,        /* USB_OFFLOAD */
+            false,       /* USB_OFFLOAD */
             false,       /* USB_OFFLOAD_BURST_MODE */
             false,       /* USB_OFFLOAD_SIDETONE_VOLM */
-            true,        /* A2DP_OFFLOAD */
-            true,        /* VBAT */
+            false,       /* A2DP_OFFLOAD */
+            false,       /* VBAT */
             true,        /* COMPRESS_METADATA_NEEDED */
             false,       /* COMPRESS_VOIP */
             false,       /* DYNAMIC_ECNS */
@@ -98,17 +98,17 @@ void AHalConfigHelper::initDefaultConfig(bool isVendorEnhancedFwk)
             false,       /* COMPRESS_CAPTURE */
 #endif
 #if SOURCE_TRACKING_ENABLED
-            true,       /* SOURCE_TRACK */
+            false,      /* SOURCE_TRACK */
 #else
             false,       /* SOURCE_TRACK */
 #endif
 #if SSREC_ENABLED
-            true,       /* SSREC */
+            false,       /* SSREC */
 #else
             false,       /* SSREC */
 #endif
 #if AUDIOSPHERE_ENABLED
-            true,       /* AUDIOSPHERE */
+            false,       /* AUDIOSPHERE */
 #else
             false,       /* AUDIOSPHERE */
 #endif
@@ -118,12 +118,12 @@ void AHalConfigHelper::initDefaultConfig(bool isVendorEnhancedFwk)
             false,       /* AFE_PROXY */
 #endif
 #if USE_DEEP_AS_PRIMARY_OUTPUT_ENABLED
-            true,       /* USE_DEEP_AS_PRIMARY_OUTPUT */
+            false,       /* USE_DEEP_AS_PRIMARY_OUTPUT */
 #else
             false,       /* USE_DEEP_AS_PRIMARY_OUTPUT */
 #endif
 #if HDMI_EDID_ENABLED
-            true,       /* HDMI_EDID */
+            false,       /* HDMI_EDID */
 #else
             false,       /* HDMI_EDID */
 #endif
@@ -133,22 +133,22 @@ void AHalConfigHelper::initDefaultConfig(bool isVendorEnhancedFwk)
             false,       /* KEEP_ALIVE */
 #endif
 #if HIFI_AUDIO_ENABLED
-            true,       /* HIFI_AUDIO */
+            false,       /* HIFI_AUDIO */
 #else
             false,       /* HIFI_AUDIO */
 #endif
 #if RECEIVER_AIDED_STEREO_ENABLED
-            true,       /* RECEIVER_AIDED_STEREO */
+            false,       /* RECEIVER_AIDED_STEREO */
 #else
             false,       /* RECEIVER_AIDED_STEREO */
 #endif
 #if KPI_OPTIMIZE_ENABLED
-            true,       /* KPI_OPTIMIZE */
+            false,       /* KPI_OPTIMIZE */
 #else
             false,       /* KPI_OPTIMIZE */
 #endif
 #if DISPLAY_PORT_ENABLED
-            true,       /* DISPLAY_PORT */
+            false,       /* DISPLAY_PORT */
 #else
             false,       /* DISPLAY_PORT */
 #endif
@@ -158,42 +158,42 @@ void AHalConfigHelper::initDefaultConfig(bool isVendorEnhancedFwk)
             false,       /* FLUENCE */
 #endif
 #if CUSTOM_STEREO_ENABLED
-            true,       /* CUSTOM_STEREO */
+            false,       /* CUSTOM_STEREO */
 #else
             false,       /* CUSTOM_STEREO */
 #endif
 #if ANC_HEADSET_ENABLED
-            true,       /* ANC_HEADSET */
+            false,       /* ANC_HEADSET */
 #else
             false,       /* ANC_HEADSET */
 #endif
 #if DSM_FEEDBACK_ENABLED
-            true,       /* DSM_FEEDBACK */
+            false,       /* DSM_FEEDBACK */
 #else
             false,       /* DSM_FEEDBACK */
 #endif
 #if USB_OFFLOAD_ENABLED
-            true,        /* USB_OFFLOAD */
+            false,        /* USB_OFFLOAD */
 #else
             false,        /* USB_OFFLOAD */
 #endif
 #if USB_OFFLOAD_BURST_MODE_ENABLED
-            true,       /* USB_OFFLOAD_BURST_MODE */
+            false,       /* USB_OFFLOAD_BURST_MODE */
 #else
             false,       /* USB_OFFLOAD_BURST_MODE */
 #endif
 #if USB_OFFLOAD_SIDETONE_VOLM_ENABLED
-            true,       /* USB_OFFLOAD_SIDETONE_VOLM */
+            false,       /* USB_OFFLOAD_SIDETONE_VOLM */
 #else
             false,       /* USB_OFFLOAD_SIDETONE_VOLM */
 #endif
 #if A2DP_OFFLOAD_ENABLED
-            true,        /* A2DP_OFFLOAD */
+            false,        /* A2DP_OFFLOAD */
 #else
             false,        /* A2DP_OFFLOAD */
 #endif
 #if VBAT_MONITOR_ENABLED
-            true,       /* VBAT */
+            false,       /* VBAT */
 #else
             false,       /* VBAT */
 #endif
@@ -203,7 +203,7 @@ void AHalConfigHelper::initDefaultConfig(bool isVendorEnhancedFwk)
             false,       /* COMPRESS_METADATA_NEEDED */
 #endif
 #ifdef COMPRESS_VOIP_ENABLED
-            true,       /* COMPRESS_VOIP */
+            false,       /* COMPRESS_VOIP */
 #else
             false,       /* COMPRESS_VOIP */
 #endif
