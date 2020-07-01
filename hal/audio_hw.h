@@ -694,7 +694,6 @@ struct audio_device {
     int ip_hdlr_asm_cnt;
     int ip_hdlr_adm_cnt;
     bool ecall_flag;
-
 };
 
 struct audio_patch_record {

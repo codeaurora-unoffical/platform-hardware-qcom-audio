@@ -2844,7 +2844,7 @@ int start_input_stream(struct stream_in *in)
                 ALOGE("%s: pcm_open failed errno:%d\n", __func__, errno);
                 adev->card_status = CARD_STATUS_OFFLINE;
                 in->card_status = CARD_STATUS_OFFLINE;
-                ret = -EIO;
+                ret = -ENETRESET;
                 goto error_open;
             }
 
@@ -3538,7 +3538,7 @@ int start_output_stream(struct stream_out *out)
                 ALOGE("%s: pcm_open failed errno:%d\n", __func__, errno);
                 out->card_status = CARD_STATUS_OFFLINE;
                 adev->card_status = CARD_STATUS_OFFLINE;
-                ret = -EIO;
+                ret = -ENETRESET;
                 goto error_open;
             }
 
@@ -3599,7 +3599,7 @@ int start_output_stream(struct stream_out *out)
                 ALOGE("%s: compress_open failed errno:%d\n", __func__, errno);
                 adev->card_status = CARD_STATUS_OFFLINE;
                 out->card_status = CARD_STATUS_OFFLINE;
-                ret = -EIO;
+                ret = -ENETRESET;
                 goto error_open;
         }
 
@@ -5417,6 +5417,9 @@ exit:
     update_frames_written(out, bytes);
     if (-ENETRESET == ret) {
         out->card_status = CARD_STATUS_OFFLINE;
+        ATRACE_END();
+        pthread_mutex_unlock(&out->lock);
+        return ret;
     }
     pthread_mutex_unlock(&out->lock);
 
@@ -5487,7 +5490,7 @@ static int out_get_render_position(const struct audio_stream_out *stream,
         if (-ENETRESET == ret) {
             ALOGE(" ERROR: sound card not active Unable to get time stamp from compress driver");
             out->card_status = CARD_STATUS_OFFLINE;
-            ret = -EINVAL;
+            ret = -ENETRESET;
         } else if(ret < 0) {
             ALOGE(" ERROR: Unable to get time stamp from compress driver");
             ret = -EINVAL;
@@ -5571,7 +5574,7 @@ static int out_get_presentation_position(const struct audio_stream_out *stream,
         if (-ENETRESET == ret) {
             ALOGE(" ERROR: sound card not active Unable to get time stamp from compress driver");
             out->card_status = CARD_STATUS_OFFLINE;
-            ret = -EINVAL;
+            ret = -ENETRESET;
         } else
             ret = 0;
          /* this is the best we can do */
@@ -5810,7 +5813,7 @@ static int out_create_mmap_buffer(const struct audio_stream_out *stream,
         ALOGE("%s: pcm_open failed errno:%d\n", __func__, errno);
         out->card_status = CARD_STATUS_OFFLINE;
         adev->card_status = CARD_STATUS_OFFLINE;
-        ret = -EIO;
+        ret = -ENETRESET;
         goto exit;
     }
 
@@ -6337,8 +6340,11 @@ static ssize_t in_read(struct audio_stream_in *stream, void *buffer,
         memset(buffer, 0, bytes);
 
 exit:
-    if (-ENETRESET == ret)
+    if (-ENETRESET == ret) {
         in->card_status = CARD_STATUS_OFFLINE;
+        pthread_mutex_unlock(&in->lock);
+        return ret;
+    }
     pthread_mutex_unlock(&in->lock);
 
     if (ret != 0) {
@@ -8913,6 +8919,8 @@ static void adev_snd_mon_cb(void *cookie, struct str_parms *parms)
             platform_snd_card_update(adev->platform, status);
             audio_extn_fm_set_parameters(adev, parms);
             audio_extn_auto_hal_set_parameters(adev, parms);
+            ALOGE("%s: Card_status (%d) in the list",
+                                   __func__, status);
         } else if (is_ext_device_status) {
             platform_set_parameters(adev->platform, parms);
         }
