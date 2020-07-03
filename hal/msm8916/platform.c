@@ -1252,7 +1252,9 @@ static void query_platform(const char *snd_card_name,
     } else if (!strncmp(snd_card_name, "msm8909-pm8916-snd-card",
                  sizeof("msm8909-pm8916-snd-card")) ||
                  !strncmp(snd_card_name, "msm8909-snd-card",
-                 sizeof("msm8909-snd-card"))) {
+                 sizeof("msm8909-snd-card")) ||
+                 !strncmp(snd_card_name, "msm8909-skub-snd-card",
+                 sizeof("msm8909-skub-snd-card"))) {
         strlcpy(mixer_xml_path, MIXER_XML_PATH_MSM8909_PM8916,
                 sizeof(MIXER_XML_PATH_MSM8909_PM8916));
 
