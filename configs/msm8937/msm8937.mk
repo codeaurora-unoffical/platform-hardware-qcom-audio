@@ -128,7 +128,7 @@ ifeq ($(USE_XML_AUDIO_POLICY_CONF), 1)
 ifeq ($(AUDIO_FEATURE_ENABLED_SPLIT_A2DP), true)
 ifeq ($(TARGET_SUPPORTS_WEARABLES), true)
    PRODUCT_COPY_FILES += \
-   $(TOPDIR)device/qcom/sdm429w/audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy_configuration.xml
+   $(TOPDIR)hardware/qcom/audio/configs/msm8937/audio_policy_configuration_sdm429w.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy_configuration.xml
 else
    PRODUCT_COPY_FILES += \
    $(TOPDIR)hardware/qcom/audio/configs/msm8937/audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy_configuration.xml
