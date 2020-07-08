@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2017,2019, The Linux Foundation. All rights reserved.
+* Copyright (c) 2017, 2019, 2020 The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -121,7 +121,7 @@ void stop_effect_command_thread_handler(int signal __unused)
 /* THREAD BODY OF BASSBOOST */
 void *bassboost_thread_func(void* data) {
     thread_data_t            *thr_ctxt = (thread_data_t *)data;
-    qahw_effect_lib_handle_t lib_handle;
+    qahw_effect_lib_handle_t lib_handle = NULL;
     qahw_effect_handle_t     effect_handle;
     qahw_effect_descriptor_t effect_desc;
     int32_t                  rc;
@@ -210,7 +210,7 @@ void *bassboost_thread_func(void* data) {
 /* THREAD BODY OF VIRTUALIZER */
 void *virtualizer_thread_func(void* data) {
     thread_data_t            *thr_ctxt = (thread_data_t *)data;
-    qahw_effect_lib_handle_t lib_handle;
+    qahw_effect_lib_handle_t lib_handle = NULL;
     qahw_effect_handle_t     effect_handle;
     qahw_effect_descriptor_t effect_desc;
     int32_t                  rc;
@@ -299,8 +299,8 @@ void *virtualizer_thread_func(void* data) {
 /* THREAD BODY OF EQUALIZER */
 void *equalizer_thread_func(void* data) {
     thread_data_t            *thr_ctxt = (thread_data_t *)data;
-    qahw_effect_lib_handle_t lib_handle;
-    qahw_effect_handle_t     effect_handle;
+    qahw_effect_lib_handle_t lib_handle = NULL;
+    qahw_effect_handle_t     effect_handle = NULL;
     qahw_effect_descriptor_t effect_desc;
     int32_t                  rc;
     int                      reply_data;
@@ -394,8 +394,8 @@ void *visualizer_thread_func(void* data __unused) {
 /* THREAD BODY OF REVERB */
 void *reverb_thread_func(void* data) {
     thread_data_t            *thr_ctxt = (thread_data_t *)data;
-    qahw_effect_lib_handle_t lib_handle;
-    qahw_effect_handle_t     effect_handle;
+    qahw_effect_lib_handle_t lib_handle = NULL;
+    qahw_effect_handle_t     effect_handle = NULL;
     qahw_effect_descriptor_t effect_desc;
     int32_t                  rc;
     int                      reply_data;
@@ -485,6 +485,7 @@ void *command_thread_func(void* data) {
     thread_data_t *fx_ctxt = *(thr_ctxt->fx_data_ptr);
     char          cmd_str[MAX_CMD_STR_SIZE];
     int           cmd_key;
+    char          *cmd_prompt;
     uint32_t      size = sizeof(qahw_effect_param_t) + 2 * sizeof(int32_t);
     uint32_t      size_2 = sizeof(qahw_effect_param_t) + 3 * sizeof(int32_t);
     uint32_t      buf32[size];
@@ -526,7 +527,9 @@ void *command_thread_func(void* data) {
         case TTY_VT_SET_STRENGTH:
         case TTY_ASPHERE_SET_STRENGTH:
             {
-                fprintf(stdout, "%s", get_prompt_from_name(fx_ctxt->who_am_i, cmd_str));
+		cmd_prompt = get_prompt_from_name(fx_ctxt->who_am_i, cmd_str);
+		if (cmd_prompt)
+                	fprintf(stdout, "%s", cmd_prompt);
                 if (fgets(cmd_str, sizeof(cmd_str), stdin) == NULL) {
                     fprintf(stderr, "unrecognized strength number!\n");
                     break;
@@ -551,7 +554,9 @@ void *command_thread_func(void* data) {
             }
         case TTY_EQ_SET_PRESET:
             {
-                fprintf(stdout, "%s", get_prompt_from_name(fx_ctxt->who_am_i, cmd_str));
+		cmd_prompt = get_prompt_from_name(fx_ctxt->who_am_i, cmd_str);
+		if (cmd_prompt)
+                	fprintf(stdout, "%s", cmd_prompt);
                 if (fgets(cmd_str, sizeof(cmd_str), stdin) == NULL) {
                     fprintf(stderr, "unrecognized preset!\n");
                     break;
@@ -574,7 +579,9 @@ void *command_thread_func(void* data) {
             }
         case TTY_EQ_SET_CUSTOM:
             {
-                fprintf(stdout, "%s", get_prompt_from_name(fx_ctxt->who_am_i, cmd_str));
+		cmd_prompt = get_prompt_from_name(fx_ctxt->who_am_i, cmd_str);
+		if (cmd_prompt)
+                	fprintf(stdout, "%s", cmd_prompt);
                 for (band_idx = 0; band_idx < NUM_EQ_BANDS; ++band_idx) {
                     fprintf(stdout, "input level for band (%d - %dHz) (range from -15 to +15):\n",
                             band_idx, qahw_equalizer_band_freqs[band_idx]);
@@ -603,7 +610,9 @@ void *command_thread_func(void* data) {
             break;
         case TTY_RB_SET_PRESET:
             {
-                fprintf(stdout, "%s", get_prompt_from_name(fx_ctxt->who_am_i, cmd_str));
+		cmd_prompt = get_prompt_from_name(fx_ctxt->who_am_i, cmd_str);
+		if (cmd_prompt)
+                	fprintf(stdout, "%s", cmd_prompt);
                 if (fgets(cmd_str, sizeof(cmd_str), stdin) == NULL) {
                     fprintf(stderr, "unrecognized preset!\n");
                     break;
@@ -636,6 +645,12 @@ thread_data_t *create_effect_thread(int effect_idx, thread_func_t func_ptr) {
     int result;
 
     thread_data_t *ethread_data = (thread_data_t *)calloc(1, sizeof(thread_data_t));
+    if (ethread_data == NULL)
+    {
+        fprintf(stderr, "%s::%d: Memory Alloc Error\n", __func__, __LINE__);
+        return NULL;
+    }
+
     ethread_data->exit = false;
     ethread_data->who_am_i = effect_idx;
 
@@ -760,8 +775,8 @@ bool is_valid_input(char *inputs) {
 /* THREAD BODY OF AUDIOSPHERE */
 void *asphere_thread_func(void* data) {
     thread_data_t            *thr_ctxt = (thread_data_t *)data;
-    qahw_effect_lib_handle_t lib_handle;
-    qahw_effect_handle_t     effect_handle;
+    qahw_effect_lib_handle_t lib_handle = NULL;
+    qahw_effect_handle_t     effect_handle = NULL;
     qahw_effect_descriptor_t effect_desc;
     int32_t                  rc;
     int                      reply_data;
