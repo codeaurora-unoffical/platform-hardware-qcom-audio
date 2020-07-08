@@ -132,6 +132,7 @@
     <ctl name="QUIN_MI2S_RX Audio Mixer MultiMedia12" value="0" />
     <ctl name="QUIN_MI2S_RX Audio Mixer MultiMedia13" value="0" />
     <ctl name="QUIN_MI2S_RX Audio Mixer MultiMedia14" value="0" />
+    <ctl name="QUAT_MI2S_RX Port Mixer INTERNAL_BT_SCO_TX" value="0" />
     <ctl name="aw8896_speaker_switch" value="Off" />
 
     <!-- Voice BTSCO -->
@@ -1020,10 +1021,12 @@
     </path>
 
     <path name="hfp-sco">
+        <path name="echo-reference" />
         <ctl name="QUAT_MI2S_RX Port Mixer INTERNAL_BT_SCO_TX" value="1" />
         <ctl name="INTERNAL_BT_SCO_RX Audio Mixer MultiMedia6" value="1" />
         <ctl name="MultiMedia6 Mixer TERT_MI2S_TX" value="1" />
         <ctl name="HFP_INT_UL_HL Switch" value="1" />
+        <ctl name="QUAT_MI2S_RX_DL_HL Switch" value="1" />
     </path>
 
     <path name="hfp-sco-wb">
@@ -1572,4 +1575,11 @@
           <path name="speaker-and-headphones" />
     </path>
 
+    <path name="voice-speaker-mic-hfp">
+         <path name="speaker-mic" />
+    </path>
+
+    <path name="voice-speaker-hfp">
+         <path name="speaker" />
+    </path>
 </mixer>
