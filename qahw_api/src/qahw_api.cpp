@@ -2413,6 +2413,8 @@ int qahw_stream_stop(qahw_stream_handle_t *stream_handle) {
     qahw_audio_stream_type type;
     qahw_api_stream_t *stream = (qahw_api_stream_t *)stream_handle;
     audio_devices_t devices[MAX_NUM_DEVICES];
+    char dev_s[QAHW_MAX_INT_STRING];
+    char device_route[QAHW_MAX_INT_STRING];
 
     if (!stream) {
         ALOGE("%s: invalid stream handle", __func__);
@@ -2428,7 +2430,11 @@ int qahw_stream_stop(qahw_stream_handle_t *stream_handle) {
     if ((stream->type == QAHW_VOICE_CALL) || (stream->type == QAHW_ECALL)) {
 		memset(&devices[0], 0, sizeof(devices));
         rc = qahw_set_parameters(stream->hw_module, "call_state=1");
-        qahw_stream_set_device(stream, 1, &devices[0]);
+        strlcpy(device_route, "routing=", QAHW_MAX_INT_STRING);
+        snprintf(dev_s, QAHW_MAX_INT_STRING, "%u", devices[0]);
+        strlcat(device_route, dev_s, QAHW_MAX_INT_STRING);
+        // to invoke voice_stop send with routing 0
+        rc = qahw_out_set_parameters(stream->out_stream, device_route);
     } else if (stream->type == QAHW_AUDIO_AFE_LOOPBACK) {
         rc = qahw_release_audio_patch(stream->hw_module,
                                  stream->patch_handle);
