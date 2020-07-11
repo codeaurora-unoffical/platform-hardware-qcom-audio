@@ -376,7 +376,8 @@ void read_kvpair(char *kvpair, char* kvpair_values, int filetype)
             len = strcspn(kvpair_type, "=");
             size = len + strlen(token) + 2;
             value = atoi(token);
-            snprintf(kvpair, size, kvpair_type, value);
+	    if (size <= KV_PAIR_MAX_LENGTH)
+            	snprintf(kvpair, size, kvpair_type, value);
             kvpair += size - 1;
             kvpair_type += len + 3;
             token = strtok(NULL, ",");
@@ -1356,7 +1357,7 @@ int measure_kpi_values(qahw_stream_handle_t* out_handle, bool is_offload) {
     size_t bytes_written = 0;
     char  *data = NULL;
     int ret = 0, count = 0;
-    struct timespec ts_cold, ts_cont;
+    struct timespec ts_cold, ts_cont = { 0, 0 };
     uint64_t tcold, tcont, scold = 0, uscold = 0, scont = 0, uscont = 0;
 
     if (is_offload) {

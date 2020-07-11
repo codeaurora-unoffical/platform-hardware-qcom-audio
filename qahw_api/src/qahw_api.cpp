@@ -2080,7 +2080,7 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
     ALOGV("%d:%s start",__LINE__, __func__);
     audio_io_handle_t handle = 0x999;
     int rc = -EINVAL, i = 0;
-    const char *address = stream_name_map[attr.type];
+    const char *address;
     const char *session_id;
     char kv[QAHW_KV_PAIR_LENGTH];
     int flags = 0;
@@ -2100,6 +2100,12 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
         ALOGE("%s: invalid direction for a voice stream", __func__);
         return rc;
     }
+    if (attr.type >= QAHW_AUDIO_STREAM_TYPE_MAX) {
+        ALOGE("%s: invalid stream type for a voice stream", __func__);
+        return rc;
+    }
+
+    address = stream_name_map[attr.type];
     /* add flag*/
     rc = qahw_add_flags_source(attr, &flags, &source);
     if (rc) {
