@@ -6302,6 +6302,14 @@ int adev_open_output_stream(struct audio_hw_device *dev,
             goto error_open;
         }
 
+        if ((!audio_extn_qap_is_enabled()) &&
+            (!audio_extn_passthru_is_passthrough_stream(out)) &&
+                audio_extn_passthru_is_supported_format(out->format)) {
+            ALOGE("Format is not support by Sink device");
+            ret = -EINVAL;
+            goto error_open;
+        }
+
         /* TrueHD only supported for 48k multiples (48k, 96k, 192k) */
         if ((config->offload_info.format == AUDIO_FORMAT_DOLBY_TRUEHD) &&
                 (audio_extn_passthru_is_passthrough_stream(out)) &&
