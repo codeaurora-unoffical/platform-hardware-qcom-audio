@@ -37,8 +37,8 @@
         <device name="SND_DEVICE_OUT_BUS_PAX" acdb_id="60"/>
         <device name="SND_DEVICE_OUT_BUS_RSE" acdb_id="60"/>
         <device name="SND_DEVICE_OUT_BT_SCO" acdb_id="21"/>
-        <device name="SND_DEVICE_OUT_BT_PRI_SCO" acdb_id="21"/>
-        <device name="SND_DEVICE_OUT_BT_SEC_SCO" acdb_id="21"/>
+        <device name="SND_DEVICE_OUT_BT_PRI_SCO" acdb_id="136"/>
+        <device name="SND_DEVICE_OUT_BT_SEC_SCO" acdb_id="136"/>
         <device name="SND_DEVICE_OUT_BT_SCO_WB" acdb_id="39"/>
         <device name="SND_DEVICE_OUT_BT_PRI_SCO_WB" acdb_id="39"/>
         <device name="SND_DEVICE_OUT_BT_SEC_SCO_WB" acdb_id="39"/>
@@ -60,8 +60,8 @@
         <device name="SND_DEVICE_IN_VOICE_SPEAKER_MIC_HFP" acdb_id="95"/>
         <device name="SND_DEVICE_IN_VOICE_SPEAKER_MIC_HFP_MMSECNS" acdb_id="131"/>
         <device name="SND_DEVICE_IN_BT_SCO_MIC" acdb_id="20"/>
-        <device name="SND_DEVICE_IN_BT_PRI_SCO_MIC" acdb_id="20"/>
-        <device name="SND_DEVICE_IN_BT_SEC_SCO_MIC" acdb_id="20"/>
+        <device name="SND_DEVICE_IN_BT_PRI_SCO_MIC" acdb_id="135"/>
+        <device name="SND_DEVICE_IN_BT_SEC_SCO_MIC" acdb_id="135"/>
         <device name="SND_DEVICE_IN_BT_SCO_MIC_WB" acdb_id="38"/>
         <device name="SND_DEVICE_IN_BT_PRI_SCO_MIC_WB" acdb_id="38"/>
         <device name="SND_DEVICE_IN_BT_SEC_SCO_MIC_WB" acdb_id="38"/>
