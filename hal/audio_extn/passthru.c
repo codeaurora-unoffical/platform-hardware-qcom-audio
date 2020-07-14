@@ -303,6 +303,8 @@ void audio_extn_passthru_on_start(struct stream_out * out)
 /* called with adev lock held */
 void audio_extn_passthru_on_stop(struct stream_out * out)
 {
+    struct audio_device *adev = out->dev;
+
     if (android_atomic_acquire_load(&compress_passthru_active) > 0) {
         /*
          * its possible the count is already zero if pause was called before
@@ -311,7 +313,7 @@ void audio_extn_passthru_on_stop(struct stream_out * out)
         android_atomic_dec(&compress_passthru_active);
     }
 
-    if (out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL) {
+    if ((out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL) && adev->keep_alive_enable) {
         ALOGD("%s: passthru on aux digital, start keep alive", __func__);
         audio_extn_keep_alive_start(KEEP_ALIVE_OUT_HDMI);
     }
@@ -323,14 +325,15 @@ void audio_extn_passthru_on_pause(struct stream_out * out __unused)
         return;
 }
 
-int audio_extn_passthru_set_parameters(struct audio_device *adev __unused,
+int audio_extn_passthru_set_parameters(struct audio_device *adev,
                                        struct str_parms *parms)
 {
     char value[32];
     int ret;
-    ret = str_parms_get_str(parms, AUDIO_PARAMETER_DEVICE_CONNECT, value, sizeof(value));
+    ret = str_parms_get_str(parms, "keep_alive_connect", value, sizeof(value));
     if (ret >= 0) {
         int val = atoi(value);
+        adev->keep_alive_enable = true;
         if (val & AUDIO_DEVICE_OUT_AUX_DIGITAL) {
             if (!audio_extn_passthru_is_active()) {
                 ALOGV("%s: start keep alive on aux digital", __func__);
@@ -339,10 +342,11 @@ int audio_extn_passthru_set_parameters(struct audio_device *adev __unused,
         }
     }
 
-    ret = str_parms_get_str(parms, AUDIO_PARAMETER_DEVICE_DISCONNECT, value,
+    ret = str_parms_get_str(parms, "keep_alive_disconnect", value,
                             sizeof(value));
     if (ret >= 0) {
         int val = atoi(value);
+        adev->keep_alive_enable = false;
         if (val & AUDIO_DEVICE_OUT_AUX_DIGITAL) {
             ALOGV("%s: stop keep_alive on aux digital on device", __func__);
             audio_extn_keep_alive_stop(KEEP_ALIVE_OUT_HDMI);
