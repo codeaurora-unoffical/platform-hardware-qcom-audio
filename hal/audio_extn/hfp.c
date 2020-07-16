@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2018, 2020, The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -50,6 +50,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
 #define AUDIO_PARAMETER_HFP_SET_SAMPLING_RATE "hfp_set_sampling_rate"
 #define AUDIO_PARAMETER_KEY_HFP_VOLUME "hfp_volume"
 #define AUDIO_PARAMETER_HFP_PCM_DEV_ID "hfp_pcm_dev_id"
+#define AUDIO_PARAMETER_HFP_FORCE_ROUTE_SPEAKER "hfp_route_spkr"
 
 #ifdef PLATFORM_MSM8994
 #define HFP_RX_VOLUME     "SEC AUXPCM LOOPBACK Volume"
@@ -97,6 +98,7 @@ static struct pcm_config pcm_config_hfp = {
     .stop_threshold = INT_MAX,
     .avail_min = 0,
 };
+static bool route_spkr = false;
 
 static int32_t hfp_set_volume(struct audio_device *adev, float value)
 {
@@ -158,6 +160,11 @@ static int32_t start_hfp(struct audio_device *adev,
     uc_info->devices = adev->primary_output->devices;
     uc_info->in_snd_device = SND_DEVICE_NONE;
     uc_info->out_snd_device = SND_DEVICE_NONE;
+
+    if (route_spkr) {
+        uc_info->devices = AUDIO_DEVICE_OUT_SPEAKER;
+        uc_info->stream.out->devices = AUDIO_DEVICE_OUT_SPEAKER;
+    }
 
     list_add_tail(&adev->usecase_list, &uc_info->list);
 
@@ -254,6 +261,7 @@ static int32_t stop_hfp(struct audio_device *adev)
 
     ALOGD("%s: enter", __func__);
     hfpmod.is_hfp_running = false;
+    route_spkr = false;
 
     /* 1. Close the PCM devices */
     if (hfpmod.hfp_sco_rx) {
@@ -340,6 +348,7 @@ void audio_extn_hfp_set_parameters(struct audio_device *adev, struct str_parms *
     int val;
     float vol;
     char value[32]={0};
+    struct audio_usecase *uc_info = NULL;
 
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_HFP_ENABLE, value,
                             sizeof(value));
@@ -366,14 +375,39 @@ void audio_extn_hfp_set_parameters(struct audio_device *adev, struct str_parms *
                ALOGE("Unsupported rate..");
     }
 
-    if (hfpmod.is_hfp_running) {
-        memset(value, 0, sizeof(value));
-        ret = str_parms_get_str(parms, AUDIO_PARAMETER_STREAM_ROUTING,
+    memset(value, 0, sizeof(value));
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_HFP_FORCE_ROUTE_SPEAKER, value,
+                            sizeof(value));
+
+    if (ret >= 0) {
+        route_spkr = true;
+        ALOGD("%s: Set force route to speaker", __func__);
+    }
+
+    memset(value, 0, sizeof(value));
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_STREAM_ROUTING,
                                 value, sizeof(value));
-        if (ret >= 0) {
-            val = atoi(value);
-            if (val > 0)
-                select_devices(adev, hfpmod.ucid);
+
+    if (ret >= 0) {
+        val = atoi(value);
+
+        if (val > 0) {
+            if (hfpmod.is_hfp_running) {
+                if (route_spkr) {
+                    if (val != AUDIO_DEVICE_OUT_SPEAKER)
+                        ALOGI("%s: HFP call in progress, cannot route to device %d", __func__, val);
+                } else {
+                    uc_info = get_usecase_from_list(adev, hfpmod.ucid);
+
+                    if (uc_info != NULL) {
+                        uc_info->devices = val;
+                        uc_info->stream.out->devices = val;
+                        select_devices(adev, hfpmod.ucid);
+                    }
+                }
+
+                str_parms_del(parms, AUDIO_PARAMETER_STREAM_ROUTING);
+            }
         }
     }
 
