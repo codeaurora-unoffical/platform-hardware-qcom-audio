@@ -288,6 +288,17 @@ typedef struct audio_license_params {
     char license[AUDIO_LICENSE_STR_MAX_LENGTH + 1];
 } audio_license_params_t;
 
+struct audio_out_channel_status_info {
+    /* Channel status is 192 bits each for CH A and CH B*/
+    char channel_status[48];
+};
+
+struct audio_device_channel_bit_mask {
+    audio_devices_t device;
+    /* Channel status bit mask is 192 bits each for CH A and CH B*/
+    char bit_mask[48];
+};
+
 typedef union {
     struct source_tracking_param st_params;
     struct sound_focus_param sf_params;
@@ -304,6 +315,8 @@ typedef union {
     struct mix_matrix_params mm_params;
     struct audio_license_params license_params;
     struct audio_out_presentation_position_param pos_param;
+    struct audio_out_channel_status_info channel_status_info;
+    struct audio_device_channel_bit_mask ch_bit_mask;
 } audio_extn_param_payload;
 
 typedef enum {
@@ -330,6 +343,10 @@ typedef enum {
     AUDIO_EXTN_PARAM_OUT_PRESENTATION_POSITION,
     /* param to set input channel map for capture */
     AUDIO_EXTN_PARAM_IN_CHANNEL_MAP,
+    /* Channel status information for SPDIF/HDMI */
+    AUDIO_EXTN_PARAM_CHANNEL_STATUS_INFO,
+    /* Channel bit mask to monitor channel status bits */
+    AUDIO_EXTN_PARAM_CHANNEL_BIT_MASK,
 } audio_extn_param_id;
 
 typedef union {

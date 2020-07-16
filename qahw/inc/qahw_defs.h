@@ -225,6 +225,7 @@ __BEGIN_DECLS
 
 #define QAHW_AUDIO_DEVICE_OUT_SPEAKER2 0x10000000
 #define QAHW_AUDIO_DEVICE_OUT_SPEAKER3 0x20000000
+#define QAHW_AUDIO_DEVICE_OUT_OPTICAL 0x40000
 
 #define QAHW_PCM_CUSTOM_CHANNEL_MAP_1   48
 #define QAHW_PCM_CUSTOM_CHANNEL_MAP_2   49
@@ -474,6 +475,18 @@ typedef struct qahw_hpcm_params {
 struct qahw_in_ttp_offset_param {
    uint64_t        ttp_offset; /* TTP value is derived from ttp offset*/
 };
+
+struct qahw_out_channel_status_info {
+    /* Channel status is 192 bits each for CH A and CH B*/
+    char channel_status[48];
+};
+
+struct qahw_device_channel_bit_mask {
+    audio_devices_t device;
+    /* Channel status bit mask is 192 bits each for CH A and CH B*/
+    char bit_mask[48];
+};
+
 typedef union {
     struct qahw_source_tracking_param st_params;
     struct qahw_sound_focus_param sf_params;
@@ -494,6 +507,8 @@ typedef union {
     struct qahw_tty_params tty_mode_params;
     struct qahw_hpcm_params hpcm_params;
     struct qahw_in_ttp_offset_param ttp_offset;
+    struct qahw_out_channel_status_info ch_status_info;
+    struct qahw_device_channel_bit_mask ch_bit_mask;
 } qahw_param_payload;
 
 typedef enum {
@@ -519,6 +534,8 @@ typedef enum {
     QAHW_PARAM_HPCM,
     QAHW_PARAM_IN_TTP_OFFSET,
     QAHW_PARAM_IN_CHANNEL_MAP,     /* PARAM to set i/p channel map */
+    QAHW_PARAM_CHANNEL_STATUS_INFO,
+    QAHW_PARAM_CHANNEL_BIT_MASK,
 } qahw_param_id;
 
 typedef union {
