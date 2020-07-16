@@ -1235,8 +1235,7 @@ static int send_app_type_cfg_for_device(struct audio_device *adev,
         } else if ((snd_device == SND_DEVICE_OUT_HDMI ||
                     snd_device == SND_DEVICE_OUT_USB_HEADSET ||
                     snd_device == SND_DEVICE_OUT_DISPLAY_PORT ||
-                    snd_device == SND_DEVICE_OUT_SPDIF ||
-                    snd_device == SND_DEVICE_OUT_OPTICAL) &&
+                    audio_extn_utils_is_spdif_snd_device(snd_device)) &&
                    (usecase->stream.out->sample_rate >= OUTPUT_SAMPLING_RATE_44100)) {
              /*
               * To best utlize DSP, check if the stream sample rate is supported/multiple of
@@ -2020,6 +2019,17 @@ bool audio_extn_utils_is_spdif_device(audio_devices_t devices)
 
     if ((devices & AUDIO_DEVICE_OUT_SPDIF) ||
         (devices & AUDIO_DEVICE_OUT_OPTICAL))
+        rc = true;
+
+    return rc;
+}
+
+bool audio_extn_utils_is_spdif_snd_device(int snd_devices)
+{
+    bool rc = false;
+
+    if ((snd_devices & SND_DEVICE_OUT_SPDIF) ||
+        (snd_devices & SND_DEVICE_OUT_OPTICAL))
         rc = true;
 
     return rc;
