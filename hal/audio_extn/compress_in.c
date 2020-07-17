@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+* Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -31,6 +31,9 @@
 /*#define LOG_NDEBUG 0*/
 #define LOG_NDDEBUG 0
 
+#ifdef COMPRESS_INPUT_ENABLED
+#include <inttypes.h>
+#include <cutils/log.h>
 #include <cutils/properties.h>
 #include <cutils/str_parms.h>
 #include <log/log.h>
@@ -49,6 +52,7 @@
 #include "audio_extn.h"
 #include "audio_defs.h"
 #include "sound/compress_params.h"
+#include <sound/compress_offload.h>
 
 #ifdef DYNAMIC_LOG_ENABLED
 #include <log_xml_parser.h>
@@ -88,6 +92,9 @@ static const audio_usecase_t cin_usecases[] = {
 };
 
 static pthread_mutex_t cin_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static int cin_compress_in_set_ttp_metadata(
+                  struct stream_in *in);
 
 bool cin_applicable_stream(struct stream_in *in)
 {
@@ -159,7 +166,7 @@ static void free_cin_usecase(audio_usecase_t uc_id)
 
 bool cin_format_supported(audio_format_t format)
 {
-    if (format == AUDIO_FORMAT_IEC61937)
+    if ((format == AUDIO_FORMAT_IEC61937) || (format == AUDIO_FORMAT_DSD))
         return true;
     else
         return false;
@@ -201,6 +208,52 @@ size_t cin_get_buffer_size(struct stream_in *in)
     return sz;
 }
 
+#ifdef SNDRV_COMPRESS_RENDER_MODE
+static int cin_compress_set_render_mode(struct stream_in *in)
+{
+    struct snd_compr_metadata metadata;
+    int ret = -EINVAL;
+    cin_private_data_t *cin_data = (cin_private_data_t *) in->cin_extn;
+
+    if (!audio_extn_cin_attached_usecase((struct stream_in*)&in->usecase)) {
+        ALOGE("%s:: not supported for non offload session", __func__);
+        goto exit;
+    }
+
+    if (!cin_data->compr) {
+        ALOGW("%s: offload session not yet opened", __func__);
+       goto exit;
+    }
+
+    ALOGD("%s:: render mode %d", __func__, in->render_mode);
+
+    metadata.key = SNDRV_COMPRESS_RENDER_MODE;
+    if (in->render_mode == RENDER_MODE_AUDIO_MASTER) {
+        metadata.value[0] = SNDRV_COMPRESS_RENDER_MODE_AUDIO_MASTER;
+    } else if (in->render_mode == RENDER_MODE_AUDIO_STC_MASTER) {
+        metadata.value[0] = SNDRV_COMPRESS_RENDER_MODE_STC_MASTER;
+    } else if (in->render_mode == RENDER_MODE_AUDIO_TTP) {
+        metadata.value[0] = SNDRV_COMPRESS_RENDER_MODE_TTP;
+    } else {
+        ret = 0;
+        ALOGE("%s:: invalid render mode %d", __func__, in->render_mode);
+        goto exit;
+    }
+    ret = compress_set_metadata(cin_data->compr, &metadata);
+    if(ret) {
+        ALOGE("%s::error %s", __func__, compress_get_error(cin_data->compr));
+    }
+exit:
+    return ret;
+}
+#else
+static int cin_compress_set_render_mode(struct stream_in *in __unused)
+{
+    ALOGD("%s:: configuring render mode not supported", __func__);
+    return 0;
+}
+#endif
+
 int cin_open_input_stream(struct stream_in *in)
 {
     int ret = -EINVAL;
@@ -227,6 +280,15 @@ int cin_open_input_stream(struct stream_in *in)
     } else {
         ret = 0;
     }
+
+    if ((in->flags & AUDIO_INPUT_FLAG_TIMESTAMP) &&
+        (in->render_mode == RENDER_MODE_AUDIO_TTP) &&
+        (in->ttp_offset_cached)) {
+        ALOGD("set ttp offset:0x%"PRIx64" ", in->ttp_offset_cached);
+        cin_compress_in_set_ttp_metadata(in);
+    }
+    cin_compress_set_render_mode(in);
+
     return ret;
 }
 
@@ -238,6 +300,11 @@ void cin_stop_input_stream(struct stream_in *in)
     if (cin_data->compr) {
         compress_stop(cin_data->compr);
     }
+
+    if (cin_data->usecase_acquired) {
+        free_cin_usecase(in->usecase);
+        cin_data->usecase_acquired = false;
+    }
 }
 
 
@@ -247,13 +314,7 @@ void cin_close_input_stream(struct stream_in *in)
 
     ALOGV("%s: in %p, cin_data %p", __func__, in, cin_data);
     if (cin_data->compr) {
-        compress_close(cin_data->compr);
-        cin_data->compr = NULL;
-    }
-
-    if (cin_data->usecase_acquired) {
-        free_cin_usecase(in->usecase);
-        cin_data->usecase_acquired = false;
+        compress_stop(cin_data->compr);
     }
 }
 
@@ -354,6 +415,8 @@ int cin_configure_input_stream(struct stream_in *in, struct audio_config *in_con
         cin_data->compr_config.codec->compr_passthr = LEGACY_PCM;
     else if (cin_data->compr_config.codec->id == SND_AUDIOCODEC_IEC61937)
         cin_data->compr_config.codec->compr_passthr = PASSTHROUGH_IEC61937;
+    else if (cin_data->compr_config.codec->id == SND_AUDIOCODEC_DSD)
+        cin_data->compr_config.codec->compr_passthr = PASSTHROUGH_DSD;
     else
         cin_data->compr_config.codec->compr_passthr = PASSTHROUGH_GEN;
 
@@ -367,6 +430,13 @@ int cin_configure_input_stream(struct stream_in *in, struct audio_config *in_con
         compress_config_set_timstamp_flag(&cin_data->compr_config);
         cin_data->compr_config.fragment_size += meta_size;
     }
+
+    if ((in->flags & AUDIO_INPUT_FLAG_TIMESTAMP) &&
+        (property_get_bool("persist.vendor.audio.ttp.render.mode", false)))
+        in->render_mode = RENDER_MODE_AUDIO_TTP;
+    else
+        in->render_mode = RENDER_MODE_AUDIO_NO_TIMESTAMP;
+
     ALOGD("%s: format %d flags 0x%x SR %d CM 0x%x buf_size %d in %p",
           __func__, in->format, in->flags, in->sample_rate, in->channel_mask,
           cin_data->compr_config.fragment_size, in);
@@ -376,3 +446,81 @@ err_config:
     cin_free_input_stream_resources(in);
     return ret;
 }
+
+#ifdef SNDRV_COMPRESS_IN_TTP_OFFSET
+int cin_compress_in_set_ttp_offset(
+            struct stream_in *in,
+            struct audio_in_ttp_offset_param *offset_param)
+{
+    int ret = -EINVAL;
+    cin_private_data_t *cin_data = (cin_private_data_t *) in->cin_extn;
+
+    if (offset_param == NULL) {
+        ALOGE("%s: Invalid param", __func__);
+        goto exit;
+    }
+
+    ALOGD("%s: ttp offset 0x%"PRIx64" ", __func__, offset_param->ttp_offset);
+
+    if (!audio_extn_cin_attached_usecase((struct stream_in*)&in->usecase)) {
+        ALOGE("%s:: not supported for non offload session", __func__);
+        goto exit;
+    }
+
+    in->ttp_offset_cached = offset_param->ttp_offset;
+
+    if (!cin_data->compr) {
+        ALOGW("%s: offload session not yet opened", __func__);
+        goto exit;
+    }
+
+    ret = cin_compress_in_set_ttp_metadata(in);
+    if (ret) {
+        ALOGE("%s: error: set ttp offset metadata failed", __func__);
+    }
+
+exit:
+    return ret;
+}
+
+static int cin_compress_in_set_ttp_metadata(struct stream_in *in)
+{
+    struct snd_compr_metadata metadata;
+    int ret = -EINVAL;
+    cin_private_data_t *cin_data = (cin_private_data_t *) in->cin_extn;
+
+    if (!in) {
+        ALOGE("%s: Invalid Param", __func__);
+        return ret;
+    }
+
+    metadata.key = SNDRV_COMPRESS_IN_TTP_OFFSET;
+    metadata.value[0] = 0xFFFFFFFF & in->ttp_offset_cached; /* LSB */
+    metadata.value[1] = \
+            (0xFFFFFFFF00000000 & in->ttp_offset_cached) >> 32; /* MSB*/
+
+    ret = compress_set_metadata(cin_data->compr, &metadata);
+    if (ret) {
+        ALOGE("%s: error %s", __func__, compress_get_error(cin_data->compr));
+    }
+
+    return ret;
+}
+#else
+int cin_compress_in_set_ttp_offset(
+            struct stream_in *in __unused,
+            struct audio_in_ttp_offset_param *offset_param __unused)
+{
+    ALOGD("%s: configuring ttp offset not supported", __func__);
+    return 0;
+}
+
+static int cin_compress_in_set_ttp_metadata(
+            struct stream_in *in)
+{
+    ALOGD("%s: configuring ttp offset metadata not supported", __func__);
+    return 0;
+}
+#endif
+
+#endif /* COMPRESS_INPUT_ENABLED end */

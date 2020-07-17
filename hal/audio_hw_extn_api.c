@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+* Copyright (c) 2016-2017, 2018-2020, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -34,6 +34,7 @@
 #include <inttypes.h>
 #include <errno.h>
 #include <log/log.h>
+#include <cutils/log.h>
 #include <cutils/atomic.h>
 
 #include <hardware/audio.h>
@@ -41,6 +42,7 @@
 #include "audio_hw.h"
 #include "audio_extn.h"
 #include "audio_hw_extn_api.h"
+#include <sound/compress_offload.h>
 
 #ifdef DYNAMIC_LOG_ENABLED
 #include <log_xml_parser.h>
@@ -56,11 +58,22 @@ uint64_t timestamp;
 };
 #endif
 
+ssize_t qahwi_out_write_v2(struct audio_stream_out *stream, const void* buffer,
+                          size_t bytes, int64_t* timestamp,
+                          audio_extn_meta_data_flags flags);
+
 static void lock_output_stream(struct stream_out *out)
 {
     pthread_mutex_lock(&out->pre_lock);
     pthread_mutex_lock(&out->lock);
     pthread_mutex_unlock(&out->pre_lock);
+}
+
+static void lock_input_stream(struct stream_in *in)
+{
+    pthread_mutex_lock(&in->pre_lock);
+    pthread_mutex_lock(&in->lock);
+    pthread_mutex_unlock(&in->pre_lock);
 }
 
 /* API to send playback stream specific config parameters */
@@ -77,7 +90,12 @@ int qahwi_out_set_param_data(struct audio_stream_out *stream,
         if (ret)
             ALOGE("%s::qaf_out_set_param_data failed error %d", __func__ , ret);
     } else {
-        if (out->standby && (param_id != AUDIO_EXTN_PARAM_OUT_CHANNEL_MAP))
+        if (out->standby && (out->flags & AUDIO_OUTPUT_FLAG_TIMESTAMP)
+            && (param_id != AUDIO_EXTN_PARAM_OUT_CHANNEL_MAP) &&
+            (param_id != AUDIO_EXTN_PARAM_CHANNEL_STATUS_INFO))
+            qahwi_out_write_v2(stream, NULL, 0, NULL, 0);
+        else if (out->standby && (param_id != AUDIO_EXTN_PARAM_OUT_CHANNEL_MAP) &&
+                                (param_id != AUDIO_EXTN_PARAM_CHANNEL_STATUS_INFO))
             out->stream.write(&out->stream, NULL, 0);
         lock_output_stream(out);
         ret = audio_extn_out_set_param_data(out, param_id, payload);
@@ -103,8 +121,11 @@ int qahwi_out_get_param_data(struct audio_stream_out *stream,
         if (ret)
             ALOGE("%s::qaf_out_get_param_data failed error %d", __func__, ret);
     } else  {
-        if (out->standby)
+        if (out->standby && (out->flags & AUDIO_OUTPUT_FLAG_TIMESTAMP))
+            qahwi_out_write_v2(stream, NULL, 0, NULL, 0);
+        else if (out->standby)
             out->stream.write(&out->stream, NULL, 0);
+
         lock_output_stream(out);
         ret = audio_extn_out_get_param_data(out, param_id, payload);
         if (ret)
@@ -112,6 +133,25 @@ int qahwi_out_get_param_data(struct audio_stream_out *stream,
         pthread_mutex_unlock(&out->lock);
     }
 
+    return ret;
+}
+
+/* API to send capture stream specific config parameters */
+int qahwi_in_set_param_data(struct audio_stream_in *stream,
+                             audio_extn_param_id param_id,
+                             audio_extn_param_payload *payload) {
+    int ret = 0;
+    struct stream_in *in = (struct stream_in *)stream;
+
+    if (audio_extn_is_qaf_stream(in)) {
+        ALOGE("%s::qaf in_set_param_data not supported", __func__);
+    } else {
+        lock_input_stream(in);
+        ret = audio_extn_in_set_param_data(in, param_id, payload);
+        if (ret)
+            ALOGE("%s::audio_extn_out_set_param_data error %d", __func__, ret);
+        pthread_mutex_unlock(&in->lock);
+    }
     return ret;
 }
 
@@ -159,6 +199,7 @@ int qahwi_set_param_data(struct audio_hw_device *adev,
 {
     int ret = 0;
     struct audio_device *dev = (struct audio_device *)adev;
+    struct audio_device_cfg_param device_cfg = {0};
 
     if (adev == NULL) {
         ALOGE("%s::INVALID PARAM adev\n",__func__);
@@ -183,7 +224,28 @@ int qahwi_set_param_data(struct audio_hw_device *adev,
               audio_extn_set_device_cfg_params(dev,
                                (struct audio_device_cfg_param *)payload);
               break;
-       default:
+
+        case AUDIO_EXTN_PARAM_DOLBY_THD_DEC:
+              audio_extn_set_dolby_thd_dec_params((struct dolby_thd_dec_param *)payload);
+              break;
+
+        case AUDIO_EXTN_PARAM_DOLBY_MAT_DEC:
+              audio_extn_set_dolby_mat_dec_params((struct dolby_mat_dec_param *)payload);
+              break;
+
+        case AUDIO_EXTN_PARAM_PLL_DEVICE_CONFIG:
+              ALOGV("%s:: Calling audio_extn_set_pll_device_cfg_params", __func__);
+              audio_extn_set_pll_device_cfg_params(dev,
+                               (struct audio_pll_device_cfg_param *)payload);
+              break;
+
+        case AUDIO_EXTN_PARAM_CHANNEL_BIT_MASK:
+              ALOGV("%s:: Calling audio_extn_set_ch_status_bit_mask", __func__);
+              ret = audio_extn_set_ch_status_bit_mask(dev,
+                            (struct audio_device_channel_bit_mask *)payload);
+              break;
+
+        default:
              ALOGE("%s::INVALID PARAM ID:%d\n",__func__,param_id);
              ret = -EINVAL;
              break;
@@ -335,8 +397,10 @@ static int qahwi_open_input_stream(struct audio_hw_device *dev,
     return ret;
 }
 
+
 ssize_t qahwi_out_write_v2(struct audio_stream_out *stream, const void* buffer,
-                          size_t bytes, int64_t* timestamp)
+                          size_t bytes, int64_t* timestamp,
+                          audio_extn_meta_data_flags meta_data_flags)
 {
     struct stream_out *out = (struct stream_out *)stream;
     struct snd_codec_metadata *mdata = NULL;
@@ -358,16 +422,32 @@ ssize_t qahwi_out_write_v2(struct audio_stream_out *stream, const void* buffer,
             mdata->length = bytes;
             mdata->offset = mdata_size;
             mdata->timestamp = *timestamp;
+#ifdef SNDRV_COMPRESS_TIMESTAMP_VALID
+            if (meta_data_flags == AUDIO_EXTN_META_DATA_FLAGS_TIMESTAMP_CONTINUE)
+                mdata->flags = SNDRV_COMPRESS_TIMESTAMP_CONTINUE;
+            else
+                mdata->flags = SNDRV_COMPRESS_TIMESTAMP_VALID;
+#endif
+        }
+
+        if (bytes >  out->qahwi_out.buf_size) {
+            ALOGE("%s: received bytes %zd greater than fragment size %zd",
+                  __func__, bytes, out->qahwi_out.buf_size);
+            return -EINVAL;
         }
         memcpy(buf + mdata_size, buffer, bytes);
-        ret = out->qahwi_out.base.write(&out->stream, (void *)buf, out->qahwi_out.buf_size);
+        if (!bytes)
+            ret = out->qahwi_out.base.write(&out->stream, NULL, 0);
+        else
+            ret = out->qahwi_out.base.write(&out->stream, (void *)buf, out->qahwi_out.buf_size);
         if (ret <= 0) {
             ALOGE("%s: error! write returned %zd", __func__, ret);
         } else {
             bytes_written = bytes;
         }
-        ALOGV("%s: flag 0x%x, bytes %zd, read %zd, ret %zd timestamp 0x%"PRIx64"",
-              __func__, out->flags, bytes, bytes_written, ret, timestamp == NULL ? 0 : *timestamp);
+        ALOGV("%s: flag 0x%x, bytes %zd, read %zd, ret %zd timestamp 0x%"PRIx64" meta data flags %d",
+              __func__, out->flags, bytes, bytes_written, ret,
+              timestamp == NULL ? 0 : *timestamp, meta_data_flags);
     } else {
         bytes_written = out->qahwi_out.base.write(&out->stream, buffer, bytes);
         ALOGV("%s: flag 0x%x, bytes %zd, read %zd, ret %zd",
@@ -460,6 +540,20 @@ int qahwi_loopback_set_param_data(audio_patch_handle_t handle,
                                              payload);
 
     return ret;
+}
+
+int qahwi_create_audio_patch_v2(const struct audio_hw_device *dev,
+                        audio_extn_source_port_config_t *source_port_config,
+                        audio_extn_sink_port_config_t *sink_port_config,
+                        audio_patch_handle_t *handle)
+{
+    int ret = 0;
+    ALOGV("%s", __func__);
+
+    ret = audio_extn_hw_loopback_create_audio_patch_v2(dev, source_port_config,
+                                sink_port_config, handle);
+    return ret;
+
 }
 
 void qahwi_init(hw_device_t *device)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -75,9 +75,14 @@ typedef int error_log_t;
 #define ADM_LIBRARY_PATH "/vendor/lib/libadm.so"
 #endif
 
+#ifdef LINUX_ENABLED
+#define ULONG_MAX (__LONG_MAX__ *2UL+1UL)
+#define PATH_MAX 4096
+#endif
+
 /* Flags used to initialize acdb_settings variable that goes to ACDB library */
 #define NONE_FLAG            0x00000000
-#define ANC_FLAG	     0x00000001
+#define ANC_FLAG             0x00000001
 #define DMIC_FLAG            0x00000002
 #define QMIC_FLAG            0x00000004
 /* Include TMIC Flag after existing QMIC flag to avoid backward compatibility
@@ -262,6 +267,9 @@ enum {
 
     /*In Car Communication Usecase*/
     USECASE_ICC_CALL,
+
+    USECASE_AUDIO_AFE_LOOPBACK,
+    USECASE_AUDIO_DTMF,
     AUDIO_USECASE_MAX
 };
 
@@ -328,6 +336,7 @@ typedef enum render_mode {
     RENDER_MODE_AUDIO_NO_TIMESTAMP = 0,
     RENDER_MODE_AUDIO_MASTER,
     RENDER_MODE_AUDIO_STC_MASTER,
+    RENDER_MODE_AUDIO_TTP,
 } render_mode_t;
 
 /* This defines the physical car audio streams supported in
@@ -339,6 +348,25 @@ typedef enum render_mode {
  *     Rear seat zone: bit 16 - 23
  */
 #define MAX_CAR_AUDIO_STREAMS    32
+/* Parameter to be passed when clock switch is needed */
+#define AUDIO_PARAMETER_CLOCK "clock"
+#define AUDIO_PARAMETER_CLOCK_FREQUENCY "clock_frequency"
+
+typedef enum {
+    AUDIO_CLOCK_INTERNAL,
+    AUDIO_CLOCK_EXTERNAL,
+    AUDIO_CLOCK_MAX
+} audio_clock_type;
+
+typedef struct audio_clock_data {
+    int be_id;
+    audio_clock_type clock_type;
+    long clock_frequency;
+    struct listnode list;
+    audio_devices_t device;
+    bool clock_switch;
+} audio_clock_data_t;
+
 enum {
     CAR_AUDIO_STREAM_MEDIA            = 0x1,
     CAR_AUDIO_STREAM_SYS_NOTIFICATION = 0x2,
@@ -347,6 +375,23 @@ enum {
     CAR_AUDIO_STREAM_FRONT_PASSENGER  = 0x100,
     CAR_AUDIO_STREAM_REAR_SEAT        = 0x10000,
 };
+
+#ifdef AUDIO_EXTN_AUTO_HAL_ENABLED
+/* This defines the physical car streams supported in audio HAL,
+ * limited by the available frontend PCM driver.
+ * Max number of physical streams supported is currently 8 and is
+ * represented by stream bit flag as indicated in vehicle HAL interface.
+ */
+#define MAX_CAR_AUDIO_STREAMS    8
+/*enum {
+    CAR_AUDIO_STREAM_MEDIA            = 0x1,
+    CAR_AUDIO_STREAM_SYS_NOTIFICATION = 0x2,
+    CAR_AUDIO_STREAM_NAV_GUIDANCE     = 0x4,
+    CAR_AUDIO_STREAM_PHONE            = 0x8,
+    CAR_AUDIO_STREAM_FRONT_PASSENGER  = 0x100,
+    CAR_AUDIO_STREAM_REAR_SEAT        = 0x10000,
+};*/
+#endif
 
 struct stream_app_type_cfg {
     int sample_rate;
@@ -362,6 +407,7 @@ struct stream_config {
     audio_devices_t devices;
     unsigned int bit_width;
 };
+
 struct stream_inout {
     pthread_mutex_t lock; /* see note below on mutex acquisition order */
     pthread_mutex_t pre_lock; /* acquire before lock to avoid DOS by playback thread */
@@ -369,13 +415,20 @@ struct stream_inout {
     struct stream_config in_config;
     struct stream_config out_config;
     struct stream_app_type_cfg out_app_type_cfg;
+    struct stream_app_type_cfg in_app_type_cfg;
     char profile[MAX_STREAM_PROFILE_STR_LEN];
     struct audio_device *dev;
     void *adsp_hdlr_stream_handle;
     void *ip_hdlr_handle;
+    bool adm_event_enable;
+    bool asm_event_enable;
+    bool ip_hdlr_enabled;
     stream_callback_t client_callback;
     void *client_cookie;
+    audio_input_flags_t input_flags;
+    audio_output_flags_t output_flags;
 };
+
 struct stream_out {
     struct audio_stream_out stream;
     pthread_mutex_t lock; /* see note below on mutex acquisition order */
@@ -418,6 +471,10 @@ struct stream_out {
 
     void *adsp_hdlr_stream_handle;
     void *ip_hdlr_handle;
+    bool adm_event_enable;
+    bool asm_event_enable;
+    bool ip_hdlr_enabled;
+    dsd_format_t dsd_format;
 
     stream_callback_t client_callback;
     void *client_cookie;
@@ -463,13 +520,17 @@ struct stream_out {
     mix_matrix_params_t pan_scale_params;
     mix_matrix_params_t downmix_params;
     bool set_dual_mono;
+    int rx_dtmf_tone_gain;
     bool prev_card_status_offline;
-
-    error_log_t *error_log;
-    bool pspd_coeff_sent;
 
     char address[AUDIO_DEVICE_MAX_ADDRESS_LEN];
     int car_audio_stream;
+    bool dsd_config_updated;
+
+#ifndef LINUX_ENABLED
+    error_log_t *error_log;
+#endif
+    bool pspd_coeff_sent;
 
     union {
         char *addr;
@@ -491,6 +552,7 @@ struct stream_in {
     int pcm_device_id;
     audio_devices_t device;
     audio_channel_mask_t channel_mask;
+    struct audio_in_channel_map_param *channel_map_param; /* input channel map */
     audio_usecase_t usecase;
     bool enable_aec;
     bool enable_ns;
@@ -513,12 +575,14 @@ struct stream_in {
     struct stream_app_type_cfg app_type_cfg;
     void *cin_extn;
     qahwi_stream_in_t qahwi_in;
+    dsd_format_t dsd_format;
 
     struct audio_device *dev;
     card_status_t card_status;
     int capture_started;
     float zoom;
     audio_microphone_direction_t direction;
+    render_mode_t render_mode;
 
     volatile int32_t capture_stopped;
 
@@ -530,7 +594,11 @@ struct stream_in {
     int64_t frames_read; /* total frames read, not cleared when entering standby */
     int64_t frames_muted; /* total frames muted, not cleared when entering standby */
 
+    bool dsd_config_updated;
+    uint64_t ttp_offset_cached;
+#ifndef LINUX_ENABLED
     error_log_t *error_log;
+#endif
 };
 
 typedef enum {
@@ -544,7 +612,9 @@ typedef enum {
     PCM_PASSTHROUGH,
     ICC_CALL,
     SYNTH_LOOPBACK,
-    USECASE_TYPE_MAX
+    AFE_LOOPBACK,
+    DTMF_PLAYBACK,
+    USECASE_TYPE_MAX,
 } usecase_type_t;
 
 union stream_ptr {
@@ -563,6 +633,7 @@ struct audio_usecase {
     struct stream_app_type_cfg out_app_type_cfg;
     struct stream_app_type_cfg in_app_type_cfg;
     union stream_ptr stream;
+    bool is_persistent_cal;
 };
 
 struct stream_format {
@@ -599,6 +670,14 @@ typedef struct streams_output_ctxt {
     struct stream_out *output;
 } streams_output_ctxt_t;
 
+typedef struct spdif_channel_status {
+    uint32_t sample_rate_ch_a;
+    uint32_t sample_rate_ch_b;
+    uint32_t bit_width_ch_a;
+    uint32_t bit_width_ch_b;
+    bool channel_status_set;
+} spdif_channel_status_t;
+
 typedef void* (*adm_init_t)();
 typedef void (*adm_deinit_t)(void *);
 typedef void (*adm_register_output_stream_t)(void *, audio_io_handle_t, audio_output_flags_t);
@@ -622,6 +701,7 @@ struct audio_device {
     struct mixer *mixer;
     audio_mode_t mode;
     audio_devices_t out_device;
+    struct stream_in *active_input;
     struct stream_out *primary_output;
     struct stream_out *voice_tx_output;
     struct stream_out *current_call_output;
@@ -649,6 +729,7 @@ struct audio_device {
     bool mic_muted;
     bool enable_voicerx;
     unsigned int num_va_sessions;
+    struct listnode clock_switch_list;
 
     int snd_card;
     card_status_t card_status;
@@ -667,6 +748,8 @@ struct audio_device {
     int (*offload_effects_stop_output)(audio_io_handle_t, int);
 
     int (*offload_effects_set_hpx_state)(bool);
+
+    struct audio_in_channel_map_param in_channel_map_param;
 
     void *adm_data;
     void *adm_lib;
@@ -725,6 +808,12 @@ struct audio_device {
     bool adm_routing_changed;
     struct listnode audio_patch_record_list;
     unsigned int audio_patch_index;
+    void *ip_hdlr_handle;
+    int ip_hdlr_asm_cnt;
+    int ip_hdlr_adm_cnt;
+    bool ecall_flag;
+    spdif_channel_status_t spdif_coaxial_status;
+    spdif_channel_status_t spdif_optical_status;
 };
 
 struct audio_patch_record {

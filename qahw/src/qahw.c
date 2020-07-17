@@ -55,7 +55,8 @@
 
 
 typedef uint64_t (*qahwi_out_write_v2_t)(audio_stream_out_t *out, const void* buffer,
-                                       size_t bytes, int64_t* timestamp);
+                                       size_t bytes, int64_t* timestamp,
+                                       qahw_meta_data_flags_t flags);
 
 typedef int (*qahwi_get_param_data_t) (const audio_hw_device_t *,
                               qahw_param_id, qahw_param_payload *);
@@ -570,7 +571,8 @@ ssize_t qahw_out_write_l(qahw_stream_handle_t *out_handle,
     out = qahw_stream_out->stream;
     if (qahw_stream_out->qahwi_out_write_v2) {
         rc = qahw_stream_out->qahwi_out_write_v2(out, out_buf->buffer,
-                                         out_buf->bytes, out_buf->timestamp);
+                                         out_buf->bytes, out_buf->timestamp,
+                                         out_buf->flags);
         out_buf->offset = 0;
     } else if (out->write) {
         rc = out->write(out, out_buf->buffer, out_buf->bytes);
@@ -1489,37 +1491,6 @@ exit:
      return ret;
 }
 
-/* Release an audio patch */
-int qahw_release_audio_patch_l(qahw_module_handle_t *hw_module,
-                        audio_patch_handle_t handle)
-{
-    int ret = 0;
-    qahw_module_t *qahw_module = (qahw_module_t *)hw_module;
-    qahw_module_t *qahw_module_temp;
-
-    pthread_mutex_lock(&qahw_module_init_lock);
-    qahw_module_temp = get_qahw_module_by_ptr_l(qahw_module);
-    pthread_mutex_unlock(&qahw_module_init_lock);
-    if (qahw_module_temp == NULL) {
-        ALOGE("%s:: invalid hw module %p", __func__, qahw_module);
-        goto exit;
-    }
-
-    pthread_mutex_lock(&qahw_module->lock);
-    if (qahw_module->audio_device->release_audio_patch) {
-        ret = qahw_module->audio_device->release_audio_patch(
-                        qahw_module->audio_device,
-                        handle);
-    } else {
-         ret = -ENOSYS;
-         ALOGE("%s not supported\n",__func__);
-    }
-    pthread_mutex_unlock(&qahw_module->lock);
-
-exit:
-     return ret;
-}
-
 int qahw_create_audio_patch_v2_l(qahw_module_handle_t *hw_module,
                         qahw_source_port_config_t *source_port_config,
                         qahw_sink_port_config_t *sink_port_config,
@@ -1542,6 +1513,37 @@ int qahw_create_audio_patch_v2_l(qahw_module_handle_t *hw_module,
     if (qahw_module->qahwi_create_audio_patch_v2){
         ret = qahw_module->qahwi_create_audio_patch_v2(qahw_module->audio_device,
                                    source_port_config, sink_port_config, handle);
+    } else {
+         ret = -ENOSYS;
+         ALOGE("%s not supported\n",__func__);
+    }
+    pthread_mutex_unlock(&qahw_module->lock);
+
+exit:
+     return ret;
+}
+
+/* Release an audio patch */
+int qahw_release_audio_patch_l(qahw_module_handle_t *hw_module,
+                        audio_patch_handle_t handle)
+{
+    int ret = 0;
+    qahw_module_t *qahw_module = (qahw_module_t *)hw_module;
+    qahw_module_t *qahw_module_temp;
+
+    pthread_mutex_lock(&qahw_module_init_lock);
+    qahw_module_temp = get_qahw_module_by_ptr_l(qahw_module);
+    pthread_mutex_unlock(&qahw_module_init_lock);
+    if (qahw_module_temp == NULL) {
+        ALOGE("%s:: invalid hw module %p", __func__, qahw_module);
+        goto exit;
+    }
+
+    pthread_mutex_lock(&qahw_module->lock);
+    if (qahw_module->audio_device->release_audio_patch) {
+        ret = qahw_module->audio_device->release_audio_patch(
+                        qahw_module->audio_device,
+                        handle);
     } else {
          ret = -ENOSYS;
          ALOGE("%s not supported\n",__func__);
@@ -2061,7 +2063,7 @@ qahw_module_handle_t *qahw_load_module_l(const char *hw_module_id)
     qahw_module->qahwi_create_audio_patch_v2 = (qahwi_create_audio_patch_v2_t) dlsym (module->dso,
                             "qahwi_create_audio_patch_v2");
     if (!qahw_module->qahwi_create_audio_patch_v2)
-        ALOGD("%s::qahwi_create_audio_patch_v2 api is not defined\n",__func__);
+         ALOGD("%s::qahwi_create_audio_patch_v2 api is not defined\n",__func__);
 
     if (!qahw_list_count)
         list_init(&qahw_module_list);

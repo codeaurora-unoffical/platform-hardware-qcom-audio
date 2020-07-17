@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -32,6 +32,7 @@
 #include <errno.h>
 #include <pthread.h>
 #include <log/log.h>
+#include <cutils/log.h>
 #include <math.h>
 #include <audio_hw.h>
 #include "audio_extn.h"
@@ -68,6 +69,8 @@ int auto_hal_release_audio_patch(struct audio_hw_device *dev,
                                 audio_patch_handle_t handle);
 int auto_hal_stop_hfp_downlink(struct audio_device *adev,
                                struct audio_usecase *uc_info);
+extern struct pcm_config pcm_config_deep_buffer;
+extern struct pcm_config pcm_config_low_latency;
 
 static struct audio_patch_record *get_patch_from_list(struct audio_device *adev,
                                                     audio_patch_handle_t patch_id)
@@ -352,11 +355,13 @@ int auto_hal_release_audio_patch(struct audio_hw_device *dev,
         if(ret)
             goto exit;
 
-        parms = str_parms_create();
-        str_parms_add_int(parms, AUDIO_PARAMETER_STREAM_ROUTING, 0);
-        str = str_parms_to_str(parms);
-        in_ctxt->input->stream.common.set_parameters(
-                        (struct audio_stream *)in_ctxt->input, str);
+        if(parms != NULL) {
+           parms = str_parms_create();
+           str_parms_add_int(parms, AUDIO_PARAMETER_STREAM_ROUTING, 0);
+           str = str_parms_to_str(parms);
+           in_ctxt->input->stream.common.set_parameters(
+                           (struct audio_stream *)in_ctxt->input, str);
+        }
     }
 
     if (patch_record->output_io_handle) {
@@ -371,10 +376,12 @@ int auto_hal_release_audio_patch(struct audio_hw_device *dev,
             goto exit;
 
         parms = str_parms_create();
-        str_parms_add_int(parms, AUDIO_PARAMETER_STREAM_ROUTING, 0);
-        str = str_parms_to_str(parms);
-        out_ctxt->output->stream.common.set_parameters(
-                        (struct audio_stream *)out_ctxt->output, str);
+        if(parms != NULL) {
+           str_parms_add_int(parms, AUDIO_PARAMETER_STREAM_ROUTING, 0);
+           str = str_parms_to_str(parms);
+           out_ctxt->output->stream.common.set_parameters(
+                             (struct audio_stream *)out_ctxt->output, str);
+        }
     }
 
     if (patch_record->usecase != USECASE_INVALID) {

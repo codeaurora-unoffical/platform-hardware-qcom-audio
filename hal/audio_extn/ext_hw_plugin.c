@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2014-2019 The Linux Foundation. All rights reserved.
+* Copyright (c) 2014-2020 The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -213,7 +213,6 @@ static int32_t ext_hw_plugin_check_plugin_usecase(audio_usecase_t hal_usecase,
         break;
     case USECASE_ICC_CALL:
         *plugin_usecase = AUDIO_HAL_PLUGIN_USECASE_ICC;
-        break;
     default:
         ret = -EINVAL;
     }
@@ -595,9 +594,10 @@ int32_t ext_hw_plugin_set_parameters(void *plugin, struct str_parms *parms)
         kv_pairs = str_parms_to_str(parms);
         if (kv_pairs == NULL) {
             ret = -EINVAL;
-            ALOGE("%s: key-value pair is NULL", __func__);
+            ALOGE("%s failed to get parameters",__func__);
             goto done;
         }
+
         len = strlen(kv_pairs);
         value = (char*)calloc(len, sizeof(char));
         if (value == NULL) {
@@ -1049,9 +1049,10 @@ int ext_hw_plugin_get_parameters(void *plugin,
         kv_pairs = str_parms_to_str(query);
         if (kv_pairs == NULL) {
             ret = -EINVAL;
-            ALOGE("%s: key-value pair is NULL", __func__);
+            ALOGE("%s: key-value pair is NULL",__func__);
             goto done_get_param;
         }
+
         len = strlen(kv_pairs);
         value = (char*)calloc(len, sizeof(char));
         if (value == NULL) {
