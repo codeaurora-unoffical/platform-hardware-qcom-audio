@@ -455,6 +455,7 @@ struct stream_out {
     error_log_t *error_log;
 #endif
     bool pspd_coeff_sent;
+    int ecall;
 };
 
 struct stream_in {
