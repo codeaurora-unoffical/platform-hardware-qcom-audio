@@ -2233,7 +2233,8 @@ int audio_extn_utils_set_spdif_channel_status (struct stream_out *out,
         goto fail;
     }
 
-    if (mixer_ctl_set_array(ctl, &iec958, sizeof(iec958)) < 0) {
+    /* Set 1 channel status info in IEC958 struct */
+    if (mixer_ctl_set_array(ctl, &iec958, 1) < 0) {
         ALOGE("%s: Could not set channel status for %s", __func__, mixer_ctl_name_ch_a);
         ret = -EINVAL;
         goto fail;
@@ -2253,7 +2254,8 @@ int audio_extn_utils_set_spdif_channel_status (struct stream_out *out,
         goto fail;
     }
 
-    if (mixer_ctl_set_array(ctl, &iec958, sizeof(iec958)) < 0) {
+    /* Set 1 channel status info in IEC958 struct */
+    if (mixer_ctl_set_array(ctl, &iec958, 1) < 0) {
         ALOGE("%s: Could not set channel status for %s", __func__, mixer_ctl_name_ch_b);
         ret = -EINVAL;
         goto fail;
@@ -2486,7 +2488,8 @@ void audio_utils_set_hdmi_channel_status(struct stream_out *out, char * buffer, 
                   __func__, mixer_ctl_name);
             return;
     }
-    if (mixer_ctl_set_array(ctl, &iec958, sizeof(iec958)) < 0) {
+    /* Set 1 channel status info in IEC958 struct */
+    if (mixer_ctl_set_array(ctl, &iec958, 1) < 0) {
         ALOGE("%s: Could not set channel status for ext HDMI ",
               __func__);
         return;
