@@ -1966,6 +1966,8 @@ qahw_module_handle_t *qahw_load_module(const char *hw_module_id)
 #endif
 
 #if QAHW_V1
+
+
 char * qahw_get_session_id(const char* vsid)
 {
     int i = 0;
@@ -3261,6 +3263,14 @@ int32_t qahw_stream_get_parameters(qahw_stream_handle_t *stream_handle,
     ALOGE("%s is an unsupported api", __func__);
     return -ENOTSUP;
 }
+
+int32_t qahw_ssr_callback(qahw_module_handle_t *hw_module,
+                          ssr_callback_t callback,
+                          void *cookie) {
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_ssr_callback_l(hw_module, callback, cookie);
+}
+
 #else
 int qahw_stream_open(qahw_module_handle_t *hw_module,
                      struct qahw_stream_attributes attr,
@@ -3388,6 +3398,13 @@ int32_t qahw_stream_set_parameters(qahw_stream_handle_t *stream_handle,
 int32_t qahw_stream_get_parameters(qahw_stream_handle_t *stream_handle,
                               uint32_t param_id,
                               qahw_param_payload *param_payload){
+    ALOGE("%s is an unsupported api", __func__);
+    return -ENOTSUP;
+}
+
+int32_t qahw_ssr_callback(qahw_module_handle_t *hw_module,
+                          ssr_callback_t callback,
+                          void *cookie) {
     ALOGE("%s is an unsupported api", __func__);
     return -ENOTSUP;
 }
