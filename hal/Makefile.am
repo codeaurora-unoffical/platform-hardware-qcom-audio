@@ -228,6 +228,11 @@ if LL_AS_PRIMARY_OUTPUT
 AM_CFLAGS += -DUSE_LL_AS_PRIMARY_OUTPUT
 endif
 
+if SND_MONITOR
+AM_CFLAGS += -DSND_MONITOR_ENABLED
+c_sources += audio_extn/sndmonitor.c
+endif
+
 h_sources = audio_extn/audio_defs.h \
             audio_extn/audio_extn.h \
             audio_hw.h \
