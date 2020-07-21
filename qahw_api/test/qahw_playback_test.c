@@ -427,6 +427,7 @@ int async_callback(qahw_stream_callback_event_t event, void *param,
         stop_playback = true;
         break;
     default:
+        fprintf(log_file, "stream %d: received event - %d\n", params->stream_index, event);
         break;
     }
     return 0;
@@ -2005,6 +2006,10 @@ static ssize_t  get_bytes_to_read(FILE* file, int file_type)
      return file_read_size;
 }
 
+void ssr_callback(uint16_t status, void *priv) {
+      fprintf(log_file,"failure due to HAL SSR\n");
+}
+
 qahw_module_handle_t * load_hal(audio_devices_t dev) {
     qahw_module_handle_t *hal = NULL;
 
@@ -2040,6 +2045,8 @@ qahw_module_handle_t * load_hal(audio_devices_t dev) {
                 fprintf(stderr,"failure in Loading primary HAL\n");
                 return NULL;
             }
+            qahw_ssr_callback(primary_hal_handle, ssr_callback, NULL);
+
         }
         hal = primary_hal_handle;
     }
