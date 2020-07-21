@@ -26,6 +26,7 @@
 #include <sys/time.h>
 #include <cutils/bitops.h>
 #include <system/audio.h>
+#include <hardware/audio.h>
 #include "qahw_defs.h"
 
 __BEGIN_DECLS
@@ -62,6 +63,14 @@ __BEGIN_DECLS
 typedef void qahw_module_handle_t;
 typedef void qahw_stream_handle_t;
 typedef void (*audio_error_callback)(void* context);
+
+
+#define QAHW_SSR_IN_PROGRESS	1
+#define QAHW_SSR_DONE		0
+
+int qahw_ssr_callback(qahw_module_handle_t *hw_module,
+                          ssr_callback_t callback,
+                          void *cookie);
 
 /**************************************/
 /* Output stream specific APIs **/

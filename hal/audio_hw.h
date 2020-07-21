@@ -554,6 +554,8 @@ struct audio_device {
     struct audio_device_config_param *device_cfg_params;
     unsigned int interactive_usecase_state;
     bool dp_allowed_for_voice;
+    ssr_callback_t ssr_callback;
+    void *ssr_callback_payload;
 };
 
 int select_devices(struct audio_device *adev,
