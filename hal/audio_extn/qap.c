@@ -48,7 +48,7 @@
 #define QAP_DEFAULT_PASSTHROUGH_HANDLE 1003
 
 #define COMPRESS_OFFLOAD_PLAYBACK_LATENCY 300
-#define MS12_LATENCY 310
+#define MS12_LATENCY 12960 //frames for 270ms
 
 #define MIN_PCM_OFFLOAD_FRAGMENT_SIZE 512
 #define MAX_PCM_OFFLOAD_FRAGMENT_SIZE (240 * 1024)
@@ -238,6 +238,7 @@ struct qap {
     struct stream_out *passthrough_out;
 
     struct qap_module qap_mod[MAX_MM_MODULE_TYPE];
+    bool wait_on_cond;
 };
 
 #define MAX_OUTPUTS  2
@@ -1171,7 +1172,9 @@ static int qap_out_standby(struct audio_stream *stream)
               qap_session callback acquires lock and moves stream
               to stopped state.
              */
+             p_qap->wait_on_cond = 1;
              pthread_cond_wait(&qap_mod->drain_output_cond, &out->lock);
+             p_qap->wait_on_cond = 0;
           } while(1);
        }
 
@@ -1186,7 +1189,8 @@ static int qap_out_standby(struct audio_stream *stream)
                DEBUG_MSG("[%s] stream is still active.", use_case_table[qap_mod->stream_in[i]->usecase]);
            } else {
                lock_session_output(qap_mod);
-               qap_mod->is_session_output_active = false;
+               if (!p_qap->wait_on_cond)
+                   qap_mod->is_session_output_active = false;
                unlock_session_output(qap_mod);
                DEBUG_MSG(" all the input streams are either closed or stopped(standby) block the MM module output");
            }
@@ -3768,6 +3772,7 @@ int audio_extn_qap_init(struct audio_device *adev)
 
             qap_mod->interpolation = 0; /*apply gain linearly*/
             qap_mod->pause = false;
+            p_qap->wait_on_cond = 0;
         } else if (i == DTS_M8) {
             property_get("vendor.audio.qap.m8.library", value, NULL);
             if (value[0] != 0) {
