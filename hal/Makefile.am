@@ -51,9 +51,13 @@ AM_CFLAGS += -DCOMPRESS_VOIP_ENABLED
 c_sources += voice_extn/compress_voip.c
 endif
 
-if SPKR_PROTECTION
+#if SPKR_PROTECTION
+#AM_CFLAGS += -DSPKR_PROT_ENABLED
+#c_sources += audio_extn/spkr_protection.c
+#endif
+
+if SPKR_PROT
 AM_CFLAGS += -DSPKR_PROT_ENABLED
-c_sources += audio_extn/spkr_protection.c
 endif
 
 if HW_VARIANTS
