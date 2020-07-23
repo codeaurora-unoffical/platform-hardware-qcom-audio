@@ -88,6 +88,10 @@ PRODUCT_COPY_FILES += \
     hardware/qcom/audio/configs/msm8937/audio_policy.conf:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy.conf
 endif
 
+# Target supports smartPA
+ifeq ($(TARGET_SUPPORTS_WEARABLES), true)
+WEARABLE_SUPPORTS_TFA_SMARTPA := true
+endif
 
 PRODUCT_COPY_FILES +=\
 hardware/qcom/audio/configs/msm8937/audio_output_policy.conf:$(TARGET_COPY_OUT_VENDOR)/etc/audio_output_policy.conf\
