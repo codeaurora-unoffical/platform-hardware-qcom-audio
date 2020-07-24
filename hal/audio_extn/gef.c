@@ -118,8 +118,6 @@ void audio_extn_gef_init(struct audio_device *adev)
     //: check error for dlopen
     gef_hal_handle.handle = dlopen(GEF_LIBRARY, RTLD_LAZY);
     if (gef_hal_handle.handle == NULL) {
-        ALOGE("%s: DLOPEN failed for %s with error %s",
-            __func__, GEF_LIBRARY, dlerror());
         goto ERROR_RETURN;
     } else {
         ALOGV("%s: DLOPEN successful for %s", __func__, GEF_LIBRARY);

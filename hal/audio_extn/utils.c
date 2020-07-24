@@ -533,14 +533,11 @@ void audio_extn_utils_update_streams_cfg_lists(void *platform,
 
     data = (char *)load_file(AUDIO_IO_POLICY_VENDOR_CONFIG_FILE, NULL);
     if (data == NULL) {
-        ALOGD("%s: failed to open io config file(%s), trying older config file",
-              __func__, AUDIO_IO_POLICY_VENDOR_CONFIG_FILE);
         data = (char *)load_file(AUDIO_OUTPUT_POLICY_VENDOR_CONFIG_FILE, NULL);
         if (data == NULL) {
             send_app_type_cfg(platform, mixer,
                               streams_output_cfg_list,
                               streams_input_cfg_list);
-            ALOGE("%s: could not load io policy config!", __func__);
             free(root);
             return;
         }
@@ -2693,7 +2690,6 @@ int audio_extn_utils_open_snd_mixer(struct mixer **mixer_handle)
         if (!mixer) {
            usleep(RETRY_US);
            retry_num++;
-           ALOGD("%s: retry, retry_num %d", __func__, retry_num);
            continue;
         }
 
