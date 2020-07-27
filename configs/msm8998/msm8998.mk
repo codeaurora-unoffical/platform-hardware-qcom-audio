@@ -157,7 +157,7 @@ persist.vendor.audio.ras.enabled=false
 
 #Buffer size in kbytes for compress offload playback
 PRODUCT_PROPERTY_OVERRIDES += \
-vendor.audio.offload.buffer.size.kb=32
+vendor.audio.offload.buffer.size.kb=24
 
 PRODUCT_PROPERTY_OVERRIDES += \
 audio.offload.min.duration.secs=5
@@ -343,6 +343,12 @@ persist.vendor.audio.qap.ecref=off
 
 PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.qap.output.block.handling=true
+
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.qap.pauseramp.duration =20
+
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.qap.volumeramp.duration=20
 
 # for HIDL related packages
 PRODUCT_PACKAGES += \
