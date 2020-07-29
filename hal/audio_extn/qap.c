@@ -978,7 +978,7 @@ static int qap_out_pause(struct audio_stream_out* stream)
 
        unlock_output_stream_l(out);
     } else {
-       p_qap->hal_stream_ops.pause(stream);
+       status = p_qap->hal_stream_ops.pause(stream);
     }
     unlock_qap_stream_in(out);
     DEBUG_MSG_VV("Exit");
@@ -1474,7 +1474,7 @@ static int qap_out_get_render_position(const struct audio_stream_out *stream,
         *dsp_frames = (uint32_t)frames;
         DEBUG_MSG_VV("DSP FRAMES %ud for out(%p)", *dsp_frames, out);
     } else {
-       p_qap->hal_stream_ops.get_render_position(stream, dsp_frames);
+       ret = p_qap->hal_stream_ops.get_render_position(stream, dsp_frames);
     }
     unlock_qap_stream_in(out);
     return ret;
@@ -1513,7 +1513,7 @@ static int qap_out_get_presentation_position(const struct audio_stream_out *stre
 
     DEBUG_MSG_VV("frames(%llu) for out(%p)", (unsigned long long)*frames, out);
     } else {
-       p_qap->hal_stream_ops.get_presentation_position(stream, frames, timestamp);
+       ret = p_qap->hal_stream_ops.get_presentation_position(stream, frames, timestamp);
     }
     unlock_qap_stream_in(out);
     return ret;
