@@ -222,6 +222,7 @@ static int enum_sndcards()
             (strncasecmp(card_id, "sm", 2) != 0) &&
             (strncasecmp(card_id, "trinket", 7) != 0) &&
             (strncasecmp(card_id, "apq", 3) != 0) &&
+            (strncasecmp(card_id, "sdx", 3) != 0) &&
             (strncasecmp(card_id, "sa", 2) != 0)) {
             ALOGW("Skip over non-ADSP snd card %s", card_id);
             continue;
