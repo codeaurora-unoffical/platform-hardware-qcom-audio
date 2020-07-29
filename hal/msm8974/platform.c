@@ -1,5 +1,6 @@
+
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -53,6 +54,7 @@
 #endif
 
 #define SOUND_TRIGGER_DEVICE_HANDSET_MONO_LOW_POWER_ACDB_ID (100)
+#define MAX_MIXER_XML_PATH  100
 #define MIXER_FILE_DELIMITER "_"
 #define MIXER_FILE_EXT ".xml"
 
@@ -69,10 +71,12 @@
 #define MIXER_XML_PATH_I2S "/etc/mixer_paths_i2s.xml"
 #define PLATFORM_INFO_XML_PATH_I2S "/etc/audio_platform_info_extcodec.xml"
 #define PLATFORM_INFO_XML_PATH_WSA  "/etc/audio_platform_info_wsa.xml"
+#define PLATFORM_INFO_XML_PATH_WSA_RB1  "/etc/audio_platform_info_wsa_rb1.xml"
 #define PLATFORM_INFO_XML_PATH_TDM  "/etc/audio_platform_info_tdm.xml"
 #define PLATFORM_INFO_XML_PATH_CSRA6 "/etc/audio_platform_info_csra6.xml"
 #define PLATFORM_INFO_XML_PATH_CSRA8 "/etc/audio_platform_info_csra8.xml"
 #define PLATFORM_INFO_XML_PATH_CSRA8PLUS2 "/etc/audio_platform_info_csra8plus2.xml"
+#define MIXER_XML_PATH_EXTCODEC_I2S "/etc/mixer_paths_extcodec_i2s.xml"
 #else
 #define PLATFORM_INFO_XML_PATH_INTCODEC  "/vendor/etc/audio_platform_info_intcodec.xml"
 #define PLATFORM_INFO_XML_PATH_SKUSH "/vendor/etc/audio_platform_info_skush.xml"
@@ -83,10 +87,12 @@
 #define MIXER_XML_PATH_I2S "/vendor/etc/mixer_paths_i2s.xml"
 #define PLATFORM_INFO_XML_PATH_I2S "/vendor/etc/audio_platform_info_i2s.xml"
 #define PLATFORM_INFO_XML_PATH_WSA  "/vendor/etc/audio_platform_info_wsa.xml"
+#define PLATFORM_INFO_XML_PATH_WSA_RB1  "/vendor/etc/audio_platform_info_wsa_rb1.xml"
 #define PLATFORM_INFO_XML_PATH_TDM  "/vendor/etc/audio_platform_info_tdm.xml"
 #define PLATFORM_INFO_XML_PATH_CSRA6 "/vendor/etc/audio_platform_info_csra6.xml"
 #define PLATFORM_INFO_XML_PATH_CSRA8 "/vendor/etc/audio_platform_info_csra8.xml"
 #define PLATFORM_INFO_XML_PATH_CSRA8PLUS2 "/vendor/etc/audio_platform_info_csra8plus2.xml"
+#define MIXER_XML_PATH_EXTCODEC_I2S "/etc/mixer_paths_extcodec_i2s.xml"
 #endif
 
 #include <linux/msm_audio.h>
@@ -1474,6 +1480,17 @@ static void update_codec_type_and_interface(struct platform_data * my_data,
      }
 }
 
+static void query_platform(const char *snd_card_name, char *mixer_xml_path)
+{
+     if (!strncmp(snd_card_name, "sdx-auto-i2s-snd-card",
+                   sizeof("sdx-auto-i2s-snd-card"))) {
+        strlcpy(mixer_xml_path, MIXER_XML_PATH_EXTCODEC_I2S,
+                 sizeof(MIXER_XML_PATH_EXTCODEC_I2S));
+     } else {
+        strlcpy(mixer_xml_path, MIXER_XML_PATH_I2S, sizeof(MIXER_XML_PATH_I2S));
+     }
+}
+
 static bool can_enable_mbdrc_on_device(snd_device_t snd_device)
 {
     bool ret = false;
@@ -1649,7 +1666,8 @@ void platform_set_echo_reference(struct audio_device *adev, bool enable,
         else if (out_device & AUDIO_DEVICE_OUT_EARPIECE)
             strlcat(ec_ref_mixer_path, " handset",
                     MIXER_PATH_MAX_LENGTH);
-        else if (out_device & AUDIO_DEVICE_OUT_WIRED_HEADPHONE)
+        else if ((out_device & AUDIO_DEVICE_OUT_WIRED_HEADPHONE) ||
+                 (out_device & AUDIO_DEVICE_OUT_LINE))
             strlcat(ec_ref_mixer_path, " headphones",
                     MIXER_PATH_MAX_LENGTH);
         else if (out_device & AUDIO_DEVICE_OUT_USB_HEADSET)
@@ -1836,7 +1854,9 @@ static bool platform_is_i2s_ext_modem(const char *snd_card_name,
         !strncmp(snd_card_name, "sda845-tavil-i2s-snd-card",
                  sizeof("sda845-tavil-i2s-snd-card")) ||
         !strncmp(snd_card_name, "sa6155-adp-star-snd-card",
-                 sizeof("sa6155-adp-star-snd-card"))) {
+                 sizeof("sa6155-adp-star-snd-card")) ||
+        !strncmp(snd_card_name, "sdx-auto-i2s-snd-card",
+                 sizeof("sdx-auto-i2s-snd-card"))) {
         plat_data->is_i2s_ext_modem = true;
     }
     ALOGV("%s, is_i2s_ext_modem:%d soundcard name is %s",__func__,
@@ -2411,11 +2431,11 @@ cleanup:
         free(cvd_version);
     if (!result) {
         my_data->is_acdb_initialized = true;
-        ALOGD("ACDB initialized");
+        ALOGD("%s: ACDB initialized", __func__);
         audio_hwdep_send_cal(my_data);
     } else {
         my_data->is_acdb_initialized = false;
-        ALOGD("ACDB initialization failed");
+        ALOGD("%s: ACDB initialization failed", __func__);
     }
     return result;
 }
@@ -2585,6 +2605,7 @@ void *platform_init(struct audio_device *adev)
     char platform[PROPERTY_VALUE_MAX];
     char baseband[PROPERTY_VALUE_MAX];
     char value[PROPERTY_VALUE_MAX];
+    char mixer_xml_path[MAX_MIXER_XML_PATH];
     struct platform_data *my_data = NULL;
     char *snd_card_name = NULL;
     char mixer_xml_file[MIXER_PATH_MAX_LENGTH]= {0};
@@ -2642,10 +2663,9 @@ void *platform_init(struct audio_device *adev)
 
     if (platform_is_i2s_ext_modem(snd_card_name, my_data) &&
         !is_auto_snd_card(snd_card_name)) {
-        ALOGD("%s: Call MIXER_XML_PATH_I2S", __func__);
-
-        adev->audio_route = audio_route_init(adev->snd_card,
-                                             MIXER_XML_PATH_I2S);
+        query_platform(snd_card_name, mixer_xml_path);
+        ALOGD("%s: Call %s", __func__, mixer_xml_path);
+        adev->audio_route = audio_route_init(adev->snd_card, mixer_xml_path);
     } else {
         /* Get the codec internal name from the sound card name
          * and form the mixer paths file name dynamically. This
@@ -2857,6 +2877,9 @@ void *platform_init(struct audio_device *adev)
     else if (!strncmp(snd_card_name, "qcs405-tdm-snd-card",
                sizeof("qcs405-tdm-snd-card")))
         platform_info_init(PLATFORM_INFO_XML_PATH_TDM, my_data, PLATFORM);
+    else if (!strncmp(snd_card_name, "qcs404-wsa-rb1-snd-card",
+               sizeof("qcs404-wsa-rb1-snd-card")))
+        platform_info_init(PLATFORM_INFO_XML_PATH_WSA_RB1, my_data, PLATFORM);
     else if (my_data->is_internal_codec)
         platform_info_init(PLATFORM_INFO_XML_PATH_INTCODEC, my_data, PLATFORM);
     else {
@@ -2991,11 +3014,11 @@ void *platform_init(struct audio_device *adev)
         int result = acdb_init_v2(adev->mixer);
         if (!result) {
             my_data->is_acdb_initialized = true;
-            ALOGD("ACDB initialized");
+            ALOGD("%s: ACDB initialized", __func__);
             audio_hwdep_send_cal(my_data);
         } else {
             my_data->is_acdb_initialized = false;
-            ALOGD("ACDB initialization failed");
+            ALOGD("%s: ACDB initialization failed", __func__);
         }
     }
 
@@ -4148,7 +4171,7 @@ int platform_get_default_app_type(void *platform)
 int platform_get_default_app_type_v2(void *platform, usecase_type_t  type)
 {
     ALOGV("%s: Platform: %p, type: %d", __func__, platform, type);
-    if(type == PCM_CAPTURE)
+    if((type == PCM_HFP_CALL) || (type == PCM_CAPTURE))
         return DEFAULT_APP_TYPE_TX_PATH;
     else
         return DEFAULT_APP_TYPE_RX_PATH;
@@ -4449,6 +4472,8 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
         snd_device = usecase->in_snd_device;
     else if (usecase->type == TRANSCODE_LOOPBACK_RX)
         snd_device = usecase->out_snd_device;
+    else if (usecase->type == TRANSCODE_LOOPBACK_TX)
+        snd_device = usecase->in_snd_device;
     else if ((usecase->type == AFE_LOOPBACK) || (usecase->type == DTMF_PLAYBACK))
         snd_device = usecase->out_snd_device;
 
@@ -7611,13 +7636,22 @@ bool platform_sound_trigger_device_needs_event(snd_device_t snd_device)
 {
     bool needs_event = false;
 
+    /*
+     * ToDo - Needs to be decided based on backend id.
+     * Line in might share same backend in few platforms.
+     */
     if ((snd_device >= SND_DEVICE_IN_BEGIN) &&
         (snd_device < SND_DEVICE_IN_END) &&
         (snd_device != SND_DEVICE_IN_CAPTURE_FM) &&
         (snd_device != SND_DEVICE_IN_CAPTURE_VI_FEEDBACK) &&
         (snd_device != SND_DEVICE_IN_CAPTURE_VI_FEEDBACK_MONO_1) &&
         (snd_device != SND_DEVICE_IN_CAPTURE_VI_FEEDBACK_MONO_2) &&
-        (snd_device != SND_DEVICE_IN_EC_REF_LOOPBACK))
+        (snd_device != SND_DEVICE_IN_EC_REF_LOOPBACK) &&
+        (snd_device != SND_DEVICE_IN_SPDIF) &&
+        (snd_device != SND_DEVICE_IN_HDMI_MIC) &&
+        (snd_device != SND_DEVICE_IN_HDMI_MIC_DSD) &&
+        (snd_device != SND_DEVICE_IN_HDMI_ARC) &&
+        (snd_device != SND_DEVICE_IN_LINE))
         needs_event = true;
 
     return needs_event;
@@ -7868,7 +7902,9 @@ static int platform_set_codec_backend_cfg(struct audio_device* adev,
             struct  mixer_ctl *ctl = NULL;
 
             if (backend_idx == USB_AUDIO_RX_BACKEND ||
-                    backend_idx == USB_AUDIO_TX_BACKEND) {
+                    backend_idx == USB_AUDIO_TX_BACKEND ||
+                    ((backend_idx == DEFAULT_CODEC_BACKEND) &&
+                    (my_data->use_sprk_default_sample_rate == false)) ) {
                 switch (sample_rate) {
                 case 32000:
                         rate_str = "KHZ_32";
@@ -9102,6 +9138,19 @@ int platform_set_stream_channel_map(void *platform, audio_channel_mask_t channel
                     channel_map[7] = PCM_CHANNEL_RS;
                 }
                 break;
+            case 10:
+                /* AUDIO_CHANNEL_OUT_7POINT1POINT2 */
+                channel_map[0] = PCM_CHANNEL_FL;
+                channel_map[1] = PCM_CHANNEL_FR;
+                channel_map[2] = PCM_CHANNEL_FC;
+                channel_map[3] = PCM_CHANNEL_LFE;
+                channel_map[4] = PCM_CHANNEL_LB;
+                channel_map[5] = PCM_CHANNEL_RB;
+                channel_map[6] = PCM_CHANNEL_LS;
+                channel_map[7] = PCM_CHANNEL_RS;
+                channel_map[8] = PCM_CHANNEL_TFL;
+                channel_map[9] = PCM_CHANNEL_TFR;
+                break;
            case 12:
                 /* AUDIO_CHANNEL_OUT_7POINT1POINT4 */
                 channel_map[0] = PCM_CHANNEL_FL;
@@ -9185,7 +9234,7 @@ int platform_get_edid_info(void *platform)
 
     switch(my_data->ext_disp_type) {
         case EXT_DISPLAY_TYPE_HDMI:
-            mix_ctl_name = "HDMI EDID";
+            mix_ctl_name = "HDMI MS EDID";
             break;
         case EXT_DISPLAY_TYPE_DP:
             mix_ctl_name = "Display Port EDID";

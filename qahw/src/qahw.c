@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+* Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -55,7 +55,8 @@
 
 
 typedef uint64_t (*qahwi_out_write_v2_t)(audio_stream_out_t *out, const void* buffer,
-                                       size_t bytes, int64_t* timestamp);
+                                       size_t bytes, int64_t* timestamp,
+                                       qahw_meta_data_flags_t flags);
 
 typedef int (*qahwi_get_param_data_t) (const audio_hw_device_t *,
                               qahw_param_id, qahw_param_payload *);
@@ -570,7 +571,8 @@ ssize_t qahw_out_write_l(qahw_stream_handle_t *out_handle,
     out = qahw_stream_out->stream;
     if (qahw_stream_out->qahwi_out_write_v2) {
         rc = qahw_stream_out->qahwi_out_write_v2(out, out_buf->buffer,
-                                         out_buf->bytes, out_buf->timestamp);
+                                         out_buf->bytes, out_buf->timestamp,
+                                         out_buf->flags);
         out_buf->offset = 0;
     } else if (out->write) {
         rc = out->write(out, out_buf->buffer, out_buf->bytes);

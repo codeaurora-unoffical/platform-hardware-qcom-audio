@@ -241,8 +241,19 @@ int voice_start_usecase(struct audio_device *adev, audio_usecase_t usecase_id)
 
     uc_info->id = usecase_id;
     uc_info->type = VOICE_CALL;
-    uc_info->stream.out = adev->current_call_output;
-    uc_info->devices = adev->current_call_output->devices;
+
+ if( usecase_id == USECASE_VOICEMMODE1_CALL)
+ {
+    uc_info->stream.out = adev->voice_tx_output;
+    uc_info->devices = adev->voice_tx_output->devices;
+ }
+
+ if( usecase_id == USECASE_VOICEMMODE2_CALL)
+ {
+     uc_info->stream.out = adev->voice2_tx_output;
+     uc_info->devices = adev->voice2_tx_output->devices;
+ }
+
 
     if (popcount(uc_info->devices) == 2) {
         ALOGE("%s: Invalid combo device(%#x) for voice call", __func__,
@@ -892,7 +903,10 @@ void voice_update_devices_for_all_voice_usecases(struct audio_device *adev)
         if (usecase->type == VOICE_CALL) {
             ALOGV("%s: updating device for usecase:%s", __func__,
                   use_case_table[usecase->id]);
-            usecase->stream.out = adev->current_call_output;
+            if(usecase->id == USECASE_VOICEMMODE1_CALL)
+            	usecase->stream.out = adev->voice_tx_output;
+            if(usecase->id == USECASE_VOICEMMODE2_CALL)
+            	usecase->stream.out = adev->voice2_tx_output;
             select_devices(adev, usecase->id);
         }
     }

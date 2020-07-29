@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2011 The Android Open Source Project *
@@ -187,6 +187,7 @@ typedef enum {
 #define QAHW_AUDIO_FLAG_HPCM_TX 0x00020000
 #define QAHW_AUDIO_FLAG_HPCM_RX 0x00040000
 
+
 /* audio output flag for timestamp mode */
 #define QAHW_OUTPUT_FLAG_TIMESTAMP 0x20000000
 
@@ -194,6 +195,7 @@ typedef enum {
  * AUDIO_OUTPUT_FLAG_VOICE_CAL
  */
 #define QAHW_AUDIO_OUTPUT_FLAG_VOICE_CALL 0x2000000
+#define QAHW_AUDIO_OUTPUT_FLAG_VOICE2_CALL 0x10000
 
 /* Query fm volume */
 #define QAHW_PARAMETER_KEY_FM_VOLUME "fm_volume"
@@ -242,6 +244,16 @@ typedef enum {
 #define QAHW_PCM_CHANNEL_RSD  34  /* Right side direct channel.                    */
 #define QAHW_PCM_CHANNEL_UNUSED  47  /* Mark unused channel.                       */
 
+/* Parameter to be passed when clock switch is needed */
+#define QAHW_PARAMETER_CLOCK "clock"
+#define QAHW_PARAMETER_CLOCK_FREQUENCY "clock_frequency"
+
+typedef enum {
+    QAHW_CLOCK_INTERNAL,
+    QAHW_CLOCK_EXTERNAL,
+    QAHW_CLOCK_MAX
+} qahw_clock_type;
+
 /* type of asynchronous write callback events. Mutually exclusive */
 typedef enum {
     QAHW_STREAM_CBK_EVENT_WRITE_READY, /* non blocking write completed */
@@ -275,6 +287,8 @@ typedef enum {
 /*TBD: Extend this based on stb requirement*/
 typedef enum {
  QAHW_META_DATA_FLAGS_NONE = 0,
+ QAHW_META_DATA_FLAGS_TIMESTAMP_VALID,
+ QAHW_META_DATA_FLAGS_TIMESTAMP_CONTINUE,
 } qahw_meta_data_flags_t;
 
 typedef struct {
@@ -325,6 +339,12 @@ struct aptx_dec_bt_addr {
 
 struct qahw_aptx_dec_param {
    struct aptx_dec_bt_addr bt_addr;
+};
+
+struct qahw_pll_dev_cfg {
+    int32_t clk_drift;
+    uint32_t audio_device;
+    bool    reset;
 };
 
 struct qahw_avt_device_drift_param {
@@ -571,6 +591,7 @@ typedef enum {
     QAHW_PARAM_DTMF_DETECT,
     QAHW_PARAM_TONE_GEN,
     QAHW_PARAM_IN_TTP_OFFSET,
+    QAHW_PARAM_PLL_DEVICE_CONFIG,
 } qahw_param_id;
 
 typedef union {
@@ -631,6 +652,7 @@ typedef enum {
     QAHW_AUDIO_AFE_LOOPBACK,                 /* Assumption is device[0] is RX and device[1] is TX */
     QAHW_AUDIO_TONE_RX,
     QAHW_AUDIO_COMPRESSED_PLAYBACK_VOICE_CALL_MUSIC, /**< Offload incall music playback */
+    QAHW_ECALL,									/**< ecall */
     QAHW_AUDIO_STREAM_TYPE_MAX,
 } qahw_audio_stream_type;
 

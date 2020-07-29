@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -2697,6 +2697,184 @@ int audio_extn_set_soundfocus_data(struct audio_device *adev,
     return ret;
 }
 
+void audio_extn_set_clock_mixer(struct audio_device *adev,
+                                snd_device_t snd_device) {
+    struct listnode *node = NULL;
+    audio_clock_data_t *cdata = NULL;
+    int be_id = -1;
+
+    ALOGV("%s", __func__);
+
+    be_id = platform_get_snd_device_backend_index(snd_device);
+
+    list_for_each(node, &adev->clock_switch_list) {
+        cdata = node_to_item(node, audio_clock_data_t, list);
+        if (cdata->be_id == be_id) {
+            if (cdata->clock_switch) {
+                struct mixer_ctl *ctl = NULL;
+                const char *mixer_ctl_name = "MCLK_SRC CFG";
+                long ctl_data[3];
+                int status = 0;
+
+                ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+                if (!ctl) {
+                    ALOGE("%s: ERROR. Could not get ctl for mixer cmd - %s",
+                            __func__, mixer_ctl_name);
+                }
+
+                ctl_data[0] = (long)cdata->be_id;
+                ctl_data[1] = (long)cdata->clock_type;
+                ctl_data[2] = (long)cdata->clock_frequency;
+
+                /* trigger mixer control to change clock type/frequency */
+                status = mixer_ctl_set_array(ctl, ctl_data,
+                                          sizeof(ctl_data)/sizeof(ctl_data[0]));
+                if (status < 0) {
+                    ALOGE("%s: Could not set ctl for mixer cmd - %s, ret %d",
+                                              __func__, mixer_ctl_name, status);
+                }
+                cdata->clock_switch = false;
+            }
+            break;
+        }
+    }
+}
+
+void audio_extn_update_clock_data_with_backend(struct audio_device *adev,
+                                               struct audio_usecase *usecase) {
+    struct listnode *node = NULL;
+    audio_clock_data_t *cdata = NULL;
+    snd_device_t snd_device = SND_DEVICE_NONE;
+
+    ALOGV("%s", __func__);
+
+    list_for_each(node, &adev->clock_switch_list) {
+        cdata = node_to_item(node, audio_clock_data_t, list);
+        if (usecase->devices == cdata->device) {
+            snd_device = platform_get_output_snd_device(adev->platform,
+                                                        usecase->stream.out);
+            cdata->be_id = platform_get_snd_device_backend_index(snd_device);
+            break;
+        }
+    }
+}
+
+void audio_extn_set_clock_switch_params(struct audio_device *adev,
+                                        struct str_parms *parms)
+{
+    audio_clock_data_t *cdata = NULL;
+    audio_clock_data_t *clock_data = NULL;
+    bool entry_found = false;
+    struct listnode *node = NULL;
+    int ret = 0;
+    char value[32];
+    struct audio_usecase *uc = NULL;
+
+    ALOGD("%s", __func__);
+
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_CLOCK, value, sizeof(value));
+    if (ret >= 0) {
+        clock_data = (audio_clock_data_t *)malloc(sizeof(audio_clock_data_t));
+        clock_data->clock_type = (audio_clock_type) atoi(value);
+
+        if (str_parms_get_str(parms,AUDIO_PARAMETER_CLOCK_FREQUENCY,value,
+                                                          sizeof(value)) >= 0) {
+            clock_data->clock_frequency = atol(value);
+        } else {
+            ALOGE("%s: Invalid params for clock frequency\n", __func__);
+            free(clock_data);
+            clock_data = NULL;
+            return;
+        }
+
+        if (str_parms_get_str(parms,"device",value,sizeof(value)) >= 0) {
+            clock_data->device = (audio_devices_t) atoi(value);
+        } else {
+            ALOGE("%s: Invalid params for device\n", __func__);
+            free(clock_data);
+            clock_data = NULL;
+            return;
+        }
+
+        clock_data->clock_switch = true;
+        clock_data->be_id = -1;
+    } else {
+        ALOGE("%s: Invalid params for device\n", __func__);
+        return;
+    }
+
+    /* If clock list is empty, add entry to the list, else search for the
+       clock data of the device in the list. If found, update the entry if
+       there is a change in clock data. Else, add the entry to the list */
+    if (list_empty(&adev->clock_switch_list)) {
+        list_add_tail(&adev->clock_switch_list, &clock_data->list);
+        cdata = clock_data;
+    } else {
+        list_for_each(node, &adev->clock_switch_list) {
+            cdata = node_to_item(node, audio_clock_data_t, list);
+
+            if (cdata->device == clock_data->device) {
+                if (cdata->clock_frequency != clock_data->clock_frequency ||
+                                 cdata->clock_type != clock_data->clock_type) {
+                    cdata->clock_frequency = clock_data->clock_frequency;
+                    cdata->clock_type = clock_data->clock_type;
+                }
+                cdata->clock_switch = true;
+                free(clock_data);
+                clock_data = NULL;
+                entry_found = true;
+                break;
+            }
+        }
+
+        if (!entry_found) {
+            cdata = clock_data;
+            list_add_tail(&adev->clock_switch_list, &clock_data->list);
+        }
+    }
+
+    if (!list_empty(&adev->usecase_list)) {
+        /* Teardown all the usecases having same backend, requested
+           for clock switch */
+        list_for_each(node, &adev->usecase_list) {
+            uc = node_to_item(node, struct audio_usecase, list);
+            if (uc->devices == cdata->device) {
+                if (uc->out_snd_device != SND_DEVICE_NONE)
+                    cdata->be_id = platform_get_snd_device_backend_index
+                                                       (uc->out_snd_device);
+
+                if (uc->in_snd_device != SND_DEVICE_NONE)
+                    cdata->be_id = platform_get_snd_device_backend_index
+                                                        (uc->in_snd_device);
+
+                disable_audio_route(adev, uc);
+
+                if (uc->out_snd_device != SND_DEVICE_NONE)
+                    ret = disable_snd_device(adev, uc->out_snd_device);
+
+                if (uc->in_snd_device != SND_DEVICE_NONE)
+                    ret = disable_snd_device(adev, uc->in_snd_device);
+            }
+        }
+
+        /* Restart all the usecases that are tore down during clock switch */
+        list_for_each(node, &adev->usecase_list) {
+            uc = node_to_item(node, struct audio_usecase, list);
+            if (uc->devices == cdata->device) {
+                audio_extn_update_clock_data_with_backend(adev, uc);
+
+                if (uc->out_snd_device != SND_DEVICE_NONE)
+                    ret = enable_snd_device(adev, uc->out_snd_device);
+
+                if (uc->in_snd_device != SND_DEVICE_NONE)
+                    ret = enable_snd_device(adev, uc->in_snd_device);
+
+                ret = enable_audio_route(adev, uc);
+            }
+        }
+    }
+}
+
 void audio_extn_source_track_set_parameters(struct audio_device *adev,
                                             struct str_parms *parms) {
     if (is_src_trkn_enabled)
@@ -3364,9 +3542,10 @@ static int audio_extn_set_multichannel_mask(struct audio_device *adev,
     *channel_mask_updated = false;
 
     int max_mic_count = platform_get_max_mic_count(adev->platform);
-    /* validate input params. Avoid updated channel mask if loopback device */
+    /* validate input params. Avoid updated channel mask if HDMI or loopback device */
     if ((channel_count == 6) &&
         (in->format == AUDIO_FORMAT_PCM_16_BIT) &&
+        !((in->device & AUDIO_DEVICE_IN_HDMI) & ~(AUDIO_DEVICE_BIT_IN)) &&
         (!is_loopback_input_device(in->device))) {
         switch (max_mic_count) {
             case 4:
@@ -3385,6 +3564,7 @@ static int audio_extn_set_multichannel_mask(struct audio_device *adev,
         ret = 0;
         *channel_mask_updated = true;
     }
+
     return ret;
 }
 
@@ -3460,7 +3640,7 @@ int audio_extn_set_aptx_dec_params(struct aptx_dec_param *payload)
 
 static void audio_extn_parse_aptx_dec_bt_addr(char *value)
 {
-    int ba[6];
+    int ba[6] = {0};
     char *str, *tok;
     uint32_t addr[3];
     int i = 0;
@@ -3700,6 +3880,69 @@ int audio_extn_set_device_cfg_params(struct audio_device *adev,
     return 0;
 }
 
+int audio_extn_set_pll_device_cfg_params(struct audio_device *adev,
+                                     struct audio_pll_device_cfg_param *payload)
+{
+    int ret = 0;
+    struct mixer_ctl *ctl = NULL;
+    const char *mixer_ctl_name = "PLL config data";
+    uint32_t snd_device = 0, backend_idx = 0;
+    struct stream_out out;
+    struct audio_pll_device_cfg_param *dev_cfg_params = payload;
+    struct pll_device_config_params pll_device_cfg_params;
+
+    ALOGV("%s\n", __func__);
+
+    if (!dev_cfg_params || !adev) {
+        ALOGE("Invalid param\n");
+        ret = -EINVAL;
+        goto err;
+    }
+
+    /* Config is not supported for combo devices */
+    if (popcount(dev_cfg_params->device) != 1) {
+        ALOGE("%s:: Invalid Device (%#x) - Config is ignored\n",
+              __func__, dev_cfg_params->device);
+        ret = -EINVAL;
+        goto err;
+    }
+
+    memset(&out, 0, sizeof(struct stream_out));
+
+    out.devices = dev_cfg_params->device;
+    snd_device = platform_get_output_snd_device(adev->platform, &out);
+    if (snd_device < SND_DEVICE_MIN || snd_device >= SND_DEVICE_MAX) {
+        ALOGE("%s: Invalid sound device %d", __func__, snd_device);
+        ret = -EINVAL;
+        goto err;
+    }
+
+    backend_idx = platform_get_snd_device_backend_index(snd_device);
+
+    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+    if (!ctl) {
+        ALOGE("%s: ERROR. Could not get ctl for mixer cmd - %s",
+              __func__, mixer_ctl_name);
+        ret = -EINVAL;
+        goto err;
+    }
+
+    memset(&pll_device_cfg_params, 0, sizeof(pll_device_cfg_params));
+
+    pll_device_cfg_params.be_idx = backend_idx;
+    pll_device_cfg_params.drift = dev_cfg_params->drift;
+    pll_device_cfg_params.reset = (uint32_t)dev_cfg_params->reset;
+
+    /* trigger mixer control to send clock drift value */
+    ret = mixer_ctl_set_array(ctl, &pll_device_cfg_params,
+                   sizeof(struct pll_device_config_params));
+    if (ret < 0)
+        ALOGE("%s:[%d] Could not set ctl for mixer cmd - %s, ret %d",
+              __func__, pll_device_cfg_params.drift, mixer_ctl_name, ret);
+err:
+    return ret;
+}
+
 //START: FM_POWER_OPT_FEATURE ================================================================
 void fm_feature_init(bool is_feature_enabled)
 {
@@ -3764,16 +4007,16 @@ void hdmi_edid_feature_init(bool is_feature_enabled)
         //map each function
         //on any faliure to map any function, disble feature
         if (((hdmi_edid_is_supported_sr =
-             (hdmi_edid_is_supported_sr_t)dlsym(hdmi_edid_lib_handle, 
+             (hdmi_edid_is_supported_sr_t)dlsym(hdmi_edid_lib_handle,
                                                 "edid_is_supported_sr")) == NULL) ||
             ((hdmi_edid_is_supported_bps =
              (hdmi_edid_is_supported_bps_t)dlsym(hdmi_edid_lib_handle,
                                                 "edid_is_supported_bps")) == NULL) ||
             ((hdmi_edid_get_highest_supported_sr =
-             (hdmi_edid_get_highest_supported_sr_t)dlsym(hdmi_edid_lib_handle, 
+             (hdmi_edid_get_highest_supported_sr_t)dlsym(hdmi_edid_lib_handle,
                                                 "edid_get_highest_supported_sr")) == NULL) ||
             ((hdmi_edid_get_sink_caps =
-             (hdmi_edid_get_sink_caps_t)dlsym(hdmi_edid_lib_handle, 
+             (hdmi_edid_get_sink_caps_t)dlsym(hdmi_edid_lib_handle,
                                                 "edid_get_sink_caps")) == NULL)) {
             ALOGE("%s: dlsym failed", __func__);
             goto feature_disabled;
@@ -4567,6 +4810,7 @@ void audio_extn_set_parameters(struct audio_device *adev,
    audio_extn_set_aptx_dec_bt_addr(adev, parms);
    audio_extn_ffv_set_parameters(adev, parms);
    audio_extn_ext_hw_plugin_set_parameters(adev->ext_hw_plugin, parms);
+   audio_extn_set_clock_switch_params(adev, parms);
 }
 
 void audio_extn_get_parameters(const struct audio_device *adev,

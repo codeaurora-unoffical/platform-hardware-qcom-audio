@@ -107,6 +107,7 @@ static const char * const stream_name_map[QAHW_AUDIO_STREAM_TYPE_MAX] = {
     [QAHW_AUDIO_AFE_LOOPBACK] ="audio-afe-loopback",
     [QAHW_AUDIO_TONE_RX] = "audio-tone-playback",
     [QAHW_AUDIO_COMPRESSED_PLAYBACK_VOICE_CALL_MUSIC] = "playback-compressed-in-call-music",
+    [QAHW_ECALL]="voice-call",
 };
 
 static const char * const tty_mode_map[QAHW_TTY_MODE_MAX] = {
@@ -331,7 +332,7 @@ audio_format_t qahw_out_get_format(const qahw_stream_handle_t *out_handle)
                 return AUDIO_FORMAT_INVALID;
             return qas->qahw_out_get_format(out_handle);
         } else {
-            return AUDIO_FORMAT_INVALID;;
+            return AUDIO_FORMAT_INVALID;
         }
     } else {
         return qahw_out_get_format_l(out_handle);
@@ -880,7 +881,7 @@ int qahw_set_mode(qahw_module_handle_t *hw_module, audio_mode_t mode)
             sp<Iqti_audio_server> qas = get_qti_audio_server();
             if (qas_status(qas) == -1)
                 return -ENODEV;
-            return qas->qahw_set_mode(hw_module, mode);;
+            return qas->qahw_set_mode(hw_module, mode);
         } else {
             return -ENODEV;
         }
@@ -949,7 +950,7 @@ char* qahw_get_parameters(const qahw_module_handle_t *hw_module,
             sp<Iqti_audio_server> qas = get_qti_audio_server();
             if (qas_status(qas) == -1)
                 return NULL;
-            return qas->qahw_get_parameters(hw_module, keys);;
+            return qas->qahw_get_parameters(hw_module, keys);
         } else {
             return NULL;
         }
@@ -1286,6 +1287,9 @@ qahw_module_handle_t *qahw_load_module(const char *hw_module_id)
 
     ALOGV("%d:%s",__LINE__, __func__);
     g_binder_enabled = property_get_bool("persist.vendor.audio.qas.enabled", false);
+#ifdef QTI_AUDIO_SERVER_ENABLED
+    g_binder_enabled = true;
+#endif
     ALOGV("%d:%s: g_binder_enabled %d",__LINE__, __func__, g_binder_enabled);
     if (g_binder_enabled) {
         sp<Iqti_audio_server> qas = get_qti_audio_server();
@@ -1959,6 +1963,8 @@ qahw_module_handle_t *qahw_load_module(const char *hw_module_id)
     return module;
 }
 
+#endif
+
 #if QAHW_V1
 char * qahw_get_session_id(const char* vsid)
 {
@@ -2074,7 +2080,7 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
     ALOGV("%d:%s start",__LINE__, __func__);
     audio_io_handle_t handle = 0x999;
     int rc = -EINVAL, i = 0;
-    const char *address = stream_name_map[attr.type];
+    const char *address;
     const char *session_id;
     char kv[QAHW_KV_PAIR_LENGTH];
     int flags = 0;
@@ -2089,17 +2095,33 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
         return rc;
     }
     /* validate direction for voice stream */
-    if (attr.type == QAHW_VOICE_CALL &&
+    if (((attr.type == QAHW_VOICE_CALL)||(attr.type == QAHW_ECALL)) &&
         attr.direction != QAHW_STREAM_INPUT_OUTPUT) {
         ALOGE("%s: invalid direction for a voice stream", __func__);
         return rc;
     }
+    if (attr.type >= QAHW_AUDIO_STREAM_TYPE_MAX) {
+        ALOGE("%s: invalid stream type for a voice stream", __func__);
+        return rc;
+    }
+
+    address = stream_name_map[attr.type];
     /* add flag*/
     rc = qahw_add_flags_source(attr, &flags, &source);
-
     if (rc) {
         ALOGE("%s: invalid type %d", __func__, attr.type);
         return rc;
+    }
+
+    if ((attr.type == QAHW_VOICE_CALL)||(attr.type == QAHW_ECALL)) {
+        if (strncmp("11C05000",attr.attr.voice.vsid,sizeof("11C05000")) == 0) {
+            flags = QAHW_AUDIO_OUTPUT_FLAG_VOICE_CALL;
+            ALOGE("VSID1");
+        }
+        if (strncmp("11DC5000",attr.attr.voice.vsid,sizeof("11DC5000")) == 0) {
+            flags = QAHW_AUDIO_OUTPUT_FLAG_VOICE2_CALL;
+            ALOGE("VSID2");
+	}
     }
 
     stream = (qahw_api_stream_t *)calloc(1, sizeof(qahw_api_stream_t));
@@ -2126,7 +2148,7 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
     stream->type = attr.type;
     stream->vol.vol_pair = vols;
     /* if voice call stream, num_of_channels set to 1 */
-    if (attr.type == QAHW_VOICE_CALL)
+    if ((attr.type == QAHW_VOICE_CALL)||(attr.type == QAHW_ECALL))
         stream->vol.num_of_channels = 1;
     else
         stream->vol.num_of_channels = QAHW_CHANNELS_MAX;
@@ -2134,7 +2156,7 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
     switch (attr.direction) {
     case QAHW_STREAM_INPUT_OUTPUT:
         /*for now only support one stream to one device*/
-        if (num_of_devices != 2 && attr.type != QAHW_VOICE_CALL) {
+        if (num_of_devices != 2 && ((attr.type != QAHW_VOICE_CALL) && (attr.type != QAHW_ECALL))) {
             ALOGE("%s: invalid num of streams %d for dir %d",
                   __func__, num_of_devices, attr.direction);
             rc = -EINVAL;
@@ -2152,7 +2174,7 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
             stream->cookie = cookie;
         }
 
-        if (attr.type != QAHW_VOICE_CALL) {
+        if ((attr.type != QAHW_VOICE_CALL) && (attr.type != QAHW_ECALL)) {
             rc = qahw_open_input_stream(hw_module, handle, devices[1],
                                         &(attr.attr.shared.config),
                                         &stream->in_stream,
@@ -2382,6 +2404,7 @@ int qahw_stream_stop(qahw_stream_handle_t *stream_handle) {
     int rc = -EINVAL;
     qahw_audio_stream_type type;
     qahw_api_stream_t *stream = (qahw_api_stream_t *)stream_handle;
+    audio_devices_t devices[MAX_NUM_DEVICES];
 
     if (!stream) {
         ALOGE("%s: invalid stream handle", __func__);
@@ -2395,8 +2418,9 @@ int qahw_stream_stop(qahw_stream_handle_t *stream_handle) {
 
     /*reset call state and call mode for voice */
     if (stream->type == QAHW_VOICE_CALL) {
+		memset(&devices[0], 0, sizeof(devices));
         rc = qahw_set_parameters(stream->hw_module, "call_state=1");
-        rc = qahw_set_mode(stream->hw_module, AUDIO_MODE_NORMAL);
+        qahw_stream_set_device(stream, 1, &devices[0]);
     } else if (stream->type == QAHW_AUDIO_AFE_LOOPBACK) {
         rc = qahw_release_audio_patch(stream->hw_module,
                                  stream->patch_handle);
@@ -2549,7 +2573,7 @@ int qahw_stream_set_volume(qahw_stream_handle_t *stream_handle,
     }
 
     /*set voice call vol*/
-    if (stream->type == QAHW_VOICE_CALL &&
+    if (((stream->type == QAHW_VOICE_CALL)||(stream->type == QAHW_ECALL)) &&
         (vol_data.vol_pair && (vol_data.num_of_channels == 1))) {
         ALOGV("%s: calling voice set volume with vol value %f\n",
               __func__, vol_data.vol_pair[0].vol);
@@ -3034,7 +3058,7 @@ int32_t qahw_stream_set_dtmf_gen_params(qahw_api_stream_t *stream,
     int32_t rc = -EINVAL;
     char kv[QAHW_KV_PAIR_LENGTH];
 
-    if(stream->type == QAHW_VOICE_CALL) {
+    if((stream->type == QAHW_VOICE_CALL) || (stream->type == QAHW_ECALL)) {
         if(dtmf_params->enable) {
             snprintf(kv, QAHW_KV_PAIR_LENGTH,
                "dtmf_tone_gain=%d;dtmf_low_freq=%d;dtmf_high_freq=%d;dtmf_duration_ms=%d",
@@ -3068,7 +3092,7 @@ int32_t qahw_stream_set_tone_gen_params(qahw_api_stream_t *stream,
             gain = tone_params->gain;
         } else {
             tone_low_freq = 0;
-            tone_high_freq = 0;;
+            tone_high_freq = 0;
             duration_ms = 0;
             gain = 0;
         }
@@ -3092,7 +3116,7 @@ int32_t qahw_stream_set_tty_mode_params(qahw_api_stream_t *stream,
                                        struct qahw_tty_params *tty_params){
     int32_t rc = -EINVAL;
 
-    if(stream->type == QAHW_VOICE_CALL) {
+    if ((stream->type == QAHW_VOICE_CALL) || (stream->type == QAHW_ECALL))  {
         if(tty_params->mode >= QAHW_TTY_MODE_MAX) {
             ALOGE("%d:%s invalid tty mode", __LINE__, __func__);
             return rc;
@@ -3115,7 +3139,7 @@ int32_t qahw_stream_set_hpcm_params(qahw_api_stream_t *stream,
     char kv[QAHW_KV_PAIR_LENGTH];
     int32_t tp;
 
-    if(stream->type == QAHW_VOICE_CALL) {
+    if ((stream->type == QAHW_VOICE_CALL) || (stream->type == QAHW_ECALL)) {
         /*if rx and tx call both mixer commands */
         if(hpcm_params->tap_point == QAHW_HPCM_TAP_POINT_RX_TX) {
             snprintf(kv, QAHW_KV_PAIR_LENGTH,
@@ -3161,7 +3185,7 @@ int32_t qahw_stream_set_dtmf_detect_params(qahw_api_stream_t *stream,
     int32_t rc = -EINVAL;
     char kv[QAHW_KV_PAIR_LENGTH];
 
-    if(stream->type == QAHW_VOICE_CALL) {
+    if ((stream->type == QAHW_VOICE_CALL) || (stream->type == QAHW_ECALL)) {
         if(dtmf_params->enable) {
            snprintf(kv, QAHW_KV_PAIR_LENGTH, "dtmf_detect=true");
         } else
@@ -3361,6 +3385,4 @@ int32_t qahw_stream_get_parameters(qahw_stream_handle_t *stream_handle,
     ALOGE("%s is an unsupported api", __func__);
     return -ENOTSUP;
 }
-#endif
-
 #endif

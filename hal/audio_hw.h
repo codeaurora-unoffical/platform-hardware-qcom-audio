@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -286,6 +286,25 @@ typedef enum render_mode {
     RENDER_MODE_AUDIO_TTP,
 } render_mode_t;
 
+/* Parameter to be passed when clock switch is needed */
+#define AUDIO_PARAMETER_CLOCK "clock"
+#define AUDIO_PARAMETER_CLOCK_FREQUENCY "clock_frequency"
+
+typedef enum {
+    AUDIO_CLOCK_INTERNAL,
+    AUDIO_CLOCK_EXTERNAL,
+    AUDIO_CLOCK_MAX
+} audio_clock_type;
+
+typedef struct audio_clock_data {
+    int be_id;
+    audio_clock_type clock_type;
+    long clock_frequency;
+    struct listnode list;
+    audio_devices_t device;
+    bool clock_switch;
+} audio_clock_data_t;
+
 #ifdef AUDIO_EXTN_AUTO_HAL_ENABLED
 /* This defines the physical car streams supported in audio HAL,
  * limited by the available frontend PCM driver.
@@ -483,6 +502,7 @@ struct stream_in {
     int64_t frames_muted; /* total frames muted, not cleared when entering standby */
 
     bool dsd_config_updated;
+    uint64_t ttp_offset_cached;
 #ifndef LINUX_ENABLED
     error_log_t *error_log;
 #endif
@@ -578,6 +598,7 @@ struct audio_device {
     struct stream_in *active_input;
     struct stream_out *primary_output;
     struct stream_out *voice_tx_output;
+    struct stream_out *voice2_tx_output;
     struct stream_out *current_call_output;
     bool bluetooth_nrec;
     bool screen_off;
@@ -602,6 +623,7 @@ struct audio_device {
     bool mic_muted;
     bool enable_voicerx;
     unsigned int num_va_sessions;
+    struct listnode clock_switch_list;
 
     int snd_card;
     card_status_t card_status;
@@ -671,6 +693,7 @@ struct audio_device {
     void *ip_hdlr_handle;
     int ip_hdlr_asm_cnt;
     int ip_hdlr_adm_cnt;
+    bool ecall_flag;
 
 };
 
@@ -680,8 +703,7 @@ struct audio_patch_record {
     audio_usecase_t usecase;
     audio_io_handle_t input_io_handle;
     audio_io_handle_t output_io_handle;
-    struct audio_port_config source;
-    struct audio_port_config sink;
+    struct audio_patch patch;
 };
 
 int select_devices(struct audio_device *adev,
@@ -722,7 +744,7 @@ int adev_open_output_stream(struct audio_hw_device *dev,
                             audio_output_flags_t flags,
                             struct audio_config *config,
                             struct audio_stream_out **stream_out,
-                            const char *address __unused);
+                            const char *address);
 void adev_close_output_stream(struct audio_hw_device *dev __unused,
                               struct audio_stream_out *stream);
 

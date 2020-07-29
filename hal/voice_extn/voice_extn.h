@@ -22,6 +22,22 @@
 
 #include "adsp_hdlr.h"
 
+#define VOICE2_VSID              0x10DC1000
+#define VOLTE_VSID               0x10C02000
+#define QCHAT_VSID               0x10803000
+#define VOWLAN_VSID              0x10002000
+#define VOICEMMODE1_VSID         0x11C05000
+#define VOICEMMODE2_VSID         0x11DC5000
+#define ALL_VSID                 0xFFFFFFFF
+
+/* Voice Session Indices */
+#define VOICE2_SESS_IDX    (VOICE_SESS_IDX + 1)
+#define VOLTE_SESS_IDX     (VOICE_SESS_IDX + 2)
+#define QCHAT_SESS_IDX     (VOICE_SESS_IDX + 3)
+#define VOWLAN_SESS_IDX    (VOICE_SESS_IDX + 4)
+#define MMODE1_SESS_IDX    (VOICE_SESS_IDX + 5)
+#define MMODE2_SESS_IDX    (VOICE_SESS_IDX + 6)
+
 void voice_extn_init(struct audio_device *adev);
 int voice_extn_start_call(struct audio_device *adev);
 int voice_extn_stop_call(struct audio_device *adev);

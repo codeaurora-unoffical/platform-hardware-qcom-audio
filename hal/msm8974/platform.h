@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -60,11 +60,7 @@ enum {
  * as standard android device AUDIO_DEVICE_OUT_WIRED_HEADPHONE
  * for other layers.
  */
-#define AUDIO_DEVICE_OUT_ALL_CODEC_BACKEND \
-    (AUDIO_DEVICE_OUT_EARPIECE | AUDIO_DEVICE_OUT_SPEAKER | \
-     AUDIO_DEVICE_OUT_SPEAKER_SAFE | \
-     AUDIO_DEVICE_OUT_WIRED_HEADSET | AUDIO_DEVICE_OUT_WIRED_HEADPHONE | \
-     AUDIO_DEVICE_OUT_LINE)
+#define AUDIO_DEVICE_OUT_ALL_CODEC_BACKEND 0
 
 /*
  * Below are the input devices for which back end is same, SLIMBUS_0_TX.
@@ -72,13 +68,9 @@ enum {
  * enable any one of these devices at any time
  */
 #ifdef CONCURRENT_CAPTURE_ENABLED
-#define AUDIO_DEVICE_IN_ALL_CODEC_BACKEND \
-    (AUDIO_DEVICE_IN_BUILTIN_MIC | AUDIO_DEVICE_IN_BACK_MIC | \
-     AUDIO_DEVICE_IN_VOICE_CALL) & ~AUDIO_DEVICE_BIT_IN
+#define AUDIO_DEVICE_IN_ALL_CODEC_BACKEND 0
 #else
-#define AUDIO_DEVICE_IN_ALL_CODEC_BACKEND \
-    (AUDIO_DEVICE_IN_BUILTIN_MIC | AUDIO_DEVICE_IN_BACK_MIC | \
-     AUDIO_DEVICE_IN_WIRED_HEADSET | AUDIO_DEVICE_IN_VOICE_CALL) & ~AUDIO_DEVICE_BIT_IN
+#define AUDIO_DEVICE_IN_ALL_CODEC_BACKEND 0
 #endif
 /* Sound devices specific to the platform
  * The DEVICE_OUT_* and DEVICE_IN_* should be mapped to these sound
@@ -180,6 +172,7 @@ enum {
     SND_DEVICE_OUT_SPEAKER3,
     SND_DEVICE_OUT_SPEAKER_DSD,
     SND_DEVICE_OUT_VOICE_DL_TX,
+    SND_DEVICE_OUT_ECALL,
     SND_DEVICE_OUT_END,
 
     /*
@@ -307,11 +300,11 @@ enum {
     SND_DEVICE_IN_HANDSET_GENERIC_6MIC_AND_EC_REF_LOOPBACK,
     SND_DEVICE_IN_HANDSET_GENERIC_8MIC_AND_EC_REF_LOOPBACK,
     SND_DEVICE_IN_HDMI_MIC_DSD,
+    SND_DEVICE_IN_ECALL,
     SND_DEVICE_IN_END,
-
     SND_DEVICE_MAX = SND_DEVICE_IN_END,
-
 };
+
 #define INPUT_SAMPLING_RATE_DSD64       2822400
 #define INPUT_SAMPLING_RATE_DSD128      5644800
 #define DEFAULT_OUTPUT_SAMPLING_RATE    48000
@@ -459,6 +452,9 @@ enum {
 #define SPKR_PROT_CALIB_TX_PCM_DEVICE 25
 #endif
 #define PLAYBACK_OFFLOAD_DEVICE 9
+#ifdef PLATFORM_SDX55
+#define PLAYBACK_OFFLOAD_DEVICE 7
+#endif
 #define QUAT_MI2S_PCM_DEVICE    44
 
 // Direct_PCM
