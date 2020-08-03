@@ -83,6 +83,14 @@
 #endif /* SPDIF_PLAYBACK_ENABLED */
 #endif /* AUDIO_DEVICE_OUT_OPTICAL */
 
+#ifndef AUDIO_DEVICE_IN_SPEAKER_MIC2
+#define AUDIO_DEVICE_IN_SPEAKER_MIC2 0x10000000
+#endif
+
+#ifndef AUDIO_DEVICE_IN_SPEAKER_MIC3
+#define AUDIO_DEVICE_IN_SPEAKER_MIC3 0x20000000
+#endif
+
 #if 0
 // these formats should have been enabled by default now
 #ifndef FLAC_OFFLOAD_ENABLED
