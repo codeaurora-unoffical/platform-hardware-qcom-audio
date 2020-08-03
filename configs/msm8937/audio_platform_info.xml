@@ -48,6 +48,7 @@
         <usecase name="USECASE_VOICEMMODE2_CALL" type="in" id="35"/>
         <usecase name="USECASE_VOICEMMODE2_CALL" type="out" id="35"/>
         <usecase name="USECASE_AUDIO_HFP_SCO" type="out" id="25" />
+        <usecase name="USECASE_AUDIO_HFP_SCO_WB" type="out" id="25" />
     </pcm_ids>
     <config_params>
         <param key="spkr_1_tz_name" value="wsa881x.0f"/>
