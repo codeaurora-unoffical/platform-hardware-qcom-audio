@@ -93,6 +93,7 @@
 #define MAX_PERF_LOCK_OPTS 20
 
 #define MAX_STREAM_PROFILE_STR_LEN 32
+#define SILENCE_BUF_LATENCY        40000
 typedef enum {
     EFFECT_NONE = 0,
     EFFECT_AEC,
@@ -540,6 +541,7 @@ struct audio_device {
     unsigned int interactive_usecase_state;
     bool dp_allowed_for_voice;
     void *ext_hw_plugin;
+    bool keep_alive_enable;
 };
 
 int select_devices(struct audio_device *adev,
