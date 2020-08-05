@@ -1955,27 +1955,19 @@ void audio_extn_usb_set_reconfig(bool is_required)
 //END: USB_OFFLOAD ===========================================================
 
 //START: SPEAKER_PROTECTION ==========================================================
-#ifdef __LP64__
+#define STR_CAT(path, extn) (path extn)
+
 #if LINUX_ENABLED
-#define SPKR_PROT_LIB_PATH  "/usr/lib64/audio.spkr.prot.so"
-#define CIRRUS_SPKR_PROT_LIB_PATH  "/usr/lib64/audio.external.spkr.prot.so"
-#else
-#define SPKR_PROT_LIB_PATH  "/vendor/lib64/libspkrprot.so"
-#define CIRRUS_SPKR_PROT_LIB_PATH  "/vendor/lib64/libcirrusspkrprot.so"
-#endif
-#else
-#if LINUX_ENABLED
-#define SPKR_PROT_LIB_PATH  "/usr/lib/audio.spkr.prot.so"
-#define CIRRUS_SPKR_PROT_LIB_PATH  "/usr/lib/audio.external.spkr.prot.so"
+#  define SPKR_PROT_LIB_PATH        STR_CAT(LE_LIBDIR, "/audio.spkr.prot.so")
+#  define CIRRUS_SPKR_PROT_LIB_PATH STR_CAT(LE_LIBDIR, "/audio.external.spkr.prot.so")
 #else
 #  ifdef __LP64__
-#    define SPKR_PROT_LIB_PATH         "/vendor/lib64/libspkrprot.so"
+#    define SPKR_PROT_LIB_PATH  "/vendor/lib64/libspkrprot.so"
 #    define CIRRUS_SPKR_PROT_LIB_PATH  "/vendor/lib64/libcirrusspkrprot.so"
 #  else
 #    define SPKR_PROT_LIB_PATH         "/vendor/lib/libspkrprot.so"
 #    define CIRRUS_SPKR_PROT_LIB_PATH  "/vendor/lib/libcirrusspkrprot.so"
-# endif
-#endif
+#  endif
 #endif
 
 static void *spkr_prot_lib_handle = NULL;
