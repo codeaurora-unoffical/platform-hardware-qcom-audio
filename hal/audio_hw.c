@@ -2782,13 +2782,12 @@ int start_input_stream(struct stream_in *in)
             *  In case of MI2S backend, DSD data comes in 32bit and each data line of MI2S
             *  holds one channel of DSD. The number of channels are multiplied by 2 to properly
             *  configure the MI2S data lines and FE should also have same number of channels to
-            *  avoid processing in ADSP.
+            *  avoid processing in ADSP. So the actual channel count is half of the config channels.
             */
-            in->config.channels = in->config.channels << 1;
             in->channel_mask = audio_extn_get_dsd_in_ch_mask(in->config.channels);
-            /* sampling rate of backend should be DSD bit rate / (bitwidth of BE * 2).
-             * In case of DSD128, 44.1KHz DSD  backend sampling rate would be 44.1K * 128/64
-             */
+            /* Sampling rate of backend should be DSD bit rate / (bitwidth of BE * 2).
+            * In case of DSD128, 44.1KHz DSD  backend sampling rate would be 44.1K * 128/64
+            */
             in->sample_rate = in->sample_rate * audio_extn_get_mi2s_be_dsd_rate_mul_factor(in->dsd_format);
             in->dsd_config_updated = true;
         }
