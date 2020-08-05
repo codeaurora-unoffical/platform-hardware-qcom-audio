@@ -547,6 +547,17 @@ struct qahw_in_ttp_offset_param {
    uint64_t        ttp_offset; /* TTP value is derived from ttp offset*/
 };
 
+struct qahw_out_channel_status_info {
+    /* Channel status is 192 bits each for CH A and CH B*/
+    char channel_status[48];
+};
+
+struct qahw_device_channel_bit_mask {
+    audio_devices_t device;
+    /* Channel status bit mask is 192 bits each for CH A and CH B*/
+    char bit_mask[48];
+};
+
 typedef union {
     struct qahw_source_tracking_param st_params;
     struct qahw_sound_focus_param sf_params;
@@ -571,6 +582,8 @@ typedef union {
     struct qahw_dtmf_detect_params dtmf_detect_params;
     struct qahw_tone_gen_params tone_gen_params;
     struct qahw_in_ttp_offset_param ttp_offset;
+    struct qahw_out_channel_status_info ch_status_info;
+    struct qahw_device_channel_bit_mask ch_bit_mask;
 } qahw_param_payload;
 
 typedef enum {
@@ -601,6 +614,8 @@ typedef enum {
     QAHW_PARAM_IN_TTP_OFFSET,
     QAHW_PARAM_PLL_DEVICE_CONFIG,
     QAHW_PARAM_IN_CHANNEL_MAP,     /* PARAM to set i/p channel map */
+    QAHW_PARAM_CHANNEL_STATUS_INFO,
+    QAHW_PARAM_CHANNEL_BIT_MASK,
 } qahw_param_id;
 
 typedef union {
@@ -661,7 +676,7 @@ typedef enum {
     QAHW_AUDIO_AFE_LOOPBACK,                 /* Assumption is device[0] is RX and device[1] is TX */
     QAHW_AUDIO_TONE_RX,
     QAHW_AUDIO_COMPRESSED_PLAYBACK_VOICE_CALL_MUSIC, /**< Offload incall music playback */
-    QAHW_ECALL,									/**< ecall */
+    QAHW_ECALL,                                 /**< ecall */
     QAHW_AUDIO_STREAM_TYPE_MAX,
 } qahw_audio_stream_type;
 

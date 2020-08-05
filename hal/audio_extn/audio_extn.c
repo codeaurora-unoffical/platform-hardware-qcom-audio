@@ -3794,6 +3794,14 @@ int audio_extn_out_set_param_data(struct stream_out *out,
             ret = audio_extn_utils_set_downmix_params(out,
                     (struct mix_matrix_params *)(payload));
             break;
+        case AUDIO_EXTN_PARAM_CHANNEL_STATUS_INFO:
+            ret = audio_extn_utils_set_spdif_channel_status(out,
+                    (struct audio_out_channel_status_info *)(payload));
+            if (!ret)
+                audio_extn_utils_parse_configs_from_ch_status(out,
+                    (struct audio_out_channel_status_info *)(payload));
+
+            break;
         default:
             ALOGE("%s:: unsupported param_id %d", __func__, param_id);
             break;
@@ -4038,6 +4046,48 @@ int audio_extn_set_pll_device_cfg_params(struct audio_device *adev,
         ALOGE("%s:[%d] Could not set ctl for mixer cmd - %s, ret %d",
               __func__, pll_device_cfg_params.drift, mixer_ctl_name, ret);
 err:
+    return ret;
+}
+
+int audio_extn_set_ch_status_bit_mask(struct audio_device *adev,
+               struct audio_device_channel_bit_mask *ch_bit_mask)
+{
+    const char *mixer_ctl_name = NULL;
+    struct mixer_ctl *ctl = NULL;
+    int ret = 0;
+    int i = 0;
+
+    if (!ch_bit_mask)
+        return -EINVAL;
+
+    if (ch_bit_mask->device == AUDIO_DEVICE_IN_SPDIF) {
+        mixer_ctl_name = "PRI SPDIF TX Channel Status Mask";
+    } else {
+        ALOGE("%s: invalid device %d", __func__, ch_bit_mask->device);
+        ret = -EINVAL;
+        goto fail;
+    }
+
+    ALOGV("%s: mixer ctl name %s", __func__, mixer_ctl_name);
+
+    /* 48 bytes for channel bit mask */
+    for(i = 0; i < CSI_LENGTH_PER_CHANNEL * 2; i++)
+        ALOGV("bit_mask[%d] = %d", i, ch_bit_mask->bit_mask[i]);
+
+    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+    if (!ctl) {
+        ALOGE("%s: Could not get ctl for mixer cmd - %s", __func__, mixer_ctl_name);
+        ret = -EINVAL;
+        goto fail;
+    }
+
+    if (mixer_ctl_set_array(ctl, ch_bit_mask->bit_mask, sizeof(ch_bit_mask->bit_mask)) < 0) {
+        ALOGE("%s: Could not set channel bit mask for %s", __func__, mixer_ctl_name);
+        ret = -EINVAL;
+        goto fail;
+    }
+
+fail:
     return ret;
 }
 

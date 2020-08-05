@@ -1590,7 +1590,8 @@ static void check_usecases_codec_backend(struct audio_device *adev,
                 (usecase->devices & AUDIO_DEVICE_OUT_USB_DEVICE) ||
                 (usecase->devices &  AUDIO_DEVICE_OUT_USB_HEADSET) ||
                 (usecase->devices & AUDIO_DEVICE_OUT_ALL_A2DP) ||
-                (usecase->devices & AUDIO_DEVICE_OUT_ALL_SCO)) &&
+                (usecase->devices & AUDIO_DEVICE_OUT_ALL_SCO) ||
+                (audio_extn_utils_is_spdif_device(usecase->devices))) &&
                 ((force_restart_session) ||
                 (platform_check_backends_match(snd_device, usecase->out_snd_device)))) {
                 ALOGD("%s:becf: check_usecases (%s) is active on (%s) - disabling ..",
@@ -3386,6 +3387,10 @@ int start_output_stream(struct stream_out *out)
             }
         }
     }
+
+    /* Set channel status before preparing stream */
+    if (audio_extn_util_init_spdif_channel_status(out))
+        audio_extn_utils_set_spdif_channel_status_from_config(out);
 
     out->pcm_device_id = platform_get_pcm_device_id(out->usecase, PCM_PLAYBACK);
     if (out->pcm_device_id < 0) {
@@ -9131,6 +9136,8 @@ static int adev_open(const hw_module_t *module, const char *name,
     adev->offload_usecases_state = 0;
     adev->pcm_record_uc_state = 0;
     adev->is_channel_status_set = false;
+    adev->spdif_coaxial_status.channel_status_set = false;
+    adev->spdif_optical_status.channel_status_set = false;
     adev->perf_lock_opts[0] = 0x101;
     adev->perf_lock_opts[1] = 0x20E;
     adev->perf_lock_opts_size = 2;

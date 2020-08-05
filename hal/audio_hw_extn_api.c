@@ -90,9 +90,11 @@ int qahwi_out_set_param_data(struct audio_stream_out *stream,
             ALOGE("%s::qaf_out_set_param_data failed error %d", __func__ , ret);
     } else {
         if (out->standby && (out->flags & AUDIO_OUTPUT_FLAG_TIMESTAMP)
-            && (param_id != AUDIO_EXTN_PARAM_OUT_CHANNEL_MAP))
+            && (param_id != AUDIO_EXTN_PARAM_OUT_CHANNEL_MAP) &&
+            (param_id != AUDIO_EXTN_PARAM_CHANNEL_STATUS_INFO))
             qahwi_out_write_v2(stream, NULL, 0, NULL, 0);
-        else if (out->standby && (param_id != AUDIO_EXTN_PARAM_OUT_CHANNEL_MAP))
+        else if (out->standby && (param_id != AUDIO_EXTN_PARAM_OUT_CHANNEL_MAP) &&
+                                (param_id != AUDIO_EXTN_PARAM_CHANNEL_STATUS_INFO))
             out->stream.write(&out->stream, NULL, 0);
         lock_output_stream(out);
         ret = audio_extn_out_set_param_data(out, param_id, payload);
@@ -196,6 +198,7 @@ int qahwi_set_param_data(struct audio_hw_device *adev,
 {
     int ret = 0;
     struct audio_device *dev = (struct audio_device *)adev;
+    struct audio_device_cfg_param device_cfg = {0};
 
     if (adev == NULL) {
         ALOGE("%s::INVALID PARAM adev\n",__func__);
@@ -235,7 +238,13 @@ int qahwi_set_param_data(struct audio_hw_device *adev,
                                (struct audio_pll_device_cfg_param *)payload);
               break;
 
-       default:
+        case AUDIO_EXTN_PARAM_CHANNEL_BIT_MASK:
+              ALOGV("%s:: Calling audio_extn_set_ch_status_bit_mask", __func__);
+              ret = audio_extn_set_ch_status_bit_mask(dev,
+                            (struct audio_device_channel_bit_mask *)payload);
+              break;
+
+        default:
              ALOGE("%s::INVALID PARAM ID:%d\n",__func__,param_id);
              ret = -EINVAL;
              break;
