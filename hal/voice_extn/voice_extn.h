@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2014, 2016-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2014, 2016-2020, The Linux Foundation. All rights reserved.
  * Not a contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -118,7 +118,8 @@ bool voice_extn_is_dynamic_ecns_enabled();
 #ifdef DTMF_ENABLED
 int voice_extn_dtmf_generate_rx_tone(struct stream_out *out,
                                      uint32_t dtmf_low_freq,
-                                     uint32_t dtmf_high_freq);
+                                     uint32_t dtmf_high_freq,
+                                     uint32_t dtmf_duration_ms);
 
 int voice_extn_dtmf_set_rx_tone_gain(struct stream_out *out,
                                      int32_t gain);
@@ -132,7 +133,8 @@ int voice_extn_dtmf_set_rx_detection(struct stream_out *out,
 static int __unused voice_extn_dtmf_generate_rx_tone(
                             struct stream_out *out __unused,
                             uint32_t dtmf_low_freq __unused,
-                            uint32_t dtmf_high_freq __unused)
+                            uint32_t dtmf_high_freq __unused,
+                            uint32_t dtmf_duration_ms __unused)
 {
     ALOGV("%s: DTMF_ENABLED is not defined", __func__);
     return -ENOSYS;
