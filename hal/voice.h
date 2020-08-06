@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -51,6 +51,8 @@ struct voice_session {
     struct pcm *pcm_tx;
     struct call_state state;
     uint32_t vsid;
+    float volume;
+    bool mic_mute;
 };
 
 struct voice {
@@ -76,7 +78,7 @@ enum {
 int voice_start_usecase(struct audio_device *adev, audio_usecase_t usecase_id);
 int voice_stop_usecase(struct audio_device *adev, audio_usecase_t usecase_id);
 
-int voice_start_call(struct audio_device *adev);
+int voice_start_call(struct audio_device *adev, audio_usecase_t usecase_id);
 int voice_stop_call(struct audio_device *adev);
 int voice_set_parameters(struct audio_device *adev, struct str_parms *parms);
 void voice_get_parameters(struct audio_device *adev, struct str_parms *query,
@@ -84,9 +86,10 @@ void voice_get_parameters(struct audio_device *adev, struct str_parms *query,
 void voice_init(struct audio_device *adev);
 bool voice_is_in_call(const struct audio_device *adev);
 bool voice_is_in_call_rec_stream(const struct stream_in *in);
-int voice_set_mic_mute(struct audio_device *dev, bool state);
-bool voice_get_mic_mute(struct audio_device *dev);
-int voice_set_volume(struct audio_device *adev, float volume);
+int voice_set_mic_mute(struct audio_device *dev, bool state, audio_usecase_t
+                       usecase_id);
+bool voice_get_mic_mute(struct audio_device *dev, audio_usecase_t usecase_id);
+int voice_set_volume(struct audio_device *adev, float volume, uint32_t vsid);
 int voice_check_and_set_incall_rec_usecase(struct audio_device *adev,
                                            struct stream_in *in);
 int voice_check_and_set_incall_music_usecase(struct audio_device *adev,
@@ -104,4 +107,5 @@ void voice_check_and_update_aanc_path(struct audio_device *adev,
 bool voice_is_call_state_active(struct audio_device *adev);
 void voice_set_device_mute_flag (struct audio_device *adev, bool state);
 snd_device_t voice_get_incall_rec_backend_device(struct stream_in *in);
+uint32_t voice_get_active_session_id(struct audio_device *adev);
 #endif //VOICE_H

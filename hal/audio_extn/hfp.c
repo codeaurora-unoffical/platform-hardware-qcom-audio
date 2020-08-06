@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -290,6 +290,7 @@ static int32_t start_hfp(struct audio_device *adev,
     struct audio_usecase *uc_info;
     int32_t pcm_dev_rx_id = HFP_PCM_RX, pcm_dev_tx_id, pcm_dev_asm_rx_id, pcm_dev_asm_tx_id;
     struct pcm_config *p_pcm_config_hfp = NULL;
+    uint32_t vsid = 0;
 
     ALOGD("%s: enter", __func__);
 
@@ -298,7 +299,7 @@ static int32_t start_hfp(struct audio_device *adev,
         return 0;
     }
     adev->enable_hfp = true;
-    platform_set_mic_mute(adev->platform, false);
+    platform_set_mic_mute(adev->platform, false, vsid);
 
     uc_info = (struct audio_usecase *)calloc(1, sizeof(struct audio_usecase));
 
@@ -430,6 +431,7 @@ static int32_t stop_hfp(struct audio_device *adev)
 {
     int32_t ret = 0;
     struct audio_usecase *uc_info;
+    uint32_t vsid = 0;
 
     ALOGD("%s: enter", __func__);
     hfpmod.is_hfp_running = false;
@@ -479,8 +481,8 @@ static int32_t stop_hfp(struct audio_device *adev)
         ALOGE("%s: stop hfp downlink failed", __func__);
 
     /* Set the unmute Tx mixer control */
-    if (voice_get_mic_mute(adev)) {
-        platform_set_mic_mute(adev->platform, false);
+    if (voice_get_mic_mute(adev, uc_info->id)) {
+        platform_set_mic_mute(adev->platform, false, vsid);
         ALOGD("%s: unMute HFP Tx", __func__);
     }
     adev->enable_hfp = false;

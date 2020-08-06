@@ -55,6 +55,7 @@ int voice_extn_is_call_state_active(struct audio_device *adev,
                                     bool *is_call_active);
 int voice_extn_get_active_session_id(struct audio_device *adev,
                                      uint32_t *session_id);
+audio_usecase_t voice_extn_get_usecase_for_session_id(uint32_t session_id);
 void voice_extn_in_get_parameters(struct stream_in *in,
                                   struct str_parms *query,
                                   struct str_parms *reply);

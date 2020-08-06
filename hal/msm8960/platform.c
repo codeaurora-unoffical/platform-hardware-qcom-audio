@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -653,7 +653,7 @@ int platform_stop_voice_call(void *platform, uint32_t vsid __unused)
     return ret;
 }
 
-int platform_set_voice_volume(void *platform, int volume)
+int platform_set_voice_volume(void *platform, int volume, uint32_t vsid)
 {
     struct platform_data *my_data = (struct platform_data *)platform;
     int ret = 0;
@@ -674,7 +674,7 @@ int platform_set_voice_volume(void *platform, int volume)
     return ret;
 }
 
-int platform_set_mic_mute(void *platform, bool state)
+int platform_set_mic_mute(void *platform, bool state, uint32_t vsid)
 {
     struct platform_data *my_data = (struct platform_data *)platform;
     int ret = 0;
@@ -697,7 +697,8 @@ int platform_set_mic_mute(void *platform, bool state)
     return ret;
 }
 
-int platform_set_device_mute(void *platform __unused, bool state __unused, char *dir __unused)
+int platform_set_device_mute(void *platform __unused, bool state __unused,
+                             char *dir __unused, uint32_t __unused)
 {
     ALOGE("%s: Not implemented", __func__);
     return -ENOSYS;

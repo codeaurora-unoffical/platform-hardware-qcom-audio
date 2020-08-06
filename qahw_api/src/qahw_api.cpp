@@ -2593,8 +2593,8 @@ int qahw_stream_set_volume(qahw_stream_handle_t *stream_handle,
         (vol_data.vol_pair && (vol_data.num_of_channels == 1))) {
         ALOGV("%s: calling voice set volume with vol value %f\n",
               __func__, vol_data.vol_pair[0].vol);
-        rc = qahw_set_voice_volume(stream->hw_module,
-                                   vol_data.vol_pair[0].vol);
+        rc = qahw_out_set_volume(stream->out_stream, vol_data.vol_pair[0].vol,
+                                  vol_data.vol_pair[0].vol);
         /* Voice Stream picks up only single channel */
         stream->vol.num_of_channels = vol_data.num_of_channels;
         stream->vol.vol_pair[0] = vol_data.vol_pair[0];
@@ -2691,6 +2691,13 @@ int qahw_stream_set_mute(qahw_stream_handle_t *stream_handle,
 
     if (mute_param == NULL)
         return rc;
+
+    if ((stream->type == QAHW_VOICE_CALL) ||(stream->type == QAHW_ECALL)) {
+        int mutelen =  strlen(mute_param);
+        mute_param[mutelen] = ';';
+        mute_param[mutelen + 1] = '\0';
+        strlcat(mute_param,stream->sess_id_call_state, QAHW_KV_PAIR_LENGTH);
+    }
 
     rc = qahw_set_parameters(stream->hw_module, mute_param);
 

@@ -172,6 +172,45 @@ static audio_usecase_t voice_extn_get_usecase_for_session_idx(const int index)
     return usecase_id;
 }
 
+audio_usecase_t voice_extn_get_usecase_for_session_id(uint32_t session_id)
+{
+    audio_usecase_t usecase_id = -1;
+
+    switch(session_id) {
+    case VOICE_VSID:
+        usecase_id = USECASE_VOICE_CALL;
+        break;
+
+    case VOICE2_VSID:
+        usecase_id = USECASE_VOICE2_CALL;
+        break;
+
+    case VOLTE_VSID:
+        usecase_id = USECASE_VOLTE_CALL;
+        break;
+
+    case QCHAT_VSID:
+        usecase_id = USECASE_QCHAT_CALL;
+        break;
+
+    case VOWLAN_VSID:
+        usecase_id = USECASE_VOWLAN_CALL;
+        break;
+
+    case VOICEMMODE1_VSID:
+        usecase_id = USECASE_VOICEMMODE1_CALL;
+        break;
+
+    case VOICEMMODE2_VSID:
+        usecase_id = USECASE_VOICEMMODE2_CALL;
+        break;
+
+    default:
+        ALOGE("%s: Invalid voice session index\n", __func__);
+    }
+
+    return usecase_id;
+}
 static uint32_t get_session_id_with_state(struct audio_device *adev,
                                           int call_state)
 {
@@ -598,13 +637,14 @@ int voice_extn_set_parameters(struct audio_device *adev,
     int ret = 0, err;
     char *kv_pairs = str_parms_to_str(parms);
     char str_value[256] = {0};
+    uint32_t vsid = 0;
 
     ALOGV_IF(kv_pairs != NULL, "%s: enter: %s", __func__, kv_pairs);
 
     err = str_parms_get_int(parms, AUDIO_PARAMETER_KEY_VSID, &value);
     if (err >= 0) {
         str_parms_del(parms, AUDIO_PARAMETER_KEY_VSID);
-        uint32_t vsid = value;
+        vsid = value;
         int call_state = -1;
         err = str_parms_get_int(parms, AUDIO_PARAMETER_KEY_CALL_STATE, &value);
         if (err >= 0) {
@@ -646,7 +686,7 @@ int voice_extn_set_parameters(struct audio_device *adev,
             goto done;
         }
 
-        ret = platform_set_device_mute(adev->platform, mute, str_value);
+        ret = platform_set_device_mute(adev->platform, mute, str_value, vsid);
         if (ret != 0) {
             ALOGE("%s: Failed to set mute err:%d", __func__, ret);
             ret = -EINVAL;

@@ -4805,7 +4805,7 @@ void platform_set_speaker_gain_in_combo(struct audio_device *adev,
     audio_route_apply_and_update_path(adev->audio_route, name);
 }
 
-int platform_set_voice_volume(void *platform, int volume)
+int platform_set_voice_volume(void *platform, int volume, uint32_t vsid)
 {
     struct platform_data *my_data = (struct platform_data *)platform;
     struct audio_device *adev = my_data->adev;
@@ -4816,6 +4816,9 @@ int platform_set_voice_volume(void *platform, int volume)
     long set_values[ ] = {0,
                           ALL_SESSION_VSID,
                           DEFAULT_VOLUME_RAMP_DURATION_MS};
+
+    if (vsid)
+        set_values[1] = (long) vsid;
 
     // Voice volume levels are mapped to adsp volume levels as follows.
     // 100 -> 5, 80 -> 4, 60 -> 3, 40 -> 2, 20 -> 1  0 -> 0
@@ -4858,7 +4861,7 @@ int platform_set_voice_volume(void *platform, int volume)
     return ret;
 }
 
-int platform_set_mic_mute(void *platform, bool state)
+int platform_set_mic_mute(void *platform, bool state, uint32_t vsid)
 {
     struct platform_data *my_data = (struct platform_data *)platform;
     struct audio_device *adev = my_data->adev;
@@ -4868,6 +4871,9 @@ int platform_set_mic_mute(void *platform, bool state)
     long set_values[ ] = {0,
                           ALL_SESSION_VSID,
                           DEFAULT_MUTE_RAMP_DURATION_MS};
+
+    if (vsid)
+        set_values[1] = (long) vsid;
 
     if (adev->mode != AUDIO_MODE_IN_CALL &&
         adev->mode != AUDIO_MODE_IN_COMMUNICATION)
@@ -4897,7 +4903,8 @@ int platform_set_mic_mute(void *platform, bool state)
     return ret;
 }
 
-int platform_set_device_mute(void *platform, bool state, char *dir)
+int platform_set_device_mute(void *platform, bool state, char *dir,
+                             uint32_t vsid)
 {
     struct platform_data *my_data = (struct platform_data *)platform;
     struct audio_device *adev = my_data->adev;
@@ -4907,7 +4914,10 @@ int platform_set_device_mute(void *platform, bool state, char *dir)
     long set_values[ ] = {0,
                           ALL_SESSION_VSID,
                           0};
-    if(dir == NULL) {
+    if (vsid)
+            set_values[1] = (long) vsid;
+
+    if (dir == NULL) {
         ALOGE("%s: Invalid direction:%s", __func__, dir);
         return -EINVAL;
     }

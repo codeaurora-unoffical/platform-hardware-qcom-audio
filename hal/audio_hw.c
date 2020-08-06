@@ -4516,9 +4516,8 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
             bool same_dev = out->devices == new_dev;
             out->devices = new_dev;
 
-            if (output_drives_call(adev, out)) {
-                ret = voice_start_call(adev);
-            }
+            if (output_drives_call(adev, out))
+                ret = voice_start_call(adev, out->usecase);
 
             if (!out->standby) {
                 if (!same_dev) {
@@ -5113,6 +5112,26 @@ static int out_set_volume(struct audio_stream_out *stream, float left,
 
         out->volume_l = left;
         out->volume_r = right;
+        return ret;
+    } else if (out->usecase == USECASE_VOICEMMODE1_CALL ||
+               out->usecase == USECASE_VOICEMMODE2_CALL) {
+        struct voice_session *session = NULL;
+        struct audio_device *adev = out->dev;
+
+        if (out->usecase == USECASE_VOICEMMODE1_CALL)
+            session = &adev->voice.session[MMODE1_SESS_IDX];
+
+        if (out->usecase == USECASE_VOICEMMODE2_CALL)
+            session = &adev->voice.session[MMODE2_SESS_IDX];
+
+        if (!session)
+            ret = voice_set_volume(out->dev, left, ALL_VSID);
+        else
+            ret = voice_set_volume(adev, left, session->vsid);
+
+        out->volume_l = left;
+        out->volume_r = right;
+        session->volume = left;
         return ret;
     } else if (audio_extn_auto_hal_is_bus_device_usecase(out->usecase)) {
         ALOGV("%s: bus device set volume called", __func__);
@@ -6414,7 +6433,7 @@ static ssize_t in_read(struct audio_stream_in *stream, void *buffer,
      * usecases so that other clients do not have access to voice recognition
      * data.
      */
-    if ((ret == 0 && voice_get_mic_mute(adev) &&
+    if ((ret == 0 && voice_get_mic_mute(adev, in->usecase) &&
          !voice_is_in_call_rec_stream(in) &&
          in->usecase != USECASE_AUDIO_RECORD_AFE_PROXY) ||
         (adev->num_va_sessions &&
@@ -7993,13 +8012,15 @@ static int adev_init_check(const struct audio_hw_device *dev __unused)
 static int adev_set_voice_volume(struct audio_hw_device *dev, float volume)
 {
     int ret;
+    uint32_t vsid = 0;
     struct audio_device *adev = (struct audio_device *)dev;
 
     audio_extn_extspk_set_voice_vol(adev->extspk, volume);
 
     pthread_mutex_lock(&adev->lock);
     /* cache volume */
-    ret = voice_set_volume(adev, volume);
+    vsid = voice_get_active_session_id(adev);
+    ret = voice_set_volume(adev, volume, vsid);
     pthread_mutex_unlock(&adev->lock);
     return ret;
 }
@@ -8070,10 +8091,14 @@ static int adev_set_mic_mute(struct audio_hw_device *dev, bool state)
 {
     int ret;
     struct audio_device *adev = (struct audio_device *)dev;
+    uint32_t session_id;
+    audio_usecase_t usecase_id;
 
     pthread_mutex_lock(&adev->lock);
     ALOGD("%s state %d\n", __func__, state);
-    ret = voice_set_mic_mute((struct audio_device *)dev, state);
+    session_id = voice_get_active_session_id(adev);
+    usecase_id = voice_extn_get_usecase_for_session_id(session_id);
+    ret = voice_set_mic_mute((struct audio_device *)dev, state, usecase_id);
 
     if (adev->ext_hw_plugin)
         ret = audio_extn_ext_hw_plugin_set_mic_mute(adev->ext_hw_plugin, state);
@@ -8086,7 +8111,12 @@ static int adev_set_mic_mute(struct audio_hw_device *dev, bool state)
 
 static int adev_get_mic_mute(const struct audio_hw_device *dev, bool *state)
 {
-    *state = voice_get_mic_mute((struct audio_device *)dev);
+    uint32_t session_id;
+    audio_usecase_t usecase_id;
+
+    session_id = voice_get_active_session_id(adev);
+    usecase_id = voice_extn_get_usecase_for_session_id(session_id);
+    *state = voice_get_mic_mute((struct audio_device *)dev, usecase_id);
     return 0;
 }
 

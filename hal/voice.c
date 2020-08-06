@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -298,7 +298,7 @@ int voice_start_usecase(struct audio_device *adev, audio_usecase_t usecase_id)
     }
     ALOGD("voice_config.rate %d\n", voice_config.rate);
 
-    voice_set_mic_mute(adev, adev->voice.mic_mute);
+    voice_set_mic_mute(adev, session->mic_mute, usecase_id);
 
     ALOGV("%s: Opening PCM capture device card_id(%d) device_id(%d)",
           __func__, adev->snd_card, pcm_dev_tx_id);
@@ -362,7 +362,7 @@ int voice_start_usecase(struct audio_device *adev, audio_usecase_t usecase_id)
     if (!voice_is_call_state_active(adev))
         voice_set_sidetone(adev, uc_info->out_snd_device, true);
 
-    voice_set_volume(adev, adev->voice.volume);
+    voice_set_volume(adev, session->volume, session->vsid);
 
     ret = platform_start_voice_call(adev->platform, session->vsid);
     if (ret < 0) {
@@ -646,17 +646,23 @@ static float voice_get_mic_volume(struct audio_device *adev)
 }
 #endif
 
-int voice_set_mic_mute(struct audio_device *adev, bool state)
+int voice_set_mic_mute(struct audio_device *adev, bool state,
+                       audio_usecase_t usecase_id)
 {
     int err = 0;
-
-    adev->voice.mic_mute = state;
+    struct voice_session *session = NULL;
+    uint32_t vsid = ALL_VSID;
+    session = (struct voice_session *)voice_get_session_from_use_case(adev, usecase_id);
+    if (session)
+        session->mic_mute = state;
+    if (session && ((usecase_id == USECASE_VOICEMMODE1_CALL) ||
+        (usecase_id == USECASE_VOICEMMODE2_CALL)))
+        vsid = session->vsid;
 #ifdef PLATFORM_AUTO
     if (state == true) {
         adev->voice.mic_volume = voice_get_mic_volume(adev);
     }
     err = voice_set_mic_volume(adev, (state == true) ? 0.0 : adev->voice.mic_volume);
-    adev->voice.mic_mute = state;
     ALOGD("%s: Setting mute state %d, err %d\n", __func__, state, err);
 #else
     if (audio_extn_hfp_is_active(adev)) {
@@ -664,9 +670,9 @@ int voice_set_mic_mute(struct audio_device *adev, bool state)
     } else if (adev->mode == AUDIO_MODE_IN_CALL) {
        /* Use device mute if incall music delivery usecase is in progress */
         if (adev->voice.use_device_mute)
-            err = platform_set_device_mute(adev->platform, state, "tx");
+            err = platform_set_device_mute(adev->platform, state, "tx", vsid);
         else
-            err = platform_set_mic_mute(adev->platform, state);
+            err = platform_set_mic_mute(adev->platform, state, vsid);
         ALOGV("%s: voice mute status=%d, use_device_mute flag=%d",
             __func__, state, adev->voice.use_device_mute);
     } else if (adev->mode == AUDIO_MODE_IN_COMMUNICATION) {
@@ -676,9 +682,14 @@ int voice_set_mic_mute(struct audio_device *adev, bool state)
     return err;
 }
 
-bool voice_get_mic_mute(struct audio_device *adev)
+bool voice_get_mic_mute(struct audio_device *adev, audio_usecase_t usecase_id)
 {
-    return adev->voice.mic_mute;
+    struct voice_session *session = NULL;
+
+    session = (struct voice_session *)voice_get_session_from_use_case(adev, usecase_id);
+    if (session)
+        return session->mic_mute;
+     return -EINVAL;
 }
 
 /*
@@ -690,22 +701,24 @@ bool voice_get_mic_mute(struct audio_device *adev)
  */
 void voice_set_device_mute_flag(struct audio_device *adev, bool state)
 {
-    if (adev->voice.mic_mute) {
+    struct voice_session *session = NULL;
+    uint32_t vsid;
+    vsid = voice_get_active_session_id(adev);
+    if (session->mic_mute) {
         if (state) {
-            platform_set_device_mute(adev->platform, true, "tx");
-            platform_set_mic_mute(adev->platform, false);
+            platform_set_device_mute(adev->platform, true, "tx", vsid);
+            platform_set_mic_mute(adev->platform, false, vsid);
         } else {
-            platform_set_mic_mute(adev->platform, true);
-            platform_set_device_mute(adev->platform, false, "tx");
+            platform_set_mic_mute(adev->platform, true, vsid);
+            platform_set_device_mute(adev->platform, false, "tx", vsid);
         }
     }
     adev->voice.use_device_mute = state;
 }
 
-int voice_set_volume(struct audio_device *adev, float volume)
+int voice_set_volume(struct audio_device *adev, float volume, uint32_t vsid)
 {
     int32_t vol, err = 0;
-    adev->voice.volume = volume;
 
 #ifdef PLATFORM_AUTO
     struct mixer_ctl *ctl;
@@ -745,7 +758,7 @@ int voice_set_volume(struct audio_device *adev, float volume)
         // So adjust the volume to get the correct volume index in driver
         vol = 100 - vol;
 
-        err = platform_set_voice_volume(adev->platform, vol);
+        err = platform_set_voice_volume(adev->platform, vol, vsid);
     }
     if (adev->mode == AUDIO_MODE_IN_COMMUNICATION)
         err = voice_extn_compress_voip_set_volume(adev, volume);
@@ -753,13 +766,15 @@ int voice_set_volume(struct audio_device *adev, float volume)
     return err;
 }
 
-int voice_start_call(struct audio_device *adev)
+int voice_start_call(struct audio_device *adev, audio_usecase_t usecase_id)
 {
     int ret = 0;
+    struct voice_session *session = NULL;
 
     adev->voice.in_call = true;
-
-    voice_set_mic_mute(adev, adev->voice.mic_mute);
+    session = (struct voice_session *)voice_get_session_from_use_case(adev, usecase_id);
+    if (session)
+        voice_set_mic_mute(adev, session->mic_mute, usecase_id);
 
     ret = voice_extn_start_call(adev);
     if (ret == -ENOSYS) {
@@ -876,8 +891,6 @@ void voice_init(struct audio_device *adev)
     memset(&adev->voice, 0, sizeof(adev->voice));
     adev->voice.tty_mode = TTY_MODE_OFF;
     adev->voice.hac = false;
-    adev->voice.volume = 1.0f;
-    adev->voice.mic_mute = false;
     adev->voice.in_call = false;
 #ifdef PLATFORM_AUTO
     adev->voice.mic_volume = CAPTURE_VOLUME_DEFAULT;
@@ -888,6 +901,8 @@ void voice_init(struct audio_device *adev)
         adev->voice.session[i].state.current = CALL_INACTIVE;
         adev->voice.session[i].state.new = CALL_INACTIVE;
         adev->voice.session[i].vsid = VOICE_VSID;
+        adev->voice.session[i].volume = 1.0f;
+        adev->voice.session[i].mic_mute = false;
     }
 
     voice_extn_init(adev);
