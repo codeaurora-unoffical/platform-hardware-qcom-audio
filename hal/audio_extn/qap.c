@@ -2014,8 +2014,8 @@ static void qap_session_callback(qap_session_handle_t session_handle __unused,
                  */
 
                 if (p_qap->passthrough_enabled) {
-                    //Closing all the multi-Channel PCM HDMI output stream from QAP.
-                    close_all_pcm_hdmi_output_l();
+                    //Closing all HDMI output stream from QAP.
+                    close_all_hdmi_output_l();
 
                     //If passthrough is active then pcm hdmi output has to be dropped.
                     pthread_mutex_unlock(&p_qap->lock);
