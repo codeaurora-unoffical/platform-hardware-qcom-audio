@@ -2752,6 +2752,10 @@ void audio_extn_set_clock_switch_params(struct audio_device *adev,
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_CLOCK, value, sizeof(value));
     if (ret >= 0) {
         clock_data = (audio_clock_data_t *)malloc(sizeof(audio_clock_data_t));
+        if(clock_data == NULL) {
+           ALOGE("%s: memory allocation is failed for clock_data\n", __func__);
+           return;
+        }
         clock_data->clock_type = (audio_clock_type) atoi(value);
 
         if (str_parms_get_str(parms,AUDIO_PARAMETER_CLOCK_FREQUENCY,value,
