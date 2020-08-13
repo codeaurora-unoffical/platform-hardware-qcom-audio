@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+* Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -723,7 +723,7 @@ int audio_extn_afe_loopback_set_audio_port_config(struct audio_hw_device *dev,
      int status = 0, n=0, patch_num=-1;
      port_info_t port_info;
      struct audio_port_config *port_out=NULL;
-     struct audio_device *adev = audio_loopback_mod->adev;
+     struct audio_device *adev;
 
      ALOGV("%s %d", __func__, __LINE__);
 
@@ -732,6 +732,9 @@ int audio_extn_afe_loopback_set_audio_port_config(struct audio_hw_device *dev,
         status = -EINVAL;
         return status;
     }
+
+    adev = audio_loopback_mod->adev;
+
     pthread_mutex_lock(&audio_loopback_mod->lock);
 
     port_info.id = config->id;

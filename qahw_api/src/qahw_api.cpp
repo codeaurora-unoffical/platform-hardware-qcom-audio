@@ -3010,7 +3010,7 @@ int32_t qahw_stream_get_buffer_size(const qahw_stream_handle_t *stream_handle,
     }
     switch (stream->dir) {
     case QAHW_STREAM_OUTPUT:
-        if (stream->out_stream) {
+        if (stream->out_stream && out_buffer) {
             *out_buffer = qahw_out_get_buffer_size(stream->out_stream);
             rc = 0;
         } else
@@ -3018,7 +3018,7 @@ int32_t qahw_stream_get_buffer_size(const qahw_stream_handle_t *stream_handle,
                   , __LINE__, __func__);
         break;
     case QAHW_STREAM_INPUT:
-        if (stream->in_stream) {
+        if (stream->in_stream && in_buffer) {
             *in_buffer = qahw_in_get_buffer_size(stream->in_stream);
             rc = 0;
         } else
@@ -3026,7 +3026,7 @@ int32_t qahw_stream_get_buffer_size(const qahw_stream_handle_t *stream_handle,
                   , __LINE__, __func__);
         break;
     case QAHW_STREAM_INPUT_OUTPUT:
-        if (stream->out_stream) {
+        if (stream->out_stream && out_buffer) {
             *out_buffer = qahw_out_get_buffer_size(stream->out_stream);
             rc = 0;
         } else {
@@ -3034,7 +3034,7 @@ int32_t qahw_stream_get_buffer_size(const qahw_stream_handle_t *stream_handle,
                   , __LINE__, __func__);
             rc = -EINVAL;
         }
-        if (stream->in_stream) {
+        if (stream->in_stream && in_buffer) {
             *in_buffer = qahw_in_get_buffer_size(stream->in_stream);
              rc = 0;
 
