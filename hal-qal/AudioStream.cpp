@@ -562,8 +562,9 @@ static int astream_out_set_parameters(struct audio_stream *stream,
        }
    // }
 exit:
-    if (parms)
-        str_parms_destroy(parms);
+/*HACK to avoid pointer corruption issue */
+/*    if (parms)
+        str_parms_destroy(parms);*/
     return ret;
 }
 
