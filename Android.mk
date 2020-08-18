@@ -11,6 +11,7 @@ include $(MY_LOCAL_PATH)/hal_mpq/Android.mk
 else
 include $(MY_LOCAL_PATH)/hal-qal/Android.mk
 endif
+ifneq ($(TARGET_BOARD_AUTO),true)
 include $(MY_LOCAL_PATH)/hal/audio_extn/Android.mk
 include $(MY_LOCAL_PATH)/voice_processing/Android.mk
 include $(MY_LOCAL_PATH)/mm-audio/Android.mk
@@ -18,6 +19,7 @@ include $(MY_LOCAL_PATH)/visualizer/Android.mk
 include $(MY_LOCAL_PATH)/post_proc/Android.mk
 include $(MY_LOCAL_PATH)/qahw/Android.mk
 include $(MY_LOCAL_PATH)/qahw_api/Android.mk
+endif
 endif
 
 ifeq ($(USE_LEGACY_AUDIO_DAEMON), true)

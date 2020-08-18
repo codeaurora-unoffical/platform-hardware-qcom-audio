@@ -493,7 +493,7 @@ static int astream_out_get_presentation_position(
        return -EINVAL;
     }
     if (astream_out) {
-       switch (astream_out->GetQalStreamType(astream_out->flags_)) {
+       switch (astream_out->GetQalStreamType(astream_out->flags_, astream_out->address_)) {
        case QAL_STREAM_COMPRESSED:
           ret = astream_out->GetFrames(frames);
           if (ret != 0) {
@@ -1156,7 +1156,12 @@ qal_stream_type_t StreamInPrimary::GetQalStreamType(
 }
 
 qal_stream_type_t StreamOutPrimary::GetQalStreamType(
-                                    audio_output_flags_t halStreamFlags) {
+                                    audio_output_flags_t halStreamFlags,
+                                    char *address) {
+    int bus_num = -1;
+    char *str = NULL;
+    char *last_r = NULL;
+    char local_address[AUDIO_DEVICE_MAX_ADDRESS_LEN] = {0};
     qal_stream_type_t qalStreamType = QAL_STREAM_LOW_LATENCY;
     if ((halStreamFlags & AUDIO_OUTPUT_FLAG_VOIP_RX)!=0) {
         qalStreamType = QAL_STREAM_VOIP_RX;
@@ -1204,6 +1209,39 @@ qal_stream_type_t StreamOutPrimary::GetQalStreamType(
         qalStreamType = QAL_STREAM_VOICE_CALL_MUSIC;
     } else {
         qalStreamType = QAL_STREAM_GENERIC;
+    }
+
+    if (address && qalStreamType == QAL_STREAM_GENERIC) {
+        /* strtok will modify the original string. make a copy first */
+        strlcpy(local_address, address, AUDIO_DEVICE_MAX_ADDRESS_LEN);
+
+        /* extract bus number from address */
+        str = strtok_r(local_address, "BUS_",&last_r);
+        if (str != NULL)
+            bus_num = (int)strtol(str, (char **)NULL, 10);
+
+        /* validate bus number */
+        if ((bus_num < 0) || (bus_num >= MAX_CAR_AUDIO_STREAMS)) {
+            ALOGE("%s: invalid bus number %d", __func__, bus_num);
+            return qalStreamType;
+        }
+        switch(bus_num) {
+            case CAR_AUDIO_STREAM_MEDIA:
+            case CAR_AUDIO_STREAM_SYS_NOTIFICATION:
+            case CAR_AUDIO_STREAM_PHONE:
+            case CAR_AUDIO_STREAM_FRONT_PASSENGER:
+            case CAR_AUDIO_STREAM_REAR_SEAT:
+                qalStreamType = QAL_STREAM_DEEP_BUFFER;
+                break;
+            case CAR_AUDIO_STREAM_NAV_GUIDANCE:
+                qalStreamType = QAL_STREAM_LOW_LATENCY;
+                break;
+            default:
+              ALOGE("%s: unknown bus number %d. Default to Deep Buffer",
+                    __func__, bus_num);
+              qalStreamType = QAL_STREAM_DEEP_BUFFER;
+              break;
+        }
     }
     return qalStreamType;
 }
@@ -1563,7 +1601,7 @@ int StreamOutPrimary::SetVolume(float left , float right) {
 int64_t StreamOutPrimary::platform_render_latency(audio_output_flags_t flags_)
 {
     struct qal_stream_attributes streamAttributes_;
-    streamAttributes_.type = StreamOutPrimary::GetQalStreamType(flags_);
+    streamAttributes_.type = StreamOutPrimary::GetQalStreamType(flags_, address_);
     ALOGV("%s:%d type %d", __func__, __LINE__, streamAttributes_.type);
     switch (streamAttributes_.type) {
          case QAL_STREAM_DEEP_BUFFER:
@@ -1652,7 +1690,7 @@ static int voip_get_buffer_size(uint32_t sample_rate)
 uint32_t StreamOutPrimary::GetBufferSize() {
     struct qal_stream_attributes streamAttributes_;
 
-    streamAttributes_.type = StreamOutPrimary::GetQalStreamType(flags_);
+    streamAttributes_.type = StreamOutPrimary::GetQalStreamType(flags_, address_);
     ALOGD("%s:%d type %d", __func__, __LINE__, streamAttributes_.type);
     if (streamAttributes_.type == QAL_STREAM_VOIP_RX) {
         return voip_get_buffer_size(config_.sample_rate);
@@ -1759,8 +1797,8 @@ int StreamOutPrimary::Open() {
     if (ch_info->channels > 1)
         ch_info->ch_map[1] = QAL_CHMAP_CHANNEL_FR;
 
-    streamAttributes_.type = StreamOutPrimary::GetQalStreamType(flags_);
-    streamAttributes_.flags = (qal_stream_flags_t)0;
+    streamAttributes_.type = StreamOutPrimary::GetQalStreamType(flags_, address_);
+    streamAttributes_.flags = (qal_stream_flags_t)flags_;
     streamAttributes_.direction = QAL_AUDIO_OUTPUT;
     streamAttributes_.out_media_config.sample_rate = config_.sample_rate;
     streamAttributes_.out_media_config.bit_width = CODEC_BACKEND_DEFAULT_BIT_WIDTH;

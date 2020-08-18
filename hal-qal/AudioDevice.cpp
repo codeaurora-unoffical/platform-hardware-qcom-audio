@@ -1054,6 +1054,7 @@ void AudioDevice::FillAndroidDeviceMap() {
     //android_device_map_.insert(std::make_pair(AUDIO_DEVICE_IN_HDMI_ARC, QAL_DEVICE_IN_HDMI_ARC);
     //android_device_map_.insert(std::make_pair(AUDIO_DEVICE_IN_BLUETOOTH_BLE, QAL_DEVICE_IN_BLUETOOTH_BLE);
     //android_device_map_.insert(std::make_pair(AUDIO_DEVICE_IN_DEFAULT, QAL_DEVICE_IN_DEFAULT));
+    android_device_map_.insert(std::make_pair(AUDIO_DEVICE_OUT_BUS, QAL_DEVICE_OUT_SPEAKER));
 }
 
 int AudioDevice::GetQalDeviceIds(const audio_devices_t hal_device_id,
