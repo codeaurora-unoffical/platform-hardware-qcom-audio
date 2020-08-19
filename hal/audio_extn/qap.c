@@ -2840,8 +2840,13 @@ static void qap_set_default_configuration_to_module()
 
 
     session_outputs_config.num_output = 1;
+    if(p_qap->bt_connect) {
+        ALOGD("%s BT is connected, setting device to BT headset",__func__);
+        session_outputs_config.output_config[0].id = AUDIO_DEVICE_OUT_BLUETOOTH_A2DP;
+    }else {
+        session_outputs_config.output_config[0].id = AUDIO_DEVICE_OUT_SPEAKER;
+    }
 
-    session_outputs_config.output_config[0].id = AUDIO_DEVICE_OUT_SPEAKER;
     session_outputs_config.output_config[0].format = QAP_AUDIO_FORMAT_PCM_16_BIT;
 
     if (p_qap->qap_mod[MS12].session_handle) {
@@ -3641,6 +3646,8 @@ int audio_extn_qap_set_parameters(struct audio_device *adev, struct str_parms *p
                   pthread_mutex_lock(&p_qap->lock);
                   qap_set_hdmi_configuration_to_module();
                   pthread_mutex_unlock(&p_qap->lock);
+               }else {
+                  qap_set_default_configuration_to_module();
                }
 #ifndef SPLIT_A2DP_ENABLED
                DEBUG_MSG("Closing a2dp output...");
