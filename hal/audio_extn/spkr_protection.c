@@ -2171,7 +2171,7 @@ void spkr_prot_init(void *adev, spkr_prot_init_config_t spkr_prot_init_config_va
             ALOGD("%s:WSA Create calibration thread", __func__);
             spkr_calib_thread_create();
         }
-    return;
+        return;
     } else {
         ALOGD("%s: WSA spkr calibration thread is not created", __func__);
     }

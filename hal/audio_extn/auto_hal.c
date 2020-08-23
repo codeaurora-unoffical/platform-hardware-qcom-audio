@@ -353,10 +353,12 @@ int auto_hal_release_audio_patch(struct audio_hw_device *dev,
             goto exit;
 
         parms = str_parms_create();
-        str_parms_add_int(parms, AUDIO_PARAMETER_STREAM_ROUTING, 0);
-        str = str_parms_to_str(parms);
-        in_ctxt->input->stream.common.set_parameters(
-                        (struct audio_stream *)in_ctxt->input, str);
+        if(parms != NULL) {
+            str_parms_add_int(parms, AUDIO_PARAMETER_STREAM_ROUTING, 0);
+            str = str_parms_to_str(parms);
+            in_ctxt->input->stream.common.set_parameters(
+                            (struct audio_stream *)in_ctxt->input, str);
+        }
     }
 
     if (patch_record->output_io_handle) {
@@ -371,10 +373,12 @@ int auto_hal_release_audio_patch(struct audio_hw_device *dev,
             goto exit;
 
         parms = str_parms_create();
-        str_parms_add_int(parms, AUDIO_PARAMETER_STREAM_ROUTING, 0);
-        str = str_parms_to_str(parms);
-        out_ctxt->output->stream.common.set_parameters(
-                        (struct audio_stream *)out_ctxt->output, str);
+        if(parms != NULL) {
+            str_parms_add_int(parms, AUDIO_PARAMETER_STREAM_ROUTING, 0);
+            str = str_parms_to_str(parms);
+            out_ctxt->output->stream.common.set_parameters(
+                            (struct audio_stream *)out_ctxt->output, str);
+        }
     }
 
     if (patch_record->usecase != USECASE_INVALID) {

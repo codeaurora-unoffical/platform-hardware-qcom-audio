@@ -1781,12 +1781,19 @@ void audio_extn_usb_set_reconfig(bool is_required)
 //END: USB_OFFLOAD ===========================================================
 
 //START: SPEAKER_PROTECTION ==========================================================
-#ifdef __LP64__
-#define SPKR_PROT_LIB_PATH         "/vendor/lib64/libspkrprot.so"
-#define CIRRUS_SPKR_PROT_LIB_PATH  "/vendor/lib64/libcirrusspkrprot.so"
+#define STR_CAT(path, extn) (path extn)
+
+#ifdef LINUX_ENABLED
+#  define SPKR_PROT_LIB_PATH        STR_CAT(LE_LIBDIR, "/audio.spkr.prot.so")
+#  define CIRRUS_SPKR_PROT_LIB_PATH STR_CAT(LE_LIBDIR, "/audio.external.spkr.prot.so")
 #else
-#define SPKR_PROT_LIB_PATH         "/vendor/lib/libspkrprot.so"
-#define CIRRUS_SPKR_PROT_LIB_PATH  "/vendor/lib/libcirrusspkrprot.so"
+#  ifdef __LP64__
+#    define SPKR_PROT_LIB_PATH         "/vendor/lib64/libspkrprot.so"
+#    define CIRRUS_SPKR_PROT_LIB_PATH  "/vendor/lib64/libcirrusspkrprot.so"
+#  else
+#    define SPKR_PROT_LIB_PATH         "/vendor/lib/libspkrprot.so"
+#    define CIRRUS_SPKR_PROT_LIB_PATH  "/vendor/lib/libcirrusspkrprot.so"
+# endif
 #endif
 
 static void *spkr_prot_lib_handle = NULL;
@@ -1829,11 +1836,14 @@ void spkr_prot_feature_init(bool is_feature_enabled)
             is_feature_enabled ? "Enabled" : "NOT Enabled", vendor_enhanced_info);
     if (is_feature_enabled) {
         // dlopen lib
+#if LINUX_ENABLED
+        spkr_prot_lib_handle = dlopen(SPKR_PROT_LIB_PATH, RTLD_NOW);
+#else
         if ((vendor_enhanced_info & 0x3) == 0x0) // Pure AOSP
             spkr_prot_lib_handle = dlopen(CIRRUS_SPKR_PROT_LIB_PATH, RTLD_NOW);
         else
             spkr_prot_lib_handle = dlopen(SPKR_PROT_LIB_PATH, RTLD_NOW);
-
+#endif
         if (spkr_prot_lib_handle == NULL) {
             ALOGE("%s: dlopen failed", __func__);
             goto feature_disabled;

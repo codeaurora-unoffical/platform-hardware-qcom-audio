@@ -1608,12 +1608,16 @@
     </path>
 
     <path name="pri-hfp-sco">
+        <ctl name="PRI_TDM SlotNumber" value="Two" />
+        <ctl name="PRI_TDM_RX_0 SampleRate" value="KHZ_16" />
         <ctl name="PRI_TDM_RX_0 Audio Mixer MultiMedia6" value="1" />
         <ctl name="TERT_TDM_TX_0 Channels" value="One" />
         <ctl name="MultiMedia6 Mixer TERT_TDM_TX_0" value="1" />
     </path>
 
     <path name="sec-hfp-sco">
+        <ctl name="PRI_TDM SlotNumber" value="Two" />
+        <ctl name="PRI_TDM_RX_1 SampleRate" value="KHZ_16" />
         <ctl name="PRI_TDM_RX_1 Audio Mixer MultiMedia24" value="1" />
         <ctl name="TERT_TDM_TX_0 Channels" value="One" />
         <ctl name="MultiMedia24 Mixer TERT_TDM_TX_0" value="1" />
@@ -1703,12 +1707,10 @@
     </path>
 
     <path name="pri-hfp-sco-wb">
-        <ctl name="PRI_TDM_RX_0 SampleRate" value="KHZ_16" />
         <path name="pri-hfp-sco" />
     </path>
 
     <path name="sec-hfp-sco-wb">
-        <ctl name="PRI_TDM_RX_1 SampleRate" value="KHZ_16" />
         <path name="sec-hfp-sco" />
     </path>
 
@@ -1756,11 +1758,13 @@
     </path>
 
     <path name="pri-hfp-sco-downlink">
+        <ctl name="PRI_TDM_TX_0 SampleRate" value="KHZ_16" />
         <ctl name="TERT_TDM_RX_2 Audio Mixer MultiMedia21" value="1" />
         <ctl name="MultiMedia21 Mixer PRI_TDM_TX_0" value="1" />
     </path>
 
     <path name="sec-hfp-sco-downlink">
+        <ctl name="PRI_TDM_TX_1 SampleRate" value="KHZ_16" />
         <ctl name="TERT_TDM_RX_2 Audio Mixer MultiMedia25" value="1" />
         <ctl name="MultiMedia25 Mixer PRI_TDM_TX_1" value="1" />
     </path>
@@ -1771,12 +1775,10 @@
     </path>
 
     <path name="pri-hfp-sco-wb-downlink">
-        <ctl name="PRI_TDM_TX_0 SampleRate" value="KHZ_16" />
         <path name="pri-hfp-sco-downlink" />
     </path>
 
     <path name="sec-hfp-sco-wb-downlink">
-        <ctl name="PRI_TDM_TX_1 SampleRate" value="KHZ_16" />
         <path name="sec-hfp-sco-downlink" />
     </path>
 
