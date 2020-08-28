@@ -1419,6 +1419,8 @@ static int stop_output_stream(struct stream_out *out)
         if (adev->offload_effects_stop_output != NULL)
             adev->offload_effects_stop_output(out->handle, out->pcm_device_id);
     }
+    audio_extn_is_haptic_started(adev, out->usecase,
+                                  uc_info->out_snd_device, false);
 
     /* 1. Get and set stream specific mixer controls */
     disable_audio_route(adev, uc_info);
@@ -1456,6 +1458,12 @@ int start_output_stream(struct stream_out *out)
     ALOGD("%s: enter: stream(%p)usecase(%d: %s) devices(%#x)",
           __func__, &out->stream, out->usecase, use_case_table[out->usecase],
           out->devices);
+
+     if (audio_extn_is_haptic_started(adev, out->usecase, out->devices, true) &&
+                            out->devices != AUDIO_DEVICE_OUT_SPEAKER) {
+         ALOGD("%s Haptic started, routing to SPEAKER only", __func__);
+         out->devices = AUDIO_DEVICE_OUT_SPEAKER;
+    }
 
     if (SND_CARD_STATE_OFFLINE == snd_card_status) {
         ALOGE("%s: sound card is not active/SSR returning error", __func__);
@@ -1851,7 +1859,7 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
          *       playback to headset.
          */
         if (val != 0) {
-            if (audio_extn_is_haptic_started(adev) &&
+            if (audio_extn_is_haptic_started(adev, out->usecase, val, true) &&
                             val != AUDIO_DEVICE_OUT_SPEAKER) {
                 ALOGD("%s Haptic started, routing to SPEAKER only", __func__);
                 val = AUDIO_DEVICE_OUT_SPEAKER;
