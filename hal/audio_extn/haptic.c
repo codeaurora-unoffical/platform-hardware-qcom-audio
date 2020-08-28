@@ -59,6 +59,8 @@
 #define HAPTIC_PCM_FILE "/data/misc/audio/170hz_haptic_pcm"
 #endif
 
+#define AUDIO_PARAMETER_KEY_FM_VOLUME "fm_volume"
+
 static struct pcm_config pcm_config_haptic = {
     .channels = 1,
     .rate = 48000,
@@ -102,10 +104,16 @@ typedef struct {
 
 haptic_priv_t hap;
 
+bool tone_playback_active = false;
+bool whs_connected = false;
+float fm_vol = 0.0;
+
 static pthread_once_t haptic_init_once_t = PTHREAD_ONCE_INIT;
 static pthread_once_t haptic_deinit_once_t = PTHREAD_ONCE_INIT;
 
 static int haptic_cleanup();
+void audio_extn_haptic_disable_route(struct audio_device *adev);
+void audio_extn_haptic_enable_route(struct audio_device *adev);
 
 static void send_cmd_l(request_t r)
 {
@@ -489,8 +497,36 @@ void audio_extn_haptic_set_parameters(struct audio_device *adev,
     char value[32]={0};
     bool hap_start = false;
 
+    //ALOGV("%s: enter", __func__);
 
-    ALOGV("%s: enter", __func__);
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_FM_VOLUME,
+                                           value, sizeof(value));
+    if (ret >= 0) {
+        if (sscanf(value, "%f", &fm_vol) != 1){
+            ALOGE("%s: error in retrieving fm volume", __func__);
+        }
+        ALOGV("%s: fm_volume = %f", __func__, fm_vol);
+    }
+
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_DEVICE_CONNECT, value, sizeof(value));
+    if (ret >= 0) {
+        int val = atoi(value);
+        if ((val & AUDIO_DEVICE_OUT_WIRED_HEADSET) ||
+            (val & AUDIO_DEVICE_OUT_WIRED_HEADPHONE)) {
+            whs_connected = true;
+            ALOGV("%s: *********** Wired HEADSET CONNECTED ************", __func__);
+        }
+    }
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_DEVICE_DISCONNECT, value, sizeof(value));
+    if (ret >= 0) {
+        int val = atoi(value);
+        if ((val & AUDIO_DEVICE_OUT_WIRED_HEADSET) ||
+            (val & AUDIO_DEVICE_OUT_WIRED_HEADPHONE)) {
+            whs_connected = false;
+            ALOGV("%s: ********* Wired HEADSET DISCONNECT***********", __func__);
+        }
+    }
+
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_VIBRATE_ENABLED,
                 value, sizeof(value));
     if (ret >= 0) {
@@ -503,6 +539,7 @@ void audio_extn_haptic_set_parameters(struct audio_device *adev,
             hap_start = false;
             ALOGD("%s Stop Haptic Audio Playback", __func__);
             audio_extn_haptic_stop(adev);
+            audio_extn_haptic_enable_route(adev);
             return;
         }
     }
@@ -524,19 +561,161 @@ void audio_extn_haptic_set_parameters(struct audio_device *adev,
     if (hap_start) {
         ALOGD("%s Start Haptic Audio Playback", __func__);
         audio_extn_haptic_start(adev);
+        if (get_usecase_from_list(adev, USECASE_AUDIO_PLAYBACK_HAPTIC) != NULL) {
+            audio_extn_haptic_disable_route(adev);
+        }
     }
 }
 
-bool audio_extn_is_haptic_started(struct audio_device *adev)
+bool audio_extn_is_haptic_started(struct audio_device *adev, int usecase_id,
+                                  int out_device, bool start)
 {
-    ALOGV("%s: Enter", __func__);
     bool is_hap_started = false;
+    struct listnode *node = NULL;
+    struct audio_usecase *usecase = NULL;
 
     if (get_usecase_from_list(adev, USECASE_AUDIO_PLAYBACK_HAPTIC) != NULL &&
         (hap.state == STATE_ACTIVE || hap.state == STATE_IDLE) &&
-        hap.pcm != NULL) {
+        hap.pcm != NULL && (out_device & AUDIO_DEVICE_OUT_SPEAKER) &&
+        (out_device > AUDIO_DEVICE_OUT_SPEAKER)) {
         is_hap_started = true;
     }
-    ALOGV("%s: Exit", __func__);
+    if (!start && tone_playback_active && ((usecase_id == USECASE_AUDIO_PLAYBACK_LOW_LATENCY) ||
+        (usecase_id == USECASE_AUDIO_PLAYBACK_DEEP_BUFFER)) &&
+        (out_device & AUDIO_DEVICE_OUT_SPEAKER)) {
+        tone_playback_active = false;
+        ALOGV("Tone playback stopped ", __func__);
+    }
+    if (start && ((usecase_id == USECASE_AUDIO_PLAYBACK_LOW_LATENCY) ||
+        (usecase_id == USECASE_AUDIO_PLAYBACK_DEEP_BUFFER)) &&
+        (out_device & AUDIO_DEVICE_OUT_SPEAKER) &&
+        (out_device > AUDIO_DEVICE_OUT_SPEAKER)) {
+        ALOGV("Tone playback started ", __func__);
+        tone_playback_active = true;
+        if (is_hap_started) {
+            list_for_each(node, &adev->usecase_list) {
+                usecase = node_to_item(node, struct audio_usecase, list);
+                if (usecase->id == usecase_id)
+                    enable_audio_route(adev, usecase);
+            }
+        }
+    }
     return is_hap_started;
+}
+
+
+void audio_extn_haptic_enable_route(struct audio_device *adev)
+{
+    struct listnode *node;
+    struct audio_usecase *usecase;
+    struct str_parms *parms = NULL;
+
+    list_for_each(node, &adev->usecase_list) {
+        usecase = node_to_item(node, struct audio_usecase, list);
+        if (usecase->id != USECASE_AUDIO_PLAYBACK_HAPTIC &&
+            usecase->stream.out->devices & AUDIO_DEVICE_OUT_SPEAKER) {
+            ALOGV("%s usecase %d active on device %d,ignore ", __func__,
+                                       usecase->id, usecase->stream.out->devices);
+            return;
+        }
+    }
+    list_for_each(node, &adev->usecase_list) {
+        usecase = node_to_item(node, struct audio_usecase, list);
+        if (whs_connected &&
+            ((usecase->stream.out->devices & AUDIO_DEVICE_OUT_WIRED_HEADSET) ||
+            (usecase->stream.out->devices & AUDIO_DEVICE_OUT_WIRED_HEADPHONE))) {
+            disable_snd_device(adev, SND_DEVICE_OUT_SPEAKER);
+            ALOGV("%s Routing usecase id: %d to out device %d", __func__,  usecase->id,
+                                        usecase->stream.out->devices);
+            select_devices(adev, usecase->id);
+
+            switch (usecase->id) {
+                case USECASE_AUDIO_PLAYBACK_OFFLOAD:
+                    //resume media
+                    ALOGV("%s RESUME USECASE_AUDIO_PLAYBACK_OFFLOAD",__func__);
+                    if (usecase->stream.out->stream.resume)
+                        usecase->stream.out->stream.resume(&(usecase->stream.out->stream));
+                    break;
+                case USECASE_AUDIO_PLAYBACK_FM:
+                    /* FM use-case, volume has to be set*/
+                    if (fm_vol > 0.0) {
+                        parms = str_parms_create();
+                        if (parms != NULL) {
+                            str_parms_add_float(parms, AUDIO_PARAMETER_KEY_FM_VOLUME, fm_vol);
+                            audio_extn_fm_set_parameters(adev, parms);
+                        }
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+}
+
+void audio_extn_haptic_disable_route(struct audio_device *adev)
+{
+    struct listnode *node;
+    struct audio_usecase *usecase;
+    struct str_parms *parms = NULL;
+    int num_usecases = 0;
+    bool ignore_disable = false;
+
+    list_for_each(node, &adev->usecase_list) {
+        usecase = node_to_item(node, struct audio_usecase, list);
+        num_usecases+=1;
+        if (usecase->id != USECASE_AUDIO_PLAYBACK_HAPTIC &&
+            usecase->stream.out->devices & AUDIO_DEVICE_OUT_SPEAKER) {
+            //ALOGD("%s Usecase %d active on device %d, so ignore",__func__,
+            //                     usecase->id, usecase->stream.out->devices);
+            ignore_disable = true;
+        }
+    }
+    ALOGV("%s Num usecases = %d, ignore_disable = %d",__func__,
+                                         num_usecases, ignore_disable);
+    if (ignore_disable)
+       return;
+
+    list_for_each(node, &adev->usecase_list) {
+        usecase = node_to_item(node, struct audio_usecase, list);
+        if (whs_connected && (usecase->type == PCM_PLAYBACK) &&
+            usecase->id != USECASE_AUDIO_PLAYBACK_HAPTIC &&
+            !(usecase->stream.out->devices & AUDIO_DEVICE_OUT_SPEAKER) &&
+            ((usecase->stream.out->devices & AUDIO_DEVICE_OUT_WIRED_HEADSET) ||
+            (usecase->stream.out->devices & AUDIO_DEVICE_OUT_WIRED_HEADPHONE))) {
+
+            ALOGV("%s PCM Playback usecase %d active on device %d",__func__,
+                                  usecase->id, usecase->stream.out->devices);
+            switch (usecase->id) {
+                case USECASE_AUDIO_PLAYBACK_OFFLOAD:
+                    //pause media
+                    ALOGV("%s Pause USECASE_AUDIO_PLAYBACK_OFFLOAD",__func__);
+                    if (usecase->stream.out->stream.pause)
+                        usecase->stream.out->stream.pause(&(usecase->stream.out->stream));
+                    break;
+                case USECASE_AUDIO_PLAYBACK_LOW_LATENCY:
+                case USECASE_AUDIO_PLAYBACK_DEEP_BUFFER:
+                    if (!tone_playback_active) {
+                        disable_audio_route(adev, usecase);
+                    }
+                    else {
+                        ALOGV("Tone playback active, not disabling",__func__);
+                        tone_playback_active = false;
+                    }
+                    break;
+                 case USECASE_AUDIO_PLAYBACK_FM:
+                    /* FM use-case, set volume to 0*/
+                    parms = str_parms_create();
+                    if (parms != NULL) {
+                        float vol = 0.0f;
+                        str_parms_add_float(parms, AUDIO_PARAMETER_KEY_FM_VOLUME, vol);
+                        audio_extn_fm_set_parameters(adev, parms);
+                    }
+                    break;
+                default :
+                    disable_audio_route(adev, usecase);
+                    break;
+            }
+        }
+    }
 }
