@@ -1841,7 +1841,6 @@ static void check_usecases_capture_codec_backend(struct audio_device *adev,
 {
     struct listnode *node;
     struct audio_usecase *usecase;
-    snd_device_t uc_derive_snd_device = 0;
     snd_device_t derive_snd_device[AUDIO_USECASE_MAX] = {0};
     bool switch_device[AUDIO_USECASE_MAX];
     int i, num_uc_to_switch = 0;
@@ -1878,16 +1877,13 @@ static void check_usecases_capture_codec_backend(struct audio_device *adev,
          * TODO: Enhance below condition to handle BT sco/USB multi recording
          */
         if (usecase->type != PCM_PLAYBACK &&
-                usecase != uc_info) {
-                uc_derive_snd_device = derive_capture_snd_device(adev->platform,
-                                                  usecase, uc_info, snd_device);
-                ALOGD("%s: usecase snd device %d, derived snd device %d",
-                      __func__, usecase->in_snd_device, uc_derive_snd_device);
-                if((uc_derive_snd_device != usecase->in_snd_device != snd_device || force_routing) &&
-                   ((uc_info->devices & backend_check_cond) &&
-                    (((usecase->devices & ~AUDIO_DEVICE_BIT_IN) & AUDIO_DEVICE_IN_ALL_CODEC_BACKEND) ||
-                     (uc_info->type == VOICE_CALL &&
-                     usecase->devices == AUDIO_DEVICE_IN_VOICE_CALL) ||
+                usecase != uc_info &&
+                               (usecase->in_snd_device != snd_device || force_routing) &&
+                                (((uc_info->devices & backend_check_cond) &&
+                                 (((usecase->devices & ~AUDIO_DEVICE_BIT_IN) & AUDIO_DEVICE_IN_ALL_CODEC_BACKEND) ||
+                                  (usecase->type == VOIP_CALL))) ||
+                                  ((uc_info->type == VOICE_CALL &&
+                                   usecase->devices == AUDIO_DEVICE_IN_VOICE_CALL) ||
                      platform_check_backends_match(snd_device,\
                                               usecase->in_snd_device))) &&
                    (usecase->id != USECASE_AUDIO_SPKR_CALIB_TX)) {
@@ -1896,10 +1892,7 @@ static void check_usecases_capture_codec_backend(struct audio_device *adev,
                    platform_get_snd_device_name(usecase->in_snd_device));
                    disable_audio_route(adev, usecase);
                    switch_device[usecase->id] = true;
-                   /* Enable existing usecase on derived record device */
-                   derive_snd_device[usecase->id] = uc_derive_snd_device;
                    num_uc_to_switch++;
-                }
         }
     }
 
