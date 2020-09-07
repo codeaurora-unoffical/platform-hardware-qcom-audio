@@ -3775,7 +3775,7 @@ int audio_extn_qap_init(struct audio_device *adev)
             p_qap->ms12_lock = (p_qap->ms12_lock & (~(1 << MS12_ATMOS_LOCK_MASK)));
             //default chmod_lock is enabled
             p_qap->ms12_lock = p_qap->ms12_lock | (1 << 1);
-            p_qap->qap_output_block_handling = 0;
+            p_qap->qap_output_block_handling = 1;
 
             qap_mod->interpolation = 0; /*apply gain linearly*/
             qap_mod->pause = false;
