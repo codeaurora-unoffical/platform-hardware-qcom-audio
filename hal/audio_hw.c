@@ -9084,6 +9084,7 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
                 config->sample_rate == 48000) &&
                channel_count == 1) {
         in->usecase = USECASE_AUDIO_RECORD_VOIP;
+        in->realtime = false;
         in->config = pcm_config_audio_capture;
         frame_size = audio_stream_in_frame_size(&in->stream);
         buffer_size = get_stream_buffer_size(VOIP_CAPTURE_PERIOD_DURATION_MSEC,
