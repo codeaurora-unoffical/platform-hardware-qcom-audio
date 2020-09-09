@@ -2290,14 +2290,12 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
         stream_out.channel_mask = usecase->stream.inout->out_config.channel_mask;
         out_snd_device = platform_get_output_snd_device(adev->platform,
                                                         &stream_out);
-        usecase->devices = out_snd_device;
     } else if (usecase->type == TRANSCODE_LOOPBACK_TX ) {
         if (usecase->stream.inout == NULL) {
             ALOGE("%s: stream.inout is NULL", __func__);
             return -EINVAL;
         }
         in_snd_device = platform_get_input_snd_device(adev->platform, AUDIO_DEVICE_NONE);
-        usecase->devices = in_snd_device;
     } else if (usecase->type == AFE_LOOPBACK) {
         if (usecase->stream.inout == NULL) {
             ALOGE("%s: stream.inout is NULL", __func__);
@@ -2782,13 +2780,12 @@ int start_input_stream(struct stream_in *in)
             *  In case of MI2S backend, DSD data comes in 32bit and each data line of MI2S
             *  holds one channel of DSD. The number of channels are multiplied by 2 to properly
             *  configure the MI2S data lines and FE should also have same number of channels to
-            *  avoid processing in ADSP.
+            *  avoid processing in ADSP. So the actual channel count is half of the config channels.
             */
-            in->config.channels = in->config.channels << 1;
             in->channel_mask = audio_extn_get_dsd_in_ch_mask(in->config.channels);
-            /* sampling rate of backend should be DSD bit rate / (bitwidth of BE * 2).
-             * In case of DSD128, 44.1KHz DSD  backend sampling rate would be 44.1K * 128/64
-             */
+            /* Sampling rate of backend should be DSD bit rate / (bitwidth of BE * 2).
+            * In case of DSD128, 44.1KHz DSD  backend sampling rate would be 44.1K * 128/64
+            */
             in->sample_rate = in->sample_rate * audio_extn_get_mi2s_be_dsd_rate_mul_factor(in->dsd_format);
             in->dsd_config_updated = true;
         }
@@ -7150,10 +7147,14 @@ int adev_open_output_stream(struct audio_hw_device *dev,
             (flags & AUDIO_OUTPUT_FLAG_HW_AV_SYNC)) {
             out->render_mode = RENDER_MODE_AUDIO_STC_MASTER;
         } else if(flags & AUDIO_OUTPUT_FLAG_TIMESTAMP) {
-            if (property_get_bool("persist.vendor.audio.ttp.render.mode", false))
-                out->render_mode = RENDER_MODE_AUDIO_TTP;
-            else
+            if (property_get_bool("persist.vendor.audio.ttp.render.mode", false)) {
+                if (out->devices & AUDIO_DEVICE_OUT_ALL_A2DP)
+                    out->render_mode = RENDER_MODE_AUDIO_TTP_PASS_THROUGH;
+                else
+                    out->render_mode = RENDER_MODE_AUDIO_TTP;
+            } else {
                 out->render_mode = RENDER_MODE_AUDIO_MASTER;
+            }
         } else {
             out->render_mode = RENDER_MODE_AUDIO_NO_TIMESTAMP;
         }
