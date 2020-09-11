@@ -540,6 +540,7 @@ int create_loopback_session(loopback_patch_t *active_loopback_patch)
     struct stream_inout *inout =  &active_loopback_patch->patch_stream;
     struct adsp_hdlr_stream_cfg hdlr_stream_cfg;
     struct stream_in loopback_source_stream;
+    struct stream_out loopback_sink_stream;
     char prop_value[PROPERTY_VALUE_MAX] = {0};
 
     ALOGD("%s: Create loopback session begin", __func__);
@@ -561,21 +562,27 @@ int create_loopback_session(loopback_patch_t *active_loopback_patch)
 
     uc_info_rx->id = USECASE_AUDIO_TRANSCODE_LOOPBACK_RX;
     uc_info_rx->type = audio_loopback_mod->uc_type_rx;
-    uc_info_rx->stream.inout = &active_loopback_patch->patch_stream;
+    uc_info_rx->stream.out = &loopback_sink_stream;
     uc_info_rx->devices = active_loopback_patch->patch_stream.out_config.devices;
     uc_info_rx->in_snd_device = SND_DEVICE_NONE;
     uc_info_rx->out_snd_device = SND_DEVICE_NONE;
 
+    loopback_sink_stream.devices = inout->out_config.devices;
+    loopback_sink_stream.channel_mask = inout->out_config.channel_mask;
+    loopback_sink_stream.bit_width = inout->out_config.bit_width;
+    loopback_sink_stream.sample_rate = inout->out_config.sample_rate;
+    loopback_sink_stream.format = inout->out_config.format;
+    loopback_sink_stream.hal_op_format = inout->out_config.format;
+
+    memcpy(&loopback_sink_stream.usecase, uc_info_rx,
+           sizeof(struct audio_usecase));
 
     uc_info_tx->id = USECASE_AUDIO_TRANSCODE_LOOPBACK_TX;
     uc_info_tx->type = audio_loopback_mod->uc_type_tx;
-    uc_info_tx->stream.inout = &active_loopback_patch->patch_stream;
+    uc_info_tx->stream.in = &loopback_source_stream;
     uc_info_tx->devices = active_loopback_patch->patch_stream.in_config.devices;
     uc_info_tx->in_snd_device = SND_DEVICE_NONE;
     uc_info_tx->out_snd_device = SND_DEVICE_NONE;
-
-    list_add_tail(&adev->usecase_list, &uc_info_rx->list);
-    list_add_tail(&adev->usecase_list, &uc_info_tx->list);
 
     loopback_source_stream.source = AUDIO_SOURCE_UNPROCESSED;
     loopback_source_stream.device = inout->in_config.devices;
@@ -584,9 +591,13 @@ int create_loopback_session(loopback_patch_t *active_loopback_patch)
     loopback_source_stream.sample_rate = inout->in_config.sample_rate;
     loopback_source_stream.format = inout->in_config.format;
 
-    memcpy(&loopback_source_stream.usecase, uc_info_rx,
+    memcpy(&loopback_source_stream.usecase, uc_info_tx,
            sizeof(struct audio_usecase));
     adev->active_input = &loopback_source_stream;
+
+    list_add_tail(&adev->usecase_list, &uc_info_rx->list);
+    list_add_tail(&adev->usecase_list, &uc_info_tx->list);
+
     select_devices(adev, uc_info_rx->id);
     select_devices(adev, uc_info_tx->id);
 

@@ -8539,9 +8539,8 @@ bool platform_check_and_set_codec_backend_cfg(struct audio_device* adev,
 
     backend_idx = platform_get_backend_index(snd_device);
 
-    if ((usecase->type == TRANSCODE_LOOPBACK_RX)
-         || (usecase->type == AFE_LOOPBACK)
-         || (usecase->type == DTMF_PLAYBACK)) {
+    if ((usecase->type == AFE_LOOPBACK) ||
+        (usecase->type == DTMF_PLAYBACK)) {
         backend_cfg.bit_width = usecase->stream.inout->out_config.bit_width;
         backend_cfg.sample_rate = usecase->stream.inout->out_config.sample_rate;
         backend_cfg.format = usecase->stream.inout->out_config.format;
@@ -8730,13 +8729,8 @@ bool platform_check_and_set_capture_codec_backend_cfg(struct audio_device* adev,
 
     backend_cfg.passthrough_enabled = false;
 
-    if (usecase->type == TRANSCODE_LOOPBACK_TX) {
-        backend_cfg.bit_width = usecase->stream.inout->in_config.bit_width;
-        backend_cfg.sample_rate = usecase->stream.inout->in_config.sample_rate;
-        backend_cfg.format = usecase->stream.inout->in_config.format;
-        backend_cfg.channels = audio_channel_count_from_out_mask(
-                usecase->stream.inout->in_config.channel_mask);
-    } else if (usecase->type == PCM_CAPTURE) {
+    if ((usecase->type == PCM_CAPTURE) ||
+        (usecase->type == TRANSCODE_LOOPBACK_TX)) {
         backend_cfg.sample_rate= usecase->stream.in->sample_rate;
         backend_cfg.bit_width= usecase->stream.in->bit_width;
         backend_cfg.format= usecase->stream.in->format;
