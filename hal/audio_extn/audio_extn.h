@@ -429,6 +429,10 @@ void audio_extn_perf_lock_release(void);
                                    struct str_parms *parms)   do {} while(0)
  bool audio_extn_is_haptic_started(struct audio_device *adev,
                   int usecase_id, int out_devices, bool start) do {} while(0)
+ void audio_extn_haptic_check_and_disable(struct audio_device *adev,
+                                          int usecase_id)  do {} while(0)
+ void audio_extn_haptic_check_and_enable(struct audio_device *adev,
+                                          int usecase_id) do {} while(0)
 #else
  void audio_extn_haptic_init(struct audio_device *adev);
  void audio_extn_haptic_deinit();
@@ -438,6 +442,10 @@ void audio_extn_perf_lock_release(void);
                                    struct str_parms *parms);
  bool audio_extn_is_haptic_started(struct audio_device *adev,
                    int usecase_id, int out_devices, bool start);
+ void audio_extn_haptic_check_and_disable(struct audio_device *adev,
+                                          int usecase_id);
+ void audio_extn_haptic_check_and_enable(struct audio_device *adev,
+                                          int usecase_id);
 #endif /* HAPTIC_ENABLED */
 
 #endif /* AUDIO_EXTN_H */

@@ -557,6 +557,7 @@ static void check_usecases_codec_backend(struct audio_device *adev,
 {
     struct listnode *node;
     struct audio_usecase *usecase;
+    snd_device_t  out_snd_device;
     bool switch_device[AUDIO_USECASE_MAX];
     int i, num_uc_to_switch = 0;
 
@@ -624,9 +625,16 @@ static void check_usecases_codec_backend(struct audio_device *adev,
             usecase = node_to_item(node, struct audio_usecase, list);
             /* Update the out_snd_device only before enabling the audio route */
             if (switch_device[usecase->id] ) {
+                out_snd_device = usecase->out_snd_device;
                 usecase->out_snd_device = snd_device;
-                if (usecase->type != VOICE_CALL)
+                if (usecase->type != VOICE_CALL) {
                     enable_audio_route(adev, usecase);
+                    if (uc_info->id == USECASE_AUDIO_PLAYBACK_HAPTIC &&
+                        out_snd_device != snd_device &&
+                        !(usecase->stream.out->devices & AUDIO_DEVICE_OUT_SPEAKER)) {
+                        audio_extn_haptic_check_and_disable(adev, usecase->id);
+                    }
+                }
             }
         }
     }
@@ -852,6 +860,14 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
         return 0;
     }
 
+    /* During active voice call over headset, haptic vibration
+    should be routed to speaker for ear phone protection */
+    if (uc_id == USECASE_AUDIO_PLAYBACK_HAPTIC &&
+        voice_is_in_call(adev) && adev->mode == AUDIO_MODE_IN_CALL &&
+                 out_snd_device >= SND_DEVICE_OUT_VOICE_HEADPHONES) {
+        out_snd_device = SND_DEVICE_OUT_SPEAKER;
+        ALOGD("%s HAPTIC playback started, routing to SPEAKER", __func__);
+    }
     ALOGD("%s: out_snd_device(%d: %s) in_snd_device(%d: %s)", __func__,
           out_snd_device, platform_get_snd_device_name(out_snd_device),
           in_snd_device,  platform_get_snd_device_name(in_snd_device));
@@ -2047,13 +2063,22 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
         return ret;
     } else {
         if (out->pcm) {
-            if (out->muted)
+            if (out->muted) {
                 memset((void *)buffer, 0, bytes);
+                audio_extn_haptic_check_and_enable(adev, out->usecase);
+            }
             ALOGVV("%s: writing buffer (%d bytes) to pcm device", __func__, bytes);
             if (out->usecase == USECASE_AUDIO_PLAYBACK_AFE_PROXY)
                 ret = pcm_mmap_write(out->pcm, (void *)buffer, bytes);
-            else
-                ret = pcm_write(out->pcm, (void *)buffer, bytes);
+            else {
+                if (out->muted && (out->usecase == USECASE_AUDIO_PLAYBACK_DEEP_BUFFER ||
+                    out->usecase == USECASE_AUDIO_PLAYBACK_LOW_LATENCY) &&
+                    get_usecase_from_list(adev, USECASE_AUDIO_PLAYBACK_HAPTIC) != NULL) {
+                    ret = 0;
+                } else {
+                    ret = pcm_write(out->pcm, (void *)buffer, bytes);
+                }
+            }
             if (ret < 0)
                 ret = -errno;
             else if (ret == 0)
