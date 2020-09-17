@@ -2626,7 +2626,9 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
                     /* get the input with the highest priority source*/
                     priority_in = get_priority_input(adev);
 
-                    if (!priority_in)
+                    /* prefer current input if its source is equally the highest */
+                    if (!priority_in ||
+                        (priority_in->source == usecase->stream.in->source))
                         priority_in = usecase->stream.in;
                 }
 
@@ -5562,18 +5564,20 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
             ret = voice_extn_compress_voip_start_output_stream(out);
         else
             ret = start_output_stream(out);
-        pthread_mutex_unlock(&adev->lock);
         /* ToDo: If use case is compress offload should return 0 */
         if (ret != 0) {
             out->standby = true;
+            pthread_mutex_unlock(&adev->lock);
             goto exit;
         }
         out->started = 1;
-        if (last_known_cal_step != -1) {
+
+        if ((last_known_cal_step != -1) && (adev->platform != NULL)) {
             ALOGD("%s: retry previous failed cal level set", __func__);
-            audio_hw_send_gain_dep_calibration(last_known_cal_step);
+            platform_send_gain_dep_cal(adev->platform, last_known_cal_step);
             last_known_cal_step = -1;
         }
+        pthread_mutex_unlock(&adev->lock);
 
         if ((out->is_iec61937_info_available == true) &&
             (audio_extn_passthru_is_passthrough_stream(out))&&
@@ -9080,6 +9084,7 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
                 config->sample_rate == 48000) &&
                channel_count == 1) {
         in->usecase = USECASE_AUDIO_RECORD_VOIP;
+        in->realtime = false;
         in->config = pcm_config_audio_capture;
         frame_size = audio_stream_in_frame_size(&in->stream);
         buffer_size = get_stream_buffer_size(VOIP_CAPTURE_PERIOD_DURATION_MSEC,
