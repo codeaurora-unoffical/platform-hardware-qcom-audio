@@ -284,6 +284,7 @@ typedef enum render_mode {
     RENDER_MODE_AUDIO_MASTER,
     RENDER_MODE_AUDIO_STC_MASTER,
     RENDER_MODE_AUDIO_TTP,
+    RENDER_MODE_AUDIO_TTP_PASS_THROUGH,
 } render_mode_t;
 
 /* Parameter to be passed when clock switch is needed */

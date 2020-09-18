@@ -2637,6 +2637,8 @@ int audio_extn_utils_compress_set_render_mode_v2(struct compress *compr,
         metadata.value[0] = SNDRV_COMPRESS_RENDER_MODE_STC_MASTER;
     } else if (render_mode == RENDER_MODE_AUDIO_TTP) {
         metadata.value[0] = SNDRV_COMPRESS_RENDER_MODE_TTP;
+    } else if (render_mode == RENDER_MODE_AUDIO_TTP_PASS_THROUGH) {
+        metadata.value[0] = SNDRV_COMPRESS_RENDER_MODE_TTP_PASS_THROUGH;
     } else {
         ret = 0;
         ALOGE("%s:: invalid render mode %d", __func__, render_mode);
