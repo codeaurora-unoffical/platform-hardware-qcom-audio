@@ -1468,13 +1468,12 @@ static void *partial_drain_thread_loop(void *context)
             }
         free(cmd);
     }
-    while (!list_empty(&out->partial_drain_cmd_list)) {
-        item = list_head(&out->partial_drain_cmd_list);
+    while (!list_empty(&out->offload_cmd_list)) {
+        item = list_head(&out->offload_cmd_list);
         list_remove(item);
         free(node_to_item(item, struct offload_cmd, node));
     }
-    pthread_mutex_unlock(&out->partial_drain_lock);
-    return NULL;
+        return NULL;
 }
 
 static void *offload_thread_loop(void *context)
