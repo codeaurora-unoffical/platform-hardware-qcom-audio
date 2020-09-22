@@ -4516,8 +4516,12 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
             bool same_dev = out->devices == new_dev;
             out->devices = new_dev;
 
-            if (output_drives_call(adev, out))
-                ret = voice_start_call(adev, out->usecase);
+            if (output_drives_call(adev, out)) {
+                if (!voice_is_call_state_active(adev))
+                    ret = voice_start_call(adev, out->usecase);
+                else
+                    voice_update_devices_for_all_voice_usecases(adev);
+            }
 
             if (!out->standby) {
                 if (!same_dev) {
