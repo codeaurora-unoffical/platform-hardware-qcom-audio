@@ -6309,7 +6309,8 @@ static int in_set_gain(struct audio_stream_in *stream,
         return -EINVAL;
 
     /* in_set_gain() only used to silence MMAP capture for now */
-    if (in->usecase != USECASE_AUDIO_RECORD_MMAP)
+    if ((in->usecase != USECASE_AUDIO_RECORD_MMAP) &&
+        (in->usecase != USECASE_AUDIO_RECORD))
         return -ENOSYS;
 
     snprintf(mixer_ctl_name, sizeof(mixer_ctl_name), "Capture %d Volume", in->pcm_device_id);

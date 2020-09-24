@@ -464,6 +464,11 @@ int qahw_out_set_volume(qahw_stream_handle_t *out_handle, float left, float righ
     }
 }
 
+int qahw_in_set_volume(qahw_stream_handle_t *in_handle, float left, float right)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_in_set_volume_l(in_handle, left, right);
+}
 ssize_t qahw_out_write(qahw_stream_handle_t *out_handle,
                         qahw_out_buffer_t *out_buf)
 {
@@ -1569,6 +1574,11 @@ int qahw_out_set_volume(qahw_stream_handle_t *out_handle, float left, float righ
     return qahw_out_set_volume_l(out_handle, left, right);
 }
 
+int qahw_in_set_volume(qahw_stream_handle_t *in_handle, float left, float right)
+{
+    ALOGV("%d:%s",__LINE__, __func__);
+    return qahw_in_set_volume_l(in_handle, left, right);
+}
 ssize_t qahw_out_write(qahw_stream_handle_t *out_handle,
                         qahw_out_buffer_t *out_buf)
 {
@@ -2142,6 +2152,10 @@ int qahw_stream_open(qahw_module_handle_t *hw_module,
 
     memset(stream, 0, sizeof(qahw_api_stream_t));
     memset(vols, 0, sizeof(struct qahw_channel_vol)*QAHW_CHANNELS_MAX);
+    vols[0].channel = QAHW_CHANNEL_L;
+    vols[0].vol = 1;
+    vols[1].channel = QAHW_CHANNEL_R;
+    vols[1].vol = 1;
     stream->dir = attr.direction;
     stream->hw_module = hw_module;
     stream->num_of_devices = num_of_devices;
@@ -2611,18 +2625,26 @@ int qahw_stream_set_volume(qahw_stream_handle_t *stream_handle,
                 r_found = true;
             }
         }
-        if(l_found && r_found) {
-            rc = qahw_out_set_volume(stream->out_stream,
-                                     left, right);
-            /* Cache volume if applied successfully */
+        if((l_found && r_found) && (left == right)) {
+            switch (stream->dir) {
+            case QAHW_STREAM_INPUT:
+                rc = qahw_in_set_volume(stream->in_stream,
+                                         left, right);
+                break;
+            default:
+                rc = qahw_out_set_volume(stream->out_stream,
+                                         left, right);
+                break;
+            }
+                /* Cache volume if applied successfully */
             if (!rc) {
                 for(i=0; i < vol_data.num_of_channels; i++) {
                     stream->vol.vol_pair[i] = vol_data.vol_pair[i];
                 }
             }
         } else
-            ALOGE("%s: setting vol requires left and right channel vol\n",
-                  __func__);
+            ALOGE("%s: vol setting requires equal value for both left and \
+                  right channels\n", __func__);
     } else {
         ALOGE("%s: invalid input \n", __func__);
     }
@@ -2674,7 +2696,6 @@ int qahw_stream_set_mute(qahw_stream_handle_t *stream_handle,
     int rc = -EINVAL;
     qahw_module_handle_t *hw_module;
     qahw_api_stream_t *stream = (qahw_api_stream_t *)stream_handle;
-    char *mute_param;
 
     if (!stream) {
         ALOGE("%s: invalid stream handle", __func__);
@@ -2687,19 +2708,46 @@ int qahw_stream_set_mute(qahw_stream_handle_t *stream_handle,
     }
 
     ALOGV("%d:%s start",__LINE__, __func__);
-    mute_param = qahw_get_device_mute_info(mute_data);
-
-    if (mute_param == NULL)
-        return rc;
-
     if ((stream->type == QAHW_VOICE_CALL) ||(stream->type == QAHW_ECALL)) {
+        char *mute_param;
+
+        mute_param = qahw_get_device_mute_info(mute_data);
+        if (mute_param == NULL)
+            return rc;
+
         int mutelen =  strlen(mute_param);
         mute_param[mutelen] = ';';
         mute_param[mutelen + 1] = '\0';
         strlcat(mute_param,stream->sess_id_call_state, QAHW_KV_PAIR_LENGTH);
-    }
+        rc = qahw_set_parameters(stream->hw_module, mute_param);
+    } else {
+        struct qahw_volume_data *strmVol = NULL;
+        if (mute_data.enable == true) {
+            struct qahw_volume_data vol;
+            struct qahw_channel_vol vol_pair[QAHW_CHANNELS_MAX];
+            struct qahw_channel_vol tmp_vol_pair[QAHW_CHANNELS_MAX];
 
-    rc = qahw_set_parameters(stream->hw_module, mute_param);
+            vol_pair[0].channel = QAHW_CHANNEL_L;
+            vol_pair[0].vol = 0;
+            vol_pair[1].channel = QAHW_CHANNEL_R;
+            vol_pair[1].vol = 0;
+            vol.num_of_channels = QAHW_CHANNELS_MAX;
+            vol.vol_pair = vol_pair;
+
+            qahw_stream_get_volume(stream_handle, &strmVol);
+            for (unsigned int i = 0; i < strmVol->num_of_channels; i++)
+                tmp_vol_pair[i] = strmVol->vol_pair[i];
+
+            rc = qahw_stream_set_volume(stream_handle, vol);
+            for (unsigned int i = 0; i < strmVol->num_of_channels; i++)
+                strmVol->vol_pair[i] = tmp_vol_pair[i];
+
+        } else {
+
+            qahw_stream_get_volume(stream_handle, &strmVol);
+            rc = qahw_stream_set_volume(stream_handle, *strmVol);
+        }
+    }
 
     if(!rc){
         switch(mute_data.direction) {
