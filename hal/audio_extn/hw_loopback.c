@@ -1119,8 +1119,7 @@ int audio_extn_hw_loopback_set_audio_port_config(struct audio_hw_device *dev,
         port_out->sample_rate = config->sample_rate;
 
     /* Convert gain in millibels to ratio and convert to Q13 */
-    loopback_gain = pow(10, (float)((float)port_out->gain.values[0]/2000)) *
-                       (1 << 13);
+    loopback_gain = ((float)port_out->gain.values[0]/2000) * (1 << 13);
     ALOGV("%s, Port config gain_in_mbells: %d, gain_in_q13 : %d", __func__,
           port_out->gain.values[0], loopback_gain);
     if((port_out->config_mask & AUDIO_PORT_CONFIG_GAIN) &&
