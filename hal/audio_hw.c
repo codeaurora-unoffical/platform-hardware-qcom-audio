@@ -1404,7 +1404,6 @@ static snd_device_t derive_playback_snd_device(void * platform,
     snd_device_t d2 = new_snd_device;
 
     switch (uc->type) {
-        case TRANSCODE_LOOPBACK_RX :
         case AFE_LOOPBACK:
         case DTMF_PLAYBACK:
             a1 = uc->stream.inout->out_config.devices;
@@ -1473,16 +1472,8 @@ static snd_device_t derive_capture_snd_device(void * platform,
     snd_device_t d1 = uc->in_snd_device;
     snd_device_t d2 = new_snd_device;
 
-    switch (uc->type) {
-        case TRANSCODE_LOOPBACK_TX:
-            a1 = uc->stream.inout->in_config.devices;
-            a2 = new_uc->stream.inout->in_config.devices;
-            break;
-        default :
-            a1 = uc->stream.in->device;
-            a2 = new_uc->stream.in->device;
-            break;
-    }
+    a1 = uc->stream.in->device;
+    a2 = new_uc->stream.in->device;
 
     // Treat as a special case when a1 and a2 are not disjoint
     if ((a1 != a2) && (a1 & a2)) {
@@ -1997,8 +1988,10 @@ struct stream_in *get_next_active_input(const struct audio_device *adev)
 
     list_for_each_reverse(node, &adev->usecase_list) {
         usecase = node_to_item(node, struct audio_usecase, list);
-        if (usecase->type == PCM_CAPTURE)
+        if ((usecase->type == PCM_CAPTURE) ||
+            (usecase->type == TRANSCODE_LOOPBACK_TX)) {
             return usecase->stream.in;
+        }
     }
     return NULL;
 }
@@ -2278,8 +2271,7 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
             in_snd_device = platform_get_input_snd_device(adev->platform, usecase->stream.out->devices);
         }
         usecase->devices = usecase->stream.out->devices;
-    } else if ((usecase->type == TRANSCODE_LOOPBACK_RX)
-            || (usecase->type == DTMF_PLAYBACK)) {
+    } else if (usecase->type == DTMF_PLAYBACK) {
         if (usecase->stream.inout == NULL) {
             ALOGE("%s: stream.inout is NULL", __func__);
             return -EINVAL;
@@ -2290,12 +2282,6 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
         stream_out.channel_mask = usecase->stream.inout->out_config.channel_mask;
         out_snd_device = platform_get_output_snd_device(adev->platform,
                                                         &stream_out);
-    } else if (usecase->type == TRANSCODE_LOOPBACK_TX ) {
-        if (usecase->stream.inout == NULL) {
-            ALOGE("%s: stream.inout is NULL", __func__);
-            return -EINVAL;
-        }
-        in_snd_device = platform_get_input_snd_device(adev->platform, AUDIO_DEVICE_NONE);
     } else if (usecase->type == AFE_LOOPBACK) {
         if (usecase->stream.inout == NULL) {
             ALOGE("%s: stream.inout is NULL", __func__);
@@ -2358,7 +2344,8 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
                    out_snd_device = hfp_usecase->out_snd_device;
             }
         }
-        if (usecase->type == PCM_PLAYBACK) {
+        if ((usecase->type == PCM_PLAYBACK) ||
+            (usecase->type == TRANSCODE_LOOPBACK_RX)) {
             if (usecase->stream.out == NULL) {
                 ALOGE("%s: stream.out is NULL", __func__);
                 return -EINVAL;
@@ -2385,7 +2372,8 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
                     select_devices(adev, adev->active_input->usecase);
                 }
             }
-        } else if (usecase->type == PCM_CAPTURE) {
+        } else if ((usecase->type == PCM_CAPTURE) ||
+                   (usecase->type == TRANSCODE_LOOPBACK_TX)) {
             if (usecase->stream.in == NULL) {
                 ALOGE("%s: stream.in is NULL", __func__);
                 return -EINVAL;
