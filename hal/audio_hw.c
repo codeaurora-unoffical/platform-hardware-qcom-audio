@@ -1555,7 +1555,6 @@ static snd_device_t derive_playback_snd_device(void * platform,
     snd_device_t d2 = new_snd_device;
 
     switch (uc->type) {
-        case TRANSCODE_LOOPBACK_RX :
         case AFE_LOOPBACK:
         case DTMF_PLAYBACK:
             a1 = uc->stream.inout->out_config.devices;
@@ -1621,16 +1620,8 @@ static snd_device_t derive_capture_snd_device(void * platform,
     snd_device_t d1 = uc->in_snd_device;
     snd_device_t d2 = new_snd_device;
 
-    switch (uc->type) {
-        case TRANSCODE_LOOPBACK_TX:
-            a1 = uc->stream.inout->in_config.devices;
-            a2 = new_uc->stream.inout->in_config.devices;
-            break;
-        default :
-            a1 = uc->stream.in->device;
-            a2 = new_uc->stream.in->device;
-            break;
-    }
+    a1 = uc->stream.in->device;
+    a2 = new_uc->stream.in->device;
 
     // Treat as a special case when a1 and a2 are not disjoint
     if ((a1 != a2) && (a1 & a2)) {
@@ -2195,6 +2186,21 @@ struct audio_usecase *get_usecase_from_list(const struct audio_device *adev,
     return NULL;
 }
 
+struct stream_in *get_next_active_input(const struct audio_device *adev)
+{
+    struct audio_usecase *usecase;
+    struct listnode *node;
+
+    list_for_each_reverse(node, &adev->usecase_list) {
+        usecase = node_to_item(node, struct audio_usecase, list);
+        if ((usecase->type == PCM_CAPTURE) ||
+            (usecase->type == TRANSCODE_LOOPBACK_TX)) {
+            return usecase->stream.in;
+        }
+    }
+    return NULL;
+}
+
 /*
  * is a true native playback active
  */
@@ -2624,8 +2630,7 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
                                                           usecase->stream.out->devices);
         }
         usecase->devices = usecase->stream.out->devices;
-    } else if ((usecase->type == TRANSCODE_LOOPBACK_RX)
-            || (usecase->type == DTMF_PLAYBACK)) {
+    } else if (usecase->type == DTMF_PLAYBACK) {
         if (usecase->stream.inout == NULL) {
             ALOGE("%s: stream.inout is NULL", __func__);
             return -EINVAL;
@@ -2707,7 +2712,8 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
                    out_snd_device = hfp_usecase->out_snd_device;
             }
         }
-        if (usecase->type == PCM_PLAYBACK) {
+        if ((usecase->type == PCM_PLAYBACK) ||
+            (usecase->type == TRANSCODE_LOOPBACK_RX)) {
             if (usecase->stream.out == NULL) {
                 ALOGE("%s: stream.out is NULL", __func__);
                 return -EINVAL;
@@ -2730,7 +2736,8 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
                 if (usecase->stream.out == voip_out && voip_in != NULL)
                     select_devices(adev, voip_in->usecase);
             }
-        } else if (usecase->type == PCM_CAPTURE) {
+        } else if ((usecase->type == PCM_CAPTURE) ||
+                   (usecase->type == TRANSCODE_LOOPBACK_TX)) {
             if (usecase->stream.in == NULL) {
                 ALOGE("%s: stream.in is NULL", __func__);
                 return -EINVAL;
@@ -3139,13 +3146,12 @@ int start_input_stream(struct stream_in *in)
             *  In case of MI2S backend, DSD data comes in 32bit and each data line of MI2S
             *  holds one channel of DSD. The number of channels are multiplied by 2 to properly
             *  configure the MI2S data lines and FE should also have same number of channels to
-            *  avoid processing in ADSP.
+            *  avoid processing in ADSP. So the actual channel count is half of the config channels.
             */
-            in->config.channels = in->config.channels << 1;
             in->channel_mask = audio_extn_get_dsd_in_ch_mask(in->config.channels);
-            /* sampling rate of backend should be DSD bit rate / (bitwidth of BE * 2).
-             * In case of DSD128, 44.1KHz DSD  backend sampling rate would be 44.1K * 128/64
-             */
+            /* Sampling rate of backend should be DSD bit rate / (bitwidth of BE * 2).
+            * In case of DSD128, 44.1KHz DSD  backend sampling rate would be 44.1K * 128/64
+            */
             in->sample_rate = in->sample_rate * audio_extn_get_mi2s_be_dsd_rate_mul_factor(in->dsd_format);
             in->dsd_config_updated = true;
         }
@@ -8055,10 +8061,14 @@ int adev_open_output_stream(struct audio_hw_device *dev,
             (flags & AUDIO_OUTPUT_FLAG_HW_AV_SYNC)) {
             out->render_mode = RENDER_MODE_AUDIO_STC_MASTER;
         } else if(flags & AUDIO_OUTPUT_FLAG_TIMESTAMP) {
-            if (property_get_bool("persist.vendor.audio.ttp.render.mode", false))
-                out->render_mode = RENDER_MODE_AUDIO_TTP;
-            else
+            if (property_get_bool("persist.vendor.audio.ttp.render.mode", false)) {
+                if (out->devices & AUDIO_DEVICE_OUT_ALL_A2DP)
+                    out->render_mode = RENDER_MODE_AUDIO_TTP_PASS_THROUGH;
+                else
+                    out->render_mode = RENDER_MODE_AUDIO_TTP;
+            } else {
                 out->render_mode = RENDER_MODE_AUDIO_MASTER;
+            }
         } else {
             out->render_mode = RENDER_MODE_AUDIO_NO_TIMESTAMP;
         }
