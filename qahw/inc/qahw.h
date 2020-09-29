@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2011 The Android Open Source Project *
@@ -172,6 +172,15 @@ uint32_t qahw_out_get_latency_l(const qahw_stream_handle_t *stream);
  * codecs, such as MP3 or AAC.
  */
 int qahw_out_set_volume_l(qahw_stream_handle_t *stream, float left, float right);
+
+/*
+ * Use this method in situations where audio mixing is done in the
+ * hardware. This method serves as a direct interface with hardware,
+ * allowing you to directly set the volume as apposed to via the framework.
+ * This method might produce multiple PCM inputs or hardware accelerated
+ * codecs
+ */
+int qahw_in_set_volume_l(qahw_stream_handle_t *stream, float left, float right);
 
 /*
  * Write audio buffer present in meta_data starting from offset
