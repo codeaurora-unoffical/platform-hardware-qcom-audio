@@ -4207,7 +4207,7 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
     }
 
     for (i = 0; i < num_devices; i++) {
-        if (!is_incall_rec_usecase)
+        if ((!is_incall_rec_usecase) || ((usecase->type == PCM_HFP_CALL) && is_bus_dev_usecase))
             acdb_dev_id = acdb_device_table[platform_get_spkr_prot_snd_device(new_snd_device[i])];
         else
             // Use in_call_rec snd_device to extract the ACDB device ID instead of split snd devices
