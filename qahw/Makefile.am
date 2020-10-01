@@ -1,4 +1,8 @@
-AM_CFLAGS = -I $(top_srcdir)/inc
+AM_CFLAGS = -I $(top_srcdir)/inc \
+            -I ${WORKSPACE}/system/media/audio_effects/include \
+            -I ${WORKSPACE}/frameworks/audio_utils/include \
+            -I ${WORKSPACE}/frameworks/include/media \
+            -I ${WORKSPACE}/hardware/libhardware/include
 
 h_sources = inc/qahw.h \
             inc/qahw_effect_api.h

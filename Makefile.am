@@ -1,4 +1,4 @@
-SUBDIRS = hal post_proc
+SUBDIRS = hal-qal
 
 if QAHW_SUPPORT
 SUBDIRS += qahw_api qahw_api/test

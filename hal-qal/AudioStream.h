@@ -44,6 +44,10 @@
 #include <mutex>
 #include <map>
 
+#ifdef LINUX_ENABLED
+#include <condition_variable>
+#endif
+
 #define LOW_LATENCY_PLATFORM_DELAY (13*1000LL)
 #define DEEP_BUFFER_PLATFORM_DELAY (29*1000LL)
 #define PCM_OFFLOAD_PLATFORM_DELAY (30*1000LL)
@@ -105,7 +109,9 @@
  * Refer to pcm_device_table[].
  */
 enum {
+#if !LINUX_ENABLED
     USECASE_INVALID = -1,
+#endif
     /* Playback usecases */
     USECASE_AUDIO_PLAYBACK_DEEP_BUFFER = 0,
     USECASE_AUDIO_PLAYBACK_LOW_LATENCY,
@@ -274,8 +280,6 @@ const uint32_t format_to_bitwidth_table[] = {
 const char * const use_case_table[AUDIO_USECASE_MAX] = {
     [USECASE_AUDIO_PLAYBACK_DEEP_BUFFER] = "deep-buffer-playback",
     [USECASE_AUDIO_PLAYBACK_LOW_LATENCY] = "low-latency-playback",
-    [USECASE_AUDIO_PLAYBACK_WITH_HAPTICS] = "audio-with-haptics-playback",
-    [USECASE_AUDIO_PLAYBACK_ULL]         = "audio-ull-playback",
     [USECASE_AUDIO_PLAYBACK_MULTI_CH]    = "multi-channel-playback",
     [USECASE_AUDIO_PLAYBACK_OFFLOAD] = "compress-offload-playback",
     //Enabled for Direct_PCM
@@ -287,10 +291,16 @@ const char * const use_case_table[AUDIO_USECASE_MAX] = {
     [USECASE_AUDIO_PLAYBACK_OFFLOAD7] = "compress-offload-playback7",
     [USECASE_AUDIO_PLAYBACK_OFFLOAD8] = "compress-offload-playback8",
     [USECASE_AUDIO_PLAYBACK_OFFLOAD9] = "compress-offload-playback9",
-    [USECASE_AUDIO_PLAYBACK_FM] = "play-fm",
+    [USECASE_AUDIO_PLAYBACK_ULL]         = "audio-ull-playback",
     [USECASE_AUDIO_PLAYBACK_MMAP] = "mmap-playback",
+    [USECASE_AUDIO_PLAYBACK_WITH_HAPTICS] = "audio-with-haptics-playback",
     [USECASE_AUDIO_PLAYBACK_HIFI] = "hifi-playback",
     [USECASE_AUDIO_PLAYBACK_TTS] = "audio-tts-playback",
+
+    [USECASE_AUDIO_PLAYBACK_FM] = "play-fm",
+
+    [USECASE_AUDIO_HFP_SCO] = "hfp-sco",
+    [USECASE_AUDIO_HFP_SCO_WB] = "hfp-sco-wb",
 
     [USECASE_AUDIO_RECORD] = "audio-record",
     [USECASE_AUDIO_RECORD_COMPRESS] = "audio-record-compress",
@@ -301,12 +311,13 @@ const char * const use_case_table[AUDIO_USECASE_MAX] = {
     [USECASE_AUDIO_RECORD_COMPRESS6] = "audio-record-compress6",
     [USECASE_AUDIO_RECORD_LOW_LATENCY] = "low-latency-record",
     [USECASE_AUDIO_RECORD_FM_VIRTUAL] = "fm-virtual-record",
-    [USECASE_AUDIO_RECORD_MMAP] = "mmap-record",
     [USECASE_AUDIO_RECORD_HIFI] = "hifi-record",
 
-    [USECASE_AUDIO_HFP_SCO] = "hfp-sco",
-    [USECASE_AUDIO_HFP_SCO_WB] = "hfp-sco-wb",
+    [USECASE_AUDIO_PLAYBACK_VOIP] = "audio-playback-voip",
+    [USECASE_AUDIO_RECORD_VOIP] = "audio-record-voip",
+
     [USECASE_VOICE_CALL] = "voice-call",
+    [USECASE_AUDIO_RECORD_MMAP] = "mmap-record",
 
     [USECASE_VOICE2_CALL] = "voice2-call",
     [USECASE_VOLTE_CALL] = "volte-call",
@@ -329,14 +340,13 @@ const char * const use_case_table[AUDIO_USECASE_MAX] = {
 
     [USECASE_AUDIO_PLAYBACK_AFE_PROXY] = "afe-proxy-playback",
     [USECASE_AUDIO_RECORD_AFE_PROXY] = "afe-proxy-record",
+    [USECASE_AUDIO_DSM_FEEDBACK] = "dsm-silence",
     [USECASE_AUDIO_PLAYBACK_SILENCE] = "silence-playback",
 
     /* Transcode loopback cases */
     [USECASE_AUDIO_TRANSCODE_LOOPBACK_RX] = "audio-transcode-loopback-rx",
     [USECASE_AUDIO_TRANSCODE_LOOPBACK_TX] = "audio-transcode-loopback-tx",
 
-    [USECASE_AUDIO_PLAYBACK_VOIP] = "audio-playback-voip",
-    [USECASE_AUDIO_RECORD_VOIP] = "audio-record-voip",
     /* For Interactive Audio Streams */
     [USECASE_AUDIO_PLAYBACK_INTERACTIVE_STREAM1] = "audio-interactive-stream1",
     [USECASE_AUDIO_PLAYBACK_INTERACTIVE_STREAM2] = "audio-interactive-stream2",

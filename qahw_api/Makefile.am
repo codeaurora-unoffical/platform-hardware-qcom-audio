@@ -10,6 +10,7 @@ h_sources = inc/qahw_api.h \
 AM_CPPFLAGS := -I $(top_srcdir)/qahw_api/inc/
 AM_CPPFLAGS += -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/mm-audio/audio-hal-server
 AM_CPPFLAGS += -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/mm-audio/qahw/inc
+AM_CPPFLAGS += -I $(top_srcdir)/qahw/inc
 AM_CPPFLAGS += -D__unused=__attribute__\(\(__unused__\)\)
 
 library_include_HEADERS = $(h_sources)

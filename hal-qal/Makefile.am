@@ -1,8 +1,15 @@
-AM_CFLAGS = -I ${WORKSPACE}/system/media/audio_effects/include \
-        -I ${WORKSPACE}/system/media/audio_utils/include \
+AM_CFLAGS = -Wno-narrowing \
+        -I ${WORKSPACE}/system/media/audio_effects/include \
+        -I $(top_srcdir)/hal-qal \
+        -I $(top_srcdir)/hal-qal/audio_extn \
+        -I $(top_srcdir)/hal/audio_extn \
         -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/audio-kernel \
+        -I $(STAGING_INCDIR)
 
-c_sources = audio_hw_qal.cpp
+c_sources = AudioStream.cpp \
+    AudioDevice.cpp \
+    AudioVoice.cpp \
+    audio_extn/AudioExtn.cpp
 
 #if LISTEN
 #AM_CFLAGS += -DAUDIO_LISTEN_ENABLED
@@ -63,22 +70,32 @@ AM_CFLAGS += -DUSE_LL_AS_PRIMARY_OUTPUT
 endif
 
 h_sources = audio_extn/audio_defs.h \
-            audio_hw_qal.h
+            audio_extn/audio_extn.h \
+            audio_extn/AudioExtn.h \
+            AudioDevice.h\
+            AudioStream.h\
+            AudioVoice.h
 
 library_include_HEADERS = $(h_sources)
 library_includedir = $(includedir)
 
 lib_LTLIBRARIES = audio.primary.default.la
 audio_primary_default_la_SOURCES = $(c_sources)
-audio_primary_default_la_LIBADD = $(GLIB_LIBS) -llog -lcutils -ltinyalsa
-audio_primary_default_la_LIBADD += -laudioroute -ldl -lexpat -laudioutils
+audio_primary_default_la_LIBADD = -lglib-2.0 -llog -lcutils -ltinyalsa
+audio_primary_default_la_LIBADD += -laudioroute -ldl -lexpat
 if AUDIO_PARSER
 audio_primary_default_la_LIBADD += -laudioparsers
 endif
 audio_primary_default_la_CFLAGS = $(AM_CFLAGS) $(GLIB_CFLAGS)
-audio_primary_default_la_CFLAGS += -Dstrlcat=g_strlcat
+audio_primary_default_la_CFLAGS += -Dstrlcat=g_strlcat -Dstrlcpy=g_strlcpy -include glib.h
 audio_primary_default_la_CFLAGS += -DINT_MAX=0x7fffffff
 audio_primary_default_la_CFLAGS += -D__unused=__attribute__\(\(__unused__\)\)
 audio_primary_default_la_CFLAGS += -DLINUX_ENABLED $(TARGET_CFLAGS) -DAUDIO_EXTN_FORMATS_ENABLED
 audio_primary_default_la_CFLAGS += -DNDEBUG
 audio_primary_default_la_LDFLAGS = -module -shared -avoid-version
+audio_primary_default_la_CPPFLAGS = $(AM_CFLAGS) $(GLIB_CFLAGS)
+audio_primary_default_la_CPPFLAGS += -Dstrlcat=g_strlcat -Dstrlcpy=g_strlcpy -include glib.h
+audio_primary_default_la_CPPFLAGS += -DINT_MAX=0x7fffffff
+audio_primary_default_la_CPPFLAGS += -D__unused=__attribute__\(\(__unused__\)\)
+audio_primary_default_la_CPPFLAGS += -DLINUX_ENABLED $(TARGET_CFLAGS) -DAUDIO_EXTN_FORMATS_ENABLED
+audio_primary_default_la_CPPFLAGS += -DNDEBUG

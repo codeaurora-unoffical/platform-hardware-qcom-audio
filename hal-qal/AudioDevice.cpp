@@ -57,6 +57,10 @@
 #include "audio_hidl.h"
 #include "battery_listener.h"
 
+#ifdef LINUX_ENABLED
+#include <algorithm>
+#endif
+
 card_status_t AudioDevice::sndCardState = CARD_STATUS_ONLINE;
 
 AudioDevice::~AudioDevice() {

@@ -41,7 +41,11 @@
 #include "AudioStream.h"
 
 #include <log/log.h>
+#ifdef LINUX_ENABLED
+#include <cutils/trace.h>
+#else
 #include <utils/Trace.h>
+#endif
 #include <cutils/properties.h>
 
 #include <chrono>

@@ -144,11 +144,10 @@ AM_CONDITIONAL([LL_AS_PRIMARY_OUTPUT], [test x$AUDIO_USE_LL_AS_PRIMARY_OUTPUT = 
 
 AC_CONFIG_FILES([ \
         Makefile \
-        hal/Makefile \
+        hal-qal/Makefile \
         post_proc/Makefile \
         qahw_api/Makefile \
-        qahw_api/test/Makefile \
-        hdmi_in_test/Makefile
+        qahw_api/test/Makefile
         ])
 
 AC_OUTPUT
