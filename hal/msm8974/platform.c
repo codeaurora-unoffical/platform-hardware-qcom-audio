@@ -7985,7 +7985,9 @@ static int platform_set_hfp_zone(struct platform_data *my_data, uint32_t zone)
     cal.app_type = DEFAULT_APP_TYPE_TX_PATH;
     cal.topo_id = fluence_mmsecns_config.topology_id;
     cal.module_id = fluence_mmsecns_config.module_id;
+#ifdef INSTANCE_ID_ENABLED
     cal.instance_id = fluence_mmsecns_config.instance_id;
+#endif
     cal.param_id = fluence_mmsecns_config.param_id;
 
     if (my_data->acdb_set_audio_cal) {
@@ -8043,7 +8045,9 @@ static int platform_get_hfp_zone(struct platform_data *my_data)
     cal.app_type = DEFAULT_APP_TYPE_TX_PATH;
     cal.topo_id = fluence_mmsecns_config.topology_id;
     cal.module_id = fluence_mmsecns_config.module_id;
+#ifdef INSTANCE_ID_ENABLED
     cal.instance_id = fluence_mmsecns_config.instance_id;
+#endif
     cal.param_id = fluence_mmsecns_config.param_id;
 
     dptr = (uint8_t*)calloc(param_len, sizeof(uint8_t));
