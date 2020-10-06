@@ -573,7 +573,7 @@ struct ldac_enc_cfg_t
  * definition under "LINUX_ENABLED" which is defined only
  * in LE
  */
-//#ifndef LINUX_ENABLED
+#ifndef LINUX_ENABLED
 /* TODO: Define the following structures only for O using PLATFORM_VERSION */
 /* Information about BT SBC encoder configuration
  * This data is used between audio HAL module and
@@ -645,7 +645,7 @@ typedef struct {
     uint32_t bitrate;
     uint32_t bits_per_sample;
 } audio_aac_encoder_config;
-//#endif
+#endif
 
 typedef struct {
     audio_aac_encoder_config audio_aac_enc_cfg;

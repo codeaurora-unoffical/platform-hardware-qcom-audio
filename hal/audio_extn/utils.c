@@ -1301,7 +1301,8 @@ int audio_extn_utils_get_app_sample_rate_for_device(
             usecase->stream.out->app_type_cfg.sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
         } else if ((snd_device == SND_DEVICE_OUT_HDMI ||
                     snd_device == SND_DEVICE_OUT_USB_HEADSET ||
-                    snd_device == SND_DEVICE_OUT_DISPLAY_PORT) &&
+                    snd_device == SND_DEVICE_OUT_DISPLAY_PORT ||
+                    audio_extn_utils_is_spdif_snd_device(snd_device)) &&
                    (usecase->stream.out->sample_rate >= OUTPUT_SAMPLING_RATE_44100)) {
              /*
               * To best utlize DSP, check if the stream sample rate is supported/multiple of
@@ -1521,8 +1522,8 @@ static int send_app_type_cfg_for_device(struct audio_device *adev,
     } else {
         app_type = platform_get_default_app_type_v2(adev->platform, usecase->type);
         if(usecase->type == TRANSCODE_LOOPBACK_RX) {
-            app_type = usecase->stream.inout->out_app_type_cfg.app_type;
-            sample_rate = usecase->stream.inout->out_config.sample_rate;
+            app_type = usecase->stream.out->app_type_cfg.app_type;
+            sample_rate = usecase->stream.out->sample_rate;
         }
         app_type_cfg[len++] = app_type;
         app_type_cfg[len++] = acdb_dev_id;

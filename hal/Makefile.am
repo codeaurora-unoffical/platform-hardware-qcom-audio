@@ -32,10 +32,10 @@ c_sources += audio_extn/fm.c
 c_sources += audio_extn/usb.c
 #endif
 
-if HFP
-AM_CFLAGS += -DHFP_ENABLED
-c_sources += audio_extn/hfp.c
-endif
+#if HFP
+#AM_CFLAGS += -DHFP_ENABLED
+#c_sources += audio_extn/hfp.c
+#endif
 
 #if SSR
 #AM_CFLAGS += -DSSR_ENABLED

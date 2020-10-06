@@ -667,7 +667,13 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_OUT_SPEAKER_SAFE_AND_BT_SCO_SWB] = "speaker-safe-and-bt-sco-swb",
     [SND_DEVICE_OUT_SPEAKER_WSA_AND_BT_SCO] = "wsa-speaker-and-bt-sco",
     [SND_DEVICE_OUT_SPEAKER_WSA_AND_BT_SCO_WB] = "wsa-speaker-and-bt-sco-wb",
-    [SND_DEVICE_OUT_SPEAKER_WSA_AND_BT_SCO_SWB] = "wsa-speaker-and-bt-sco-wb",
+    [SND_DEVICE_OUT_SPEAKER_WSA_AND_BT_SCO_SWB] = "wsa-speaker-and-bt-sco-swb",
+    [SND_DEVICE_OUT_SPEAKER2] = "speaker2",
+    [SND_DEVICE_OUT_SPEAKER3] = "speaker3",
+    [SND_DEVICE_OUT_VOICE_DL_TX] = "voice-dl-tx",
+    [SND_DEVICE_OUT_ECALL] = "handset",
+    [SND_DEVICE_OUT_SPDIF] = "spdif",
+    [SND_DEVICE_OUT_OPTICAL] = "optical",
     [SND_DEVICE_OUT_VOICE_HEARING_AID] = "hearing-aid",
     [SND_DEVICE_OUT_BUS_MEDIA] = "bus-speaker",
     [SND_DEVICE_OUT_BUS_SYS] = "bus-speaker",
@@ -2908,7 +2914,6 @@ static int platform_acdb_init(void *platform)
     }
 
     snd_card_name = mixer_get_name(my_data->adev->mixer);
-    snd_card_name = platform_get_snd_card_name_for_acdb_loader(snd_card_name);
     if (!snd_card_name) {
         ALOGE("Failed to get snd_card_name");
         goto cleanup;
@@ -6905,6 +6910,11 @@ snd_device_t platform_get_output_snd_device(void *platform, struct stream_out *o
         audio_extn_set_afe_proxy_channel_mixer(adev, channel_count, snd_device);
     } else if (devices & AUDIO_DEVICE_OUT_BUS) {
         snd_device = audio_extn_auto_hal_get_output_snd_device(adev, out->usecase);
+    } else if (audio_extn_utils_is_spdif_device(devices)) {
+       if (devices & AUDIO_DEVICE_OUT_SPDIF)
+           snd_device = SND_DEVICE_OUT_SPDIF;
+       else if (devices & AUDIO_DEVICE_OUT_OPTICAL)
+           snd_device = SND_DEVICE_OUT_OPTICAL;
     } else {
         ALOGE("%s: Unknown device(s) %#x", __func__, devices);
     }
@@ -11168,8 +11178,6 @@ int platform_set_channel_map(void *platform, int ch_count, char *ch_map, int snd
      */
     if (snd_id >= 0) {
         snprintf(mixer_ctl_name, sizeof(mixer_ctl_name), "Playback Channel Map%d", snd_id);
-    } else if (snd_id == -2) {
-        strlcpy(mixer_ctl_name, "Capture Device Channel Map", sizeof(mixer_ctl_name));
     } else {
         if (be_idx >= 0) {
             be_ctl = mixer_get_ctl_by_name(adev->mixer, be_mixer_ctl_name);
@@ -11224,7 +11232,6 @@ int platform_set_channel_map(void *platform, int ch_count, char *ch_map, int snd
     ALOGD("%s: set mapping(%ld %ld %ld %ld %ld %ld %ld %ld) for channel:%d", __func__,
         set_values[0], set_values[1], set_values[2], set_values[3], set_values[4],
         set_values[5], set_values[6], set_values[7], ch_count);
-
     if (be_idx >= 0) {
         be_set_values[0] = be_idx;
         memcpy(&be_set_values[1], set_values, sizeof(long) * ch_count);
@@ -11318,7 +11325,9 @@ void platform_check_and_update_copp_sample_rate(void* platform, snd_device_t snd
 
     if ((snd_device == SND_DEVICE_OUT_HDMI) || (snd_device == SND_DEVICE_OUT_DISPLAY_PORT) ||
                   (snd_device == SND_DEVICE_OUT_DISPLAY_PORT1) ||
-                  (snd_device == SND_DEVICE_OUT_USB_HEADSET))
+                  (snd_device == SND_DEVICE_OUT_USB_HEADSET) ||
+                  (snd_device == SND_DEVICE_OUT_SPDIF) ||
+                  (snd_device == SND_DEVICE_OUT_OPTICAL))
         *sample_rate = platform_get_supported_copp_sampling_rate(stream_sr);
 
      ALOGI("sn_device %d device sr %d stream sr %d copp sr %d", snd_device, device_sr, stream_sr, *sample_rate);

@@ -1832,6 +1832,7 @@ static void check_usecases_capture_codec_backend(struct audio_device *adev,
 {
     struct listnode *node;
     struct audio_usecase *usecase;
+    snd_device_t uc_derive_snd_device;
     snd_device_t derive_snd_device[AUDIO_USECASE_MAX] = {0};
     bool switch_device[AUDIO_USECASE_MAX];
     int i, num_uc_to_switch = 0;
@@ -1868,22 +1869,25 @@ static void check_usecases_capture_codec_backend(struct audio_device *adev,
          * TODO: Enhance below condition to handle BT sco/USB multi recording
          */
         if (usecase->type != PCM_PLAYBACK &&
-                usecase != uc_info &&
-                               (usecase->in_snd_device != snd_device || force_routing) &&
-                                (((uc_info->devices & backend_check_cond) &&
-                                 (((usecase->devices & ~AUDIO_DEVICE_BIT_IN) & AUDIO_DEVICE_IN_ALL_CODEC_BACKEND) ||
-                                  (usecase->type == VOIP_CALL))) ||
-                                  ((uc_info->type == VOICE_CALL &&
-                                   usecase->devices == AUDIO_DEVICE_IN_VOICE_CALL) ||
-                     platform_check_backends_match(snd_device,\
-                                              usecase->in_snd_device))) &&
-                   (usecase->id != USECASE_AUDIO_SPKR_CALIB_TX)) {
-                   ALOGV("%s: Usecase (%s) is active on (%s) - disabling ..",
-                         __func__, use_case_table[usecase->id],
-                   platform_get_snd_device_name(usecase->in_snd_device));
-                   disable_audio_route(adev, usecase);
-                   switch_device[usecase->id] = true;
-                   num_uc_to_switch++;
+                usecase != uc_info) {
+            uc_derive_snd_device = derive_capture_snd_device(adev->platform,
+                                               usecase, uc_info, snd_device);
+            ALOGD("%s: usecase snd device %d, derived snd device %d",
+                   __func__, usecase->in_snd_device, uc_derive_snd_device);
+            if ((uc_derive_snd_device != usecase->in_snd_device || force_routing) &&
+                ((uc_info->devices & backend_check_cond) &&
+                 (((usecase->devices & ~AUDIO_DEVICE_BIT_IN) & AUDIO_DEVICE_IN_ALL_CODEC_BACKEND) ||
+                  (usecase->type == VOIP_CALL))) &&
+                (usecase->id != USECASE_AUDIO_SPKR_CALIB_TX)) {
+                ALOGV("%s: Usecase (%s) is active on (%s) - disabling ..",
+                       __func__, use_case_table[usecase->id],
+                       platform_get_snd_device_name(usecase->in_snd_device));
+                disable_audio_route(adev, usecase);
+                switch_device[usecase->id] = true;
+                /* Enable existing usecase on derived record device */
+                derive_snd_device[usecase->id] = uc_derive_snd_device;
+                num_uc_to_switch++;
+            }
         }
     }
 
@@ -2642,13 +2646,6 @@ int select_devices(struct audio_device *adev, audio_usecase_t uc_id)
         out_snd_device = platform_get_output_snd_device(adev->platform,
                                                         &stream_out);
         usecase->devices = out_snd_device;
-    } else if (usecase->type == TRANSCODE_LOOPBACK_TX ) {
-        if (usecase->stream.inout == NULL) {
-            ALOGE("%s: stream.inout is NULL", __func__);
-            return -EINVAL;
-        }
-        in_snd_device = platform_get_input_snd_device(adev->platform, NULL, AUDIO_DEVICE_NONE);
-        usecase->devices = in_snd_device;
     } else if (usecase->type == AFE_LOOPBACK) {
         if (usecase->stream.inout == NULL) {
             ALOGE("%s: stream.inout is NULL", __func__);
@@ -3117,7 +3114,8 @@ int start_input_stream(struct stream_in *in)
     if (get_usecase_from_list(adev, in->usecase) != NULL) {
         ALOGE("%s: use case assigned already in use, stream(%p)usecase(%d: %s)",
             __func__, &in->stream, in->usecase, use_case_table[in->usecase]);
-        return -EINVAL;
+        ret = -EINVAL;
+        goto error_config;
     }
 
     in->pcm_device_id = platform_get_pcm_device_id(in->usecase, PCM_CAPTURE);
@@ -3171,9 +3169,6 @@ int start_input_stream(struct stream_in *in)
                                  adev->perf_lock_opts_size);
 
     select_devices(adev, in->usecase);
-    if (audio_extn_ext_hw_plugin_usecase_start(adev->ext_hw_plugin, uc_info))
-        ALOGE("%s: failed to start ext hw plugin", __func__);
-
     if (audio_extn_ext_hw_plugin_usecase_start(adev->ext_hw_plugin, uc_info))
         ALOGE("%s: failed to start ext hw plugin", __func__);
 
@@ -3276,9 +3271,6 @@ int start_input_stream(struct stream_in *in)
     if (is_loopback_input_device(in->device))
         audio_extn_keep_alive_start(KEEP_ALIVE_OUT_PRIMARY);
 
-    if (is_loopback_input_device(in->device))
-        audio_extn_keep_alive_start(KEEP_ALIVE_OUT_PRIMARY);
-
 done_open:
     audio_streaming_hint_end();
     audio_extn_perf_lock_release(&adev->perf_lock_handle);
@@ -3292,6 +3284,8 @@ error_open:
     stop_input_stream(in);
 
 error_config:
+    if (audio_extn_cin_attached_usecase(in))
+        audio_extn_cin_close_input_stream(in);
     /*
      * sleep 50ms to allow sufficient time for kernel
      * drivers to recover incases like SSR.
@@ -3940,9 +3934,6 @@ int start_output_stream(struct stream_out *out)
         out->usecase == USECASE_INCALL_MUSIC_UPLINK2) {
         voice_set_device_mute_flag(adev, true);
     }
-
-    if (audio_extn_ext_hw_plugin_usecase_start(adev->ext_hw_plugin, uc_info))
-        ALOGE("%s: failed to start ext hw plugin", __func__);
 
     if (audio_extn_ext_hw_plugin_usecase_start(adev->ext_hw_plugin, uc_info))
         ALOGE("%s: failed to start ext hw plugin", __func__);
@@ -9450,6 +9441,22 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
         pthread_mutex_lock(&adev->lock);
         ret_val = audio_extn_check_and_set_multichannel_usecase(adev,
                in, config, &channel_mask_updated);
+#ifdef CONCURRENT_CAPTURE_ENABLED
+        /* Acquire lock to avoid two concurrent use cases initialized to
+         * same pcm record use case*/
+
+        if(in->usecase == USECASE_AUDIO_RECORD) {
+           if (!(adev->pcm_record_uc_state)) {
+                ALOGV("%s: using USECASE_AUDIO_RECORD",__func__);
+                adev->pcm_record_uc_state = 1;
+           } else {
+           /* Assign compress record use case for second record */
+                in->usecase = USECASE_AUDIO_RECORD_COMPRESS2;
+                in->flags |= AUDIO_INPUT_FLAG_COMPRESS;
+                ALOGV("%s: overriding usecase with USECASE_AUDIO_RECORD_COMPRESS2 and appending compress flag", __func__);
+           }
+        }
+#endif
         pthread_mutex_unlock(&adev->lock);
 
         if (!ret_val) {
@@ -9469,6 +9476,7 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
             ret = audio_extn_cin_configure_input_stream(in, config);
             if (ret)
                 goto err_open;
+            audio_extn_cin_acquire_usecase(in);
         } else {
             in->config = pcm_config_audio_capture;
             in->config.rate = config->sample_rate;
