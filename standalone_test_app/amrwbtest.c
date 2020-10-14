@@ -242,6 +242,9 @@ static int fill_buffer(void *buf, unsigned sz, void *cookie)
 	struct meta_in_q6 meta;
 	struct audio_pvt_data *audio_data = (struct audio_pvt_data *) cookie;
 	unsigned cpy_size = (sz < audio_data->avail?sz:audio_data->avail);
+
+	memset(meta.rsv, 0, sizeof(meta.rsv));
+
 	#ifdef DEBUG_LOCAL
 	char *temp;
 	printf("%s:frame count %d\n", __func__, audio_data->frame_count);
@@ -264,8 +267,8 @@ static int fill_buffer(void *buf, unsigned sz, void *cookie)
 		if (audio_data->avail == 0) {
 			/* End of file, send EOS */
 			meta.nflags = EOS;
-	                memcpy(buf, &meta, sizeof(struct meta_in_q6));
-	                return (sizeof(struct meta_in_q6));
+			memcpy(buf, &meta, sizeof(struct meta_in_q6));
+			return (sizeof(struct meta_in_q6));
 		}
 	        meta.nflags = 0;
 		memcpy(buf, &meta, sizeof(struct meta_in_q6));
@@ -527,8 +530,8 @@ static void *amrwb_dec_event(void *arg)
 	struct dec_meta_out *meta_out_ptr;
 	struct meta_out_dsp *meta_out_dsp;
 	struct meta_in_q6 *meta_in_ptr;
-	pthread_t evt_read_thread;
-	pthread_t evt_write_thread;
+	pthread_t evt_read_thread = 0;
+	pthread_t evt_write_thread = 0;
 
 	eos_ack = 0;
 	if (audio_data->mode) // Non Tunnel mode
@@ -823,7 +826,7 @@ static int play_file(struct audtest_config *config, int fd, unsigned count)
 	char *content_buf;
 
 	audio_data->next = (char *)malloc(count);
-	printf(" play_file: count=%d,next=%s\n", count, audio_data->next);
+	printf(" play_file: count=%d\n", count);
 	if (!audio_data->next) {
 		fprintf(stderr, "could not allocate %d bytes\n", count);
 		return -1;
@@ -898,6 +901,10 @@ int amrwbplay_read_params(void* filedata)
 
 			printf("Created audio instance 0x%8x\n",
 					(unsigned int) audio_data);
+			if(!audio_data) {
+				ret_val = -1;
+				return ret_val;
+			}
 			memset(audio_data, 0, sizeof(struct audio_pvt_data));
 			audio_data->repeat = 0;
 			audio_data->quit = 0;
