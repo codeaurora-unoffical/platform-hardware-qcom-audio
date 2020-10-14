@@ -685,11 +685,12 @@ int voice_set_mic_mute(struct audio_device *adev, bool state,
 bool voice_get_mic_mute(struct audio_device *adev, audio_usecase_t usecase_id)
 {
     struct voice_session *session = NULL;
+    bool mute_status = false;
 
     session = (struct voice_session *)voice_get_session_from_use_case(adev, usecase_id);
     if (session)
-        return session->mic_mute;
-     return -EINVAL;
+        mute_status = session->mic_mute;
+    return mute_status;
 }
 
 /*
