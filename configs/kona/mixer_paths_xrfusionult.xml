@@ -2295,39 +2295,91 @@
     </path>
 
     <path name="dmic1">
+        <ctl name="TX DEC0 MUX" value="SWR_MIC" />
+        <ctl name="TX SMIC MUX0" value="SWR_DMIC0" />
+        <ctl name="TX_DEC0 Volume" value="84" />
         <ctl name="TX_CDC_DMA_TX_3 Channels" value="One" />
-        <ctl name="TX_AIF1_CAP Mixer DEC2" value="1" />
-        <ctl name="TX DMIC MUX2" value="DMIC0" />
+        <ctl name="TX_CDC_DMA_TX_3 SampleRate" value="KHZ_48" />
+        <ctl name="TX_CDC_DMA_TX_3 Format" value="S16_LE" />
+        <ctl name="TX_AIF1_CAP Mixer DEC0" value="1" />
+        <ctl name="DMIC1_MIXER Switch" value="1" />
     </path>
 
     <path name="dmic2">
+        <ctl name="TX DEC0 MUX" value="SWR_MIC" />
+        <ctl name="TX SMIC MUX0" value="SWR_DMIC1" />
+        <ctl name="TX_DEC0 Volume" value="84" />
         <ctl name="TX_CDC_DMA_TX_3 Channels" value="One" />
-        <ctl name="TX_AIF1_CAP Mixer DEC2" value="1" />
-        <ctl name="TX DMIC MUX2" value="DMIC1" />
+        <ctl name="TX_CDC_DMA_TX_3 SampleRate" value="KHZ_48" />
+        <ctl name="TX_CDC_DMA_TX_3 Format" value="S16_LE" />
+        <ctl name="TX_AIF1_CAP Mixer DEC0" value="1" />
+        <ctl name="DMIC2_MIXER Switch" value="1" />
     </path>
 
     <path name="dmic3">
+        <ctl name="TX DEC0 MUX" value="SWR_MIC" />
+        <ctl name="TX SMIC MUX0" value="SWR_DMIC2" />
+        <ctl name="TX_DEC0 Volume" value="84" />
         <ctl name="TX_CDC_DMA_TX_3 Channels" value="One" />
-        <ctl name="TX_AIF1_CAP Mixer DEC2" value="1" />
-        <ctl name="TX DMIC MUX2" value="DMIC2" />
+        <ctl name="TX_CDC_DMA_TX_3 SampleRate" value="KHZ_48" />
+        <ctl name="TX_CDC_DMA_TX_3 Format" value="S16_LE" />
+        <ctl name="TX_AIF1_CAP Mixer DEC0" value="1" />
+        <ctl name="DMIC3_MIXER Switch" value="1" />
     </path>
 
     <path name="dmic4">
+        <ctl name="TX DEC0 MUX" value="SWR_MIC" />
+        <ctl name="TX SMIC MUX0" value="SWR_DMIC3" />
+        <ctl name="TX_DEC0 Volume" value="84" />
         <ctl name="TX_CDC_DMA_TX_3 Channels" value="One" />
-        <ctl name="TX_AIF1_CAP Mixer DEC2" value="1" />
-        <ctl name="TX DMIC MUX2" value="DMIC3" />
+        <ctl name="TX_CDC_DMA_TX_3 SampleRate" value="KHZ_48" />
+        <ctl name="TX_CDC_DMA_TX_3 Format" value="S16_LE" />
+        <ctl name="TX_AIF1_CAP Mixer DEC0" value="1" />
+        <ctl name="DMIC4_MIXER Switch" value="1" />
     </path>
 
     <path name="dmic5">
+        <ctl name="TX DEC0 MUX" value="SWR_MIC" />
+        <ctl name="TX SMIC MUX0" value="SWR_DMIC4" />
+        <ctl name="TX_DEC0 Volume" value="84" />
         <ctl name="TX_CDC_DMA_TX_3 Channels" value="One" />
-        <ctl name="TX_AIF1_CAP Mixer DEC2" value="1" />
-        <ctl name="TX DMIC MUX2" value="DMIC4" />
+        <ctl name="TX_CDC_DMA_TX_3 SampleRate" value="KHZ_48" />
+        <ctl name="TX_CDC_DMA_TX_3 Format" value="S16_LE" />
+        <ctl name="TX_AIF1_CAP Mixer DEC0" value="1" />
+        <ctl name="DMIC5_MIXER Switch" value="1" />
     </path>
 
     <path name="dmic6">
+        <ctl name="TX DEC0 MUX" value="SWR_MIC" />
+        <ctl name="TX SMIC MUX0" value="SWR_DMIC5" />
+        <ctl name="TX_DEC0 Volume" value="84" />
         <ctl name="TX_CDC_DMA_TX_3 Channels" value="One" />
-        <ctl name="TX_AIF1_CAP Mixer DEC2" value="1" />
-        <ctl name="TX DMIC MUX2" value="DMIC5" />
+        <ctl name="TX_CDC_DMA_TX_3 SampleRate" value="KHZ_48" />
+        <ctl name="TX_CDC_DMA_TX_3 Format" value="S16_LE" />
+        <ctl name="TX_AIF1_CAP Mixer DEC0" value="1" />
+        <ctl name="DMIC6_MIXER Switch" value="1" />
+    </path>
+
+    <path name="dmic7">
+        <ctl name="TX DEC0 MUX" value="SWR_MIC" />
+        <ctl name="TX SMIC MUX0" value="SWR_DMIC6" />
+        <ctl name="TX_DEC0 Volume" value="84" />
+        <ctl name="TX_CDC_DMA_TX_3 Channels" value="One" />
+        <ctl name="TX_CDC_DMA_TX_3 SampleRate" value="KHZ_48" />
+        <ctl name="TX_CDC_DMA_TX_3 Format" value="S16_LE" />
+        <ctl name="TX_AIF1_CAP Mixer DEC0" value="1" />
+        <ctl name="DMIC7_MIXER Switch" value="1" />
+    </path>
+
+    <path name="dmic8">
+        <ctl name="TX DEC0 MUX" value="SWR_MIC" />
+        <ctl name="TX SMIC MUX0" value="SWR_DMIC7" />
+        <ctl name="TX_DEC0 Volume" value="84" />
+        <ctl name="TX_CDC_DMA_TX_3 Channels" value="One" />
+        <ctl name="TX_CDC_DMA_TX_3 SampleRate" value="KHZ_48" />
+        <ctl name="TX_CDC_DMA_TX_3 Format" value="S16_LE" />
+        <ctl name="TX_AIF1_CAP Mixer DEC0" value="1" />
+        <ctl name="DMIC8_MIXER Switch" value="1" />
     </path>
 
     <path name="speaker">
