@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2015 The Android Open Source Project *
@@ -560,13 +560,16 @@ void *start_input(void *thread_param)
 }
 
 int read_config_params_from_user(struct audio_config_params *thread_param) {
+    char usr_input[3] = {0};
     printf(" \n Enter input device (4->built-in mic, 16->wired_headset .. etc) ::::: ");
     scanf(" %d", &thread_param->input_device);
     thread_param->input_device |= AUDIO_DEVICE_BIT_IN;
 
     if (thread_param->input_device == AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET) {
          printf(" \n Enable wbs for BT sco?? (1 - Enable 0 - Disable) ::::: ");
-         scanf("%d", &thread_param->bt_wbs);
+//         scanf("%d", &thread_param->bt_wbs);
+         fgets(usr_input, sizeof(usr_input), stdin);
+         thread_param->bt_wbs = (int)strtol(usr_input, NULL, 10);
     }
 
     printf(" \n Enter the format (1 ->16 bit pcm recording, 6 -> 24 bit packed pcm recording) ::::: ");
@@ -854,8 +857,8 @@ int main(int argc, char* argv[]) {
         qahw_set_parameters(qahw_mod_handle, params[0].kvpairs);
     }
 
-    pthread_t tid[MAX_RECORD_SESSIONS];
-    pthread_t sourcetrack_thread;
+    pthread_t tid[MAX_RECORD_SESSIONS] = {0};
+    pthread_t sourcetrack_thread = 0;
     int ret = -1;
 
     if (source_tracking && max_recordings_requested) {
