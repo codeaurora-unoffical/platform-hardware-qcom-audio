@@ -90,6 +90,7 @@ int voice_set_mic_mute(struct audio_device *dev, bool state, audio_usecase_t
                        usecase_id);
 bool voice_get_mic_mute(struct audio_device *dev, audio_usecase_t usecase_id);
 int voice_set_volume(struct audio_device *adev, float volume, uint32_t vsid);
+int voice_get_volume(struct audio_device *adev, float *volume, uint32_t vsid);
 int voice_check_and_set_incall_rec_usecase(struct audio_device *adev,
                                            struct stream_in *in);
 int voice_check_and_set_incall_music_usecase(struct audio_device *adev,

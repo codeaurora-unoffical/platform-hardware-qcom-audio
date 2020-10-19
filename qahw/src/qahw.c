@@ -573,7 +573,28 @@ int qahw_out_set_volume_l(qahw_stream_handle_t *out_handle, float left, float ri
 exit:
    return rc;
 }
+int qahw_get_volume_l(qahw_stream_handle_t *out_handle, float *left, float *right)
+{
+    int rc = -EINVAL;
+    qahw_stream_out_t *qahw_stream_out = (qahw_stream_out_t *)out_handle;
+    audio_stream_out_t *out = NULL;
+    if (!is_valid_qahw_stream_l((void *)qahw_stream_out, STREAM_DIR_OUT)) {
+        ALOGE("%s::Invalid out handle %p", __func__, out_handle);
+        goto exit;
+    }
+    pthread_mutex_lock(&qahw_stream_out->lock);
+    out = qahw_stream_out->stream;
+    if (out->get_volume) {
+        rc = out->get_volume(out, left, right);
+    } else {
+        rc = -ENOSYS;
+        ALOGE("%s not supported", __func__);
+    }
+    pthread_mutex_unlock(&qahw_stream_out->lock);
 
+exit:
+    return rc;
+}
 ssize_t qahw_out_write_l(qahw_stream_handle_t *out_handle,
         qahw_out_buffer_t *out_buf)
 {
