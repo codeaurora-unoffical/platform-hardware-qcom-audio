@@ -2359,7 +2359,7 @@ int qahw_stream_close(qahw_stream_handle_t *stream_handle) {
         if (rc)
             ALOGE("%s: closing output stream failed\n", __func__);
         /*if not voice call close input stream*/
-        if (stream->type != QAHW_VOICE_CALL) {
+        if ((stream->type != QAHW_VOICE_CALL) && (stream->type != QAHW_ECALL)) {
             rc = qahw_close_input_stream(stream->in_stream);
             if (rc)
                 ALOGE("%s: closing output stream failed\n", __func__);
