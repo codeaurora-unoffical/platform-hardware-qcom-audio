@@ -89,6 +89,7 @@ vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/mixer_paths_tashali
 vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/mixer_paths.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths.xml \
 vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/mixer_paths_mtp.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_mtp.xml \
 vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/mixer_paths_sku1.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_sku1.xml \
+vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/mixer_paths_wtp.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_wtp.xml \
 vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/sound_trigger_mixer_paths.xml:$(TARGET_COPY_OUT_VENDOR)/etc/sound_trigger_mixer_paths.xml \
 vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/sound_trigger_mixer_paths_wcd9306.xml:$(TARGET_COPY_OUT_VENDOR)/etc/sound_trigger_mixer_paths_wcd9306.xml \
 vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/sound_trigger_mixer_paths_wcd9330.xml:$(TARGET_COPY_OUT_VENDOR)/etc/sound_trigger_mixer_paths_wcd9330.xml \

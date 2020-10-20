@@ -16,7 +16,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 #define LOG_TAG "msm8974_platform"
 //#define LOG_NDEBUG 0
 #define LOG_NDDEBUG 0
@@ -1818,6 +1817,8 @@ static void update_codec_type_and_interface(struct platform_data * my_data,
                    sizeof("holi-qrdsku1-snd-card")) ||
          !strncmp(snd_card_name, "msm8937-snd-card-mtp",
                    sizeof("msm8937-snd-card-mtp")) ||
+         !strncmp(snd_card_name, "sdm429w-wtp-snd-card",
+                   sizeof("sdm429w-wtp-snd-card")) ||
          !strncmp(snd_card_name, "msm8953-snd-card-mtp",
                    sizeof("msm8953-snd-card-mtp")) ||
          !strncmp(snd_card_name, "msm8953-sku4-snd-card",
