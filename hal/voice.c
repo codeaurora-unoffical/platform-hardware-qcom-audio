@@ -704,8 +704,13 @@ void voice_set_device_mute_flag(struct audio_device *adev, bool state)
 {
     struct voice_session *session = NULL;
     uint32_t vsid;
+    audio_usecase_t usecase_id = -1;
+
     vsid = voice_get_active_session_id(adev);
-    if (session->mic_mute) {
+    usecase_id = voice_extn_get_usecase_for_session_id(vsid);
+    session = (struct voice_session *)voice_get_session_from_use_case(adev, usecase_id);
+
+    if ((session) && (session->mic_mute)) {
         if (state) {
             platform_set_device_mute(adev->platform, true, "tx", vsid);
             platform_set_mic_mute(adev->platform, false, vsid);
