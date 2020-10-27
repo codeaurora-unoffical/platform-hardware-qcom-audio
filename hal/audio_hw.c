@@ -4461,18 +4461,11 @@ static ssize_t out_write(struct audio_stream_out *stream, const void *buffer,
     lock_output_stream(out);
 
     if (CARD_STATUS_OFFLINE == out->card_status) {
-
-        if (out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) {
-            /*during SSR for compress usecase we should return error to flinger*/
-            ALOGD(" copl %s: sound card is not active/SSR state", __func__);
-            pthread_mutex_unlock(&out->lock);
-            ATRACE_END();
-            return -ENETRESET;
-        } else {
-            ALOGD(" %s: sound card is not active/SSR state", __func__);
-            ret= -EIO;
-            goto exit;
-        }
+        /*during SSR we should return error*/
+        ALOGD("%s: sound card is not active/SSR state", __func__);
+        pthread_mutex_unlock(&out->lock);
+        ATRACE_END();
+        return -ENETRESET;
     }
 
     if (audio_extn_passthru_should_drop_data(out)) {
@@ -5555,6 +5548,12 @@ static ssize_t in_read(struct audio_stream_in *stream, void *buffer,
     size_t bytes_read = 0;
 
     lock_input_stream(in);
+    if (CARD_STATUS_OFFLINE == in->card_status) {
+        /*during SSR we should return error*/
+        ALOGD(" %s: sound card is not active/SSR state", __func__);
+        pthread_mutex_unlock(&in->lock);
+        return -ENETRESET;
+    }
 
     if (in->is_st_session) {
         ALOGVV(" %s: reading on st session bytes=%zu", __func__, bytes);
