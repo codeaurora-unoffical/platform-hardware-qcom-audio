@@ -7508,6 +7508,8 @@ static void adev_snd_mon_cb(void *cookie, struct str_parms *parms)
             adev->card_status = status;
             platform_snd_card_update(adev->platform, status);
             audio_extn_fm_set_parameters(adev, parms);
+            if(adev->ssr_callback)
+                adev->ssr_callback(status, adev->ssr_callback_payload);
             ALOGE("%s: Card_status (%d) in the list",
                                    __func__, status);
         } else if (is_ext_device_status) {
@@ -7593,6 +7595,15 @@ int check_a2dp_restore(struct audio_device *adev, struct stream_out *out, bool r
     return ret;
 }
 
+static int adev_set_ssr_callback(struct audio_hw_device *dev, ssr_callback_t cb_func, void *priv)
+{
+    struct audio_device *adev = (struct audio_device *)dev;
+
+    adev->ssr_callback = cb_func;
+    adev->ssr_callback_payload = priv;
+    return 0;
+}
+
 static int adev_open(const hw_module_t *module, const char *name,
                      hw_device_t **device)
 {
@@ -7650,6 +7661,7 @@ static int adev_open(const hw_module_t *module, const char *name,
     adev->device.get_audio_port = adev_get_audio_port;
     adev->device.set_audio_port_config = adev_set_audio_port_config;
     adev->device.dump = adev_dump;
+    adev->device.set_ssr_callback = adev_set_ssr_callback;
 
     /* Set the default route before the PCM stream is opened */
     adev->mode = AUDIO_MODE_NORMAL;

@@ -524,6 +524,10 @@ int32_t qahw_effect_process_reverse_l(qahw_effect_handle_t self,
                                     qahw_audio_buffer_t *in_buffer,
                                     qahw_audio_buffer_t *out_buffer);
 
+int32_t qahw_ssr_callback_l(qahw_module_handle_t *hw_module,
+                          ssr_callback_t callback,
+                          void *cookie);
+
 #ifdef __cplusplus
 }
 #endif

@@ -2056,4 +2056,34 @@ error_exit:
     return rc;
 }
 
+int32_t qahw_ssr_callback_l(qahw_module_handle_t *hw_module,
+                          ssr_callback_t callback,
+                          void *cookie)
+{
+    int rc = -EINVAL;
+    qahw_module_t *qahw_module = (qahw_module_t *)hw_module;
+    qahw_module_t *qahw_module_temp = NULL;
+    audio_hw_device_t *audio_device = NULL;
+
+    pthread_mutex_lock(&qahw_module_init_lock);
+    qahw_module_temp = get_qahw_module_by_ptr_l(qahw_module);
+    pthread_mutex_unlock(&qahw_module_init_lock);
+    if (qahw_module_temp == NULL) {
+        ALOGE("%s:: invalid hw module %p", __func__, qahw_module);
+        return rc;
+    }
+
+    pthread_mutex_lock(&qahw_module->lock);
+    audio_device = qahw_module->audio_device;
+    if (audio_device->set_ssr_callback) {
+        rc = audio_device->set_ssr_callback(qahw_module->audio_device,
+                                     callback, cookie);
+    } else {
+        rc = -ENOSYS;
+        ALOGW("%s not supported", __func__);
+    }
+    pthread_mutex_unlock(&qahw_module->lock);
+    return rc;
+}
+
 __END_DECLS
