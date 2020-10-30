@@ -3588,7 +3588,7 @@ int platform_send_audio_calibration(void *platform, struct audio_usecase *usecas
         snd_device = usecase->out_snd_device;
     else if ((usecase->type == PCM_CAPTURE) && is_incall_rec_usecase)
         snd_device = voice_get_incall_rec_snd_device(usecase->in_snd_device);
-    else if (usecase->type == PCM_CAPTURE)
+    else if ((usecase->type == PCM_HFP_CALL) || (usecase->type == PCM_CAPTURE))
         snd_device = usecase->in_snd_device;
     else if (usecase->type == TRANSCODE_LOOPBACK)
         snd_device = usecase->out_snd_device;
