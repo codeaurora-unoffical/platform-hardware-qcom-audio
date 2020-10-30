@@ -1591,7 +1591,12 @@ void audio_extn_utils_send_audio_calibration(struct audio_device *adev,
                          usecase->stream.in->app_type_cfg.app_type);
     } else if (type == PCM_HFP_CALL) {
         /* when app type is default. the sample rate is not used to send cal */
+#ifdef ENABLE_HFP_CALIBRATION
         platform_send_audio_calibration_hfp(adev->platform, usecase->in_snd_device);
+#else
+        platform_send_audio_calibration(adev->platform, usecase,
+                        platform_get_default_app_type_v2(adev->platform, usecase->type));
+#endif
     } else if (type == PCM_CAPTURE)  {
         platform_send_audio_calibration(adev->platform, usecase,
                          platform_get_default_app_type_v2(adev->platform, usecase->type));
