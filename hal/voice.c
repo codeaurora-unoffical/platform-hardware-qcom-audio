@@ -772,6 +772,23 @@ int voice_set_volume(struct audio_device *adev, float volume, uint32_t vsid)
     return err;
 }
 
+int voice_get_volume(struct audio_device *adev, float *volume, uint32_t vsid)
+{
+    int32_t vol, err = 0;
+    if (adev->mode == AUDIO_MODE_IN_CALL) {
+        platform_get_voice_volume(adev->platform, &vol, vsid);
+
+        vol = 100 - vol;
+        *volume = (vol / 100.0);
+        if (*volume < 0.0) {
+            *volume = 0.0;
+        } else if (*volume > 1.0) {
+            *volume = 1.0;
+        }
+    }
+    return err;
+}
+
 int voice_start_call(struct audio_device *adev, audio_usecase_t usecase_id)
 {
     int ret = 0;

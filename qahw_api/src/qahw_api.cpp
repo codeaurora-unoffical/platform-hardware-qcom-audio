@@ -2602,6 +2602,13 @@ int qahw_stream_set_volume(qahw_stream_handle_t *stream_handle,
        return -ENOTSUP;
     }
 
+    for(i=0; i < vol_data.num_of_channels; i++) {
+        if (vol_data.vol_pair[i].vol < 0.0) {
+            vol_data.vol_pair[i].vol = 0.0;
+        } else if (vol_data.vol_pair[i].vol > 1.0) {
+            vol_data.vol_pair[i].vol = 1.0;
+        }
+    }
     /*set voice call vol*/
     if (((stream->type == QAHW_VOICE_CALL)||(stream->type == QAHW_ECALL)) &&
         (vol_data.vol_pair && (vol_data.num_of_channels == 1))) {
@@ -2656,7 +2663,9 @@ int qahw_stream_set_volume(qahw_stream_handle_t *stream_handle,
 int qahw_stream_get_volume(qahw_stream_handle_t *stream_handle,
                            struct qahw_volume_data **vol_data) {
     int rc = -EINVAL;
+    int i = 0;
     qahw_api_stream_t *stream = (qahw_api_stream_t *)stream_handle;
+    float left = 0, right = 0;
 
     if (!stream) {
         ALOGE("%s: invalid stream handle", __func__);
@@ -2670,6 +2679,17 @@ int qahw_stream_get_volume(qahw_stream_handle_t *stream_handle,
 
     ALOGV("%d:%s start",__LINE__, __func__);
     *vol_data = &stream->vol;
+    if ((stream->type == QAHW_VOICE_CALL)||(stream->type == QAHW_ECALL)) {
+        qahw_get_volume_l(stream->out_stream, &left, &right);
+        for (i=0; i < stream->vol.num_of_channels; i++) {
+            if (stream->vol.vol_pair[i].channel == QAHW_CHANNEL_L) {
+                stream->vol.vol_pair[i].vol = left;
+			}
+            else if(stream->vol.vol_pair[i].channel == QAHW_CHANNEL_R) {
+                stream->vol.vol_pair[i].vol = right;
+            }
+        }
+    }
     rc = 0;
     ALOGV("%d:%s end",__LINE__, __func__);
     return rc;

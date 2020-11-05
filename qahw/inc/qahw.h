@@ -183,6 +183,11 @@ int qahw_out_set_volume_l(qahw_stream_handle_t *stream, float left, float right)
 int qahw_in_set_volume_l(qahw_stream_handle_t *stream, float left, float right);
 
 /*
+ * API to get voice stream volume
+ */
+int qahw_get_volume_l(qahw_stream_handle_t *stream, float *left, float *right);
+
+/*
  * Write audio buffer present in meta_data starting from offset
  * along with timestamp to driver. Returns number of bytes
  * written or a negative status_t. If at least one frame was written successfully

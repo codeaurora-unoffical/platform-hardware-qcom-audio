@@ -5148,6 +5148,31 @@ static int out_set_volume(struct audio_stream_out *stream, float left,
 
     return -ENOSYS;
 }
+static int out_get_volume(struct audio_stream_out *stream, float *left, float *right)
+{
+    struct stream_out *out = (struct stream_out *)stream;
+    int ret = 0;
+    if ((out->usecase == USECASE_VOICEMMODE1_CALL) ||
+        (out->usecase == USECASE_VOICEMMODE2_CALL)) {
+        struct voice_session *session = NULL;
+        struct audio_device *adev = out->dev;
+
+        if (out->usecase == USECASE_VOICEMMODE1_CALL)
+            session = &adev->voice.session[MMODE1_SESS_IDX];
+
+        if (out->usecase == USECASE_VOICEMMODE2_CALL)
+            session = &adev->voice.session[MMODE2_SESS_IDX];
+        if (!session)
+            ret = voice_get_volume(out->dev, left, ALL_VSID);
+        else
+            ret = voice_get_volume(adev, left, session->vsid);
+        *right = *left;
+
+        return ret;
+    }
+
+    return -ENOSYS;
+}
 
 static void update_frames_written(struct stream_out *out, size_t bytes)
 {
@@ -7562,6 +7587,7 @@ int adev_open_output_stream(struct audio_hw_device *dev,
     out->stream.common.remove_audio_effect = out_remove_audio_effect;
     out->stream.get_latency = out_get_latency;
     out->stream.set_volume = out_set_volume;
+    out->stream.get_volume = out_get_volume;
 #ifdef NO_AUDIO_OUT
     out->stream.write = out_write_for_no_output;
 #else

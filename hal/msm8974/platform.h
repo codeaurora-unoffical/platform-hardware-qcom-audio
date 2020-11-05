@@ -362,6 +362,9 @@ enum {
 #define percent_to_index(val, min, max) \
             ((val) * ((max) - (min)) * 0.01 + (min) + .5)
 
+#define index_to_percent(val, min, max) \
+            (((val) - (min)) / (((max) - (min)) * 0.01))
+
 /*
  * tinyAlsa library interprets period size as number of frames
  * one frame = channel_count * sizeof (pcm sample)

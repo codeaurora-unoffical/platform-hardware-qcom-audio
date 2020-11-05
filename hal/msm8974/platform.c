@@ -4810,21 +4810,32 @@ int platform_set_voice_volume(void *platform, int volume, uint32_t vsid)
     struct platform_data *my_data = (struct platform_data *)platform;
     struct audio_device *adev = my_data->adev;
     struct mixer_ctl *ctl;
-    const char *mixer_ctl_name = "Voice Rx Gain";
+    const char *mixer_ctl_name = NULL;
     const char *mute_mixer_ctl_name = "Voice Rx Device Mute";
     int vol_index = 0, ret = 0;
-    long set_values[ ] = {0,
-                          ALL_SESSION_VSID,
-                          DEFAULT_VOLUME_RAMP_DURATION_MS};
-
-    if (vsid)
-        set_values[1] = (long) vsid;
+    long set_values[ ] = {0, 0, 0};
+    int count = 0;
 
     // Voice volume levels are mapped to adsp volume levels as follows.
     // 100 -> 5, 80 -> 4, 60 -> 3, 40 -> 2, 20 -> 1  0 -> 0
     // But this values don't changed in kernel. So, below change is need.
     vol_index = (int)percent_to_index(volume, MIN_VOL_INDEX, my_data->max_vol_index);
     set_values[0] = vol_index;
+    switch (vsid) {
+        case VOICEMMODE1_VSID:
+            mixer_ctl_name = "Voicemmode1 Rx Gain";
+            set_values[1] = DEFAULT_VOLUME_RAMP_DURATION_MS;
+            break;
+        case VOICEMMODE2_VSID:
+            mixer_ctl_name = "Voicemmode2 Rx Gain";
+            set_values[1] = DEFAULT_VOLUME_RAMP_DURATION_MS;
+            break;
+        default:
+            mixer_ctl_name = "Voice Rx Gain";
+            set_values[1] = ALL_SESSION_VSID;
+            set_values[2] = DEFAULT_VOLUME_RAMP_DURATION_MS;
+            break;
+    }
 
     ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
     if (!ctl) {
@@ -4833,7 +4844,10 @@ int platform_set_voice_volume(void *platform, int volume, uint32_t vsid)
         return -EINVAL;
     }
     ALOGV("%s: Setting voice volume index: %ld", __func__, set_values[0]);
-    mixer_ctl_set_array(ctl, set_values, ARRAY_SIZE(set_values));
+    count = mixer_ctl_get_num_values(ctl);
+    if (count > ARRAY_SIZE(set_values))
+        count = ARRAY_SIZE(set_values);
+    mixer_ctl_set_array(ctl, set_values, count);
 
     // Send mute command in case volume index is max since indexes are inverted
     // for mixer controls.
@@ -4858,6 +4872,47 @@ int platform_set_voice_volume(void *platform, int volume, uint32_t vsid)
             ALOGE("%s: csd_volume error %d", __func__, ret);
         }
     }
+    return ret;
+}
+
+int platform_get_voice_volume(void *platform, int *volume, uint32_t vsid)
+{
+    struct platform_data *my_data = (struct platform_data *)platform;
+    struct audio_device *adev = my_data->adev;
+    struct mixer_ctl *ctl;
+    int count;
+    const char *mixer_ctl_name = NULL;
+    int ret = 0;
+    long set_values[ ] = {0, 0};
+
+    switch (vsid) {
+        case VOICEMMODE1_VSID:
+            mixer_ctl_name = "Voicemmode1 Rx Gain";
+            break;
+        case VOICEMMODE2_VSID:
+            mixer_ctl_name = "Voicemmode2 Rx Gain";
+            break;
+        default:
+            ALOGE("%s: Could not get mixer cmd", __func__);
+            return -EINVAL;
+    }
+
+    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+    if (!ctl) {
+        ALOGE("%s: Could not get ctl for mixer cmd - %s",
+              __func__, mixer_ctl_name);
+        return -EINVAL;
+    }
+
+    mixer_ctl_update(ctl);
+    count = mixer_ctl_get_num_values(ctl);
+    if (count > ARRAY_SIZE(set_values))
+        count = ARRAY_SIZE(set_values);
+
+    ret = mixer_ctl_get_array(ctl, set_values, count);
+    *volume = (int)index_to_percent(set_values[0], MIN_VOL_INDEX,
+                                    my_data->max_vol_index);
+
     return ret;
 }
 
