@@ -544,6 +544,7 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_OUT_VOICE_TTY_FULL_USB] = "voice-tty-full-usb",
     [SND_DEVICE_OUT_VOICE_TTY_VCO_USB] = "voice-tty-vco-usb",
     [SND_DEVICE_OUT_VOICE_TX] = "voice-tx",
+    [SND_DEVICE_OUT_VOICE2_TX] = "voice2-tx",
     [SND_DEVICE_OUT_VOICE_MUSIC_TX] = "voice-music-tx",
     [SND_DEVICE_OUT_AFE_PROXY] = "afe-proxy",
     [SND_DEVICE_OUT_USB_HEADSET] = "usb-headset",
@@ -799,6 +800,7 @@ static int acdb_device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_OUT_VOICE_TTY_FULL_USB] = 17,
     [SND_DEVICE_OUT_VOICE_TTY_VCO_USB] = 17,
     [SND_DEVICE_OUT_VOICE_TX] = 45,
+    [SND_DEVICE_OUT_VOICE2_TX] = 45,
     [SND_DEVICE_OUT_VOICE_MUSIC_TX] = 3,
     [SND_DEVICE_OUT_VOICE_DL_TX] = 45,
     [SND_DEVICE_OUT_AFE_PROXY] = 0,
@@ -1001,6 +1003,7 @@ static struct name_to_index snd_device_name_index[SND_DEVICE_MAX] = {
     {TO_NAME_INDEX(SND_DEVICE_OUT_VOICE_TTY_FULL_USB)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_VOICE_TTY_VCO_USB)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_VOICE_TX)},
+    {TO_NAME_INDEX(SND_DEVICE_OUT_VOICE2_TX)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_VOICE_DL_TX)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_AFE_PROXY)},
     {TO_NAME_INDEX(SND_DEVICE_OUT_USB_HEADSET)},
@@ -1927,6 +1930,7 @@ static void set_platform_defaults(struct platform_data * my_data)
     backend_tag_table[SND_DEVICE_OUT_DISPLAY_PORT] = strdup("display-port");
     backend_tag_table[SND_DEVICE_OUT_SPEAKER_AND_DISPLAY_PORT] = strdup("speaker-and-display-port");
     backend_tag_table[SND_DEVICE_OUT_VOICE_TX] = strdup("afe-proxy");
+    backend_tag_table[SND_DEVICE_OUT_VOICE2_TX] = strdup("afe-proxy");
     backend_tag_table[SND_DEVICE_OUT_VOICE_DL_TX] = strdup("voice-dl-tx");
     backend_tag_table[SND_DEVICE_IN_VOICE_RX] = strdup("afe-proxy");
     backend_tag_table[SND_DEVICE_OUT_AFE_PROXY] = strdup("afe-proxy");
@@ -2025,6 +2029,7 @@ static void set_platform_defaults(struct platform_data * my_data)
     hw_interface_table[SND_DEVICE_OUT_VOICE_TTY_FULL_USB] = strdup("USB_AUDIO_RX");
     hw_interface_table[SND_DEVICE_OUT_VOICE_TTY_VCO_USB] = strdup("USB_AUDIO_RX");
     hw_interface_table[SND_DEVICE_OUT_VOICE_TX] = strdup("RT_PROXY_DAI_001_RX");
+    hw_interface_table[SND_DEVICE_OUT_VOICE2_TX] = strdup("RT_PROXY_DAI_001_RX");
     hw_interface_table[SND_DEVICE_OUT_VOICE_DL_TX] = strdup("VOICE_PLAYBACK_DL_TX");
     hw_interface_table[SND_DEVICE_OUT_AFE_PROXY] = strdup("RT_PROXY_DAI_001_RX");
     hw_interface_table[SND_DEVICE_OUT_USB_HEADSET] = strdup("USB_AUDIO_RX");
@@ -5194,6 +5199,7 @@ snd_device_t platform_get_output_snd_device(void *platform, struct stream_out *o
     audio_devices_t devices = out->devices;
     unsigned int sample_rate = out->sample_rate;
     int na_mode = platform_get_native_support();
+    uint32_t session_id = ALL_VSID;
 
     audio_channel_mask_t channel_mask = (adev->active_input == NULL) ?
                                 AUDIO_CHANNEL_IN_MONO : adev->active_input->channel_mask;
@@ -5442,7 +5448,11 @@ snd_device_t platform_get_output_snd_device(void *platform, struct stream_out *o
             else
                 snd_device = SND_DEVICE_OUT_VOICE_HANDSET;
         } else if (devices & AUDIO_DEVICE_OUT_TELEPHONY_TX) {
-            snd_device = SND_DEVICE_OUT_VOICE_TX;
+            voice_extn_get_active_session_id(adev, &session_id);
+            if (session_id != VOICEMMODE2_VSID)
+                snd_device = SND_DEVICE_OUT_VOICE_TX;
+            else
+                snd_device = SND_DEVICE_OUT_VOICE2_TX;
         } else if (devices & AUDIO_DEVICE_OUT_ECHO_CANCELLER)
             snd_device = SND_DEVICE_OUT_VOICE_DL_TX;
 
