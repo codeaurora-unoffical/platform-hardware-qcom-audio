@@ -121,6 +121,11 @@ int voice_extn_dtmf_generate_rx_tone(struct stream_out *out,
                                      uint32_t dtmf_low_freq,
                                      uint32_t dtmf_high_freq,
                                      uint32_t dtmf_duration_ms);
+int voice_extn_dtmf_generate_rx_tone_session(struct stream_out *out,
+                                     uint32_t dtmf_low_freq,
+                                     uint32_t dtmf_high_freq,
+                                     uint32_t dtmf_duration_ms,
+                                     uint32_t session_id);
 
 int voice_extn_dtmf_set_rx_tone_gain(struct stream_out *out,
                                      int32_t gain);

@@ -81,6 +81,38 @@ int voice_extn_dtmf_generate_rx_tone(struct stream_out *out,
     return ret;
 }
 
+int voice_extn_dtmf_generate_rx_tone_session(struct stream_out *out,
+                                       uint32_t dtmf_low_freq,
+                                       uint32_t dtmf_high_freq,
+                                       uint32_t dtmf_duration_ms,
+                                       uint32_t session_id)
+{
+    struct audio_device *adev = out->dev;
+    struct platform_data *my_data = (struct platform_data *)adev->platform;
+    struct mixer_ctl *ctl = NULL;
+    char *mixer_ctl_name = "DTMF_Generate Rx Low High Period Gain VSID";
+    int ret = 0;
+    //0xFFFF for duration is read as -1 (infinite) in int16
+    long set_values[ ] = {0,
+                          0,
+                          0xFFFF,
+                          out->rx_dtmf_tone_gain,
+                          session_id};
+
+    set_values[0] = dtmf_low_freq;
+    set_values[1] = dtmf_high_freq;
+    set_values[2] = dtmf_duration_ms;
+    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+    if (!ctl) {
+        ALOGE("%s: Could not get ctl for mixer cmd - %s",
+              __func__, mixer_ctl_name);
+        return -EINVAL;
+    }
+    mixer_ctl_set_array(ctl, set_values, ARRAY_SIZE(set_values));
+
+    return ret;
+}
+
 int voice_extn_dtmf_set_rx_tone_gain(struct stream_out *out, int32_t gain)
 {
     struct audio_device *adev = out->dev;
