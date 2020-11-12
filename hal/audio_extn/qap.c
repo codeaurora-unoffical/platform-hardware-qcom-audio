@@ -637,6 +637,45 @@ static float AmpToDb(float amplification)
      return db;
 }
 
+static int qap_ms12_volume_easing_cmd(struct stream_out *out, float left, __unused float right)
+{
+    int ret = 0;
+    struct qap_module *qap_mod = get_qap_module_for_input_stream_l(out);
+    int32_t cmd_data[4] = {0};
+
+    if (is_offload_usecase(out->usecase))
+        cmd_data[0] = MS12_SESSION_CFG_MAIN1_MIXING_GAIN;
+    else if ((out->usecase == USECASE_AUDIO_PLAYBACK_LOW_LATENCY) ||
+             (out->usecase == USECASE_AUDIO_PLAYBACK_DEEP_BUFFER)) {
+             DEBUG_MSG("Request for volume set for %s usecase not supported",
+                      (out->usecase == USECASE_AUDIO_PLAYBACK_LOW_LATENCY) ? "low_latency":"deepbuffer");
+             unlock_qap_stream_in(out);
+             return -ENOSYS;
+     }
+
+     /*take left as default level and MS12 doenst support left and right seperately*/
+     cmd_data[1] = AmpToDb(left);
+     cmd_data[2] = 0; /* apply gain instantly*/
+     cmd_data[3] = 0; /* apply gain instantly*/
+
+     check_and_activate_output_thread(true);
+     if (qap_mod->session_handle != NULL) {
+         ret = qap_session_cmd(qap_mod->session_handle,
+                QAP_SESSION_CMD_SET_PARAM,
+                sizeof(cmd_data),
+                &cmd_data[0],
+                NULL,
+                NULL);
+          if (ret != QAP_STATUS_OK) {
+              ERROR_MSG("vol set failed");
+          }
+     } else
+        DEBUG_MSG("qap module is not yet opened!!, vol cannot be applied");
+     check_and_activate_output_thread(false);
+
+     return ret;
+}
+
 /*
 * get the MS12 o/p stream and update the volume
 */
@@ -1104,6 +1143,9 @@ static int qap_stream_start_l(struct stream_out *out)
         }
     } else
         ERROR_MSG("QAP stream not yet opened, drop this cmd");
+
+    /* apply default volume at start of the qap stream */
+    qap_ms12_volume_easing_cmd(out, 1.0, 1.0);
 
     DEBUG_MSG("exit");
     return ret;
