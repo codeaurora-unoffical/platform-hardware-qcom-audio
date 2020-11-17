@@ -667,7 +667,12 @@ void audio_extn_haptic_enable_route(struct audio_device *adev)
         usecase = node_to_item(node, struct audio_usecase, list);
         if (whs_connected &&
             ((usecase->stream.out->devices & AUDIO_DEVICE_OUT_WIRED_HEADSET) ||
-            (usecase->stream.out->devices & AUDIO_DEVICE_OUT_WIRED_HEADPHONE))) {
+            (usecase->stream.out->devices & AUDIO_DEVICE_OUT_WIRED_HEADPHONE) ||
+            /* Support device(headphone or line out) depending on the earphones.
+             * If left channel and right have some high
+             * impedance, it will recognize as LINE OUT accessory.
+             */
+            (usecase->stream.out->devices & AUDIO_DEVICE_OUT_LINE))) {
             disable_snd_device(adev, SND_DEVICE_OUT_SPEAKER);
             ALOGV("%s Routing usecase id: %d to out device %d", __func__,  usecase->id,
                                         usecase->stream.out->devices);
@@ -740,7 +745,12 @@ void audio_extn_haptic_disable_route(struct audio_device *adev)
             usecase->id != USECASE_AUDIO_PLAYBACK_HAPTIC &&
             !(usecase->stream.out->devices & AUDIO_DEVICE_OUT_SPEAKER) &&
             ((usecase->stream.out->devices & AUDIO_DEVICE_OUT_WIRED_HEADSET) ||
-            (usecase->stream.out->devices & AUDIO_DEVICE_OUT_WIRED_HEADPHONE))) {
+            (usecase->stream.out->devices & AUDIO_DEVICE_OUT_WIRED_HEADPHONE) ||
+            /* Support device(headphone or line out) depending on the earphones.
+             * If left channel and right have some high
+             * impedance, it will recognize as LINE OUT accessory.
+             */
+            (usecase->stream.out->devices & AUDIO_DEVICE_OUT_LINE))) {
 
             ALOGV("%s PCM Playback usecase %d active on device %d",__func__,
                                   usecase->id, usecase->stream.out->devices);
@@ -774,6 +784,7 @@ void audio_extn_haptic_disable_route(struct audio_device *adev)
                     parms = str_parms_create();
                     if (parms != NULL) {
                         float vol = 0.0f;
+                        str_parms_add_float(parms, AUDIO_PARAMETER_KEY_FM_VOLUME, vol);
                         audio_extn_fm_set_parameters(adev, parms);
                     }
                     break;
