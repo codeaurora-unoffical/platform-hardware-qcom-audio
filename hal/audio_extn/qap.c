@@ -2287,6 +2287,8 @@ static void qap_session_callback(qap_session_handle_t session_handle __unused,
                     }
                     if (devices == 0 || !p_qap->hdmi_connect) {
                         devices = device;
+                    } else if (p_qap->hdmi_connect) {
+                        devices = AUDIO_DEVICE_OUT_AUX_DIGITAL;
                     }
 
                     flags = AUDIO_OUTPUT_FLAG_DIRECT;
