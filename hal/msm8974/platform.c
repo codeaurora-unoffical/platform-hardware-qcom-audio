@@ -80,6 +80,7 @@
 #define PLATFORM_INFO_XML_PATH_SKUW "/vendor/etc/audio_platform_info_skuw.xml"
 #define PLATFORM_INFO_XML_PATH_QRD "/vendor/etc/audio_platform_info_qrd.xml"
 #define PLATFORM_INFO_XML_PATH_XRFUSION  "/vendor/etc/audio_platform_info_xrfusion.xml"
+#define PLATFORM_INFO_XML_PATH_XRFUSIONULT  "/vendor/etc/audio_platform_info_xrfusionult.xml"
 #define PLATFORM_INFO_XML_PATH_LAGOON_QRD  "/vendor/etc/audio_platform_info_lagoon_qrd.xml"
 #define PLATFORM_INFO_XML_PATH "/vendor/etc/audio_platform_info.xml"
 #define MIXER_XML_PATH_AUXPCM "/vendor/etc/mixer_paths_auxpcm.xml"
@@ -1729,8 +1730,10 @@ static void update_codec_type_and_interface(struct platform_data * my_data,
                    sizeof("kona-mtp-snd-card")) ||
          !strncmp(snd_card_name, "kona-qrd-snd-card",
                    sizeof("kona-qrd-snd-card")) ||
-         !strncmp(snd_card_name, "kona-xrfusion-ult-snd-card",
-                   sizeof("kona-xrfusion-ult-snd-card")) ||
+         !strncmp(snd_card_name, "kona-xrfusion-snd-card",
+                   sizeof("kona-xrfusion-snd-card")) ||
+         !strncmp(snd_card_name, "kona-xrfusionult-snd-card",
+                   sizeof("kona-xrfusionult-snd-card")) ||
          !strncmp(snd_card_name, "lito-mtp-snd-card",
                    sizeof("lito-mtp-snd-card")) ||
          !strncmp(snd_card_name, "lito-qrd-snd-card",
@@ -3275,9 +3278,13 @@ void *platform_init(struct audio_device *adev)
     else if (!strncmp(snd_card_name, "kona-qrd-snd-card",
                sizeof("kona-qrd-snd-card")))
         platform_info_init(PLATFORM_INFO_XML_PATH_QRD, my_data, PLATFORM);
-    else if (!strncmp(snd_card_name, "kona-xrfusion-ult-snd-card",
-               sizeof("kona-xrfusion-ult-snd-card")))
+    else if (!strncmp(snd_card_name, "kona-xrfusion-snd-card",
+               sizeof("kona-xrfusion-snd-card")))
         platform_info_init(PLATFORM_INFO_XML_PATH_XRFUSION,
+               my_data, PLATFORM);
+    else if (!strncmp(snd_card_name, "kona-xrfusionult-snd-card",
+               sizeof("kona-xrfusionult-snd-card")))
+        platform_info_init(PLATFORM_INFO_XML_PATH_XRFUSIONULT,
                my_data, PLATFORM);
     else if (!strncmp(snd_card_name, "lito-qrd-snd-card",
                sizeof("lito-qrd-snd-card")))
