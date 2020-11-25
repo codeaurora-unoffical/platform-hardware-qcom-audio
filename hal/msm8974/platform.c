@@ -667,7 +667,13 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_OUT_SPEAKER_SAFE_AND_BT_SCO_SWB] = "speaker-safe-and-bt-sco-swb",
     [SND_DEVICE_OUT_SPEAKER_WSA_AND_BT_SCO] = "wsa-speaker-and-bt-sco",
     [SND_DEVICE_OUT_SPEAKER_WSA_AND_BT_SCO_WB] = "wsa-speaker-and-bt-sco-wb",
-    [SND_DEVICE_OUT_SPEAKER_WSA_AND_BT_SCO_SWB] = "wsa-speaker-and-bt-sco-wb",
+    [SND_DEVICE_OUT_SPEAKER_WSA_AND_BT_SCO_SWB] = "wsa-speaker-and-bt-sco-swb",
+    [SND_DEVICE_OUT_SPEAKER2] = "speaker2",
+    [SND_DEVICE_OUT_SPEAKER3] = "speaker3",
+    [SND_DEVICE_OUT_VOICE_DL_TX] = "voice-dl-tx",
+    [SND_DEVICE_OUT_ECALL] = "handset",
+    [SND_DEVICE_OUT_SPDIF] = "spdif",
+    [SND_DEVICE_OUT_OPTICAL] = "optical",
     [SND_DEVICE_OUT_VOICE_HEARING_AID] = "hearing-aid",
     [SND_DEVICE_OUT_BUS_MEDIA] = "bus-speaker",
     [SND_DEVICE_OUT_BUS_SYS] = "bus-speaker",
@@ -834,6 +840,8 @@ static const char * const device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_HANDSET_GENERIC_6MIC_AND_EC_REF_LOOPBACK] = "handset-6mic-and-ec-ref-loopback",
     [SND_DEVICE_IN_HANDSET_GENERIC_8MIC_AND_EC_REF_LOOPBACK] = "handset-8mic-and-ec-ref-loopback",
     [SND_DEVICE_IN_ECALL] = "handset-mic",
+    [SND_DEVICE_IN_SPEAKER_MIC2] = "speaker-mic2",
+    [SND_DEVICE_IN_SPEAKER_MIC3] = "speaker-mic3",
 };
 
 // Platform specific backend bit width table
@@ -1117,6 +1125,11 @@ static int acdb_device_table[SND_DEVICE_MAX] = {
     [SND_DEVICE_IN_BUS] = 11,
     [SND_DEVICE_IN_ICC] = 46,
     [SND_DEVICE_IN_SYNTH_MIC] = 11,
+    [SND_DEVICE_IN_ECALL] = 4,
+    [SND_DEVICE_OUT_SPDIF] = 19,
+    [SND_DEVICE_OUT_OPTICAL] = 19,
+    [SND_DEVICE_IN_SPEAKER_MIC2] = 11,
+    [SND_DEVICE_IN_SPEAKER_MIC3] = 11,
 };
 
 struct name_to_index {
@@ -1389,6 +1402,8 @@ static struct name_to_index snd_device_name_index[SND_DEVICE_MAX] = {
     {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_GENERIC_QMIC_AND_EC_REF_LOOPBACK)},
     {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_GENERIC_6MIC_AND_EC_REF_LOOPBACK)},
     {TO_NAME_INDEX(SND_DEVICE_IN_HANDSET_GENERIC_8MIC_AND_EC_REF_LOOPBACK)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_SPEAKER_MIC2)},
+    {TO_NAME_INDEX(SND_DEVICE_IN_SPEAKER_MIC3)},
 };
 
 static char * backend_tag_table[SND_DEVICE_MAX] = {0};
@@ -2400,7 +2415,10 @@ static void set_platform_defaults(struct platform_data * my_data)
     backend_tag_table[SND_DEVICE_OUT_SPEAKER2] = strdup("speaker2");
     backend_tag_table[SND_DEVICE_OUT_SPEAKER3] = strdup("speaker3");
     backend_tag_table[SND_DEVICE_IN_VOICE_SPEAKER_MIC_HFP_MMSECNS] = strdup("bt-sco-mmsecns");
-
+    backend_tag_table[SND_DEVICE_OUT_SPDIF] = strdup("spdif");
+    backend_tag_table[SND_DEVICE_OUT_OPTICAL] = strdup("optical");
+    backend_tag_table[SND_DEVICE_IN_SPEAKER_MIC2] = strdup("speaker-mic2");
+    backend_tag_table[SND_DEVICE_IN_SPEAKER_MIC3] = strdup("speaker-mic3");
     hw_interface_table[SND_DEVICE_OUT_HANDSET] = strdup("SLIMBUS_0_RX");
     hw_interface_table[SND_DEVICE_OUT_SPEAKER] = strdup("SLIMBUS_0_RX");
     hw_interface_table[SND_DEVICE_OUT_SPEAKER_EXTERNAL_1] = strdup("SLIMBUS_0_RX");
@@ -2645,6 +2663,11 @@ static void set_platform_defaults(struct platform_data * my_data)
     hw_interface_table[SND_DEVICE_OUT_ICC] = strdup("TERT_TDM_RX_0");
     hw_interface_table[SND_DEVICE_OUT_SYNTH_SPKR] = strdup("TERT_TDM_RX_0");
     hw_interface_table[SND_DEVICE_IN_SYNTH_MIC] = strdup("TERT_TDM_TX_0");
+    hw_interface_table[SND_DEVICE_OUT_SPDIF] = strdup("PRI_SPDIF_RX");
+    hw_interface_table[SND_DEVICE_OUT_OPTICAL] = strdup("SEC_SPDIF_RX");
+    hw_interface_table[SND_DEVICE_IN_SPEAKER_MIC2] = strdup("QUAT_TDM_TX_0");
+    hw_interface_table[SND_DEVICE_IN_SPEAKER_MIC3] = strdup("SEN_TDM_TX_0");
+
     my_data->max_mic_count = PLATFORM_DEFAULT_MIC_COUNT;
 
      /*remove ALAC & APE from DSP decoder list based on software decoder availability*/
@@ -2891,7 +2914,6 @@ static int platform_acdb_init(void *platform)
     }
 
     snd_card_name = mixer_get_name(my_data->adev->mixer);
-    snd_card_name = platform_get_snd_card_name_for_acdb_loader(snd_card_name);
     if (!snd_card_name) {
         ALOGE("Failed to get snd_card_name");
         goto cleanup;
@@ -4115,6 +4137,20 @@ acdb_init_fail:
         strdup("USB_AUDIO_RX SampleRate");
     my_data->current_backend_cfg[USB_AUDIO_RX_BACKEND].channels_mixer_ctl =
         strdup("USB_AUDIO_RX Channels");
+
+    my_data->current_backend_cfg[QUAT_TDM_TX_BACKEND].bitwidth_mixer_ctl =
+        strdup("QUAT_TDM_TX_0 Format");
+    my_data->current_backend_cfg[QUAT_TDM_TX_BACKEND].samplerate_mixer_ctl =
+        strdup("QUAT_TDM_TX_0 SampleRate");
+    my_data->current_backend_cfg[QUAT_TDM_TX_BACKEND].channels_mixer_ctl =
+        strdup("QUAT_TDM_TX_0 Channels");
+
+    my_data->current_backend_cfg[SEN_TDM_TX_BACKEND].bitwidth_mixer_ctl =
+        strdup("SEN_TDM_TX_0 Format");
+    my_data->current_backend_cfg[SEN_TDM_TX_BACKEND].samplerate_mixer_ctl =
+        strdup("SEN_TDM_TX_0 SampleRate");
+    my_data->current_backend_cfg[SEN_TDM_TX_BACKEND].channels_mixer_ctl =
+        strdup("SEN_TDM_TX_0 Channels");
 
     for (idx = 0; idx < MAX_CODEC_BACKENDS; idx++) {
         if (my_data->current_backend_cfg[idx].bitwidth_mixer_ctl) {
@@ -5509,6 +5545,10 @@ int platform_get_backend_index(snd_device_t snd_device)
                         port = HDMI_ARC_TX_BACKEND;
                 else if (strcmp(backend_tag_table[snd_device], "headset-mic") == 0)
                         port = HEADSET_TX_BACKEND;
+                else if (strcmp(backend_tag_table[snd_device], "speaker-mic2") == 0)
+                        port = QUAT_TDM_TX_BACKEND;
+                else if (strcmp(backend_tag_table[snd_device], "speaker-mic3") == 0)
+                        port = SEN_TDM_TX_BACKEND;
         }
     } else {
         ALOGW("%s:napb: Invalid device - %d ", __func__, snd_device);
@@ -6870,6 +6910,11 @@ snd_device_t platform_get_output_snd_device(void *platform, struct stream_out *o
         audio_extn_set_afe_proxy_channel_mixer(adev, channel_count, snd_device);
     } else if (devices & AUDIO_DEVICE_OUT_BUS) {
         snd_device = audio_extn_auto_hal_get_output_snd_device(adev, out->usecase);
+    } else if (audio_extn_utils_is_spdif_device(devices)) {
+       if (devices & AUDIO_DEVICE_OUT_SPDIF)
+           snd_device = SND_DEVICE_OUT_SPDIF;
+       else if (devices & AUDIO_DEVICE_OUT_OPTICAL)
+           snd_device = SND_DEVICE_OUT_OPTICAL;
     } else {
         ALOGE("%s: Unknown device(s) %#x", __func__, devices);
     }
@@ -7663,6 +7708,10 @@ snd_device_t platform_get_input_snd_device(void *platform,
             snd_device = fixup_usb_headset_mic_snd_device(platform,
                                                   SND_DEVICE_IN_USB_HEADSET_MIC,
                                                   SND_DEVICE_IN_USB_HEADSET_MULTI_CHANNEL_MIC);
+        } else if(in_device & AUDIO_DEVICE_IN_SPEAKER_MIC2) {
+            snd_device = SND_DEVICE_IN_SPEAKER_MIC2;
+        } else if(in_device & AUDIO_DEVICE_IN_SPEAKER_MIC3) {
+            snd_device = SND_DEVICE_IN_SPEAKER_MIC3;
         } else {
             ALOGE("%s: Unknown input device(s) %#x", __func__, in_device);
             ALOGW("%s: Using default handset-mic", __func__);
@@ -10192,9 +10241,8 @@ bool platform_check_and_set_codec_backend_cfg(struct audio_device* adev,
     backend_idx = platform_get_backend_index(snd_device);
     device_be_idx = platform_get_snd_device_backend_index(snd_device);
 
-    if ((usecase->type == TRANSCODE_LOOPBACK_RX)
-         || (usecase->type == AFE_LOOPBACK)
-         || (usecase->type == DTMF_PLAYBACK)) {
+    if ((usecase->type == AFE_LOOPBACK) ||
+        (usecase->type == DTMF_PLAYBACK)) {
         backend_cfg.bit_width = usecase->stream.inout->out_config.bit_width;
         backend_cfg.sample_rate = usecase->stream.inout->out_config.sample_rate;
         backend_cfg.format = usecase->stream.inout->out_config.format;
@@ -10397,13 +10445,8 @@ bool platform_check_and_set_capture_codec_backend_cfg(struct audio_device* adev,
     device_be_idx = platform_get_snd_device_backend_index(snd_device);
     backend_cfg.passthrough_enabled = false;
 
-    if (usecase->type == TRANSCODE_LOOPBACK_TX) {
-        backend_cfg.bit_width = usecase->stream.inout->in_config.bit_width;
-        backend_cfg.sample_rate = usecase->stream.inout->in_config.sample_rate;
-        backend_cfg.format = usecase->stream.inout->in_config.format;
-        backend_cfg.channels = audio_channel_count_from_out_mask(
-                usecase->stream.inout->in_config.channel_mask);
-    } else if (usecase->type == PCM_CAPTURE) {
+    if ((usecase->type == PCM_CAPTURE) ||
+        (usecase->type == TRANSCODE_LOOPBACK_TX)) {
         backend_cfg.sample_rate= usecase->stream.in->sample_rate;
         backend_cfg.bit_width= usecase->stream.in->bit_width;
         backend_cfg.format= usecase->stream.in->format;
@@ -11135,8 +11178,6 @@ int platform_set_channel_map(void *platform, int ch_count, char *ch_map, int snd
      */
     if (snd_id >= 0) {
         snprintf(mixer_ctl_name, sizeof(mixer_ctl_name), "Playback Channel Map%d", snd_id);
-    } else if (snd_id == -2) {
-        strlcpy(mixer_ctl_name, "Capture Device Channel Map", sizeof(mixer_ctl_name));
     } else {
         if (be_idx >= 0) {
             be_ctl = mixer_get_ctl_by_name(adev->mixer, be_mixer_ctl_name);
@@ -11191,7 +11232,6 @@ int platform_set_channel_map(void *platform, int ch_count, char *ch_map, int snd
     ALOGD("%s: set mapping(%ld %ld %ld %ld %ld %ld %ld %ld) for channel:%d", __func__,
         set_values[0], set_values[1], set_values[2], set_values[3], set_values[4],
         set_values[5], set_values[6], set_values[7], ch_count);
-
     if (be_idx >= 0) {
         be_set_values[0] = be_idx;
         memcpy(&be_set_values[1], set_values, sizeof(long) * ch_count);
@@ -11285,7 +11325,9 @@ void platform_check_and_update_copp_sample_rate(void* platform, snd_device_t snd
 
     if ((snd_device == SND_DEVICE_OUT_HDMI) || (snd_device == SND_DEVICE_OUT_DISPLAY_PORT) ||
                   (snd_device == SND_DEVICE_OUT_DISPLAY_PORT1) ||
-                  (snd_device == SND_DEVICE_OUT_USB_HEADSET))
+                  (snd_device == SND_DEVICE_OUT_USB_HEADSET) ||
+                  (snd_device == SND_DEVICE_OUT_SPDIF) ||
+                  (snd_device == SND_DEVICE_OUT_OPTICAL))
         *sample_rate = platform_get_supported_copp_sampling_rate(stream_sr);
 
      ALOGI("sn_device %d device sr %d stream sr %d copp sr %d", snd_device, device_sr, stream_sr, *sample_rate);

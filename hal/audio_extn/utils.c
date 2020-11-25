@@ -892,6 +892,7 @@ void audio_extn_utils_update_stream_app_type_cfg_for_usecase(
 
     switch(usecase->type) {
     case PCM_PLAYBACK:
+    case TRANSCODE_LOOPBACK_RX :
         audio_extn_utils_update_stream_output_app_type_cfg(adev->platform,
                                                 &adev->streams_output_cfg_list,
                                                 usecase->stream.out->devices,
@@ -905,6 +906,7 @@ void audio_extn_utils_update_stream_app_type_cfg_for_usecase(
         ALOGV("%s Selected apptype: %d", __func__, usecase->stream.out->app_type_cfg.app_type);
         break;
     case PCM_CAPTURE:
+    case TRANSCODE_LOOPBACK_TX :
         if (usecase->id == USECASE_AUDIO_RECORD_VOIP)
             usecase->stream.in->app_type_cfg.app_type = APP_TYPE_VOIP_AUDIO;
         else
@@ -918,19 +920,6 @@ void audio_extn_utils_update_stream_app_type_cfg_for_usecase(
                                                 usecase->stream.in->profile,
                                                 &usecase->stream.in->app_type_cfg);
         ALOGV("%s Selected apptype: %d", __func__, usecase->stream.in->app_type_cfg.app_type);
-        break;
-    case TRANSCODE_LOOPBACK_RX :
-        audio_extn_utils_update_stream_output_app_type_cfg(adev->platform,
-                                                &adev->streams_output_cfg_list,
-                                                usecase->stream.inout->out_config.devices,
-                                                0,
-                                                usecase->stream.inout->out_config.format,
-                                                usecase->stream.inout->out_config.sample_rate,
-                                                usecase->stream.inout->out_config.bit_width,
-                                                usecase->stream.inout->out_config.channel_mask,
-                                                usecase->stream.inout->profile,
-                                                &usecase->stream.inout->out_app_type_cfg);
-        ALOGV("%s Selected apptype: %d", __func__, usecase->stream.inout->out_app_type_cfg.app_type);
         break;
     case PCM_HFP_CALL:
         switch (usecase->id) {
@@ -1003,18 +992,6 @@ void audio_extn_utils_update_stream_app_type_cfg_for_usecase(
                                 platform_get_default_app_type_v2(adev->platform, PCM_CAPTURE);
         ALOGV("%s Selected apptype: playback %d capture %d",
             __func__, usecase->out_app_type_cfg.app_type, usecase->in_app_type_cfg.app_type);
-        break;
-    case TRANSCODE_LOOPBACK_TX :
-        audio_extn_utils_update_stream_input_app_type_cfg(adev->platform,
-                                                &adev->streams_input_cfg_list,
-                                                usecase->stream.inout->in_config.devices,
-                                                usecase->stream.inout->input_flags,
-                                                usecase->stream.inout->in_config.format,
-                                                usecase->stream.inout->in_config.sample_rate,
-                                                usecase->stream.inout->in_config.bit_width,
-                                                usecase->stream.inout->profile,
-                                                &usecase->stream.inout->in_app_type_cfg);
-        ALOGV("%s Selected apptype: %d", __func__, usecase->stream.inout->in_app_type_cfg.app_type);
         break;
     default:
         ALOGE("%s: app type cfg not supported for usecase type (%d)",
@@ -1324,7 +1301,8 @@ int audio_extn_utils_get_app_sample_rate_for_device(
             usecase->stream.out->app_type_cfg.sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
         } else if ((snd_device == SND_DEVICE_OUT_HDMI ||
                     snd_device == SND_DEVICE_OUT_USB_HEADSET ||
-                    snd_device == SND_DEVICE_OUT_DISPLAY_PORT) &&
+                    snd_device == SND_DEVICE_OUT_DISPLAY_PORT ||
+                    audio_extn_utils_is_spdif_snd_device(snd_device)) &&
                    (usecase->stream.out->sample_rate >= OUTPUT_SAMPLING_RATE_44100)) {
              /*
               * To best utlize DSP, check if the stream sample rate is supported/multiple of
@@ -1525,17 +1503,17 @@ static int send_app_type_cfg_for_device(struct audio_device *adev,
             app_type_cfg[len++] = snd_device_be_idx;
         ALOGI("%s CAPTURE app_type %d, acdb_dev_id %d, sample_rate %d, snd_device_be_idx %d",
            __func__, app_type, acdb_dev_id, sample_rate, snd_device_be_idx);
-    } else if ((usecase->type == TRANSCODE_LOOPBACK_TX) && (usecase->stream.inout != NULL)) {
-        app_type = usecase->stream.inout->in_app_type_cfg.app_type;
+    } else if ((usecase->type == TRANSCODE_LOOPBACK_TX) && (usecase->stream.in != NULL)) {
+        app_type = usecase->stream.in->app_type_cfg.app_type;
         app_type_cfg[len++] = app_type;
         app_type_cfg[len++] = acdb_dev_id;
-        if (usecase->stream.inout->in_config.devices & AUDIO_DEVICE_IN_BLUETOOTH_A2DP
+        if (usecase->stream.in->device & AUDIO_DEVICE_IN_BLUETOOTH_A2DP
                 & ~AUDIO_DEVICE_BIT_IN) {
-            audio_extn_a2dp_get_dec_sample_rate(&usecase->stream.inout->in_app_type_cfg.sample_rate);
+            audio_extn_a2dp_get_dec_sample_rate(&usecase->stream.in->app_type_cfg.sample_rate);
             ALOGI("%s using %d sample rate for A2DP dec CoPP in loopback",
-                  __func__, usecase->stream.inout->in_app_type_cfg.sample_rate);
+                  __func__, usecase->stream.in->app_type_cfg.sample_rate);
         }
-        sample_rate = usecase->stream.inout->in_app_type_cfg.sample_rate;
+        sample_rate = usecase->stream.in->app_type_cfg.sample_rate;
         app_type_cfg[len++] = sample_rate;
         if (snd_device_be_idx > 0)
             app_type_cfg[len++] = snd_device_be_idx;
@@ -1544,7 +1522,8 @@ static int send_app_type_cfg_for_device(struct audio_device *adev,
     } else {
         app_type = platform_get_default_app_type_v2(adev->platform, usecase->type);
         if(usecase->type == TRANSCODE_LOOPBACK_RX) {
-            app_type = usecase->stream.inout->out_app_type_cfg.app_type;
+            app_type = usecase->stream.out->app_type_cfg.app_type;
+            sample_rate = usecase->stream.out->sample_rate;
         }
         app_type_cfg[len++] = app_type;
         app_type_cfg[len++] = acdb_dev_id;
@@ -2032,17 +2011,17 @@ void audio_extn_utils_send_audio_calibration(struct audio_device *adev,
         platform_send_audio_calibration(adev->platform, usecase,
                          platform_get_default_app_type_v2(adev->platform, usecase->type),
                          48000);
-    } else if (type == TRANSCODE_LOOPBACK_RX && usecase->stream.inout != NULL) {
+    } else if (type == TRANSCODE_LOOPBACK_RX && usecase->stream.out != NULL) {
         int snd_device = usecase->out_snd_device;
         snd_device = (snd_device == SND_DEVICE_OUT_SPEAKER) ?
                      platform_get_spkr_prot_snd_device(snd_device) : snd_device;
         platform_send_audio_calibration(adev->platform, usecase,
                          platform_get_default_app_type_v2(adev->platform, usecase->type),
-                         usecase->stream.inout->out_config.sample_rate);
-    } else if (type == TRANSCODE_LOOPBACK_TX && usecase->stream.inout != NULL) {
+                         usecase->stream.out->sample_rate);
+    } else if (type == TRANSCODE_LOOPBACK_TX && usecase->stream.in != NULL) {
         platform_send_audio_calibration(adev->platform, usecase,
                          platform_get_default_app_type_v2(adev->platform, usecase->type),
-                         usecase->stream.inout->in_config.sample_rate);
+                         usecase->stream.in->sample_rate);
     } else {
         /* No need to send audio calibration for voice and voip call usecases */
         if ((type != VOICE_CALL) && (type != VOIP_CALL))
@@ -2249,6 +2228,17 @@ bool audio_extn_utils_is_spdif_device(audio_devices_t devices)
     return rc;
 }
 
+bool audio_extn_utils_is_spdif_snd_device(int snd_devices)
+{
+    bool rc = false;
+
+    if ((snd_devices & SND_DEVICE_OUT_SPDIF) ||
+        (snd_devices & SND_DEVICE_OUT_OPTICAL))
+        rc = true;
+
+    return rc;
+}
+
 bool audio_extn_util_init_spdif_channel_status(struct stream_out *out)
 {
     bool ret = false;
@@ -2447,7 +2437,8 @@ int audio_extn_utils_set_spdif_channel_status (struct stream_out *out,
         goto fail;
     }
 
-    if (mixer_ctl_set_array(ctl, &iec958, sizeof(iec958)) < 0) {
+    /* Set 1 channel status info in IEC958 struct */
+    if (mixer_ctl_set_array(ctl, &iec958, 1) < 0) {
         ALOGE("%s: Could not set channel status for %s", __func__, mixer_ctl_name_ch_a);
         ret = -EINVAL;
         goto fail;
@@ -2467,7 +2458,8 @@ int audio_extn_utils_set_spdif_channel_status (struct stream_out *out,
         goto fail;
     }
 
-    if (mixer_ctl_set_array(ctl, &iec958, sizeof(iec958)) < 0) {
+    /* Set 1 channel status info in IEC958 struct */
+    if (mixer_ctl_set_array(ctl, &iec958, 1) < 0) {
         ALOGE("%s: Could not set channel status for %s", __func__, mixer_ctl_name_ch_b);
         ret = -EINVAL;
         goto fail;
@@ -2697,7 +2689,8 @@ void audio_utils_set_hdmi_channel_status(struct stream_out *out, char * buffer, 
                   __func__, mixer_ctl_name);
             return;
     }
-    if (mixer_ctl_set_array(ctl, &iec958, sizeof(iec958)) < 0) {
+    /* Set 1 channel status info in IEC958 struct */
+    if (mixer_ctl_set_array(ctl, &iec958, 1) < 0) {
         ALOGE("%s: Could not set channel status for ext HDMI ",
               __func__);
         return;
@@ -2845,6 +2838,8 @@ int audio_extn_utils_compress_set_render_mode_v2(struct compress *compr,
         metadata.value[0] = SNDRV_COMPRESS_RENDER_MODE_STC_MASTER;
     } else if (render_mode == RENDER_MODE_AUDIO_TTP) {
         metadata.value[0] = SNDRV_COMPRESS_RENDER_MODE_TTP;
+    } else if (render_mode == RENDER_MODE_AUDIO_TTP_PASS_THROUGH) {
+        metadata.value[0] = SNDRV_COMPRESS_RENDER_MODE_TTP_PASS_THROUGH;
     } else {
         ret = 0;
         ALOGE("%s:: invalid render mode %d", __func__, render_mode);

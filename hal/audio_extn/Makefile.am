@@ -119,3 +119,24 @@ audio_a2dp_offload_la_CFLAGS += -D__unused=__attribute__\(\(__unused__\)\)
 audio_a2dp_offload_la_CFLAGS += -DLINUX_ENABLED $(TARGET_CFLAGS) -DAUDIO_EXTN_FORMATS_ENABLED
 audio_a2dp_offload_la_CFLAGS += -DNDEBUG
 audio_a2dp_offload_la_LDFLAGS = -module -shared -avoid-version
+
+################################## A2DP OFFLOAD LIB ####################################
+if HFP
+AM_CFLAGS += -DHFP_ENABLED
+endif
+
+c_sources += hfp.c
+library_include_HEADERS = $(h_sources)
+library_includedir = $(includedir)
+
+lib_LTLIBRARIES += hfp.la
+hfp_la_SOURCES = $(c_sources)
+hfp_la_LIBADD = $(GLIB_LIBS) -llog -lcutils -ltinyalsa
+hfp_la_LIBADD += -ltinycompress -laudioroute -ldl -lexpat -laudioutils
+hfp_la_CFLAGS = $(AM_CFLAGS) $(GLIB_CFLAGS)
+hfp_la_CFLAGS += -Dstrlcat=g_strlcat
+hfp_la_CFLAGS += -DINT_MAX=0x7fffffff
+hfp_la_CFLAGS += -D__unused=__attribute__\(\(__unused__\)\)
+hfp_la_CFLAGS += -DLINUX_ENABLED $(TARGET_CFLAGS) -DAUDIO_EXTN_FORMATS_ENABLED
+hfp_la_CFLAGS += -DNDEBUG
+hfp_la_LDFLAGS = -module -shared -avoid-version
