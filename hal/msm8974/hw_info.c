@@ -559,8 +559,12 @@ static void update_hardware_info_kona(
                  sizeof("kona-qrd-snd-card"))) {
         strlcpy(hw_info->name, "kona", sizeof(hw_info->name));
         hw_info->is_stereo_spkr = false;
-    } else if (!strncmp(snd_card_name, "kona-xrfusion-ult-snd-card",
-                 sizeof("kona-xrfusion-ult-snd-card"))) {
+    } else if (!strncmp(snd_card_name, "kona-xrfusion-snd-card",
+                 sizeof("kona-xrfusion-snd-card"))) {
+        strlcpy(hw_info->name, "kona", sizeof(hw_info->name));
+        hw_info->is_stereo_spkr = true;
+    } else if (!strncmp(snd_card_name, "kona-xrfusionult-snd-card",
+                 sizeof("kona-xrfusionult-snd-card"))) {
         strlcpy(hw_info->name, "kona", sizeof(hw_info->name));
         hw_info->is_stereo_spkr = true;
     } else if (!strncmp(snd_card_name, "lito-qrd-snd-card",
