@@ -254,7 +254,7 @@ if EXTENDED_COMPRESS_FORMAT
 AM_CFLAGS += -DENABLE_EXTENDED_COMPRESS_FORMAT
 endif
 
-AM_CFLAGS += -DMAX_TARGET_SPECIFIC_CHANNEL_CNT="14"
+AM_CFLAGS += -DMAX_TARGET_SPECIFIC_CHANNEL_CNT="16"
 
 h_sources = audio_extn/audio_defs.h \
             audio_extn/audio_extn.h \
