@@ -3073,6 +3073,7 @@ int audio_extn_parse_compress_metadata(struct stream_out *out,
         return ret;
     }
 
+#if defined(FLAC_SUPPORT)
     if (out->format == AUDIO_FORMAT_FLAC) {
         ret = str_parms_get_str(parms, AUDIO_OFFLOAD_CODEC_FLAC_MIN_BLK_SIZE, value, sizeof(value));
         if (ret >= 0) {
@@ -3100,8 +3101,9 @@ int audio_extn_parse_compress_metadata(struct stream_out *out,
               out->compr_config.codec->options.flac_dec.min_frame_size,
               out->compr_config.codec->options.flac_dec.max_frame_size);
     }
-
-    else if (out->format == AUDIO_FORMAT_ALAC) {
+#endif
+#if defined(FLAC_SUPPORT)
+    if (out->format == AUDIO_FORMAT_ALAC) {
         ret = str_parms_get_str(parms, AUDIO_OFFLOAD_CODEC_ALAC_FRAME_LENGTH, value, sizeof(value));
         if (ret >= 0) {
             out->compr_config.codec->options.alac.frame_length = atoi(value);
@@ -3172,8 +3174,9 @@ int audio_extn_parse_compress_metadata(struct stream_out *out,
                 out->compr_config.codec->options.alac.avg_bit_rate,
                 out->compr_config.codec->options.alac.sample_rate);
     }
-
-    else if (out->format == AUDIO_FORMAT_APE) {
+#endif
+#if defined(APE_SUPPORT)
+    if (out->format == AUDIO_FORMAT_APE) {
         ret = str_parms_get_str(parms, AUDIO_OFFLOAD_CODEC_APE_COMPATIBLE_VERSION, value, sizeof(value));
         if (ret >= 0) {
             out->compr_config.codec->options.ape.compatible_version = atoi(value);
@@ -3239,8 +3242,9 @@ int audio_extn_parse_compress_metadata(struct stream_out *out,
                 out->compr_config.codec->options.ape.sample_rate,
                 out->compr_config.codec->options.ape.seek_table_present);
     }
-
-    else if (out->format == AUDIO_FORMAT_VORBIS) {
+#endif
+#if defined(VORBIS_SUPPORT)
+    if (out->format == AUDIO_FORMAT_VORBIS) {
         ret = str_parms_get_str(parms, AUDIO_OFFLOAD_CODEC_VORBIS_BITSTREAM_FMT, value, sizeof(value));
         if (ret >= 0) {
         // transcoded bitstream mode
@@ -3248,8 +3252,9 @@ int audio_extn_parse_compress_metadata(struct stream_out *out,
             out->is_compr_metadata_avail = true;
         }
     }
-
-    else if (out->format == AUDIO_FORMAT_WMA || out->format == AUDIO_FORMAT_WMA_PRO) {
+#endif
+#if defined(WMA_SUPPORT)
+    if (out->format == AUDIO_FORMAT_WMA || out->format == AUDIO_FORMAT_WMA_PRO) {
         ret = str_parms_get_str(parms, AUDIO_OFFLOAD_CODEC_WMA_FORMAT_TAG, value, sizeof(value));
         if (ret >= 0) {
             out->compr_config.codec->format = atoi(value);
@@ -3301,7 +3306,7 @@ int audio_extn_parse_compress_metadata(struct stream_out *out,
                 out->compr_config.codec->options.wma.encodeopt1,
                 out->compr_config.codec->options.wma.encodeopt2);
     }
-
+#endif
     return ret;
 }
 

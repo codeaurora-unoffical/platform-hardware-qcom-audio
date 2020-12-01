@@ -106,6 +106,14 @@ if (test x$TARGET_SUPPORT = xsdxprairie); then
          AC_SUBST([TARGET_PLATFORM], ["msm8974"])
          TARGET_CFLAGS="-DPLATFORM_SDX55"
 fi
+if (test x$TARGET_SUPPORT = xsdxnightjar); then
+         AC_SUBST([TARGET_PLATFORM], ["msm8974"])
+         TARGET_CFLAGS="-DPLATFORM_SDX12"
+fi
+if (test x$TARGET_SUPPORT = xmdm9650); then
+         AC_SUBST([TARGET_PLATFORM], ["msm8974"])
+         TARGET_CFLAGS="-DPLATFORM_SDX12"
+fi
 AC_SUBST([TARGET_CFLAGS])
 
 AM_CONDITIONAL([QTI_AUDIO_SERVER_ENABLED],[test x$BOARD_SUPPORTS_QTI_AUDIO_SERVER = xtrue])
@@ -163,7 +171,6 @@ AC_CONFIG_FILES([ \
         Makefile \
         hal/Makefile \
         hal/audio_extn/Makefile \
-        post_proc/Makefile \
         qahw_api/Makefile \
         qahw_api/test/Makefile \
         hdmi_in_test/Makefile

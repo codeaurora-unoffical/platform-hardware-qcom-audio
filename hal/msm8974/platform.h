@@ -456,7 +456,8 @@ enum {
     defined (PLATFORM_QCS605) ||defined (PLATFORM_SDX24) || \
     defined (PLATFORM_MSMNILE) || defined (PLATFORM_KONA) || \
     defined (PLATFORM_MSMSTEPPE) || defined (PLATFORM_QCS405) || \
-    defined (PLATFORM_TRINKET) || defined (PLATFORM_SDX55)
+    defined (PLATFORM_TRINKET) || defined (PLATFORM_SDX55) || \
+    defined (PLATFORM_SDX12)
 #define PLAYBACK_OFFLOAD_DEVICE2 17
 #endif
 
@@ -466,7 +467,7 @@ enum {
     defined (PLATFORM_SDX24) || defined (PLATFORM_MSMNILE) || \
     defined (PLATFORM_KONA) || defined (PLATFORM_MSMSTEPPE) || \
     defined (PLATFORM_QCS405) || defined (PLATFORM_TRINKET) || \
-    defined (PLATFORM_SDX55)
+    defined (PLATFORM_SDX55) || defined (PLATFORM_SDX12)
 #define PLAYBACK_OFFLOAD_DEVICE3 18
 #define PLAYBACK_OFFLOAD_DEVICE4 34
 #define PLAYBACK_OFFLOAD_DEVICE5 35
