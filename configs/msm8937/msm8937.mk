@@ -250,16 +250,19 @@ persist.vendor.audio.hw.binder.size_kbyte=1024
 
 # for HIDL related packages
 PRODUCT_PACKAGES += \
-    android.hardware.audio@2.0-service \
-    android.hardware.audio@2.0-impl \
-    android.hardware.audio.effect@2.0-impl \
-    android.hardware.soundtrigger@2.1-impl \
-    android.hardware.audio@4.0 \
-    android.hardware.audio.common@4.0 \
-    android.hardware.audio.common@4.0-util \
-    android.hardware.audio@4.0-impl \
-    android.hardware.audio.effect@4.0 \
-    android.hardware.audio.effect@4.0-impl
+    android.hardware.audio@2.0-service
+ifneq ($(KAI_OPTIMIZATION_FOR_AUDIO), true)
+PRODUCT_PACKAGES += \
+   android.hardware.audio@2.0-impl \
+   android.hardware.audio.effect@2.0-impl \
+   android.hardware.soundtrigger@2.1-impl \
+   android.hardware.audio@4.0 \
+   android.hardware.audio.common@4.0 \
+   android.hardware.audio.common@4.0-util \
+   android.hardware.audio@4.0-impl \
+   android.hardware.audio.effect@4.0 \
+   android.hardware.audio.effect@4.0-impl
+endif
 
 # enable audio hidl hal 5.0 for sdk rev 29 and above
 ifeq ($(shell expr $(PLATFORM_SDK_VERSION) \>= 29), 1)
