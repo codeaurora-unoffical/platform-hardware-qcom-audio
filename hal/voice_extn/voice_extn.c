@@ -609,14 +609,19 @@ int voice_extn_out_set_parameters(struct stream_out *out,
     if (err >= 0) {
         str_parms_del(parms, AUDIO_PARAMETER_KEY_DTMF_DETECT);
         bool dtmf_detect = false;
-        uint32_t session_id = 0;
+        struct voice_session *session = NULL;
+
+        ret = voice_extn_get_session_from_use_case(out->dev, out->usecase, &session);
+        if ((ret != 0) || (session == NULL)) {
+            ALOGE("%s: Failed to get session details based on usecase ret :%d", __func__, ret);
+            ret = -EINVAL;
+            goto done;
+        }
 
         if (!strncmp("true", str_value, sizeof("true")))
             dtmf_detect = true;
 
-        voice_extn_get_active_session_id(out->dev, &session_id);
-
-        ret = voice_extn_dtmf_set_rx_detection(out, session_id, dtmf_detect);
+        ret = voice_extn_dtmf_set_rx_detection(out, session->vsid, dtmf_detect);
         if (ret != 0) {
             ALOGE("%s: Failed to set dtmf_detect err:%d", __func__, ret);
             ret = -EINVAL;
