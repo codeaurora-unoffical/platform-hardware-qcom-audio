@@ -390,6 +390,8 @@ const char * const use_case_table[AUDIO_USECASE_MAX] = {
     [USECASE_AUDIO_FM_TUNER_EXT] = "fm-tuner-ext",
     [USECASE_AUDIO_AFE_LOOPBACK] = "audio-afe-loopback",
     [USECASE_AUDIO_DTMF] = "audio-dtmf-playback",
+    [USECASE_AUDIO_AFE_LOOPBACK2] = "audio-afe-loopback",
+    [USECASE_AUDIO_AFE_LOOPBACK3] = "audio-afe-loopback",
 };
 
 static const audio_usecase_t offload_usecases[] = {

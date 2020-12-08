@@ -379,11 +379,21 @@ int create_loopback_session(loopback_patch_t *active_loopback_patch)
         audio_loopback_mod->uc_id = USECASE_AUDIO_DTMF;
         audio_loopback_mod->uc_type = DTMF_PLAYBACK;
     } else {
-        uc_info->id = USECASE_AUDIO_AFE_LOOPBACK;
         uc_info->type = AFE_LOOPBACK;
-        loopback_source_stream.source = AUDIO_SOURCE_MIC;
-        audio_loopback_mod->uc_id = USECASE_AUDIO_AFE_LOOPBACK;
         audio_loopback_mod->uc_type = AFE_LOOPBACK;
+        loopback_source_stream.source = AUDIO_SOURCE_MIC;
+        if(sink_patch_config->ext.device.type == AUDIO_DEVICE_OUT_WIRED_HEADSET) {
+           uc_info->id = USECASE_AUDIO_AFE_LOOPBACK2;
+           audio_loopback_mod->uc_id = USECASE_AUDIO_AFE_LOOPBACK2;
+        }
+        else if(sink_patch_config->ext.device.type == AUDIO_DEVICE_OUT_EARPIECE) {
+           uc_info->id = USECASE_AUDIO_AFE_LOOPBACK3;
+           audio_loopback_mod->uc_id = USECASE_AUDIO_AFE_LOOPBACK3;
+        }
+        else {
+           uc_info->id = USECASE_AUDIO_AFE_LOOPBACK;
+           audio_loopback_mod->uc_id = USECASE_AUDIO_AFE_LOOPBACK;
+        }
     }
     uc_info->stream.inout = &active_loopback_patch->patch_stream;
     uc_info->devices = active_loopback_patch->patch_stream.out_config.devices;
