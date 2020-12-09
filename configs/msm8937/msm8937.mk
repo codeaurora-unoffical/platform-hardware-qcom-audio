@@ -69,6 +69,15 @@ endif
 #Audio Specific device overlays
 DEVICE_PACKAGE_OVERLAYS += hardware/qcom/audio/configs/common/overlay
 
+
+ifeq ($(TARGET_SUPPORTS_WEARABLES),true)
+ ifeq ($(TARGET_KERNEL_VERSION), 4.14)
+   TARGET_SUPPORTS_A2DP_SLIMBUS_INTERFACE := true
+ else
+   TARGET_SUPPORTS_A2DP_SLIMBUS_INTERFACE := false
+  endif
+endif
+
 # Audio configuration file
 ifeq ($(TARGET_USES_AOSP_FOR_AUDIO), true)
    ifeq ($(TARGET_SUPPORTS_WEARABLES), true)
@@ -88,6 +97,10 @@ PRODUCT_COPY_FILES += \
     hardware/qcom/audio/configs/msm8937/audio_policy.conf:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy.conf
 endif
 
+# Target supports smartPA
+ifeq ($(TARGET_SUPPORTS_WEARABLES), true)
+WEARABLE_SUPPORTS_TFA_SMARTPA := true
+endif
 
 PRODUCT_COPY_FILES +=\
 hardware/qcom/audio/configs/msm8937/audio_output_policy.conf:$(TARGET_COPY_OUT_VENDOR)/etc/audio_output_policy.conf\
@@ -112,12 +125,21 @@ hardware/qcom/audio/configs/msm8937/mixer_paths_wcd9335.xml:$(TARGET_COPY_OUT_VE
 hardware/qcom/audio/configs/msm8937/mixer_paths_wcd9326.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_wcd9326.xml \
 hardware/qcom/audio/configs/msm8937/mixer_paths_qrd_skun.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_qrd_skun.xml \
 hardware/qcom/audio/configs/msm8937/mixer_paths_qrd_sku1.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_qrd_sku1.xml \
-hardware/qcom/audio/configs/msm8937/mixer_paths_qrd_sku2.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_qrd_sku2.xml \
-hardware/qcom/audio/configs/msm8937/mixer_paths_sdm429w.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_sdm429w.xml
+hardware/qcom/audio/configs/msm8937/mixer_paths_qrd_sku2.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_qrd_sku2.xml
+
 ifeq ($(TARGET_SUPPORTS_WEARABLES), true)
-PRODUCT_COPY_FILES += hardware/qcom/audio/configs/msm8937/audio_platform_info_sdm429w.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info.xml
+   ifeq ($(TARGET_SUPPORTS_A2DP_SLIMBUS_INTERFACE),true)
+      PRODUCT_COPY_FILES += \
+      $(TOPDIR)hardware/qcom/audio/configs/msm8937/audio_platform_info_sdm429w_dvt2.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info.xml \
+      $(TOPDIR)hardware/qcom/audio/configs/msm8937/mixer_paths_sdm429w_dvt2.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_sdm429w.xml
+   else
+      PRODUCT_COPY_FILES += \
+      $(TOPDIR)hardware/qcom/audio/configs/msm8937/audio_platform_info_sdm429w.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info.xml \
+      $(TOPDIR)hardware/qcom/audio/configs/msm8937/mixer_paths_sdm429w.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_sdm429w.xml
+endif
 else
-PRODUCT_COPY_FILES += hardware/qcom/audio/configs/msm8937/audio_platform_info.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info.xml
+   PRODUCT_COPY_FILES += \
+   $(TOPDIR)hardware/qcom/audio/configs/msm8937/audio_platform_info.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info.xml
 endif
 PRODUCT_COPY_FILES += hardware/qcom/audio/configs/msm8937/audio_platform_info_extcodec.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info_extcodec.xml \
 hardware/qcom/audio/configs/msm8937/audio_tuning_mixer.txt:$(TARGET_COPY_OUT_VENDOR)/etc/audio_tuning_mixer.txt \

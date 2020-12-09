@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2014 The Android Open Source Project
@@ -398,6 +398,47 @@ static void load_cfg_list(cnode *root, void *platform,
     }
 }
 
+static int set_stream_app_type_mixer_ctrl(struct audio_device *adev,
+                                          int pcm_device_id, int app_type,
+                                          int acdb_dev_id, int sample_rate,
+                                          int stream_type,
+                                          snd_device_t snd_device)
+{
+    char mixer_ctl_name[MAX_LENGTH_MIXER_CONTROL_IN_INT];
+    struct mixer_ctl *ctl;
+    int app_type_cfg[MAX_LENGTH_MIXER_CONTROL_IN_INT], len = 0, rc = 0;
+    int snd_device_be_idx = -1;
+
+    if (stream_type == PCM_PLAYBACK) {
+        snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
+             "Audio Stream %d App Type Cfg", pcm_device_id);
+    } else if (stream_type == PCM_CAPTURE) {
+        snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
+             "Audio Stream Capture %d App Type Cfg", pcm_device_id);
+    }
+
+    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+    if (!ctl) {
+        ALOGE("%s: Could not get ctl for mixer cmd - %s",
+               __func__, mixer_ctl_name);
+        rc = -EINVAL;
+        goto exit;
+    }
+
+    app_type_cfg[len++] = app_type;
+    app_type_cfg[len++] = acdb_dev_id;
+    app_type_cfg[len++] = sample_rate;
+    snd_device_be_idx = platform_get_snd_device_backend_index(snd_device);
+
+    if (snd_device_be_idx > 0)
+            app_type_cfg[len++] = snd_device_be_idx;
+
+    mixer_ctl_set_array(ctl, app_type_cfg, len);
+
+exit:
+    return rc;
+}
+
 static void send_app_type_cfg(void *platform, struct mixer *mixer,
                               struct listnode *streams_output_cfg_list,
                               struct listnode *streams_input_cfg_list)
@@ -497,6 +538,100 @@ static void send_app_type_cfg(void *platform, struct mixer *mixer,
         app_type_cfg[0] = num_app_types;
         mixer_ctl_set_array(ctl, app_type_cfg, length);
     }
+}
+
+static int audio_extn_utils_send_app_type_cfg_hfp(struct audio_device *adev,
+                                              struct audio_usecase *usecase)
+{
+    int pcm_device_id, acdb_dev_id = 0, snd_device = usecase->out_snd_device;
+    int32_t sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
+    int app_type = 0, rc = 0;
+
+    if (usecase->type != PCM_HFP_CALL) {
+        ALOGV("%s: not a playback or HFP path, no need to cfg app type", __func__);
+        rc = 0;
+        goto exit_send_app_type_cfg;
+    }
+
+    if ((usecase->id != USECASE_AUDIO_HFP_SCO) &&
+        (usecase->id != USECASE_AUDIO_HFP_SCO_WB)) {
+        ALOGV("%s: a playback path where app type cfg is not required", __func__);
+        rc = 0;
+        goto exit_send_app_type_cfg;
+    }
+
+    snd_device = usecase->out_snd_device;
+    pcm_device_id = platform_get_pcm_device_id(usecase->id, PCM_PLAYBACK);
+
+    acdb_dev_id = platform_get_snd_device_acdb_id(snd_device);
+    if (acdb_dev_id < 0) {
+        ALOGE("%s: Couldn't get the acdb dev id", __func__);
+        rc = -EINVAL;
+        goto exit_send_app_type_cfg;
+    }
+
+    if (usecase->type == PCM_HFP_CALL) {
+        /* config HFP session:1 playback path */
+        app_type = platform_get_default_app_type_v2(adev->platform,
+                                                    PCM_PLAYBACK);
+        sample_rate= CODEC_BACKEND_DEFAULT_SAMPLE_RATE;
+        rc = set_stream_app_type_mixer_ctrl(adev, pcm_device_id, app_type,
+                                            acdb_dev_id, sample_rate,
+                                            PCM_PLAYBACK,
+                                            usecase->out_snd_device);
+
+        /*
+         * Set app type cfg for other sessions even playback app type cfg fails.
+         * Playback path can be ASM/AFE loopback. Apptype mixer control will not
+         * be created for AFE loopback case as it uses hostless DAI. So continue
+         * to set TX path apptype.
+         *
+         * To Do: Add a property in platform xml to publish if a pcm node is
+         * for AFE/ASM loopback or read from DAI link if it is hostless pcm DAI
+         * or not and based on that handle app type cfg error.
+         */
+
+        /* config HFP session:1 capture path */
+        app_type = platform_get_default_app_type_v2(adev->platform,
+                                                    PCM_CAPTURE);
+        rc = set_stream_app_type_mixer_ctrl(adev, pcm_device_id, app_type,
+                                            acdb_dev_id, sample_rate,
+                                            PCM_CAPTURE,
+                                            usecase->in_snd_device);
+
+        /* config HFP session:2 capture path */
+        pcm_device_id = HFP_ASM_RX_TX;
+        snd_device = usecase->in_snd_device;
+
+        acdb_dev_id = platform_get_snd_device_acdb_id(snd_device);
+        if (acdb_dev_id <= 0) {
+            ALOGE("%s: Couldn't get the acdb dev id", __func__);
+            rc = -EINVAL;
+            goto exit_send_app_type_cfg;
+        }
+
+        app_type = platform_get_default_app_type_v2(adev->platform,
+                                                    PCM_CAPTURE);
+        rc = set_stream_app_type_mixer_ctrl(adev, pcm_device_id, app_type,
+                                          acdb_dev_id, sample_rate,
+                                          PCM_CAPTURE, usecase->in_snd_device);
+        if (rc < 0)
+           goto exit_send_app_type_cfg;
+
+        /* config HFP session:2 playback path */
+        app_type = platform_get_default_app_type_v2(adev->platform,
+                                                    PCM_PLAYBACK);
+        rc = set_stream_app_type_mixer_ctrl(adev, pcm_device_id, app_type,
+                                       acdb_dev_id, sample_rate,
+                                       PCM_PLAYBACK, usecase->out_snd_device);
+        if (rc < 0)
+            goto exit_send_app_type_cfg;
+    }
+
+    rc = 0;
+
+exit_send_app_type_cfg:
+     return rc;
 }
 
 void audio_extn_utils_update_streams_cfg_lists(void *platform,
@@ -1144,6 +1279,9 @@ int audio_extn_utils_send_app_type_cfg(struct audio_device *adev,
             num_devices = 1;
         }
         break;
+    case PCM_HFP_CALL:
+        rc = audio_extn_utils_send_app_type_cfg_hfp(adev,usecase);
+        return rc;
     default:
         ALOGI("%s: not a playback/capture path, no need to cfg app type", __func__);
         rc = 0;
@@ -1451,8 +1589,15 @@ void audio_extn_utils_send_audio_calibration(struct audio_device *adev,
     } else if (type == PCM_CAPTURE && usecase->stream.in != NULL) {
         platform_send_audio_calibration(adev->platform, usecase,
                          usecase->stream.in->app_type_cfg.app_type);
-    } else if (type == PCM_HFP_CALL || type == PCM_CAPTURE) {
+    } else if (type == PCM_HFP_CALL) {
         /* when app type is default. the sample rate is not used to send cal */
+#ifdef ENABLE_HFP_CALIBRATION
+        platform_send_audio_calibration_hfp(adev->platform, usecase->in_snd_device);
+#else
+        platform_send_audio_calibration(adev->platform, usecase,
+                        platform_get_default_app_type_v2(adev->platform, usecase->type));
+#endif
+    } else if (type == PCM_CAPTURE)  {
         platform_send_audio_calibration(adev->platform, usecase,
                          platform_get_default_app_type_v2(adev->platform, usecase->type));
     } else if (type == TRANSCODE_LOOPBACK && usecase->stream.inout != NULL) {
