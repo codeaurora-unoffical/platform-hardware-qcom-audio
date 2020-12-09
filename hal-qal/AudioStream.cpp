@@ -1370,6 +1370,7 @@ int StreamOutPrimary::CreateMmapBuffer(int32_t min_size_frames,
         ALOGE("%s: failed to open stream.", __func__);
         return ret;
     }
+#ifndef LINUX_ENABLED
     ret = qal_stream_create_mmap_buffer(qal_stream_handle_,
             min_size_frames, &qalMmapBuf);
     if (ret) {
@@ -1377,6 +1378,7 @@ int StreamOutPrimary::CreateMmapBuffer(int32_t min_size_frames,
         Standby();
         return ret;
     }
+#endif
     info->shared_memory_address = qalMmapBuf.buffer;
     info->shared_memory_fd = qalMmapBuf.fd;
     info->buffer_size_frames = qalMmapBuf.buffer_size_frames;
@@ -2437,6 +2439,7 @@ int StreamInPrimary::CreateMmapBuffer(int32_t min_size_frames,
         ALOGE("%s: failed to open stream.", __func__);
         return ret;
     }
+#ifndef LINUX_ENABLED
     ret = qal_stream_create_mmap_buffer(qal_stream_handle_,
             min_size_frames, &qalMmapBuf);
     if (ret) {
@@ -2444,6 +2447,7 @@ int StreamInPrimary::CreateMmapBuffer(int32_t min_size_frames,
         Standby();
         return ret;
     }
+#endif
     info->shared_memory_address = qalMmapBuf.buffer;
     info->shared_memory_fd = qalMmapBuf.fd;
     info->buffer_size_frames = qalMmapBuf.buffer_size_frames;

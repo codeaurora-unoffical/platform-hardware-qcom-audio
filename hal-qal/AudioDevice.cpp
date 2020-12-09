@@ -65,7 +65,9 @@ card_status_t AudioDevice::sndCardState = CARD_STATUS_ONLINE;
 
 AudioDevice::~AudioDevice() {
     audio_extn_gef_deinit(adev_);
+#ifndef LINUX_ENABLED
     audio_extn_sound_trigger_deinit(adev_);
+#endif
     qal_deinit();
 }
 
@@ -559,7 +561,9 @@ int AudioDevice::Init(hw_device_t **device, const hw_module_t *module) {
     /* no feature configurations yet */
     AudioExtn::battery_listener_feature_init(true);
     AudioExtn::battery_properties_listener_init(adev_on_battery_status_changed);
+#ifndef LINUX_ENABLED
     audio_extn_hidl_init();
+#endif
     voice_ = VoiceInit();
     mute_ = false;
     current_rotation = QAL_SPEAKER_ROTATION_LR;
