@@ -1565,6 +1565,7 @@ static int audio_extn_utils_check_input_parameters(uint32_t sample_rate,
     case 10:
     case 12:
     case 14:
+    case 16:
         break;
     default:
         ret = -EINVAL;
