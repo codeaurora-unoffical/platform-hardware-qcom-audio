@@ -198,7 +198,6 @@ typedef enum {
 
 #define QAHW_AUDIO_OUTPUT_FLAG_ECALL 0x8000
 
-
 /* Query fm volume */
 #define QAHW_PARAMETER_KEY_FM_VOLUME "fm_volume"
 

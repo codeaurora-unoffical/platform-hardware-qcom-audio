@@ -27,7 +27,7 @@
 #include <sys/time.h>
 #include <stdlib.h>
 #include <math.h>
-#include <cutils/log.h>
+#include <log/log.h>
 #include <cutils/str_parms.h>
 #include <cutils/properties.h>
 
@@ -501,7 +501,6 @@ int compress_voip_start_input_stream(struct stream_in *in)
     if (!voip_data.in_stream_count)
         ret = compress_voip_open_input_stream(in);
 
-    adev->active_input = in;
     ret = voip_start_call(adev, &in->config);
     in->pcm = voip_data.pcm_tx;
 
@@ -539,7 +538,6 @@ int compress_voip_close_input_stream(struct audio_stream *stream)
     if(voip_data.in_stream_count > 0) {
        voip_data.in_stream_count--;
        status = voip_stop_call(adev);
-       adev->active_input = get_next_active_input(adev);
        in->pcm = NULL;
     }
 
@@ -769,7 +767,7 @@ static int voip_start_call(struct audio_device *adev,
               __func__, adev->snd_card, pcm_dev_tx_id);
         voip_data.pcm_tx = pcm_open(adev->snd_card,
                                     pcm_dev_tx_id,
-                                    PCM_IN, voip_config);
+                                    PCM_IN|PCM_MONOTONIC, voip_config);
         if (voip_data.pcm_tx && !pcm_is_ready(voip_data.pcm_tx)) {
             ALOGE("%s: %s", __func__, pcm_get_error(voip_data.pcm_tx));
             pcm_close(voip_data.pcm_tx);

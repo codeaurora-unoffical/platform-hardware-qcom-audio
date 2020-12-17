@@ -3367,4 +3367,5 @@ int32_t qahw_stream_get_parameters(qahw_stream_handle_t *stream_handle,
     ALOGE("%s is an unsupported api", __func__);
     return -ENOTSUP;
 }
+
 #endif

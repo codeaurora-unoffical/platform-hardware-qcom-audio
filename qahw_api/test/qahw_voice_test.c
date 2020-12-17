@@ -528,7 +528,6 @@ void *playback_start(void *thread_param) {
         attr.attr.audio.config.format = AUDIO_FORMAT_PCM_16_BIT;
     }
 
-
     if (params->playback_file != NULL) {
         fp = fopen(params->playback_file, "r");
         if (fp== NULL) {

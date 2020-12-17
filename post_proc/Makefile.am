@@ -10,8 +10,7 @@ c_sources = bundle.c \
             virtualizer.c \
             reverb.c \
             effect_api.c \
-            effect_util.c \
-            asphere.c
+            effect_util.c
 
 if AFE_PROXY
 AM_CFLAGS += -DAFE_PROXY_ENABLED

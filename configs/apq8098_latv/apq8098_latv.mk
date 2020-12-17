@@ -119,7 +119,8 @@ PRODUCT_COPY_FILES += \
     $(TOPDIR)frameworks/av/services/audiopolicy/config/audio_policy_volumes.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy_volumes.xml \
     $(TOPDIR)frameworks/av/services/audiopolicy/config/default_volume_tables.xml:$(TARGET_COPY_OUT_VENDOR)/etc/default_volume_tables.xml \
     $(TOPDIR)frameworks/av/services/audiopolicy/config/r_submix_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/r_submix_audio_policy_configuration.xml \
-    $(TOPDIR)frameworks/av/services/audiopolicy/config/usb_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/usb_audio_policy_configuration.xml
+    $(TOPDIR)frameworks/av/services/audiopolicy/config/usb_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/usb_audio_policy_configuration.xml \
+    $(TOPDIR)vendor/qcom/opensource/audio-hal/primary-hal/configs/common/bluetooth_qti_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/bluetooth_qti_audio_policy_configuration.xml
 endif
 
 # Listen configuration file
@@ -258,11 +259,11 @@ vendor.audio.hw.aac.encoder=true
 
 #audio becoming noisy intent broadcast delay
 PRODUCT_PROPERTY_OVERRIDES += \
-vendor.audio.noisy.broadcast.delay=600
+audio.sys.noisy.broadcast.delay=600
 
 #offload pausetime out duration to 3 secs to inline with other outputs
 PRODUCT_PROPERTY_OVERRIDES += \
-vendor.audio.offload.pstimeout.secs=3
+audio.sys.offload.pstimeout.secs=3
 
 #Set AudioFlinger client heap size
 PRODUCT_PROPERTY_OVERRIDES += \
@@ -270,11 +271,11 @@ ro.af.client_heap_size_kbyte=7168
 
 #enable headset calibration
 PRODUCT_PROPERTY_OVERRIDES += \
-audio.volume.headset.gain.depcal=true
+vendor.audio.volume.headset.gain.depcal=true
 
 #enable dualmic fluence for voice communication
 PRODUCT_PROPERTY_OVERRIDES += \
-persist.audio.fluence.voicecomm=true
+persist.vendor.audio.fluence.voicecomm=true
 
 # for HIDL related packages
 PRODUCT_PACKAGES += \

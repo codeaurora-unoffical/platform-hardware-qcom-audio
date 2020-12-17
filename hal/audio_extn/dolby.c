@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2017,2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2017, 2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2010 The Android Open Source Project
@@ -22,10 +22,10 @@
 //#define LOG_NDDEBUG 0
 #include <errno.h>
 #include <cutils/properties.h>
+#include <cutils/str_parms.h>
 #include <stdlib.h>
 #include <dlfcn.h>
-#include <cutils/str_parms.h>
-#include <cutils/log.h>
+#include <log/log.h>
 
 #include "audio_hw.h"
 #include "platform.h"
@@ -70,7 +70,7 @@
 
 /* DS1-DDP Endp Params */
 #define DDP_ENDP_NUM_PARAMS 17
-#define DDP_ENDP_NUM_DEVICES 21
+#define DDP_ENDP_NUM_DEVICES 20
 static int ddp_endp_params_id[DDP_ENDP_NUM_PARAMS] = {
     PARAM_ID_MAX_OUTPUT_CHANNELS, PARAM_ID_CTL_RUNNING_MODE,
     PARAM_ID_CTL_ERROR_CONCEAL, PARAM_ID_CTL_ERROR_MAX_RPTS,
@@ -141,9 +141,6 @@ static struct ddp_endp_params {
               {8, 0, 0, 0, 0, 0, 0, 21, 1, 6, 0, 0, 0, 0, 0, 0, 0},
               {1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0} },
           {AUDIO_DEVICE_OUT_FM, 2,
-              {8, 0, 0, 0, 0, 0, 0, 21, 1, 6, 0, 0, 0, 0, 0, 0, 0},
-              {1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0} },
-          {AUDIO_DEVICE_OUT_FM_TX, 2,
               {8, 0, 0, 0, 0, 0, 0, 21, 1, 6, 0, 0, 0, 0, 0, 0, 0},
               {1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0} },
           {AUDIO_DEVICE_OUT_PROXY, 2,
@@ -245,7 +242,7 @@ void send_ddp_endp_params(struct audio_device *adev,
 
     list_for_each(node, &adev->usecase_list) {
         usecase = node_to_item(node, struct audio_usecase, list);
-        if ((usecase->type == PCM_PLAYBACK) &&
+        if (usecase->stream.out && (usecase->type == PCM_PLAYBACK) &&
             (usecase->devices & ddp_dev) &&
             (usecase->stream.out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) &&
             ((usecase->stream.out->format == AUDIO_FORMAT_AC3) ||
@@ -263,7 +260,7 @@ void audio_extn_dolby_send_ddp_endp_params(struct audio_device *adev)
     struct audio_usecase *usecase;
     list_for_each(node, &adev->usecase_list) {
         usecase = node_to_item(node, struct audio_usecase, list);
-        if ((usecase->type == PCM_PLAYBACK) &&
+        if (usecase->stream.out && (usecase->type == PCM_PLAYBACK) &&
             (usecase->devices & AUDIO_DEVICE_OUT_ALL) &&
             (usecase->stream.out->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) &&
             ((usecase->stream.out->format == AUDIO_FORMAT_AC3) ||

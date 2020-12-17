@@ -33,6 +33,7 @@
 
 #include <inttypes.h>
 #include <errno.h>
+#include <log/log.h>
 #include <cutils/log.h>
 #include <cutils/atomic.h>
 
@@ -263,7 +264,7 @@ int qahwi_in_stop(struct audio_stream_in* stream) {
     if (!in->standby) {
         if (in->pcm != NULL ) {
             pcm_stop(in->pcm);
-        } else if (audio_extn_cin_attached_usecase(in->usecase)) {
+        } else if (audio_extn_cin_attached_usecase(in)) {
             audio_extn_cin_stop_input_stream(in);
         }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -46,7 +46,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <dlfcn.h>
-#include <cutils/log.h>
+#include <log/log.h>
 #include <sound/asound.h>
 #include <cutils/properties.h>
 
@@ -102,6 +102,8 @@ struct ip_hdlr_intf {
     int out_snd_device;
 };
 static struct ip_hdlr_intf *ip_hdlr = NULL;
+static bool adm_event_enable;
+static bool asm_event_enable;
 struct copp_cal_info {
     uint32_t             persist;
     uint32_t             snd_dev_id;
@@ -205,6 +207,7 @@ int audio_extn_ip_hdlr_copp_update_cal_info(void *cfg, void *data)
 {
     int ret = 0;
     acdb_audio_cal_cfg_t *cal = (acdb_audio_cal_cfg_t*) cfg;
+    adm_event_enable = true; /* default enable with trumpet cal */
 
     memcpy(&trumpet_data, cal, sizeof(struct copp_cal_info));
     return ret;
@@ -553,6 +556,7 @@ static int audio_extn_ip_hdlr_intf_open_adm_event(void *handle,
         adsp_hdlr_stream_handle = out->adsp_hdlr_stream_handle;
         dev = out->dev;
     }
+    uc = get_usecase_from_list(dev, usecase);
 
     reg_ev->adm_info.module_id = TRUMPET_MODULE;
     reg_ev->adm_info.instance_id = 0;

@@ -401,9 +401,11 @@ int async_callback(qahw_stream_callback_event_t event, void *param,
     switch (event) {
     case QAHW_STREAM_CBK_EVENT_WRITE_READY:
         fprintf(log_file, "stream %d: received event - QAHW_STREAM_CBK_EVENT_WRITE_READY\n", params->stream_index);
+
         pthread_mutex_lock(&params->write_lock);
         pthread_cond_signal(&params->write_cond);
         pthread_mutex_unlock(&params->write_lock);
+
         break;
     case QAHW_STREAM_CBK_EVENT_DRAIN_READY:
         fprintf(log_file, "stream %d: received event - QAHW_STREAM_CBK_EVENT_DRAIN_READY\n", params->stream_index);
@@ -658,7 +660,7 @@ int write_to_hal(qahw_stream_handle_t* out_handle, char *data, size_t bytes, voi
     stream_config *stream_params = (stream_config*) params_ptr;
 
     ssize_t ret;
-    pthread_mutex_lock(&stream_params->write_lock);
+
     qahw_out_buffer_t out_buf;
 
     memset(&out_buf,0, sizeof(qahw_out_buffer_t));
@@ -669,13 +671,14 @@ int write_to_hal(qahw_stream_handle_t* out_handle, char *data, size_t bytes, voi
     if (ret < 0) {
         fprintf(log_file, "stream %d: writing data to hal failed (ret = %zd)\n", stream_params->stream_index, ret);
     } else if ((ret != bytes) && (!stop_playback)) {
+        pthread_mutex_lock(&stream_params->write_lock);
         fprintf(log_file, "stream %d: provided bytes %zd, written bytes %d\n",stream_params->stream_index, bytes, ret);
         fprintf(log_file, "stream %d: waiting for event write ready\n", stream_params->stream_index);
         pthread_cond_wait(&stream_params->write_cond, &stream_params->write_lock);
         fprintf(log_file, "stream %d: out of wait for event write ready\n", stream_params->stream_index);
+        pthread_mutex_unlock(&stream_params->write_lock);
     }
 
-    pthread_mutex_unlock(&stream_params->write_lock);
     return ret;
 }
 
@@ -2331,6 +2334,7 @@ int main(int argc, char* argv[]) {
         {"intr-strm",    required_argument,    0, 'i'},
         {"device-config", required_argument,    0, 'C'},
         {"play-list",    required_argument,    0, 'g'},
+        {"ec-ref",        no_argument,         0, 'L'},
         {"help",          no_argument,          0, 'h'},
         {"dlb_thd_m",     required_argument,    0, 200},
         {"dlb_thd_p",     required_argument,    0, 201},
@@ -2571,6 +2575,9 @@ int main(int argc, char* argv[]) {
             break;
         case 'x':
             render_format = atoi(optarg);
+            break;
+        case 'L':
+            ec_ref = true;
             break;
         case 'y':
             stream_param[i].timestamp_filename = optarg;

@@ -4,7 +4,6 @@
 BOARD_USES_ALSA_AUDIO := true
 
 ifneq ($(TARGET_USES_AOSP_FOR_AUDIO), true)
-USE_CUSTOM_AUDIO_POLICY := 1
 AUDIO_FEATURE_ENABLED_COMPRESS_CAPTURE := false
 AUDIO_FEATURE_ENABLED_COMPRESS_VOIP := false
 AUDIO_FEATURE_ENABLED_DYNAMIC_ECNS := false
@@ -31,7 +30,11 @@ AUDIO_FEATURE_ENABLED_HW_ACCELERATED_EFFECTS := false
 AUDIO_FEATURE_ENABLED_AUDIOSPHERE := true
 AUDIO_FEATURE_ENABLED_USB_TUNNEL := true
 AUDIO_FEATURE_ENABLED_A2DP_OFFLOAD := true
+ifeq ($(filter R% r%,$(TARGET_PLATFORM_VERSION)),)
 AUDIO_FEATURE_ENABLED_3D_AUDIO := true
+endif
+AUDIO_FEATURE_ENABLED_AHAL_EXT := false
+AUDIO_FEATURE_ENABLED_EXTENDED_COMPRESS_FORMAT := true
 DOLBY_ENABLE := false
 TARGET_USES_QCOM_MM_AUDIO := true
 endif
@@ -40,6 +43,7 @@ USE_XML_AUDIO_POLICY_CONF := 1
 BOARD_SUPPORTS_SOUND_TRIGGER := true
 AUDIO_USE_DEEP_AS_PRIMARY_OUTPUT := false
 AUDIO_FEATURE_ENABLED_VBAT_MONITOR := true
+AUDIO_FEATURE_ENABLED_NT_PAUSE_TIMEOUT := true
 AUDIO_FEATURE_ENABLED_ANC_HEADSET := true
 AUDIO_FEATURE_ENABLED_CUSTOMSTEREO := true
 AUDIO_FEATURE_ENABLED_FLUENCE := true
@@ -64,6 +68,37 @@ AUDIO_FEATURE_ENABLED_RAS := true
 AUDIO_FEATURE_ENABLED_SND_MONITOR := true
 AUDIO_FEATURE_ENABLED_SVA_MULTI_STAGE := true
 ##AUDIO_FEATURE_FLAGS
+
+AUDIO_HARDWARE := audio.a2dp.default
+AUDIO_HARDWARE += audio.usb.default
+AUDIO_HARDWARE += audio.r_submix.default
+AUDIO_HARDWARE += audio.primary.sdm845
+
+#HAL Wrapper
+AUDIO_WRAPPER := libqahw
+AUDIO_WRAPPER += libqahwwrapper
+
+#HAL Test app
+AUDIO_HAL_TEST_APPS := hal_play_test
+AUDIO_HAL_TEST_APPS += hal_rec_test
+
+PRODUCT_PACKAGES += $(AUDIO_HARDWARE)
+PRODUCT_PACKAGES += $(AUDIO_WRAPPER)
+PRODUCT_PACKAGES += $(AUDIO_HAL_TEST_APPS)
+
+BOARD_VENDOR_KERNEL_MODULES := \
+    $(KERNEL_MODULES_OUT)/qca_cld3_wlan.ko \
+    $(KERNEL_MODULES_OUT)/wcd-core.ko \
+    $(KERNEL_MODULES_OUT)/pinctrl-wcd.ko \
+    $(KERNEL_MODULES_OUT)/swr-wcd-ctrl.ko \
+    $(KERNEL_MODULES_OUT)/snd-soc-wcd9xxx.ko \
+    $(KERNEL_MODULES_OUT)/wcd-dsp-glink.ko \
+    $(KERNEL_MODULES_OUT)/snd-soc-wcd934x.ko \
+    $(KERNEL_MODULES_OUT)/snd-soc-wcd-mbhc.ko \
+    $(KERNEL_MODULES_OUT)/snd-soc-wsa881x.ko \
+    $(KERNEL_MODULES_OUT)/snd-soc-sdm845.ko \
+    $(KERNEL_MODULES_OUT)/snd-soc-wcd-spi.ko \
+    $(KERNEL_MODULES_OUT)/llcc_perfmon.ko
 
 ifneq ($(strip $(TARGET_USES_RRO)), true)
 #Audio Specific device overlays
@@ -92,7 +127,11 @@ PRODUCT_COPY_FILES += \
     vendor/qcom/opensource/audio-hal/primary-hal/configs/sdm845/sound_trigger_mixer_paths_wcd9340.xml:$(TARGET_COPY_OUT_VENDOR)/etc/sound_trigger_mixer_paths_wcd9340.xml \
     vendor/qcom/opensource/audio-hal/primary-hal/configs/sdm845/sound_trigger_platform_info.xml:$(TARGET_COPY_OUT_VENDOR)/etc/sound_trigger_platform_info.xml \
     vendor/qcom/opensource/audio-hal/primary-hal/configs/sdm845/graphite_ipc_platform_info.xml:$(TARGET_COPY_OUT_VENDOR)/etc/graphite_ipc_platform_info.xml \
-    vendor/qcom/opensource/audio-hal/primary-hal/configs/sdm845/audio_platform_info.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info.xml
+    vendor/qcom/opensource/audio-hal/primary-hal/configs/sdm845/audio_platform_info.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info.xml \
+    vendor/qcom/opensource/audio-hal/primary-hal/configs/sdm845/audio_configs.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_configs.xml \
+    frameworks/native/data/etc/android.hardware.audio.pro.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.audio.pro.xml \
+    frameworks/native/data/etc/android.hardware.audio.low_latency.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.audio.low_latency.xml \
+    frameworks/native/data/etc/android.software.midi.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.software.midi.xml
 
 #XML Audio configuration files
 ifeq ($(USE_XML_AUDIO_POLICY_CONF), 1)
@@ -106,7 +145,8 @@ PRODUCT_COPY_FILES += \
     $(TOPDIR)frameworks/av/services/audiopolicy/config/audio_policy_volumes.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy_volumes.xml \
     $(TOPDIR)frameworks/av/services/audiopolicy/config/default_volume_tables.xml:$(TARGET_COPY_OUT_VENDOR)/etc/default_volume_tables.xml \
     $(TOPDIR)frameworks/av/services/audiopolicy/config/r_submix_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/r_submix_audio_policy_configuration.xml \
-    $(TOPDIR)frameworks/av/services/audiopolicy/config/usb_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/usb_audio_policy_configuration.xml
+    $(TOPDIR)frameworks/av/services/audiopolicy/config/usb_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/usb_audio_policy_configuration.xml \
+    $(TOPDIR)vendor/qcom/opensource/audio-hal/primary-hal/configs/common/bluetooth_qti_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/bluetooth_qti_audio_policy_configuration.xml
 endif
 
 # Listen configuration file
@@ -128,6 +168,19 @@ persist.vendor.audio.fluence.voicecall=true\
 persist.vendor.audio.fluence.voicerec=false\
 persist.vendor.audio.fluence.speaker=true
 
+#
+#snapdragon value add features
+#
+PRODUCT_PROPERTY_OVERRIDES += \
+ro.qc.sdk.audio.ssr=false
+
+##fluencetype can be "fluence" or "fluencepro" or "none"
+PRODUCT_PROPERTY_OVERRIDES += \
+ro.qc.sdk.audio.fluencetype=none\
+persist.audio.fluence.voicecall=true\
+persist.audio.fluence.voicerec=false\
+persist.audio.fluence.speaker=true
+
 #disable tunnel encoding
 PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.tunnel.encode=false
@@ -139,6 +192,10 @@ persist.vendor.audio.ras.enabled=false
 #Buffer size in kbytes for compress offload playback
 PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.offload.buffer.size.kb=32
+
+#Minimum duration for offload playback in secs
+PRODUCT_PROPERTY_OVERRIDES += \
+audio.offload.min.duration.secs=30
 
 #Enable offload audio video playback by default
 PRODUCT_PROPERTY_OVERRIDES += \
@@ -183,7 +240,7 @@ vendor.audio.offload.gapless.enabled=true
 
 #enable pbe effects
 PRODUCT_PROPERTY_OVERRIDES += \
-vendor.audio.safx.pbe.enabled=true
+vendor.audio.safx.pbe.enabled=false
 
 #parser input buffer size(256kb) in byte stream mode
 PRODUCT_PROPERTY_OVERRIDES += \
@@ -221,11 +278,11 @@ vendor.audio.hw.aac.encoder=true
 
 #audio becoming noisy intent broadcast delay
 PRODUCT_PROPERTY_OVERRIDES += \
-vendor.audio.noisy.broadcast.delay=600
+audio.sys.noisy.broadcast.delay=600
 
 #offload pausetime out duration to 3 secs to inline with other outputs
 PRODUCT_PROPERTY_OVERRIDES += \
-vendor.audio.offload.pstimeout.secs=3
+audio.sys.offload.pstimeout.secs=3
 
 #Set AudioFlinger client heap size
 PRODUCT_PROPERTY_OVERRIDES += \
@@ -253,11 +310,61 @@ vendor.audio.enable.dp.for.voice=false
 
 #enable headset calibration
 PRODUCT_PROPERTY_OVERRIDES += \
-audio.volume.headset.gain.depcal=true
+vendor.audio.volume.headset.gain.depcal=true
 
 #enable dualmic fluence for voice communication
 PRODUCT_PROPERTY_OVERRIDES += \
-persist.audio.fluence.voicecomm=true
+persist.vendor.audio.fluence.voicecomm=true
+
+#enable AAC frame ctl for A2DP sinks
+PRODUCT_PROPERTY_OVERRIDES += \
+persist.vendor.bt.aac_frm_ctl.enabled=true
+
+
+#add dynamic feature flags here
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.feature.a2dp_offload.enable=true \
+vendor.audio.feature.afe_proxy.enable=true \
+vendor.audio.feature.anc_headset.enable=true \
+vendor.audio.feature.battery_listener.enable=false \
+vendor.audio.feature.compr_cap.enable=false \
+vendor.audio.feature.compress_in.enable=false \
+vendor.audio.feature.compress_meta_data.enable=true \
+vendor.audio.feature.compr_voip.enable=false \
+vendor.audio.feature.concurrent_capture.enable=false \
+vendor.audio.feature.custom_stereo.enable=true \
+vendor.audio.feature.display_port.enable=true \
+vendor.audio.feature.dsm_feedback.enable=false \
+vendor.audio.feature.dynamic_ecns.enable=false \
+vendor.audio.feature.ext_hw_plugin.enable=false \
+vendor.audio.feature.external_dsp.enable=false \
+vendor.audio.feature.external_speaker.enable=false \
+vendor.audio.feature.external_speaker_tfa.enable=false \
+vendor.audio.feature.fluence.enable=true \
+vendor.audio.feature.fm.enable=true \
+vendor.audio.feature.hdmi_edid.enable=true \
+vendor.audio.feature.hdmi_passthrough.enable=true \
+vendor.audio.feature.hfp.enable=true \
+vendor.audio.feature.hifi_audio.enable=false \
+vendor.audio.feature.hwdep_cal.enable=false \
+vendor.audio.feature.incall_music.enable=false \
+vendor.audio.feature.multi_voice_session.enable=true \
+vendor.audio.feature.keep_alive.enable=false \
+vendor.audio.feature.kpi_optimize.enable=true \
+vendor.audio.feature.maxx_audio.enable=false \
+vendor.audio.feature.ras.enable=true \
+vendor.audio.feature.record_play_concurency.enable=false \
+vendor.audio.feature.src_trkn.enable=true \
+vendor.audio.feature.spkr_prot.enable=true \
+vendor.audio.feature.ssrec.enable=true \
+vendor.audio.feature.usb_offload.enable=true \
+vendor.audio.feature.usb_offload_burst_mode.enable=false \
+vendor.audio.feature.usb_offload_sidetone_volume.enable=false \
+vendor.audio.feature.deepbuffer_as_primary.enable=false \
+vendor.audio.feature.vbat.enable=true \
+vendor.audio.feature.wsa.enable=false \
+vendor.audio.feature.audiozoom.enable=false \
+vendor.audio.feature.snd_mon.enable=true
 
 # for HIDL related packages
 PRODUCT_PACKAGES += \
@@ -271,3 +378,19 @@ PRODUCT_PACKAGES += \
     android.hardware.audio@4.0-impl \
     android.hardware.audio.effect@4.0 \
     android.hardware.audio.effect@4.0-impl
+
+# enable audio hidl hal 5.0
+PRODUCT_PACKAGES += \
+    android.hardware.audio@5.0 \
+    android.hardware.audio.common@5.0 \
+    android.hardware.audio.common@5.0-util \
+    android.hardware.audio@5.0-impl \
+    android.hardware.audio.effect@5.0 \
+    android.hardware.audio.effect@5.0-impl
+
+PRODUCT_PACKAGES_ENG += \
+    VoicePrintTest \
+    VoicePrintDemo
+
+PRODUCT_PACKAGES_DEBUG += \
+    AudioSettings

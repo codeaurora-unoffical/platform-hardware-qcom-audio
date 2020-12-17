@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+* Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -51,10 +51,17 @@
 #include <dlfcn.h>
 #include <sys/resource.h>
 #include <sys/prctl.h>
+#include <cutils/atomic.h>
 #include <cutils/properties.h>
 #include <cutils/str_parms.h>
+#include <cutils/sched_policy.h>
+#include <log/log.h>
+#include "audio_utils/primitives.h"
+#include "audio_hw.h"
+#include "platform_api.h"
+#include <platform.h>
+#include "audio_extn.h"
 #include <cutils/log.h>
-#include <cutils/atomic.h>
 #include <cutils/sched_policy.h>
 #include <system/thread_defs.h>
 #include <system/audio.h>
@@ -628,17 +635,29 @@ int create_loopback_session(loopback_patch_t *active_loopback_patch)
         inout->adsp_hdlr_stream_handle = NULL;
         goto exit;
     }
-
-    /* Set config for compress stream open in capture path */
-    codec.id = get_snd_codec_id(source_patch_config->format);
-    codec.ch_in = audio_channel_count_from_out_mask(source_patch_config->
-                                                    channel_mask);
+    if (audio_extn_ip_hdlr_intf_supported(source_patch_config->format,false, true,
+                            inout, USECASE_AUDIO_TRANSCODE_LOOPBACK_RX) ||
+        audio_extn_ip_hdlr_intf_supported_for_copp(adev->platform, inout,
+                            USECASE_AUDIO_TRANSCODE_LOOPBACK_RX)) {
+        ret = audio_extn_ip_hdlr_intf_init(&inout->ip_hdlr_handle, NULL, NULL, adev,
+                                           USECASE_AUDIO_TRANSCODE_LOOPBACK_RX);
+        if (ret < 0) {
+            ALOGE("%s: audio_extn_ip_hdlr_intf_init failed %d", __func__, ret);
+            inout->ip_hdlr_handle = NULL;
+            goto exit;
+        }
+    }
 
     if (source_patch_config->format == AUDIO_FORMAT_IEC61937) {
         // This is needed to set a known format to DSP and handle
         // any format change via ADSP event
         codec.id = SND_AUDIOCODEC_AC3;
     }
+
+    /* Set config for compress stream open in capture path */
+     codec.id = get_snd_codec_id(source_patch_config->format);
+     codec.ch_in = audio_channel_count_from_out_mask(source_patch_config->
+                                                     channel_mask);
 
     codec.ch_out = 2; // Irrelevant for loopback case in this direction
     codec.sample_rate = source_patch_config->sample_rate;

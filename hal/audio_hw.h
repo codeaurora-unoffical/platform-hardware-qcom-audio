@@ -46,12 +46,18 @@
 #include <tinycompress/tinycompress.h>
 
 #include <audio_route/audio_route.h>
-#ifndef LINUX_ENABLED
-#include <audio_utils/ErrorLog.h>
-#endif
 #include "audio_defs.h"
 #include "voice.h"
 #include "audio_hw_extn_api.h"
+
+#ifndef LINUX_ENABLED
+#include <audio_utils/ErrorLog.h>
+#else
+typedef int error_log_t;
+#define error_log_dump(error_log, fd, prefix, lines, limit_ns)                 (0)
+#define error_log_create(entries, aggregate_ns)                                (0)
+#define error_log_destroy(error_log)                                           (0)
+#endif
 
 #if LINUX_ENABLED
 #if defined(__LP64__)
@@ -91,6 +97,9 @@
 
 #define ACDB_DEV_TYPE_OUT 1
 #define ACDB_DEV_TYPE_IN 2
+
+/* SCO SWB codec mode */
+#define SPEECH_MODE_INVALID  0xFFFF
 
 /* support positional and index masks to 8ch */
 #define MAX_SUPPORTED_CHANNEL_MASKS (2 * FCC_8)
@@ -160,6 +169,7 @@ enum {
     USECASE_AUDIO_PLAYBACK_OFFLOAD9,
     USECASE_AUDIO_PLAYBACK_ULL,
     USECASE_AUDIO_PLAYBACK_MMAP,
+    USECASE_AUDIO_PLAYBACK_WITH_HAPTICS,
     USECASE_AUDIO_PLAYBACK_HIFI,
     USECASE_AUDIO_PLAYBACK_TTS,
 
@@ -171,6 +181,14 @@ enum {
     USECASE_AUDIO_HFP_SCO_WB,
     USECASE_AUDIO_HFP_SCO_DOWNLINK,
     USECASE_AUDIO_HFP_SCO_WB_DOWNLINK,
+    USECASE_AUDIO_PRI_HFP_SCO,
+    USECASE_AUDIO_PRI_HFP_SCO_WB,
+    USECASE_AUDIO_PRI_HFP_SCO_DOWNLINK,
+    USECASE_AUDIO_PRI_HFP_SCO_WB_DOWNLINK,
+    USECASE_AUDIO_SEC_HFP_SCO,
+    USECASE_AUDIO_SEC_HFP_SCO_WB,
+    USECASE_AUDIO_SEC_HFP_SCO_DOWNLINK,
+    USECASE_AUDIO_SEC_HFP_SCO_WB_DOWNLINK,
 
     /* Capture usecases */
     USECASE_AUDIO_RECORD,
@@ -239,9 +257,17 @@ enum {
     USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION,
     USECASE_AUDIO_PLAYBACK_NAV_GUIDANCE,
     USECASE_AUDIO_PLAYBACK_PHONE,
+    USECASE_AUDIO_PLAYBACK_FRONT_PASSENGER,
+    USECASE_AUDIO_PLAYBACK_REAR_SEAT,
+
+    USECASE_AUDIO_PLAYBACK_SYNTHESIZER,
 
     /*Audio FM Tuner usecase*/
     USECASE_AUDIO_FM_TUNER_EXT,
+
+    /*In Car Communication Usecase*/
+    USECASE_ICC_CALL,
+
     USECASE_AUDIO_AFE_LOOPBACK,
     USECASE_AUDIO_DTMF,
     AUDIO_USECASE_MAX
@@ -267,6 +293,33 @@ enum {
     OFFLOAD_CMD_ERROR,              /* offload playback hit some error */
 };
 
+/*
+ * Camera selection indicated via set_parameters "cameraFacing=front|back and
+ * "rotation=0|90|180|270""
+ */
+enum {
+  CAMERA_FACING_BACK = 0x0,
+  CAMERA_FACING_FRONT = 0x1,
+  CAMERA_FACING_MASK = 0x0F,
+  CAMERA_ROTATION_LANDSCAPE = 0x0,
+  CAMERA_ROTATION_INVERT_LANDSCAPE = 0x10,
+  CAMERA_ROTATION_PORTRAIT = 0x20,
+  CAMERA_ROTATION_MASK = 0xF0,
+  CAMERA_BACK_LANDSCAPE = (CAMERA_FACING_BACK|CAMERA_ROTATION_LANDSCAPE),
+  CAMERA_BACK_INVERT_LANDSCAPE = (CAMERA_FACING_BACK|CAMERA_ROTATION_INVERT_LANDSCAPE),
+  CAMERA_BACK_PORTRAIT = (CAMERA_FACING_BACK|CAMERA_ROTATION_PORTRAIT),
+  CAMERA_FRONT_LANDSCAPE = (CAMERA_FACING_FRONT|CAMERA_ROTATION_LANDSCAPE),
+  CAMERA_FRONT_INVERT_LANDSCAPE = (CAMERA_FACING_FRONT|CAMERA_ROTATION_INVERT_LANDSCAPE),
+  CAMERA_FRONT_PORTRAIT = (CAMERA_FACING_FRONT|CAMERA_ROTATION_PORTRAIT),
+
+  CAMERA_DEFAULT = CAMERA_BACK_LANDSCAPE,
+};
+
+//FIXME: to be replaced by proper video capture properties API
+#define AUDIO_PARAMETER_KEY_CAMERA_FACING "cameraFacing"
+#define AUDIO_PARAMETER_VALUE_FRONT "front"
+#define AUDIO_PARAMETER_VALUE_BACK "back"
+
 enum {
     OFFLOAD_STATE_IDLE,
     OFFLOAD_STATE_PLAYING,
@@ -287,6 +340,15 @@ typedef enum render_mode {
     RENDER_MODE_AUDIO_TTP_PASS_THROUGH,
 } render_mode_t;
 
+/* This defines the physical car audio streams supported in
+ * audio HAL, limited by the available frontend PCM devices.
+ * Max number of physical streams supported is 32 and is
+ * represented by stream bit flag.
+ *     Primary zone: bit 0 - 7
+ *     Front passenger zone: bit 8 - 15
+ *     Rear seat zone: bit 16 - 23
+ */
+#define MAX_CAR_AUDIO_STREAMS    32
 /* Parameter to be passed when clock switch is needed */
 #define AUDIO_PARAMETER_CLOCK "clock"
 #define AUDIO_PARAMETER_CLOCK_FREQUENCY "clock_frequency"
@@ -306,6 +368,15 @@ typedef struct audio_clock_data {
     bool clock_switch;
 } audio_clock_data_t;
 
+enum {
+    CAR_AUDIO_STREAM_MEDIA            = 0x1,
+    CAR_AUDIO_STREAM_SYS_NOTIFICATION = 0x2,
+    CAR_AUDIO_STREAM_NAV_GUIDANCE     = 0x4,
+    CAR_AUDIO_STREAM_PHONE            = 0x8,
+    CAR_AUDIO_STREAM_FRONT_PASSENGER  = 0x100,
+    CAR_AUDIO_STREAM_REAR_SEAT        = 0x10000,
+};
+
 #ifdef AUDIO_EXTN_AUTO_HAL_ENABLED
 /* This defines the physical car streams supported in audio HAL,
  * limited by the available frontend PCM driver.
@@ -313,12 +384,14 @@ typedef struct audio_clock_data {
  * represented by stream bit flag as indicated in vehicle HAL interface.
  */
 #define MAX_CAR_AUDIO_STREAMS    8
-enum {
+/*enum {
     CAR_AUDIO_STREAM_MEDIA            = 0x1,
     CAR_AUDIO_STREAM_SYS_NOTIFICATION = 0x2,
     CAR_AUDIO_STREAM_NAV_GUIDANCE     = 0x4,
     CAR_AUDIO_STREAM_PHONE            = 0x8,
-};
+    CAR_AUDIO_STREAM_FRONT_PASSENGER  = 0x100,
+    CAR_AUDIO_STREAM_REAR_SEAT        = 0x10000,
+};*/
 #endif
 
 struct stream_app_type_cfg {
@@ -383,6 +456,8 @@ struct stream_out {
     uint32_t supported_sample_rates[MAX_SUPPORTED_SAMPLE_RATES+1];
     bool muted;
     uint64_t written; /* total frames written, not cleared when entering standby */
+    int64_t mmap_time_offset_nanos; /* fudge factor to correct inaccuracies in DSP */
+    int     mmap_shared_memory_fd; /* file descriptor associated with MMAP NOIRQ shared memory */
     audio_io_handle_t handle;
     struct stream_app_type_cfg app_type_cfg;
 
@@ -420,6 +495,7 @@ struct stream_out {
     card_status_t card_status;
 
     void* qaf_stream_handle;
+    void* qap_stream_handle;
     pthread_cond_t qaf_offload_cond;
     pthread_t qaf_offload_thread;
     struct listnode qaf_offload_cmd_list;
@@ -456,6 +532,14 @@ struct stream_out {
     error_log_t *error_log;
 #endif
     bool pspd_coeff_sent;
+
+    union {
+        char *addr;
+        struct {
+            int controller;
+            int stream;
+        } cs;
+    } extconn;
 };
 
 struct stream_in {
@@ -474,6 +558,12 @@ struct stream_in {
     bool enable_aec;
     bool enable_ns;
     audio_format_t format;
+    bool enable_ec_port;
+    bool ec_opened;
+    struct listnode aec_list;
+    struct listnode ns_list;
+    int64_t mmap_time_offset_nanos; /* fudge factor to correct inaccuracies in DSP */
+    int     mmap_shared_memory_fd; /* file descriptor associated with MMAP NOIRQ shared memory */
     audio_io_handle_t capture_handle;
     audio_input_flags_t flags;
     char profile[MAX_STREAM_PROFILE_STR_LEN];
@@ -491,6 +581,8 @@ struct stream_in {
     struct audio_device *dev;
     card_status_t card_status;
     int capture_started;
+    float zoom;
+    audio_microphone_direction_t direction;
     render_mode_t render_mode;
 
     volatile int32_t capture_stopped;
@@ -519,9 +611,11 @@ typedef enum {
     TRANSCODE_LOOPBACK_RX,
     TRANSCODE_LOOPBACK_TX,
     PCM_PASSTHROUGH,
-    USECASE_TYPE_MAX,
+    ICC_CALL,
+    SYNTH_LOOPBACK,
     AFE_LOOPBACK,
     DTMF_PLAYBACK,
+    USECASE_TYPE_MAX,
 } usecase_type_t;
 
 union stream_ptr {
@@ -598,10 +692,13 @@ typedef void (*adm_set_config_t)(void *, audio_io_handle_t,
 typedef void (*adm_request_focus_v2_t)(void *, audio_io_handle_t, long);
 typedef bool (*adm_is_noirq_avail_t)(void *, int, int, int);
 typedef void (*adm_on_routing_change_t)(void *, audio_io_handle_t);
+typedef int (*adm_request_focus_v2_1_t)(void *, audio_io_handle_t, long);
 
 struct audio_device {
     struct audio_hw_device device;
+
     pthread_mutex_t lock; /* see note below on mutex acquisition order */
+    pthread_mutex_t cal_lock;
     struct mixer *mixer;
     audio_mode_t mode;
     audio_devices_t out_device;
@@ -625,6 +722,7 @@ struct audio_device {
     unsigned int cur_hdmi_bit_width;
     unsigned int cur_wfd_channels;
     bool bt_wb_speech_enabled;
+    unsigned int swb_speech_mode;
     bool allow_afe_proxy_usage;
     bool is_charging; // from battery listener
     bool mic_break_enabled;
@@ -667,6 +765,7 @@ struct audio_device {
     adm_request_focus_v2_t adm_request_focus_v2;
     adm_is_noirq_avail_t adm_is_noirq_avail;
     adm_on_routing_change_t adm_on_routing_change;
+    adm_request_focus_v2_1_t adm_request_focus_v2_1;
 
     void (*offload_effects_get_parameters)(struct str_parms *,
                                            struct str_parms *);
@@ -686,9 +785,13 @@ struct audio_device {
     unsigned int interactive_usecase_state;
     bool dp_allowed_for_voice;
     void *ext_hw_plugin;
-    struct listnode active_inputs_list;
-    struct listnode active_outputs_list;
-    bool use_old_pspd_mix_ctrl;
+
+    struct pcm_config haptics_config;
+    struct pcm *haptic_pcm;
+    int    haptic_pcm_device_id;
+    uint8_t *haptic_buffer;
+    size_t haptic_buffer_size;
+
     /* logging */
     snd_device_t last_logged_snd_device[AUDIO_USECASE_MAX][2]; /* [out, in] */
 
@@ -699,6 +802,11 @@ struct audio_device {
      * or other capabilities are present for the device corresponding to that usecase.
      */
     struct pcm_params *use_case_table[AUDIO_USECASE_MAX];
+    struct listnode active_inputs_list;
+    struct listnode active_outputs_list;
+    bool use_old_pspd_mix_ctrl;
+    int camera_orientation; /* CAMERA_BACK_LANDSCAPE ... CAMERA_FRONT_PORTRAIT */
+    bool adm_routing_changed;
     struct listnode audio_patch_record_list;
     unsigned int audio_patch_index;
     void *ip_hdlr_handle;
@@ -732,8 +840,6 @@ int enable_audio_route(struct audio_device *adev,
 
 struct audio_usecase *get_usecase_from_list(const struct audio_device *adev,
                                                    audio_usecase_t uc_id);
-
-struct stream_in *get_next_active_input(const struct audio_device *adev);
 
 bool is_offload_usecase(audio_usecase_t uc_id);
 

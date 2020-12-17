@@ -27,6 +27,7 @@ endif
 USE_XML_AUDIO_POLICY_CONF := 1
 BOARD_SUPPORTS_SOUND_TRIGGER := true
 BOARD_SUPPORTS_SOUND_TRIGGER_ARM := true
+AUDIO_FEATURE_ENABLED_NT_PAUSE_TIMEOUT := true
 AUDIO_FEATURE_ENABLED_FFV := true
 AUDIO_FEATURE_ENABLED_KEEP_ALIVE_ARM_FFV := true
 AUDIO_FEATURE_ENABLED_KEEP_ALIVE := true
@@ -90,7 +91,7 @@ PRODUCT_COPY_FILES += \
 endif
 PRODUCT_COPY_FILES += \
     $(TOPDIR)vendor/qcom/opensource/audio-hal/primary-hal/configs/common/audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy_configuration.xml \
-    $(TOPDIR)frameworks/av/services/audiopolicy/config/a2dp_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/a2dp_audio_policy_configuration.xml \
+    $(TOPDIR)vendor/qcom/opensource/audio-hal/primary-hal/configs/common/bluetooth_qti_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/a2dp_audio_policy_configuration.xml \
     $(TOPDIR)frameworks/av/services/audiopolicy/config/audio_policy_volumes.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy_volumes.xml \
     $(TOPDIR)frameworks/av/services/audiopolicy/config/default_volume_tables.xml:$(TARGET_COPY_OUT_VENDOR)/etc/default_volume_tables.xml \
     $(TOPDIR)frameworks/av/services/audiopolicy/config/r_submix_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/r_submix_audio_policy_configuration.xml \
@@ -171,7 +172,7 @@ persist.vendor.bt.enable.splita2dp=false
 
 #enable headset calibration
 PRODUCT_PROPERTY_OVERRIDES += \
-audio.volume.headset.gain.depcal=true
+vendor.audio.volume.headset.gain.depcal=true
 
 PRODUCT_PACKAGES += \
     android.hardware.audio@2.0-service \

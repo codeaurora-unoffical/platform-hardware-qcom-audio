@@ -32,10 +32,10 @@ c_sources += audio_extn/fm.c
 c_sources += audio_extn/usb.c
 #endif
 
-if HFP
-AM_CFLAGS += -DHFP_ENABLED
-c_sources += audio_extn/hfp.c
-endif
+#if HFP
+#AM_CFLAGS += -DHFP_ENABLED
+#c_sources += audio_extn/hfp.c
+#endif
 
 #if SSR
 #AM_CFLAGS += -DSSR_ENABLED
@@ -250,7 +250,11 @@ if SPDIF_PLAYBACK
 AM_CFLAGS += -DSPDIF_PLAYBACK_ENABLED
 endif
 
-AM_CFLAGS += -DMAX_TARGET_SPECIFIC_CHANNEL_CNT="14"
+if EXTENDED_COMPRESS_FORMAT
+AM_CFLAGS += -DENABLE_EXTENDED_COMPRESS_FORMAT
+endif
+
+AM_CFLAGS += -DMAX_TARGET_SPECIFIC_CHANNEL_CNT="16"
 
 h_sources = audio_extn/audio_defs.h \
             audio_extn/audio_extn.h \
@@ -264,12 +268,16 @@ lib_LTLIBRARIES = audio.primary.default.la
 audio_primary_default_la_SOURCES = $(c_sources)
 audio_primary_default_la_LIBADD = $(GLIB_LIBS) -llog -lcutils -ltinyalsa
 audio_primary_default_la_LIBADD += -ltinycompress -laudioroute -ldl -lexpat -laudioutils
+audio_primary_default_la_LIBADD += -lm -lc -lresolv
+
 if AUDIO_PARSER
 audio_primary_default_la_LIBADD += -laudioparsers
 endif
 audio_primary_default_la_CFLAGS = $(AM_CFLAGS) $(GLIB_CFLAGS)
 audio_primary_default_la_CFLAGS += -Dstrlcat=g_strlcat
 audio_primary_default_la_CFLAGS += -DINT_MAX=0x7fffffff
+audio_primary_default_la_CFLAGS += -DULONG_MAX=\(__LONG_MAX__*2UL+1UL\)
+audio_primary_default_la_CFLAGS += -DPATH_MAX=4096
 audio_primary_default_la_CFLAGS += -D__unused=__attribute__\(\(__unused__\)\)
 audio_primary_default_la_CFLAGS += -DLINUX_ENABLED $(TARGET_CFLAGS) -DAUDIO_EXTN_FORMATS_ENABLED
 audio_primary_default_la_CFLAGS += -DNDEBUG -D_GNU_SOURCE

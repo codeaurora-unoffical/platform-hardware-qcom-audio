@@ -30,8 +30,7 @@ LOCAL_SRC_FILES:= \
         virtualizer.c \
         reverb.c \
         effect_api.c \
-        effect_util.c \
-        asphere.c
+        effect_util.c
 
 # HW_ACCELERATED has been disabled by default since msm8996. File doesn't
 # compile cleanly on tip so don't want to include it, but keeping this
@@ -79,11 +78,11 @@ LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
 
 LOCAL_C_INCLUDES := \
         external/tinyalsa/include \
-        hardware/qcom/audio/hal \
+        vendor/qcom/opensource/audio-hal/primary-hal/hal \
         $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include \
 	$(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/techpack/audio/include \
         $(call include-path-for, audio-effects) \
-        hardware/qcom/audio/hal/audio_extn/
+        vendor/qcom/opensource/audio-hal/primary-hal/hal/audio_extn/
 
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_DLKM)),true)
   LOCAL_HEADER_LIBRARIES += audio_kernel_headers
@@ -95,6 +94,9 @@ ifeq ($(TARGET_COMPILE_WITH_MSM_KERNEL),true)
         LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
 endif
 
+ifneq ($(filter kona,$(TARGET_BOARD_PLATFORM)),)
+LOCAL_SANITIZE := integer_overflow
+endif
 include $(BUILD_SHARED_LIBRARY)
 
 
@@ -136,6 +138,9 @@ endif
 LOCAL_MODULE:= libhwacceffectswrapper
 LOCAL_VENDOR_MODULE := true
 
+ifneq ($(filter kona,$(TARGET_BOARD_PLATFORM)),)
+LOCAL_SANITIZE := unsigned-integer-overflow signed-integer-overflow
+endif
 include $(BUILD_STATIC_LIBRARY)
 endif
 
@@ -143,7 +148,7 @@ endif
 
 ################################################################################
 
-ifneq ($(filter msm8992 msm8994 msm8996 msm8998 sdm660 sdm845 apq8098_latv sdm710 msm8953 msm8937 qcs605 sdmshrike msmnile kona $(MSMSTEPPE) $(TRINKET),$(TARGET_BOARD_PLATFORM)),)
+ifneq ($(filter msm8992 msm8994 msm8996 msm8998 sdm660 sdm845 apq8098_latv sdm710 msm8953 msm8937 qcs605 sdmshrike msmnile kona atoll $(MSMSTEPPE) $(TRINKET) lito,$(TARGET_BOARD_PLATFORM)),)
 
 include $(CLEAR_VARS)
 
@@ -185,13 +190,13 @@ LOCAL_MODULE_OWNER := qti
 LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
 
 LOCAL_C_INCLUDES := \
-        hardware/qcom/audio/hal \
+        vendor/qcom/opensource/audio-hal/primary-hal/hal \
         $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include \
         $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/techpack/audio/include \
         external/tinyalsa/include \
         $(call include-path-for, audio-effects) \
         $(call include-path-for, audio-route) \
-        hardware/qcom/audio/hal/audio_extn \
+        vendor/qcom/opensource/audio-hal/primary-hal/hal/audio_extn \
         external/tinycompress/include \
         system/media/audio_utils/include
 
@@ -205,6 +210,9 @@ ifeq ($(TARGET_COMPILE_WITH_MSM_KERNEL),true)
         LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
 endif
 
+ifneq ($(filter kona,$(TARGET_BOARD_PLATFORM)),)
+LOCAL_SANITIZE := integer_overflow
+endif
 include $(BUILD_SHARED_LIBRARY)
 
 endif
@@ -238,6 +246,9 @@ LOCAL_C_INCLUDES := \
 
 LOCAL_HEADER_LIBRARIES += libhardware_headers
 LOCAL_HEADER_LIBRARIES += libsystem_headers
+ifneq ($(filter kona,$(TARGET_BOARD_PLATFORM)),)
+LOCAL_SANITIZE := integer_overflow
+endif
 include $(BUILD_SHARED_LIBRARY)
 
 endif

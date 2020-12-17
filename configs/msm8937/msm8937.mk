@@ -30,6 +30,8 @@ MM_AUDIO_ENABLED_SAFX := true
 AUDIO_FEATURE_ENABLED_HW_ACCELERATED_EFFECTS := false
 AUDIO_FEATURE_ENABLED_DS2_DOLBY_DAP := false
 AUDIO_FEATURE_ENABLED_AUDIOSPHERE := true
+AUDIO_FEATURE_ENABLED_AHAL_EXT := false
+AUDIO_FEATURE_ENABLED_EXTENDED_COMPRESS_FORMAT := true
 DOLBY_ENABLE := false
 endif
 
@@ -81,29 +83,22 @@ PRODUCT_COPY_FILES +=\
 vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/audio_output_policy.conf:$(TARGET_COPY_OUT_VENDOR)/etc/audio_output_policy.conf\
 vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/audio_effects.conf:$(TARGET_COPY_OUT_VENDOR)/etc/audio_effects.conf\
 vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/audio_effects.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_effects.xml \
-vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/mixer_paths_mtp.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_mtp.xml \
-vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/mixer_paths_sdm439_pm8953.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_sdm439_pm8953.xml \
-vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/mixer_paths_qrd_skuh.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_qrd_skuh.xml \
-vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/mixer_paths_qrd_skui.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_qrd_skui.xml \
-vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/mixer_paths_qrd_skuhf.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_qrd_skuhf.xml \
-vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/mixer_paths_wcd9306.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_wcd9306.xml \
-vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/mixer_paths_skuk.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_skuk.xml \
-vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/mixer_paths_qrd_skum.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_qrd_skum.xml \
+vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/mixer_paths_tasha.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_tasha.xml \
+vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/mixer_paths_tashalite.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_tashalite.xml \
 vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/mixer_paths.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths.xml \
+vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/mixer_paths_mtp.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_mtp.xml \
+vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/mixer_paths_sku1.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_sku1.xml \
 vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/sound_trigger_mixer_paths.xml:$(TARGET_COPY_OUT_VENDOR)/etc/sound_trigger_mixer_paths.xml \
 vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/sound_trigger_mixer_paths_wcd9306.xml:$(TARGET_COPY_OUT_VENDOR)/etc/sound_trigger_mixer_paths_wcd9306.xml \
 vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/sound_trigger_mixer_paths_wcd9330.xml:$(TARGET_COPY_OUT_VENDOR)/etc/sound_trigger_mixer_paths_wcd9330.xml \
 vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/sound_trigger_mixer_paths_wcd9335.xml:$(TARGET_COPY_OUT_VENDOR)/etc/sound_trigger_mixer_paths_wcd9335.xml \
 vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/sound_trigger_platform_info.xml:$(TARGET_COPY_OUT_VENDOR)/etc/sound_trigger_platform_info.xml \
-vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/mixer_paths_wcd9330.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_wcd9330.xml \
-vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/mixer_paths_wcd9335.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_wcd9335.xml \
-vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/mixer_paths_wcd9326.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_wcd9326.xml \
-vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/mixer_paths_qrd_skun.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_qrd_skun.xml \
-vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/mixer_paths_qrd_sku1.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_qrd_sku1.xml \
-vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/mixer_paths_qrd_sku2.xml:$(TARGET_COPY_OUT_VENDOR)/etc/mixer_paths_qrd_sku2.xml \
-vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/audio_platform_info.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info.xml \
-vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/audio_platform_info_extcodec.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info_extcodec.xml \
-vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/audio_tuning_mixer.txt:$(TARGET_COPY_OUT_VENDOR)/etc/audio_tuning_mixer.txt
+vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/audio_platform_info_intcodec.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info_intcodec.xml \
+vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/audio_platform_info_tashalite.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info_tashalite.xml \
+vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/audio_platform_info_tasha.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info_tasha.xml \
+vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/audio_platform_info_mtp.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_platform_info_mtp.xml \
+vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/audio_tuning_mixer.txt:$(TARGET_COPY_OUT_VENDOR)/etc/audio_tuning_mixer.txt \
+vendor/qcom/opensource/audio-hal/primary-hal/configs/msm8937/audio_configs.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_configs.xml
 
 #XML Audio configuration files
 ifeq ($(USE_XML_AUDIO_POLICY_CONF), 1)
@@ -113,7 +108,7 @@ PRODUCT_COPY_FILES += \
 endif
 PRODUCT_COPY_FILES += \
     $(TOPDIR)vendor/qcom/opensource/audio-hal/primary-hal/configs/common/audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy_configuration.xml \
-    $(TOPDIR)frameworks/av/services/audiopolicy/config/a2dp_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/a2dp_audio_policy_configuration.xml \
+    $(TOPDIR)vendor/qcom/opensource/audio-hal/primary-hal/configs/common/bluetooth_qti_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/a2dp_audio_policy_configuration.xml \
     $(TOPDIR)frameworks/av/services/audiopolicy/config/audio_policy_volumes.xml:$(TARGET_COPY_OUT_VENDOR)/etc/audio_policy_volumes.xml \
     $(TOPDIR)frameworks/av/services/audiopolicy/config/default_volume_tables.xml:$(TARGET_COPY_OUT_VENDOR)/etc/default_volume_tables.xml \
     $(TOPDIR)frameworks/av/services/audiopolicy/config/r_submix_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/r_submix_audio_policy_configuration.xml \
@@ -205,10 +200,6 @@ PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.use.sw.alac.decoder=true\
 vendor.audio.use.sw.ape.decoder=true
 
-#property for AudioSphere Post processing
-PRODUCT_PROPERTY_OVERRIDES += \
-vendor.audio.pp.asphere.enabled=false
-
 #Audio voice concurrency related flags
 PRODUCT_PROPERTY_OVERRIDES += \
 vendor.voice.playback.conc.disabled=true\
@@ -244,7 +235,52 @@ persist.vendor.bt.enable.splita2dp=false
 
 #enable headset calibration
 PRODUCT_PROPERTY_OVERRIDES += \
-audio.volume.headset.gain.depcal=true
+vendor.audio.volume.headset.gain.depcal=true
+
+#add dynamic feature flags here
+PRODUCT_PROPERTY_OVERRIDES += \
+vendor.audio.feature.a2dp_offload.enable=false \
+vendor.audio.feature.afe_proxy.enable=true \
+vendor.audio.feature.anc_headset.enable=true \
+vendor.audio.feature.battery_listener.enable=false \
+vendor.audio.feature.compr_cap.enable=false \
+vendor.audio.feature.compress_in.enable=false \
+vendor.audio.feature.compress_meta_data.enable=true \
+vendor.audio.feature.compr_voip.enable=true \
+vendor.audio.feature.concurrent_capture.enable=false \
+vendor.audio.feature.custom_stereo.enable=true \
+vendor.audio.feature.display_port.enable=false \
+vendor.audio.feature.dsm_feedback.enable=false \
+vendor.audio.feature.dynamic_ecns.enable=false \
+vendor.audio.feature.ext_hw_plugin.enable=false \
+vendor.audio.feature.external_dsp.enable=false \
+vendor.audio.feature.external_speaker.enable=false \
+vendor.audio.feature.external_speaker_tfa.enable=false \
+vendor.audio.feature.fluence.enable=true \
+vendor.audio.feature.fm.enable=true \
+vendor.audio.feature.hdmi_edid.enable=true \
+vendor.audio.feature.hdmi_passthrough.enable=false \
+vendor.audio.feature.hfp.enable=true \
+vendor.audio.feature.hifi_audio.enable=true \
+vendor.audio.feature.hwdep_cal.enable=false \
+vendor.audio.feature.incall_music.enable=false \
+vendor.audio.feature.multi_voice_session.enable=true \
+vendor.audio.feature.keep_alive.enable=false \
+vendor.audio.feature.kpi_optimize.enable=true \
+vendor.audio.feature.maxx_audio.enable=false \
+vendor.audio.feature.ras.enable=false \
+vendor.audio.feature.record_play_concurency.enable=false \
+vendor.audio.feature.src_trkn.enable=true \
+vendor.audio.feature.spkr_prot.enable=true \
+vendor.audio.feature.ssrec.enable=true \
+vendor.audio.feature.usb_offload.enable=false \
+vendor.audio.feature.usb_offload_burst_mode.enable=false \
+vendor.audio.feature.usb_offload_sidetone_volume.enable=false \
+vendor.audio.feature.deepbuffer_as_primary.enable=false \
+vendor.audio.feature.vbat.enable=true \
+vendor.audio.feature.wsa.enable=true \
+vendor.audio.feature.audiozoom.enable=false \
+vendor.audio.feature.snd_mon.enable=true
 
 # for HIDL related packages
 PRODUCT_PACKAGES += \

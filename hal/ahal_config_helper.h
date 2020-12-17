@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -27,9 +27,14 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-// ToDo: This struct must be used only if config store is disabled.
-// Use AHalValues struct from config store once support is added.
-struct AHalValues_t {
+#ifdef __LP64__
+#define AUDIO_CONFIGSTORE_LIB_PATH "/vendor/lib64/libaudioconfigstore.so"
+#else
+#define AUDIO_CONFIGSTORE_LIB_PATH "/vendor/lib/libaudioconfigstore.so"
+#endif
+
+// AHalValues must be in sync with AHalValues_t in libaudioconfigstore
+typedef struct {
     bool snd_monitor_enabled;
     bool compress_capture_enabled;
     bool source_track_enabled;
@@ -46,25 +51,40 @@ struct AHalValues_t {
     bool fluence_enabled;
     bool custom_stereo_enabled;
     bool anc_headset_enabled;
+    bool spkr_prot_enabled;
+    bool fm_power_opt_enabled;
+    bool ext_qdsp_enabled;
+    bool ext_spkr_enabled;
+    bool ext_spkr_tfa_enabled;
+    bool hwdep_cal_enabled;
     bool dsm_feedback_enabled;
     bool usb_offload_enabled;
     bool usb_offload_burst_mode;
     bool usb_offload_sidetone_vol_enabled;
     bool a2dp_offload_enabled;
+    bool hfp_enabled;
     bool vbat_enabled;
+    bool wsa_enabled;
+    bool ext_hw_plugin_enabled;
+    bool record_play_concurrency;
+    bool hdmi_passthrough_enabled;
+    bool concurrent_capture_enabled;
+    bool compress_in_enabled;
+    bool battery_listener_enabled;
+    bool maxx_audio_enabled;
     bool compress_metadata_needed;
+    bool incall_music_enabled;
     bool compress_voip_enabled;
     bool dynamic_ecns_enabled;
-    bool spkr_prot_enabled;
-};
-typedef struct AHalValues_t AHalValues;
+    bool audio_zoom_enabled;
+    bool auto_hal_enabled;
+} AHalValues;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 void audio_extn_ahal_config_helper_init(bool isVendorEnhancedFwk);
-AHalValues* audio_extn_get_feature_values();
-bool audio_extn_is_config_from_remote();
+void audio_extn_get_feature_values(AHalValues* *confValues);
 #ifdef __cplusplus
 }
 #endif

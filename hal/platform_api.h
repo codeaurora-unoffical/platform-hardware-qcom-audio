@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -48,6 +48,8 @@ struct audio_backend_cfg {
     unsigned int   bit_width;
     bool           passthrough_enabled;
     audio_format_t format;
+    int controller;
+    int stream;
 };
 
 struct amp_db_and_gain_table {
@@ -65,7 +67,8 @@ struct mic_info {
 enum {
     NATIVE_AUDIO_MODE_SRC = 1,
     NATIVE_AUDIO_MODE_TRUE_44_1,
-    NATIVE_AUDIO_MODE_MULTIPLE_44_1,
+    NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_CODEC,
+    NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_DSP,
     NATIVE_AUDIO_MODE_INVALID
 };
 
@@ -202,12 +205,17 @@ int platform_set_mic_mute(void *platform, bool state);
 int platform_get_sample_rate(void *platform, uint32_t *rate);
 int platform_set_device_mute(void *platform, bool state, char *dir);
 snd_device_t platform_get_output_snd_device(void *platform, struct stream_out *out);
-snd_device_t platform_get_input_snd_device(void *platform, audio_devices_t out_device);
+snd_device_t platform_get_input_snd_device(void *platform,
+                                           struct stream_in *in,
+                                           audio_devices_t out_device);
 int platform_set_hdmi_channels(void *platform, int channel_count);
 int platform_edid_get_max_channels(void *platform);
 void platform_add_operator_specific_device(snd_device_t snd_device,
                                            const char *operator,
                                            const char *mixer_path,
+                                           unsigned int acdb_id);
+void platform_add_external_specific_device(snd_device_t snd_device,
+                                           const char *name,
                                            unsigned int acdb_id);
 void platform_get_parameters(void *platform, struct str_parms *query,
                              struct str_parms *reply);
@@ -270,7 +278,7 @@ int platform_set_channel_allocation(void *platform, int channel_alloc);
 int platform_get_edid_info(void *platform);
 int platform_get_supported_copp_sampling_rate(uint32_t stream_sr);
 int platform_set_channel_map(void *platform, int ch_count, char *ch_map,
-                             int snd_id);
+                             int snd_id, int be_idx);
 int platform_set_stream_channel_map(void *platform, audio_channel_mask_t channel_mask,
                                    int snd_id, uint8_t *input_channel_map);
 int platform_set_stream_pan_scale_params(void *platform,
@@ -280,7 +288,8 @@ int platform_set_stream_downmix_params(void *platform,
                                        int snd_id,
                                        snd_device_t snd_device,
                                        struct mix_matrix_params mm_params);
-int platform_set_edid_channels_configuration(void *platform, int channels, int backend_idx);
+int platform_set_edid_channels_configuration(void *platform, int channels,
+                                             int backend_idx, snd_device_t snd_device);
 bool platform_spkr_use_default_sample_rate(void *platform);
 unsigned char platform_map_to_edid_format(int format);
 bool platform_is_edid_supported_format(void *platform, int format);
@@ -368,14 +377,42 @@ int platform_get_active_microphones(void *platform, unsigned int channels,
 
 int platform_get_license_by_product(void *platform, const char* product_name, int *product_id, char* product_license);
 bool platform_get_eccarstate(void *platform);
+int platform_get_haptics_pcm_device_id();
+int platform_set_qtime(void *platform, int audio_pcm_device_id,
+                       int haptic_pcm_device_id);
+int platform_get_delay(void *platform, int pcm_device_id);
 struct audio_custom_mtmx_params *
     platform_get_custom_mtmx_params(void *platform,
                                     struct audio_custom_mtmx_params_info *info,
                                     uint32_t *idx);
 int platform_add_custom_mtmx_params(void *platform,
                                     struct audio_custom_mtmx_params_info *info);
+/* callback functions from platform to common audio HAL */
+struct stream_in *adev_get_active_input(const struct audio_device *adev);
+
 struct audio_custom_mtmx_in_params * platform_get_custom_mtmx_in_params(void *platform,
                                     struct audio_custom_mtmx_in_params_info *info);
 int platform_add_custom_mtmx_in_params(void *platform,
                                     struct audio_custom_mtmx_in_params_info *info);
+
+int platform_get_edid_info_v2(void *platform, int controller, int stream);
+int platform_edid_get_max_channels_v2(void *platform, int controller, int stream);
+bool platform_is_edid_supported_format_v2(void *platform, int format,
+                                          int contoller, int stream);
+bool platform_is_edid_supported_sample_rate_v2(void *platform, int sample_rate,
+                                               int contoller, int stream);
+void platform_cache_edid_v2(void * platform, int controller, int stream);
+void platform_invalidate_hdmi_config_v2(void * platform, int controller, int stream);
+int platform_get_controller_stream_from_params(struct str_parms *parms,
+                                               int *controller, int *stream);
+int platform_set_ext_display_device_v2(void *platform, int controller, int stream);
+int platform_get_ext_disp_type_v2(void *platform, int controller, int stream);
+int platform_set_edid_channels_configuration_v2(void *platform, int channels,
+                                             int backend_idx, snd_device_t snd_device,
+                                             int controller, int stream);
+int platform_set_channel_allocation_v2(void *platform, int channel_alloc,
+                                             int controller, int stream);
+int platform_set_hdmi_channels_v2(void *platform, int channel_count,
+                                  int controller, int stream);
+int platform_get_display_port_ctl_index(int controller, int stream);
 #endif // AUDIO_PLATFORM_API_H

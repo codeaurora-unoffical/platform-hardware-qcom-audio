@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -33,6 +33,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <expat.h>
+#include <pthread.h>
 #include <log/log.h>
 #include <cutils/str_parms.h>
 #include <audio_hw.h>
@@ -72,6 +73,7 @@ typedef enum {
     MIC_INFO,
     CUSTOM_MTMX_PARAMS,
     CUSTOM_MTMX_PARAM_COEFFS,
+    EXTERNAL_DEVICE_SPECIFIC,
     CUSTOM_MTMX_IN_PARAMS,
     CUSTOM_MTMX_PARAM_IN_CH_INFO,
     MMSECNS,
@@ -98,6 +100,7 @@ static void process_snd_dev(const XML_Char **attr);
 static void process_mic_info(const XML_Char **attr);
 static void process_custom_mtmx_params(const XML_Char **attr);
 static void process_custom_mtmx_param_coeffs(const XML_Char **attr);
+static void process_external_dev(const XML_Char **attr);
 static void process_custom_mtmx_in_params(const XML_Char **attr);
 static void process_custom_mtmx_param_in_ch_info(const XML_Char **attr);
 static void process_fluence_mmsecns(const XML_Char **attr);
@@ -121,6 +124,7 @@ static section_process_fn section_table[] = {
     [MIC_INFO] = process_mic_info,
     [CUSTOM_MTMX_PARAMS] = process_custom_mtmx_params,
     [CUSTOM_MTMX_PARAM_COEFFS] = process_custom_mtmx_param_coeffs,
+    [EXTERNAL_DEVICE_SPECIFIC] = process_external_dev,
     [CUSTOM_MTMX_IN_PARAMS] = process_custom_mtmx_in_params,
     [CUSTOM_MTMX_PARAM_IN_CH_INFO] = process_custom_mtmx_param_in_ch_info,
     [MMSECNS] = process_fluence_mmsecns,
@@ -135,6 +139,7 @@ struct platform_info {
 };
 
 static struct platform_info my_data;
+static pthread_mutex_t parser_lock = PTHREAD_MUTEX_INITIALIZER;
 
 
 struct audio_string_to_enum {
@@ -470,6 +475,38 @@ done:
     return;
 }
 
+static void process_external_dev(const XML_Char **attr)
+{
+    snd_device_t snd_device = SND_DEVICE_NONE;
+
+    if (strcmp(attr[0], "name") != 0) {
+        ALOGE("%s: 'name' not found", __func__);
+        goto done;
+    }
+
+    snd_device = platform_get_snd_device_index((char *)attr[1]);
+    if (snd_device < 0) {
+        ALOGE("%s: Device %s in %s not found, no ACDB ID set!",
+              __func__, (char *)attr[3], PLATFORM_INFO_XML_PATH);
+        goto done;
+    }
+
+    if (strcmp(attr[2], "usbid") != 0) {
+        ALOGE("%s: 'usbid' not found", __func__);
+        goto done;
+    }
+
+    if (strcmp(attr[4], "acdb_id") != 0) {
+        ALOGE("%s: 'acdb_id' not found", __func__);
+        goto done;
+    }
+
+    platform_add_external_specific_device(snd_device, (char *)attr[3], atoi((char *)attr[5]));
+
+done:
+    return;
+}
+
 static void process_audio_effect(const XML_Char **attr, effect_type_t effect_type)
 {
     int index;
@@ -677,6 +714,8 @@ static void process_config_params(const XML_Char **attr)
     }
 
     str_parms_add_str(my_data.kvpairs, (char*)attr[1], (char*)attr[3]);
+    if (my_data.caller == PLATFORM)
+        platform_set_parameters(my_data.platform, my_data.kvpairs);
 done:
     return;
 }
@@ -1379,6 +1418,11 @@ static void start_tag(void *userdata __unused, const XML_Char *tag_name,
             section = CUSTOM_MTMX_PARAM_COEFFS;
             section_process_fn fn = section_table[section];
             fn(attr);
+        } else if (strcmp(tag_name, "external_specific_dev") == 0) {
+            section = EXTERNAL_DEVICE_SPECIFIC;
+        } else if (strcmp(tag_name, "ext_device") == 0) {
+            section_process_fn fn = section_table[section];
+            fn(attr);
         } else if (strcmp(tag_name, "custom_mtmx_in_params") == 0) {
             if (section != ROOT) {
                 ALOGE("custom_mtmx_in_params tag supported only in ROOT section");
@@ -1432,9 +1476,6 @@ static void end_tag(void *userdata __unused, const XML_Char *tag_name)
         section = ROOT;
     } else if (strcmp(tag_name, "config_params") == 0) {
         section = ROOT;
-        if (my_data.caller == PLATFORM) {
-            platform_set_parameters(my_data.platform, my_data.kvpairs);
-        }
     } else if (strcmp(tag_name, "operator_specific") == 0) {
         section = ROOT;
     } else if (strcmp(tag_name, "interface_names") == 0) {
@@ -1448,6 +1489,8 @@ static void end_tag(void *userdata __unused, const XML_Char *tag_name)
     } else if (strcmp(tag_name, "microphone_characteristics") == 0) {
         section = ROOT;
     } else if (strcmp(tag_name, "snd_devices") == 0) {
+        section = ROOT;
+    } else if (strcmp(tag_name, "external_specific_dev") == 0) {
         section = ROOT;
     } else if (strcmp(tag_name, "input_snd_device") == 0) {
         section = SND_DEVICES;
@@ -1473,6 +1516,7 @@ int platform_info_init(const char *filename, void *platform, caller_t caller_typ
     void            *buf;
     char            platform_info_file_name[MIXER_PATH_MAX_LENGTH]= {0};
 
+    pthread_mutex_lock(&parser_lock);
     if (filename == NULL)
         strlcpy(platform_info_file_name, PLATFORM_INFO_XML_PATH,
                 MIXER_PATH_MAX_LENGTH);
@@ -1537,5 +1581,6 @@ err_free_parser:
 err_close_file:
     fclose(file);
 done:
+    pthread_mutex_unlock(&parser_lock);
     return ret;
 }

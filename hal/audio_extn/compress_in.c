@@ -36,7 +36,8 @@
 #include <cutils/log.h>
 #include <cutils/properties.h>
 #include <cutils/str_parms.h>
-#include <cutils/log.h>
+#include <log/log.h>
+#include <pthread.h>
 
 #include "audio_hw.h"
 #include "platform.h"
@@ -75,6 +76,7 @@ uint64_t timestamp;
 struct cin_private_data {
     struct compr_config compr_config;
     struct compress *compr;
+    bool usecase_acquired;
 };
 
 typedef struct cin_private_data cin_private_data_t;
@@ -91,10 +93,10 @@ static const audio_usecase_t cin_usecases[] = {
 
 static pthread_mutex_t cin_lock = PTHREAD_MUTEX_INITIALIZER;
 
-static int audio_extn_compress_in_set_ttp_metadata(
+static int cin_compress_in_set_ttp_metadata(
                   struct stream_in *in);
 
-bool audio_extn_cin_applicable_stream(struct stream_in *in)
+bool cin_applicable_stream(struct stream_in *in)
 {
     if (in->flags & (AUDIO_INPUT_FLAG_COMPRESS | AUDIO_INPUT_FLAG_TIMESTAMP))
         return true;
@@ -102,21 +104,21 @@ bool audio_extn_cin_applicable_stream(struct stream_in *in)
     return false;
 }
 
-/* all audio_extn_cin_xxx calls must be made on an input
- * only after validating that input against audio_extn_cin_attached_usecase
+/* all cin_xxx calls must be made on an input
+ * only after validating that input against cin_attached_usecase
  * except below calls
- * 1. audio_extn_cin_applicable_stream(in)
- * 2. audio_extn_cin_configure_input_stream(in)
+ * 1. cin_applicable_stream(in)
+ * 2. cin_configure_input_stream(in, in_config)
  */
 
-bool audio_extn_cin_attached_usecase(audio_usecase_t uc_id)
+bool cin_attached_usecase(struct stream_in *in)
 {
-    unsigned int i;
+    unsigned int i = 0;
+    audio_usecase_t uc_id = in->usecase;
 
     for (i = 0; i < sizeof(cin_usecases)/
                     sizeof(cin_usecases[0]); i++) {
-        if (uc_id == cin_usecases[i] &&
-            (cin_usecases_state & (0x1 << i)))
+        if (uc_id == cin_usecases[i] && in->cin_extn != NULL)
             return true;
     }
     return false;
@@ -162,7 +164,7 @@ static void free_cin_usecase(audio_usecase_t uc_id)
     pthread_mutex_unlock(&cin_lock);
 }
 
-bool audio_extn_cin_format_supported(audio_format_t format)
+bool cin_format_supported(audio_format_t format)
 {
     if ((format == AUDIO_FORMAT_IEC61937) || (format == AUDIO_FORMAT_DSD))
         return true;
@@ -170,7 +172,28 @@ bool audio_extn_cin_format_supported(audio_format_t format)
         return false;
 }
 
-size_t audio_extn_cin_get_buffer_size(struct stream_in *in)
+int cin_acquire_usecase(struct stream_in *in)
+{
+    audio_usecase_t usecase = USECASE_INVALID;
+    cin_private_data_t *cin_data = (cin_private_data_t *) in->cin_extn;
+
+    if (cin_data->usecase_acquired) {
+        ALOGW("%s: in %p, usecase already acquired!", __func__, in);
+        return 0;
+    }
+
+    usecase = get_cin_usecase();
+    if (usecase == USECASE_INVALID) {
+        ALOGE("%s: in %p, failed to acquire usecase, max count reached!", __func__, in);
+        return -EBUSY;
+    }
+
+    in->usecase = usecase;
+    cin_data->usecase_acquired = true;
+    return 0;
+}
+
+size_t cin_get_buffer_size(struct stream_in *in)
 {
     size_t sz = 0;
     cin_private_data_t *cin_data = (cin_private_data_t *) in->cin_extn;
@@ -186,13 +209,13 @@ size_t audio_extn_cin_get_buffer_size(struct stream_in *in)
 }
 
 #ifdef SNDRV_COMPRESS_RENDER_MODE
-static int audio_extn_compress_set_render_mode(struct stream_in *in)
+static int cin_compress_set_render_mode(struct stream_in *in)
 {
     struct snd_compr_metadata metadata;
     int ret = -EINVAL;
     cin_private_data_t *cin_data = (cin_private_data_t *) in->cin_extn;
 
-    if (!audio_extn_cin_attached_usecase(in->usecase)) {
+    if (!cin_attached_usecase(in)) {
         ALOGE("%s:: not supported for non offload session", __func__);
         goto exit;
     }
@@ -224,20 +247,26 @@ exit:
     return ret;
 }
 #else
-static int audio_extn_compress_set_render_mode(struct stream_in *in __unused)
+static int cin_compress_set_render_mode(struct stream_in *in __unused)
 {
     ALOGD("%s:: configuring render mode not supported", __func__);
     return 0;
 }
 #endif
 
-int audio_extn_cin_open_input_stream(struct stream_in *in)
+int cin_open_input_stream(struct stream_in *in)
 {
     int ret = -EINVAL;
     struct audio_device *adev = in->dev;
     cin_private_data_t *cin_data = (cin_private_data_t *) in->cin_extn;
 
     ALOGV("%s: in %p, cin_data %p", __func__, in, cin_data);
+
+    if (!cin_data->usecase_acquired) {
+        ALOGE("%s: in %p, invalid state: usecase not acquired yet!", __func__, in);
+        return ret;
+    }
+
     cin_data->compr = compress_open(adev->snd_card, in->pcm_device_id,
                                     COMPRESS_OUT, &cin_data->compr_config);
     if (cin_data->compr == NULL || !is_compress_ready(cin_data->compr)) {
@@ -256,14 +285,14 @@ int audio_extn_cin_open_input_stream(struct stream_in *in)
         (in->render_mode == RENDER_MODE_AUDIO_TTP) &&
         (in->ttp_offset_cached)) {
         ALOGD("set ttp offset:0x%"PRIx64" ", in->ttp_offset_cached);
-        audio_extn_compress_in_set_ttp_metadata(in);
+        cin_compress_in_set_ttp_metadata(in);
     }
-    audio_extn_compress_set_render_mode(in);
+    cin_compress_set_render_mode(in);
 
     return ret;
 }
 
-void audio_extn_cin_stop_input_stream(struct stream_in *in)
+void cin_stop_input_stream(struct stream_in *in)
 {
     cin_private_data_t *cin_data = (cin_private_data_t *) in->cin_extn;
 
@@ -271,10 +300,11 @@ void audio_extn_cin_stop_input_stream(struct stream_in *in)
     if (cin_data->compr) {
         compress_stop(cin_data->compr);
     }
+
 }
 
 
-void audio_extn_cin_close_input_stream(struct stream_in *in)
+void cin_close_input_stream(struct stream_in *in)
 {
     cin_private_data_t *cin_data = (cin_private_data_t *) in->cin_extn;
 
@@ -283,9 +313,14 @@ void audio_extn_cin_close_input_stream(struct stream_in *in)
         compress_close(cin_data->compr);
         cin_data->compr = NULL;
     }
+
+    if (cin_data->usecase_acquired) {
+        free_cin_usecase(in->usecase);
+        cin_data->usecase_acquired = false;
+    }
 }
 
-void audio_extn_cin_free_input_stream_resources(struct stream_in *in)
+void cin_free_input_stream_resources(struct stream_in *in)
 {
     cin_private_data_t *cin_data = (cin_private_data_t *) in->cin_extn;
 
@@ -294,10 +329,9 @@ void audio_extn_cin_free_input_stream_resources(struct stream_in *in)
         free(cin_data->compr_config.codec);
         free(cin_data);
     }
-    free_cin_usecase(in->usecase);
 }
 
-int audio_extn_cin_read(struct stream_in *in, void *buffer,
+int cin_read(struct stream_in *in, void *buffer,
                         size_t bytes, size_t *bytes_read)
 {
     int ret = -EINVAL;
@@ -337,7 +371,7 @@ int audio_extn_cin_read(struct stream_in *in, void *buffer,
     return ret;
 }
 
-int audio_extn_cin_configure_input_stream(struct stream_in *in, struct audio_config *in_config)
+int cin_configure_input_stream(struct stream_in *in, struct audio_config *in_config)
 {
     struct audio_config config = {.format = 0};
     int ret = 0, buffer_size = 0, meta_size = sizeof(struct snd_codec_metadata);
@@ -361,13 +395,6 @@ int audio_extn_cin_configure_input_stream(struct stream_in *in, struct audio_con
     if (!cin_data->compr_config.codec) {
         ALOGE("%s, allocation for codec data failed!", __func__);
         ret = -ENOMEM;
-        goto err_config;
-    }
-
-    in->usecase = get_cin_usecase();
-    if (in->usecase == USECASE_INVALID) {
-        ALOGE("%s, Max allowed compress record usecase reached!", __func__);
-        ret = -EEXIST;
         goto err_config;
     }
 
@@ -418,12 +445,12 @@ int audio_extn_cin_configure_input_stream(struct stream_in *in, struct audio_con
     return ret;
 
 err_config:
-    audio_extn_cin_free_input_stream_resources(in);
+    cin_free_input_stream_resources(in);
     return ret;
 }
 
 #ifdef SNDRV_COMPRESS_IN_TTP_OFFSET
-int audio_extn_compress_in_set_ttp_offset(
+int cin_compress_in_set_ttp_offset(
             struct stream_in *in,
             struct audio_in_ttp_offset_param *offset_param)
 {
@@ -437,7 +464,7 @@ int audio_extn_compress_in_set_ttp_offset(
 
     ALOGD("%s: ttp offset 0x%"PRIx64" ", __func__, offset_param->ttp_offset);
 
-    if (!audio_extn_cin_attached_usecase(in->usecase)) {
+    if (!cin_attached_usecase(in)) {
         ALOGE("%s:: not supported for non offload session", __func__);
         goto exit;
     }
@@ -449,7 +476,7 @@ int audio_extn_compress_in_set_ttp_offset(
         goto exit;
     }
 
-    ret = audio_extn_compress_in_set_ttp_metadata(in);
+    ret = cin_compress_in_set_ttp_metadata(in);
     if (ret) {
         ALOGE("%s: error: set ttp offset metadata failed", __func__);
     }
@@ -458,7 +485,7 @@ exit:
     return ret;
 }
 
-static int audio_extn_compress_in_set_ttp_metadata(struct stream_in *in)
+static int cin_compress_in_set_ttp_metadata(struct stream_in *in)
 {
     struct snd_compr_metadata metadata;
     int ret = -EINVAL;
@@ -482,7 +509,7 @@ static int audio_extn_compress_in_set_ttp_metadata(struct stream_in *in)
     return ret;
 }
 #else
-int audio_extn_compress_in_set_ttp_offset(
+int cin_compress_in_set_ttp_offset(
             struct stream_in *in __unused,
             struct audio_in_ttp_offset_param *offset_param __unused)
 {
@@ -490,7 +517,7 @@ int audio_extn_compress_in_set_ttp_offset(
     return 0;
 }
 
-static int audio_extn_compress_in_set_ttp_metadata(
+static int cin_compress_in_set_ttp_metadata(
             struct stream_in *in)
 {
     ALOGD("%s: configuring ttp offset metadata not supported", __func__);

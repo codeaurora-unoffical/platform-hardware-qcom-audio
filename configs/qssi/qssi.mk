@@ -21,7 +21,11 @@ AUDIO_FEATURE_ENABLED_ALAC_OFFLOAD := true
 AUDIO_FEATURE_ENABLED_APE_OFFLOAD := true
 AUDIO_FEATURE_ENABLED_AAC_ADTS_OFFLOAD := true
 AUDIO_FEATURE_ENABLED_PROXY_DEVICE := true
+AUDIO_FEATURE_ENABLED_AUDIOSPHERE := true
+ifeq ($(filter R% r%,$(TARGET_PLATFORM_VERSION)),)
 AUDIO_FEATURE_ENABLED_3D_AUDIO := true
+endif
+AUDIO_FEATURE_ENABLED_AHAL_EXT := true
 DOLBY_ENABLE := false
 endif
 
@@ -30,6 +34,7 @@ BOARD_SUPPORTS_SOUND_TRIGGER := true
 #AUDIO_FEATURE_ENABLED_KEEP_ALIVE := true
 AUDIO_FEATURE_ENABLED_DS2_DOLBY_DAP := false
 TARGET_USES_QCOM_MM_AUDIO := true
+AUDIO_FEATURE_ENABLED_SVA_MULTI_STAGE := true
 ##AUDIO_FEATURE_FLAGS
 
 ifneq ($(strip $(TARGET_USES_RRO)), true)
@@ -100,12 +105,24 @@ PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.hw.aac.encoder=true
 
 #audio becoming noisy intent broadcast delay
-PRODUCT_PROPERTY_OVERRIDES += \
-vendor.audio.noisy.broadcast.delay=600
+PRODUCT_PRODUCT_PROPERTIES += \
+audio.sys.noisy.broadcast.delay=500
+
+#audio device switch mute latency factor for draining unmuted data
+PRODUCT_PRODUCT_PROPERTIES += \
+audio.sys.mute.latency.factor=2
+
+#audio device switch mute latency to absorb routing activities
+PRODUCT_PRODUCT_PROPERTIES += \
+audio.sys.routing.latency=0
+
+#offload minimum duration set to 30sec
+PRODUCT_PRODUCT_PROPERTIES += \
+audio.offload.min.duration.secs=30
 
 #offload pausetime out duration to 3 secs to inline with other outputs
-PRODUCT_PROPERTY_OVERRIDES += \
-vendor.audio.offload.pstimeout.secs=3
+PRODUCT_PRODUCT_PROPERTIES += \
+audio.sys.offload.pstimeout.secs=3
 
 #Set AudioFlinger client heap size
 PRODUCT_PROPERTY_OVERRIDES += \
@@ -121,4 +138,31 @@ PRODUCT_PROPERTY_OVERRIDES += aaudio.hw_burst_min_usec=2000
 #enable mirror-link feature
 PRODUCT_PROPERTY_OVERRIDES += \
 vendor.audio.enable.mirrorlink=false
+
+#enable deep buffer
+PRODUCT_PROPERTY_OVERRIDES += \
+media.stagefright.audio.deep=false
+
+# for HIDL related packages
+PRODUCT_PACKAGES += \
+    android.hardware.audio@4.0 \
+    android.hardware.audio.common@4.0 \
+    android.hardware.audio.common@4.0-util \
+    android.hardware.audio.effect@4.0 \
+    vendor.qti.hardware.audiohalext@1.0 \
+    vendor.qti.hardware.audiohalext-utils
+
+# enable audio hidl hal 5.0
+PRODUCT_PACKAGES += \
+    android.hardware.audio@5.0 \
+    android.hardware.audio.common@5.0 \
+    android.hardware.audio.common@5.0-util \
+    android.hardware.audio.effect@5.0 \
+
+PRODUCT_PACKAGES_ENG += \
+    VoicePrintTest \
+    VoicePrintDemo
+
+PRODUCT_PACKAGES_DEBUG += \
+    AudioSettings
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -24,7 +24,13 @@
 #include <linux/msm_audio_calibration.h>
 
 #define MAX_CVD_VERSION_STRING_SIZE 100
+
+#ifdef DAEMON_SUPPORT_AUTO
+#define LIB_ACDB_LOADER "libacdbloaderclient.so"
+#else
 #define LIB_ACDB_LOADER "libacdbloader.so"
+#endif
+
 #define CVD_VERSION_MIXER_CTL "CVD Version"
 #define ACDB_METAINFO_KEY_MODULE_NAME_LEN 100
 
@@ -50,6 +56,7 @@ typedef int  (*acdb_init_v3_t)(const char *, char *, struct listnode *);
 typedef int  (*acdb_init_v4_t)(void *, int);
 typedef void (*acdb_send_audio_cal_t)(int, int, int , int);
 typedef void (*acdb_send_audio_cal_v3_t)(int, int, int, int, int);
+typedef void (*acdb_send_audio_cal_v4_t)(int, int, int, int, int, int);
 typedef void (*acdb_send_audio_cal_v5_t)(int, int, int, int, int, int, int);
 typedef void (*acdb_send_voice_cal_t)(int, int);
 typedef int (*acdb_reload_vocvoltable_t)(int);

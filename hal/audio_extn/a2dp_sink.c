@@ -119,6 +119,7 @@ typedef int (*audio_sink_stop_t)(void);
 typedef void * (*audio_get_dec_config_t)(codec_t *codec_type);
 typedef void * (*audio_sink_session_setup_complete_t)(uint64_t system_latency);
 typedef int (*audio_sink_check_a2dp_ready_t)(void);
+static void open_a2dp_sink();
 
 /* structure used to  update a2dp state machine
  * to communicate IPC library

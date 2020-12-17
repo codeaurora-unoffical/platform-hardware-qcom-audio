@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  * Not a contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -81,6 +81,7 @@ static bool voice_is_sidetone_device(snd_device_t out_device,
         strlcpy(mixer_path, "sidetone-handset", MIXER_PATH_MAX_LENGTH);
         break;
     case SND_DEVICE_OUT_VOICE_HEADPHONES:
+    case SND_DEVICE_OUT_VOICE_HEADSET:
     case SND_DEVICE_OUT_VOICE_ANC_HEADSET:
     case SND_DEVICE_OUT_VOICE_ANC_FB_HEADSET:
         is_sidetone_dev = true;
@@ -333,14 +334,33 @@ int voice_start_usecase(struct audio_device *adev, audio_usecase_t usecase_id)
     }
 #endif
 
-    if(adev->mic_break_enabled)
+    if (adev->mic_break_enabled)
         platform_set_mic_break_det(adev->platform, true);
 
-    pcm_start(session->pcm_tx);
-    pcm_start(session->pcm_rx);
+    ret = pcm_start(session->pcm_tx);
+    if (ret != 0) {
+        ALOGE("%s: %s", __func__, pcm_get_error(session->pcm_tx));
+        goto error_start_voice;
+    }
+
+    ret = pcm_start(session->pcm_rx);
+    if (ret != 0) {
+        ALOGE("%s: %s", __func__, pcm_get_error(session->pcm_rx));
+        goto error_start_voice;
+    }
+
 #ifdef PLATFORM_AUTO
-    pcm_start(voice_loopback_tx);
-    pcm_start(voice_loopback_rx);
+    ret = pcm_start(voice_loopback_tx);
+    if (ret != 0) {
+        ALOGE("%s: %s", __func__, pcm_get_error(voice_loopback_tx));
+        goto error_start_voice;
+    }
+
+    ret = pcm_start(voice_loopback_rx);
+    if (ret != 0) {
+        ALOGE("%s: %s", __func__, pcm_get_error(voice_loopback_rx));
+        goto error_start_voice;
+    }
 #endif
 
     /* Enable aanc only when no calls are active */
@@ -418,6 +438,22 @@ uint32_t voice_get_active_session_id(struct audio_device *adev)
     return session_id;
 }
 
+bool voice_check_voicecall_usecases_active(struct audio_device *adev)
+{
+    struct listnode *node;
+    struct audio_usecase *usecase = NULL;
+
+    list_for_each(node, &adev->usecase_list) {
+        usecase = node_to_item(node, struct audio_usecase, list);
+        if (usecase->type == VOICE_CALL) {
+            ALOGV("%s: voice usecase:%s is active", __func__,
+                   use_case_table[usecase->id]);
+            return true;
+        }
+    }
+    return false;
+}
+
 int voice_check_and_set_incall_rec_usecase(struct audio_device *adev,
                                            struct stream_in *in)
 {
@@ -460,8 +496,8 @@ int voice_check_and_set_incall_rec_usecase(struct audio_device *adev,
         session_id = voice_get_active_session_id(adev);
         ret = platform_set_incall_recording_session_id(adev->platform,
                                                        session_id, rec_mode);
-        ret = platform_set_incall_recording_session_channels(adev->platform,
-                                                        in->config.channels);
+        platform_set_incall_recording_session_channels(adev->platform,
+                                                       in->config.channels);
         ALOGV("%s: Update usecase to %d",__func__, in->usecase);
     } else {
         /*
@@ -649,7 +685,7 @@ int voice_set_mic_mute(struct audio_device *adev, bool state)
     ALOGD("%s: Setting mute state %d, err %d\n", __func__, state, err);
 #else
     if (audio_extn_hfp_is_active(adev)) {
-        err = hfp_set_mic_mute(adev, state);
+        err = audio_extn_hfp_set_mic_mute2(adev, state);
     } else if (adev->mode == AUDIO_MODE_IN_CALL) {
        /* Use device mute if incall music delivery usecase is in progress */
         if (adev->voice.use_device_mute)
@@ -861,6 +897,10 @@ done:
 void voice_init(struct audio_device *adev)
 {
     int i = 0;
+    int max_voice_sessions = MAX_VOICE_SESSIONS;
+
+    if (!voice_extn_is_multi_session_supported())
+        max_voice_sessions = 1;
 
     memset(&adev->voice, 0, sizeof(adev->voice));
     adev->voice.tty_mode = TTY_MODE_OFF;

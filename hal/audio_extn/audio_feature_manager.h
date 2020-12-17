@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -33,6 +33,7 @@
 #include <ahal_config_helper.h>
 
 enum audio_ext_feature_t {
+    // Start Audio feature flags
     SND_MONITOR = 0,
     COMPRESS_CAPTURE,
     SOURCE_TRACK,
@@ -54,12 +55,32 @@ enum audio_ext_feature_t {
     USB_OFFLOAD_BURST_MODE,
     USB_OFFLOAD_SIDETONE_VOLM,
     A2DP_OFFLOAD,
+    HFP,
     VBAT,
-    COMPRESS_METADATA_NEEDED,
-    VOICE_START = COMPRESS_METADATA_NEEDED,
-    COMPRESS_VOIP,
-    DYNAMIC_ECNS,
     SPKR_PROT,
+    FM_POWER_OPT_FEATURE,
+    EXTERNAL_QDSP,
+    EXTERNAL_SPEAKER,
+    EXTERNAL_SPEAKER_TFA,
+    HWDEP_CAL,
+    WSA,
+    EXT_HW_PLUGIN,
+    RECORD_PLAY_CONCURRENCY,
+    HDMI_PASSTHROUGH,
+    CONCURRENT_CAPTURE,
+    COMPRESS_IN_CAPTURE,
+    BATTERY_LISTENER,
+    COMPRESS_METADATA_NEEDED,
+    MAXX_AUDIO,
+    AUDIO_ZOOM,
+    AUTO_HAL,
+    // End Audio feature flags
+    // Start Voice feature flags
+    COMPRESS_VOIP,
+    VOICE_START = COMPRESS_VOIP,
+    DYNAMIC_ECNS,
+    INCALL_MUSIC,
+    // End Voice feature flags
     MAX_SUPPORTED_FEATURE
 };
 

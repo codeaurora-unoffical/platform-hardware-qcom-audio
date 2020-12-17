@@ -45,17 +45,6 @@ void voice_extn_in_get_parameters(struct stream_in *in,
 void voice_extn_out_get_parameters(struct stream_out *out,
                                    struct str_parms *query,
                                    struct str_parms *reply);
-#ifdef INCALL_MUSIC_ENABLED
-int voice_extn_check_and_set_incall_music_usecase(struct audio_device *adev,
-                                                  struct stream_out *out);
-#else
-static int __unused voice_extn_check_and_set_incall_music_usecase(
-                                          struct audio_device *adev __unused,
-                                          struct stream_out *out __unused)
-{
-    return -ENOSYS;
-}
-#endif
 
 int voice_extn_check_and_set_incall_music_usecase(struct audio_device *adev,
                                                   struct stream_out *out);
@@ -93,10 +82,14 @@ bool voice_extn_compress_voip_is_format_supported(audio_format_t format);
 bool voice_extn_compress_voip_is_config_supported(struct audio_config *config);
 bool voice_extn_compress_voip_is_started(struct audio_device *adev);
 void voice_extn_feature_init();
-void compr_voip_feature_init(bool is_feature_enabled);
-bool voice_extn_is_compress_voip_supported();
 void dynamic_ecns_feature_init(bool is_feature_enabled);
 bool voice_extn_is_dynamic_ecns_enabled();
+void incall_music_feature_init(bool is_feature_enabled);
+bool voice_extn_is_incall_music_enabled();
+void compr_voip_feature_init(bool is_feature_enabled);
+bool voice_extn_is_compress_voip_supported();
+void multi_voice_session_feature_init(bool is_feature_enabled);
+bool voice_extn_is_multi_session_supported();
 
 
 #ifdef DTMF_ENABLED

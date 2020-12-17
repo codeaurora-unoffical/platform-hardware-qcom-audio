@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2014-2019 The Linux Foundation. All rights reserved.
+* Copyright (c) 2014-2020 The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -33,15 +33,16 @@
 #include <errno.h>
 #include <pthread.h>
 #include <dlfcn.h>
-#include <cutils/log.h>
+#include <log/log.h>
 #include <audio_hw.h>
 #include "audio_extn.h"
 #include "platform_api.h"
 #include "platform.h"
 #include "audio_hal_plugin.h"
 
-
-#ifdef EXT_HW_PLUGIN_ENABLED
+//external feature dependency
+static fp_b64decode_t fp_b64decode;
+static fp_b64encode_t fp_b64encode;
 
 typedef int32_t (*audio_hal_plugin_init_t)(void);
 typedef int32_t (*audio_hal_plugin_deinit_t)(void);
@@ -61,9 +62,13 @@ struct ext_hw_plugin_data {
 };
 
 /* This can be defined in platform specific file or use compile flag */
+#ifdef DAEMON_SUPPORT_AUTO
+#define LIB_PLUGIN_DRIVER "libaudiohalpluginclient.so"
+#else
 #define LIB_PLUGIN_DRIVER "libaudiohalplugin.so"
+#endif
 
-void* audio_extn_ext_hw_plugin_init(struct audio_device *adev)
+void* ext_hw_plugin_init(struct audio_device *adev, ext_hw_plugin_init_config_t init_config)
 {
     int32_t ret = 0;
     struct ext_hw_plugin_data *my_plugin = NULL;
@@ -76,6 +81,9 @@ void* audio_extn_ext_hw_plugin_init(struct audio_device *adev)
     }
 
     my_plugin->adev = adev;
+
+    fp_b64decode = init_config.fp_b64decode;
+    fp_b64encode = init_config.fp_b64encode;
 
     my_plugin->plugin_handle = dlopen(LIB_PLUGIN_DRIVER, RTLD_NOW);
     if (my_plugin->plugin_handle == NULL) {
@@ -114,7 +122,6 @@ void* audio_extn_ext_hw_plugin_init(struct audio_device *adev)
             goto plugin_init_fail;
         }
     }
-
     my_plugin->mic_mute = false;
     return my_plugin;
 
@@ -125,7 +132,7 @@ plugin_init_fail:
     return NULL;
 }
 
-int32_t audio_extn_ext_hw_plugin_deinit(void *plugin)
+int32_t ext_hw_plugin_deinit(void *plugin)
 {
     int32_t ret = 0;
     struct ext_hw_plugin_data *my_plugin = (struct ext_hw_plugin_data *)plugin;
@@ -134,7 +141,6 @@ int32_t audio_extn_ext_hw_plugin_deinit(void *plugin)
         ALOGE("[%s] NULL plugin pointer",__func__);
         return -EINVAL;
     }
-
     if (my_plugin->audio_hal_plugin_deinit) {
         ret = my_plugin->audio_hal_plugin_deinit();
         if (ret) {
@@ -182,6 +188,14 @@ static int32_t ext_hw_plugin_check_plugin_usecase(audio_usecase_t hal_usecase,
     case USECASE_AUDIO_HFP_SCO_WB:
     case USECASE_AUDIO_HFP_SCO_DOWNLINK:
     case USECASE_AUDIO_HFP_SCO_WB_DOWNLINK:
+    case USECASE_AUDIO_PRI_HFP_SCO:
+    case USECASE_AUDIO_PRI_HFP_SCO_WB:
+    case USECASE_AUDIO_PRI_HFP_SCO_DOWNLINK:
+    case USECASE_AUDIO_PRI_HFP_SCO_WB_DOWNLINK:
+    case USECASE_AUDIO_SEC_HFP_SCO:
+    case USECASE_AUDIO_SEC_HFP_SCO_WB:
+    case USECASE_AUDIO_SEC_HFP_SCO_DOWNLINK:
+    case USECASE_AUDIO_SEC_HFP_SCO_WB_DOWNLINK:
         *plugin_usecase = AUDIO_HAL_PLUGIN_USECASE_HFP_VOICE_CALL;
         break;
     case USECASE_VOICE_CALL:
@@ -197,6 +211,8 @@ static int32_t ext_hw_plugin_check_plugin_usecase(audio_usecase_t hal_usecase,
     case USECASE_AUDIO_FM_TUNER_EXT:
        *plugin_usecase = AUDIO_HAL_PLUGIN_USECASE_FM_TUNER;
         break;
+    case USECASE_ICC_CALL:
+        *plugin_usecase = AUDIO_HAL_PLUGIN_USECASE_ICC;
     default:
         ret = -EINVAL;
     }
@@ -204,7 +220,7 @@ static int32_t ext_hw_plugin_check_plugin_usecase(audio_usecase_t hal_usecase,
     return ret;
 }
 
-int32_t audio_extn_ext_hw_plugin_usecase_start(void *plugin, struct audio_usecase *usecase)
+int32_t ext_hw_plugin_usecase_start(void *plugin, struct audio_usecase *usecase)
 {
     int32_t ret = 0;
     struct ext_hw_plugin_data *my_plugin = (struct ext_hw_plugin_data *)plugin;
@@ -240,7 +256,7 @@ int32_t audio_extn_ext_hw_plugin_usecase_start(void *plugin, struct audio_usecas
 
         if (((usecase->type == PCM_CAPTURE) || (usecase->type == VOICE_CALL) ||
               (usecase->type == VOIP_CALL) || (usecase->type == PCM_HFP_CALL) ||
-              (usecase->type == PCM_PASSTHROUGH)) &&
+              (usecase->type == ICC_CALL) || (usecase->type == PCM_PASSTHROUGH)) &&
             (usecase->in_snd_device != SND_DEVICE_NONE)) {
             codec_enable.snd_dev = usecase->in_snd_device;
             /* TODO - below should be related with in_snd_dev */
@@ -314,8 +330,8 @@ int32_t audio_extn_ext_hw_plugin_usecase_start(void *plugin, struct audio_usecas
         }
 
         if (((usecase->type == PCM_PLAYBACK) || (usecase->type == VOICE_CALL) ||
-                (usecase->type == VOIP_CALL) || (usecase->type == PCM_HFP_CALL)) &&
-            (usecase->out_snd_device != SND_DEVICE_NONE)) {
+                (usecase->type == VOIP_CALL) || (usecase->type == PCM_HFP_CALL) ||
+                (usecase->type == ICC_CALL)) && (usecase->out_snd_device != SND_DEVICE_NONE)) {
             codec_enable.snd_dev = usecase->out_snd_device;
             /* TODO - below should be related with out_snd_dev */
             codec_enable.sample_rate = 48000;
@@ -345,7 +361,7 @@ int32_t audio_extn_ext_hw_plugin_usecase_start(void *plugin, struct audio_usecas
     return ret;
 }
 
-int32_t audio_extn_ext_hw_plugin_usecase_stop(void *plugin, struct audio_usecase *usecase)
+int32_t ext_hw_plugin_usecase_stop(void *plugin, struct audio_usecase *usecase)
 {
     int32_t ret = 0;
     struct ext_hw_plugin_data *my_plugin = (struct ext_hw_plugin_data *)plugin;
@@ -382,8 +398,8 @@ int32_t audio_extn_ext_hw_plugin_usecase_stop(void *plugin, struct audio_usecase
         }
 
         if (((usecase->type == PCM_PLAYBACK) || (usecase->type == VOICE_CALL) ||
-                (usecase->type == VOIP_CALL) || (usecase->type == PCM_HFP_CALL)) &&
-            (usecase->out_snd_device != SND_DEVICE_NONE)) {
+                (usecase->type == VOIP_CALL) || (usecase->type == PCM_HFP_CALL) ||
+                (usecase->type == ICC_CALL)) && (usecase->out_snd_device != SND_DEVICE_NONE)) {
             codec_disable.snd_dev = usecase->out_snd_device;
 
             ALOGD("%s: disable audio hal plugin output, %d, %d",
@@ -399,7 +415,7 @@ int32_t audio_extn_ext_hw_plugin_usecase_stop(void *plugin, struct audio_usecase
         }
         if (((usecase->type == PCM_CAPTURE) || (usecase->type == VOICE_CALL) ||
              (usecase->type == VOIP_CALL) || (usecase->type == PCM_HFP_CALL) ||
-             (usecase->type == PCM_PASSTHROUGH)) &&
+             (usecase->type == PCM_PASSTHROUGH) || (usecase->type == ICC_CALL)) &&
             (usecase->in_snd_device != SND_DEVICE_NONE)) {
             codec_disable.snd_dev = usecase->in_snd_device;
 
@@ -461,7 +477,7 @@ static int32_t ext_hw_plugin_string_to_dword(char *string_value, void **dword_pt
         ALOGE("%s: memory allocation failed", __func__);
         return -ENOMEM;
     }
-    dlen = b64decode(string_value, strlen(string_value), dptr);
+    dlen = fp_b64decode(string_value, strlen(string_value), dptr);
     if ((dlen <= 0) || ((uint32_t)dlen != 4*dword_len)){
         ALOGE("%s: data decoding failed", __func__);
         ret = -EINVAL;
@@ -528,7 +544,7 @@ static int32_t ext_hw_plugin_dword_to_string(uint32_t *dword_ptr, uint32_t dword
         goto done_dword_to_string;
     }
 
-    ret = b64encode(dptr, dlen, outptr);
+    ret = fp_b64encode(dptr, dlen, outptr);
     if(ret < 0) {
         ALOGE("[%s] failed to convert data to string ret = %d", __func__, ret);
         free(outptr);
@@ -545,7 +561,7 @@ done_dword_to_string:
 }
 
 
-int32_t audio_extn_ext_hw_plugin_set_parameters(void *plugin, struct str_parms *parms)
+int32_t ext_hw_plugin_set_parameters(void *plugin, struct str_parms *parms)
 {
 
     char *value = NULL;
@@ -995,7 +1011,7 @@ done:
     return ret;
 }
 
-int audio_extn_ext_hw_plugin_get_parameters(void *plugin,
+int ext_hw_plugin_get_parameters(void *plugin,
                   struct str_parms *query, struct str_parms *reply)
 {
     char *value = NULL;
@@ -1033,7 +1049,7 @@ int audio_extn_ext_hw_plugin_get_parameters(void *plugin,
         kv_pairs = str_parms_to_str(query);
         if (kv_pairs == NULL) {
             ret = -EINVAL;
-            ALOGE("%s: failed to get parameters",__func__);
+            ALOGE("%s: key-value pair is NULL",__func__);
             goto done_get_param;
         }
 
@@ -1438,7 +1454,7 @@ done_get_param:
     return ret;
 }
 
-int audio_extn_ext_hw_plugin_set_mic_mute(void *plugin, bool mute)
+int ext_hw_plugin_set_mic_mute(void *plugin, bool mute)
 {
     struct ext_hw_plugin_data *my_plugin = NULL;
     audio_hal_plugin_codec_set_pp_mute_t pp_mute;
@@ -1480,7 +1496,7 @@ int audio_extn_ext_hw_plugin_set_mic_mute(void *plugin, bool mute)
     return ret;
 }
 
-int audio_extn_ext_hw_plugin_get_mic_mute(void *plugin, bool *mute)
+int ext_hw_plugin_get_mic_mute(void *plugin, bool *mute)
 {
     struct ext_hw_plugin_data *my_plugin = (struct ext_hw_plugin_data *)plugin;
 
@@ -1495,7 +1511,7 @@ int audio_extn_ext_hw_plugin_get_mic_mute(void *plugin, bool *mute)
     return 0;
 }
 
-int audio_extn_ext_hw_plugin_set_audio_gain(void *plugin,
+int ext_hw_plugin_set_audio_gain(void *plugin,
             struct audio_usecase *usecase, uint32_t gain)
 {
     int32_t ret = 0;
@@ -1572,4 +1588,3 @@ int audio_extn_ext_hw_plugin_set_audio_gain(void *plugin,
     }
     return ret;
 }
-#endif /* EXT_HW_PLUGIN_ENABLED */

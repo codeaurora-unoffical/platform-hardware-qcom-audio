@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -33,6 +33,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <dlfcn.h>
 #include <cutils/properties.h>
 #include <log/log.h>
 #include <unistd.h>
@@ -41,29 +42,28 @@
 #include "voice_extn.h"
 #include "audio_feature_manager.h"
 
-extern AHalValues* confValues;
+AHalValues* confValues = NULL;
 
 void audio_feature_manager_init()
 {
-    ALOGV("%s: Enter", __func__);
-    audio_extn_ahal_config_helper_init(
-                isRunningWithVendorEnhancedFramework());
-    confValues = audio_extn_get_feature_values();
-    audio_extn_feature_init();
-    voice_extn_feature_init();
+    ALOGD("%s: Enter", __func__);
+
+    int is_running_with_enhanced_fwk = audio_extn_utils_is_vendor_enhanced_fwk();
+    audio_extn_ahal_config_helper_init(is_running_with_enhanced_fwk);
+    audio_extn_get_feature_values(&confValues);
+    audio_extn_feature_init(is_running_with_enhanced_fwk);
+    voice_extn_feature_init(is_running_with_enhanced_fwk);
 }
 
 bool audio_feature_manager_is_feature_enabled(audio_ext_feature feature)
 {
     ALOGV("%s: Enter", __func__);
 
-#ifdef AHAL_EXT_ENABLED
-    if (!audio_extn_is_config_from_remote())
-        confValues = audio_extn_get_feature_values();
-#endif /* AHAL_EXT_ENABLED */
-
-    if (!confValues)
-        return false;
+    if (confValues == NULL) {
+        audio_extn_get_feature_values(&confValues);
+        if (!confValues)
+            return false;
+    }
 
     switch (feature) {
         case SND_MONITOR:
@@ -98,6 +98,18 @@ bool audio_feature_manager_is_feature_enabled(audio_ext_feature feature)
             return confValues->custom_stereo_enabled;
         case ANC_HEADSET:
             return confValues->anc_headset_enabled;
+        case SPKR_PROT:
+             return confValues->spkr_prot_enabled;
+        case FM_POWER_OPT_FEATURE:
+             return confValues->fm_power_opt_enabled;
+        case EXTERNAL_QDSP:
+             return confValues->ext_qdsp_enabled;
+        case EXTERNAL_SPEAKER:
+             return confValues->ext_spkr_enabled;
+        case EXTERNAL_SPEAKER_TFA:
+             return confValues->ext_spkr_tfa_enabled;
+        case HWDEP_CAL:
+             return confValues->hwdep_cal_enabled;
         case DSM_FEEDBACK:
             return confValues->dsm_feedback_enabled;
         case USB_OFFLOAD:
@@ -108,16 +120,38 @@ bool audio_feature_manager_is_feature_enabled(audio_ext_feature feature)
             return confValues->usb_offload_sidetone_vol_enabled;
         case A2DP_OFFLOAD:
             return confValues->a2dp_offload_enabled;
+        case HFP:
+            return confValues->hfp_enabled;
         case VBAT:
             return confValues->vbat_enabled;
+        case WSA:
+            return confValues->wsa_enabled;
+        case EXT_HW_PLUGIN:
+            return confValues->ext_hw_plugin_enabled;
+        case RECORD_PLAY_CONCURRENCY:
+            return confValues->record_play_concurrency;
+        case HDMI_PASSTHROUGH:
+            return confValues->hdmi_passthrough_enabled;
+        case CONCURRENT_CAPTURE:
+            return confValues->concurrent_capture_enabled;
+        case COMPRESS_IN_CAPTURE:
+            return confValues->compress_in_enabled;
+        case BATTERY_LISTENER:
+            return confValues->battery_listener_enabled;
+        case MAXX_AUDIO:
+            return confValues->maxx_audio_enabled;
         case COMPRESS_METADATA_NEEDED:
             return confValues->compress_metadata_needed;
+        case INCALL_MUSIC:
+            return confValues->incall_music_enabled;
         case COMPRESS_VOIP:
             return confValues->compress_voip_enabled;
         case DYNAMIC_ECNS:
             return confValues->dynamic_ecns_enabled;
-        case SPKR_PROT:
-            return confValues->spkr_prot_enabled;
+        case AUDIO_ZOOM:
+            return confValues->audio_zoom_enabled;
+        case AUTO_HAL:
+            return confValues->auto_hal_enabled;
         default:
             return false;
     }

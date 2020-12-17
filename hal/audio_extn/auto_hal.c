@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -31,6 +31,7 @@
 
 #include <errno.h>
 #include <pthread.h>
+#include <log/log.h>
 #include <cutils/log.h>
 #include <math.h>
 #include <audio_hw.h>
@@ -38,6 +39,7 @@
 #include "platform_api.h"
 #include "platform.h"
 #include "audio_hal_plugin.h"
+#include "auto_hal.h"
 
 #ifdef DYNAMIC_LOG_ENABLED
 #include <log_xml_parser.h>
@@ -45,28 +47,30 @@
 #include <log_utils.h>
 #endif
 
-#ifdef AUDIO_EXTN_AUTO_HAL_ENABLED
-
-#define MIN_VOLUME_GAIN 0.0f
-#define MAX_VOLUME_GAIN 1.0f
-
-typedef struct auto_hal_module {
-    struct audio_device *adev;
-    card_status_t card_status;
-} auto_hal_module_t;
+//external feature dependency
+static fp_in_get_stream_t                           fp_in_get_stream;
+static fp_out_get_stream_t                          fp_out_get_stream;
+static fp_audio_extn_ext_hw_plugin_usecase_start_t  fp_audio_extn_ext_hw_plugin_usecase_start;
+static fp_audio_extn_ext_hw_plugin_usecase_stop_t   fp_audio_extn_ext_hw_plugin_usecase_stop;
+static fp_get_usecase_from_list_t                   fp_get_usecase_from_list;
+static fp_get_output_period_size_t                  fp_get_output_period_size;
+static fp_audio_extn_ext_hw_plugin_set_audio_gain_t fp_audio_extn_ext_hw_plugin_set_audio_gain;
+static fp_select_devices_t                          fp_select_devices;
+static fp_disable_audio_route_t                     fp_disable_audio_route;
+static fp_disable_snd_device_t                      fp_disable_snd_device;
+static fp_adev_get_active_input_t                   fp_adev_get_active_input;
+static fp_platform_set_echo_reference_t             fp_platform_set_echo_reference;
+static fp_platform_get_eccarstate_t                 fp_platform_get_eccarstate;
 
 /* Auto hal module struct */
 static struct auto_hal_module *auto_hal = NULL;
 
+int auto_hal_release_audio_patch(struct audio_hw_device *dev,
+                                audio_patch_handle_t handle);
+int auto_hal_stop_hfp_downlink(struct audio_device *adev,
+                               struct audio_usecase *uc_info);
 extern struct pcm_config pcm_config_deep_buffer;
 extern struct pcm_config pcm_config_low_latency;
-
-static const audio_usecase_t bus_device_usecases[] = {
-    USECASE_AUDIO_PLAYBACK_MEDIA,
-    USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION,
-    USECASE_AUDIO_PLAYBACK_NAV_GUIDANCE,
-    USECASE_AUDIO_PLAYBACK_PHONE,
-};
 
 static struct audio_patch_record *get_patch_from_list(struct audio_device *adev,
                                                     audio_patch_handle_t patch_id)
@@ -81,10 +85,7 @@ static struct audio_patch_record *get_patch_from_list(struct audio_device *adev,
     return NULL;
 }
 
-#define MAX_SOURCE_PORTS_PER_PATCH 1
-#define MAX_SINK_PORTS_PER_PATCH 1
-
-int audio_extn_auto_hal_create_audio_patch(struct audio_hw_device *dev,
+int auto_hal_create_audio_patch(struct audio_hw_device *dev,
                                 unsigned int num_sources,
                                 const struct audio_port_config *sources,
                                 unsigned int num_sinks,
@@ -119,7 +120,7 @@ int audio_extn_auto_hal_create_audio_patch(struct audio_hw_device *dev,
 
     /* Release patch if valid handle */
     if (*handle != AUDIO_PATCH_HANDLE_NONE) {
-        ret = audio_extn_auto_hal_release_audio_patch(dev,
+        ret = auto_hal_release_audio_patch(dev,
                         *handle);
         if (ret) {
             ALOGE("%s: failed to release audio patch 0x%x", __func__, *handle);
@@ -144,7 +145,7 @@ int audio_extn_auto_hal_create_audio_patch(struct audio_hw_device *dev,
     if ((sources->type == AUDIO_PORT_TYPE_DEVICE) &&
         (sinks->type == AUDIO_PORT_TYPE_MIX)) {
         pthread_mutex_lock(&adev->lock);
-        streams_input_ctxt_t *in_ctxt = in_get_stream(adev,
+        streams_input_ctxt_t *in_ctxt = fp_in_get_stream(adev,
                         sinks->ext.mix.handle);
         if (!in_ctxt) {
             ALOGE("%s, failed to find input stream", __func__);
@@ -165,7 +166,7 @@ int audio_extn_auto_hal_create_audio_patch(struct audio_hw_device *dev,
         if (address == NULL) {
             ALOGE("%s: failed to get address",__func__);
             ret = -EFAULT;
-            goto error;
+            goto exit;
         }
         parms = str_parms_create_str(address);
         if (!parms) {
@@ -183,7 +184,7 @@ int audio_extn_auto_hal_create_audio_patch(struct audio_hw_device *dev,
     } else if ((sources->type == AUDIO_PORT_TYPE_MIX) &&
             (sinks->type == AUDIO_PORT_TYPE_DEVICE)) {
         pthread_mutex_lock(&adev->lock);
-        streams_output_ctxt_t *out_ctxt = out_get_stream(adev,
+        streams_output_ctxt_t *out_ctxt = fp_out_get_stream(adev,
             sources->ext.mix.handle);
         if (!out_ctxt) {
             ALOGE("%s, failed to find output stream", __func__);
@@ -204,7 +205,7 @@ int audio_extn_auto_hal_create_audio_patch(struct audio_hw_device *dev,
         if (address == NULL) {
             ALOGE("%s: failed to get address",__func__);
             ret = -EFAULT;
-            goto error;
+            goto exit;
         }
         parms = str_parms_create_str(address);
         if (!parms) {
@@ -246,7 +247,7 @@ int audio_extn_auto_hal_create_audio_patch(struct audio_hw_device *dev,
         ALOGD("%s: Starting ext hw plugin use case (%d) in_snd_device (%d) out_snd_device (%d)",
               __func__, uc_info->id, uc_info->in_snd_device, uc_info->out_snd_device);
 
-        ret = audio_extn_ext_hw_plugin_usecase_start(adev->ext_hw_plugin, uc_info);
+        ret = fp_audio_extn_ext_hw_plugin_usecase_start(adev->ext_hw_plugin, uc_info);
         if (ret) {
             ALOGE("%s: failed to start ext hw plugin use case (%d)",
                 __func__, uc_info->id);
@@ -282,9 +283,9 @@ int audio_extn_auto_hal_create_audio_patch(struct audio_hw_device *dev,
     patch_record->patch.id = patch_record->handle;
     patch_record->patch.num_sources = num_sources;
     patch_record->patch.num_sinks = num_sinks;
-    for (unsigned int i = 0; i < num_sources; i++)
+    for (int i = 0; i < num_sources; i++)
         patch_record->patch.sources[i] = sources[i];
-    for (unsigned int i = 0; i < num_sinks; i++)
+    for (int i = 0; i < num_sinks; i++)
         patch_record->patch.sinks[i] = sinks[i];
 
     list_add_tail(&adev->audio_patch_record_list, &patch_record->list);
@@ -307,7 +308,7 @@ exit:
     return ret;
 }
 
-int audio_extn_auto_hal_release_audio_patch(struct audio_hw_device *dev,
+int auto_hal_release_audio_patch(struct audio_hw_device *dev,
                                 audio_patch_handle_t handle)
 {
     int ret = 0;
@@ -345,7 +346,7 @@ int audio_extn_auto_hal_release_audio_patch(struct audio_hw_device *dev,
 
     if (patch_record->input_io_handle) {
         pthread_mutex_lock(&adev->lock);
-        in_ctxt = in_get_stream(adev, patch_record->input_io_handle);
+        in_ctxt = fp_in_get_stream(adev, patch_record->input_io_handle);
         if (!in_ctxt) {
             ALOGE("%s, Could not find input stream", __func__);
             ret = -EINVAL;
@@ -354,18 +355,18 @@ int audio_extn_auto_hal_release_audio_patch(struct audio_hw_device *dev,
         if(ret)
             goto exit;
 
-        parms = str_parms_create();
         if(parms != NULL) {
-            str_parms_add_int(parms, AUDIO_PARAMETER_STREAM_ROUTING, 0);
-            str = str_parms_to_str(parms);
-            in_ctxt->input->stream.common.set_parameters(
-                            (struct audio_stream *)in_ctxt->input, str);
+           parms = str_parms_create();
+           str_parms_add_int(parms, AUDIO_PARAMETER_STREAM_ROUTING, 0);
+           str = str_parms_to_str(parms);
+           in_ctxt->input->stream.common.set_parameters(
+                           (struct audio_stream *)in_ctxt->input, str);
         }
     }
 
     if (patch_record->output_io_handle) {
         pthread_mutex_lock(&adev->lock);
-        out_ctxt = out_get_stream(adev, patch_record->output_io_handle);
+        out_ctxt = fp_out_get_stream(adev, patch_record->output_io_handle);
         if (!out_ctxt) {
             ALOGE("%s, Could not find output stream", __func__);
             ret = -EINVAL;
@@ -376,23 +377,23 @@ int audio_extn_auto_hal_release_audio_patch(struct audio_hw_device *dev,
 
         parms = str_parms_create();
         if(parms != NULL) {
-            str_parms_add_int(parms, AUDIO_PARAMETER_STREAM_ROUTING, 0);
-            str = str_parms_to_str(parms);
-            out_ctxt->output->stream.common.set_parameters(
-                            (struct audio_stream *)out_ctxt->output, str);
+           str_parms_add_int(parms, AUDIO_PARAMETER_STREAM_ROUTING, 0);
+           str = str_parms_to_str(parms);
+           out_ctxt->output->stream.common.set_parameters(
+                             (struct audio_stream *)out_ctxt->output, str);
         }
     }
 
     if (patch_record->usecase != USECASE_INVALID) {
         pthread_mutex_lock(&adev->lock);
-        uc_info = get_usecase_from_list(adev, patch_record->usecase);
+        uc_info = fp_get_usecase_from_list(adev, patch_record->usecase);
         if (!uc_info) {
             ALOGE("%s: failed to find the usecase (%d)",
                     __func__, patch_record->usecase);
             ret = -EINVAL;
         } else {
             /* call to plugin to stop the usecase */
-            ret = audio_extn_ext_hw_plugin_usecase_stop(adev->ext_hw_plugin, uc_info);
+            ret = fp_audio_extn_ext_hw_plugin_usecase_stop(adev->ext_hw_plugin, uc_info);
             if (ret) {
                 ALOGE("%s: failed to stop ext hw plugin use case (%d)",
                         __func__, uc_info->id);
@@ -420,9 +421,9 @@ exit:
     return ret;
 }
 
-int32_t audio_extn_auto_hal_get_car_audio_stream_from_address(const char *address)
+int auto_hal_get_car_audio_stream_from_address(const char *address)
 {
-    int32_t bus_num = -1;
+    int bus_num = -1;
     char *str = NULL;
     char *last_r = NULL;
     char local_address[AUDIO_DEVICE_MAX_ADDRESS_LEN];
@@ -439,7 +440,7 @@ int32_t audio_extn_auto_hal_get_car_audio_stream_from_address(const char *addres
     /* extract bus number from address */
     str = strtok_r(local_address, "BUS_",&last_r);
     if (str != NULL)
-        bus_num = (int32_t)strtol(str, (char **)NULL, 10);
+        bus_num = (int)strtol(str, (char **)NULL, 10);
 
     /* validate bus number */
     if ((bus_num < 0) || (bus_num >= MAX_CAR_AUDIO_STREAMS)) {
@@ -450,7 +451,7 @@ int32_t audio_extn_auto_hal_get_car_audio_stream_from_address(const char *addres
     return (0x1 << bus_num);
 }
 
-int32_t audio_extn_auto_hal_open_output_stream(struct stream_out *out)
+int auto_hal_open_output_stream(struct stream_out *out)
 {
     int ret = 0;
     unsigned int channels = audio_channel_count_from_out_mask(out->channel_mask);
@@ -459,8 +460,8 @@ int32_t audio_extn_auto_hal_open_output_stream(struct stream_out *out)
     case CAR_AUDIO_STREAM_MEDIA:
         /* media bus stream shares pcm device with deep-buffer */
         out->usecase = USECASE_AUDIO_PLAYBACK_MEDIA;
-        out->config = pcm_config_deep_buffer;
-        out->config.period_size = get_output_period_size(out->sample_rate, out->format,
+        out->config = pcm_config_media;
+        out->config.period_size = fp_get_output_period_size(out->sample_rate, out->format,
                                         channels, DEEP_BUFFER_OUTPUT_PERIOD_DURATION);
         if (out->config.period_size <= 0) {
             ALOGE("Invalid configuration period size is not valid");
@@ -475,15 +476,15 @@ int32_t audio_extn_auto_hal_open_output_stream(struct stream_out *out)
     case CAR_AUDIO_STREAM_SYS_NOTIFICATION:
         /* sys notification bus stream shares pcm device with low-latency */
         out->usecase = USECASE_AUDIO_PLAYBACK_SYS_NOTIFICATION;
-        out->config = pcm_config_low_latency;
+        out->config = pcm_config_system;
         if (out->flags == AUDIO_OUTPUT_FLAG_NONE)
             out->flags |= AUDIO_OUTPUT_FLAG_SYS_NOTIFICATION;
         out->volume_l = out->volume_r = MAX_VOLUME_GAIN;
         break;
     case CAR_AUDIO_STREAM_NAV_GUIDANCE:
         out->usecase = USECASE_AUDIO_PLAYBACK_NAV_GUIDANCE;
-        out->config = pcm_config_deep_buffer;
-        out->config.period_size = get_output_period_size(out->sample_rate, out->format,
+        out->config = pcm_config_media;
+        out->config.period_size = fp_get_output_period_size(out->sample_rate, out->format,
                                         channels, DEEP_BUFFER_OUTPUT_PERIOD_DURATION);
         if (out->config.period_size <= 0) {
             ALOGE("Invalid configuration period size is not valid");
@@ -496,9 +497,30 @@ int32_t audio_extn_auto_hal_open_output_stream(struct stream_out *out)
         break;
     case CAR_AUDIO_STREAM_PHONE:
         out->usecase = USECASE_AUDIO_PLAYBACK_PHONE;
-        out->config = pcm_config_low_latency;
+        out->config = pcm_config_system;
         if (out->flags == AUDIO_OUTPUT_FLAG_NONE)
             out->flags |= AUDIO_OUTPUT_FLAG_PHONE;
+        out->volume_l = out->volume_r = MAX_VOLUME_GAIN;
+        break;
+    case CAR_AUDIO_STREAM_FRONT_PASSENGER:
+        out->usecase = USECASE_AUDIO_PLAYBACK_FRONT_PASSENGER;
+        out->config = pcm_config_system;
+        if (out->flags == AUDIO_OUTPUT_FLAG_NONE)
+            out->flags |= AUDIO_OUTPUT_FLAG_FRONT_PASSENGER;
+        out->volume_l = out->volume_r = MAX_VOLUME_GAIN;
+        break;
+    case CAR_AUDIO_STREAM_REAR_SEAT:
+        out->usecase = USECASE_AUDIO_PLAYBACK_REAR_SEAT;
+        out->config = pcm_config_media;
+        out->config.period_size = fp_get_output_period_size(out->sample_rate, out->format,
+                                        channels, DEEP_BUFFER_OUTPUT_PERIOD_DURATION);
+        if (out->config.period_size <= 0) {
+            ALOGE("Invalid configuration period size is not valid");
+            ret = -EINVAL;
+            goto error;
+        }
+        if (out->flags == AUDIO_OUTPUT_FLAG_NONE)
+            out->flags |= AUDIO_OUTPUT_FLAG_REAR_SEAT;
         out->volume_l = out->volume_r = MAX_VOLUME_GAIN;
         break;
     default:
@@ -512,7 +534,7 @@ error:
     return ret;
 }
 
-bool audio_extn_auto_hal_is_bus_device_usecase(audio_usecase_t uc_id)
+bool auto_hal_is_bus_device_usecase(audio_usecase_t uc_id)
 {
     unsigned int i;
     for (i = 0; i < sizeof(bus_device_usecases)/sizeof(bus_device_usecases[0]); i++) {
@@ -522,19 +544,43 @@ bool audio_extn_auto_hal_is_bus_device_usecase(audio_usecase_t uc_id)
     return false;
 }
 
-int audio_extn_auto_hal_get_audio_port(struct audio_hw_device *dev __unused,
+snd_device_t auto_hal_get_snd_device_for_car_audio_stream(struct stream_out *out)
+{
+    snd_device_t snd_device = SND_DEVICE_NONE;
+
+    switch(out->car_audio_stream) {
+    case CAR_AUDIO_STREAM_MEDIA:
+        snd_device = SND_DEVICE_OUT_BUS_MEDIA;
+        break;
+    case CAR_AUDIO_STREAM_SYS_NOTIFICATION:
+        snd_device = SND_DEVICE_OUT_BUS_SYS;
+        break;
+    case CAR_AUDIO_STREAM_NAV_GUIDANCE:
+        snd_device = SND_DEVICE_OUT_BUS_NAV;
+        break;
+    case CAR_AUDIO_STREAM_PHONE:
+        snd_device = SND_DEVICE_OUT_BUS_PHN;
+        break;
+    case CAR_AUDIO_STREAM_FRONT_PASSENGER:
+        snd_device = SND_DEVICE_OUT_BUS_PAX;
+        break;
+    case CAR_AUDIO_STREAM_REAR_SEAT:
+        snd_device = SND_DEVICE_OUT_BUS_RSE;
+        break;
+    default:
+        ALOGE("%s: Unknown car audio stream (%x)",
+            __func__, out->car_audio_stream);
+    }
+    return snd_device;
+}
+
+int auto_hal_get_audio_port(struct audio_hw_device *dev __unused,
                         struct audio_port *config __unused)
 {
     return -ENOSYS;
 }
 
-/* Volume min/max defined by audio policy configuration in millibel.
- * Support a range of -60dB to 6dB.
- */
-#define MIN_VOLUME_VALUE_MB -6000
-#define MAX_VOLUME_VALUE_MB 600
-#define STEP_VALUE_MB 100
-int audio_extn_auto_hal_set_audio_port_config(struct audio_hw_device *dev,
+int auto_hal_set_audio_port_config(struct audio_hw_device *dev,
                         const struct audio_port_config *config)
 {
     struct audio_device *adev = (struct audio_device *)dev;
@@ -622,7 +668,7 @@ int audio_extn_auto_hal_set_audio_port_config(struct audio_hw_device *dev,
                     memcpy((void *)&patch_record->patch.sinks[0], (void *)config,
                         sizeof(struct audio_port_config));
 
-                    struct audio_usecase *uc_info = get_usecase_from_list(adev,
+                    struct audio_usecase *uc_info = fp_get_usecase_from_list(adev,
                                                         patch_record->usecase);
                     if (!uc_info) {
                         ALOGE("%s: failed to find the usecase %d",
@@ -635,7 +681,7 @@ int audio_extn_auto_hal_set_audio_port_config(struct audio_hw_device *dev,
                                                (MAX_VOLUME_VALUE_MB - MIN_VOLUME_VALUE_MB)) * 40);
                         ALOGV("%s: set volume to patch %x", __func__,
                             patch_record->handle);
-                        ret = audio_extn_ext_hw_plugin_set_audio_gain(adev,
+                        ret = fp_audio_extn_ext_hw_plugin_set_audio_gain(adev,
                                 uc_info, vol_level);
                     }
                 }
@@ -652,7 +698,7 @@ int audio_extn_auto_hal_set_audio_port_config(struct audio_hw_device *dev,
     return ret;
 }
 
-void audio_extn_auto_hal_set_parameters(struct audio_device *adev __unused,
+void auto_hal_set_parameters(struct audio_device *adev __unused,
                                         struct str_parms *parms)
 {
     int ret = 0;
@@ -675,7 +721,7 @@ void audio_extn_auto_hal_set_parameters(struct audio_device *adev __unused,
     ALOGV("%s: exit", __func__);
 }
 
-int audio_extn_auto_hal_start_hfp_downlink(struct audio_device *adev,
+int auto_hal_start_hfp_downlink(struct audio_device *adev,
                                 struct audio_usecase *uc_info)
 {
     int32_t ret = 0;
@@ -701,6 +747,18 @@ int audio_extn_auto_hal_start_hfp_downlink(struct audio_device *adev,
     case USECASE_AUDIO_HFP_SCO_WB:
         uc_downlink_info->id = USECASE_AUDIO_HFP_SCO_WB_DOWNLINK;
         break;
+    case USECASE_AUDIO_PRI_HFP_SCO:
+        uc_downlink_info->id = USECASE_AUDIO_PRI_HFP_SCO_DOWNLINK;
+        break;
+    case USECASE_AUDIO_PRI_HFP_SCO_WB:
+        uc_downlink_info->id = USECASE_AUDIO_PRI_HFP_SCO_WB_DOWNLINK;
+        break;
+    case USECASE_AUDIO_SEC_HFP_SCO:
+        uc_downlink_info->id = USECASE_AUDIO_SEC_HFP_SCO_DOWNLINK;
+        break;
+    case USECASE_AUDIO_SEC_HFP_SCO_WB:
+        uc_downlink_info->id = USECASE_AUDIO_SEC_HFP_SCO_WB_DOWNLINK;
+        break;
     default:
         ALOGE("%s: Invalid usecase %d", __func__, uc_info->id);
         free(uc_downlink_info);
@@ -709,7 +767,7 @@ int audio_extn_auto_hal_start_hfp_downlink(struct audio_device *adev,
 
     list_add_tail(&adev->usecase_list, &uc_downlink_info->list);
 
-    ret = select_devices(adev, uc_downlink_info->id);
+    ret = fp_select_devices(adev, uc_downlink_info->id);
     if (ret) {
         ALOGE("%s: Select devices failed %d", __func__, ret);
         goto exit;
@@ -719,13 +777,13 @@ int audio_extn_auto_hal_start_hfp_downlink(struct audio_device *adev,
     return 0;
 
 exit:
-    audio_extn_auto_hal_stop_hfp_downlink(adev, uc_info);
+    auto_hal_stop_hfp_downlink(adev, uc_info);
     ALOGE("%s: Problem in start hfp downlink: status(%d)", __func__, ret);
     return ret;
 }
 
-int audio_extn_auto_hal_stop_hfp_downlink(struct audio_device *adev,
-                                struct audio_usecase *uc_info)
+int auto_hal_stop_hfp_downlink(struct audio_device *adev,
+                               struct audio_usecase *uc_info)
 {
     int32_t ret = 0;
     struct audio_usecase *uc_downlink_info;
@@ -740,12 +798,24 @@ int audio_extn_auto_hal_stop_hfp_downlink(struct audio_device *adev,
     case USECASE_AUDIO_HFP_SCO_WB:
         ucid = USECASE_AUDIO_HFP_SCO_WB_DOWNLINK;
         break;
+    case USECASE_AUDIO_PRI_HFP_SCO:
+        ucid = USECASE_AUDIO_PRI_HFP_SCO_DOWNLINK;
+        break;
+    case USECASE_AUDIO_PRI_HFP_SCO_WB:
+        ucid = USECASE_AUDIO_PRI_HFP_SCO_WB_DOWNLINK;
+        break;
+    case USECASE_AUDIO_SEC_HFP_SCO:
+        ucid = USECASE_AUDIO_SEC_HFP_SCO_DOWNLINK;
+        break;
+    case USECASE_AUDIO_SEC_HFP_SCO_WB:
+        ucid = USECASE_AUDIO_SEC_HFP_SCO_WB_DOWNLINK;
+        break;
     default:
         ALOGE("%s: Invalid usecase %d", __func__, uc_info->id);
         return -EINVAL;
     }
 
-    uc_downlink_info = get_usecase_from_list(adev, ucid);
+    uc_downlink_info = fp_get_usecase_from_list(adev, ucid);
     if (uc_downlink_info == NULL) {
         ALOGE("%s: Could not find the usecase (%d) in the list",
               __func__, ucid);
@@ -753,11 +823,11 @@ int audio_extn_auto_hal_stop_hfp_downlink(struct audio_device *adev,
     }
 
     /* Get and set stream specific mixer controls */
-    disable_audio_route(adev, uc_downlink_info);
+    fp_disable_audio_route(adev, uc_downlink_info);
 
     /* Disable the rx and tx devices */
-    disable_snd_device(adev, uc_downlink_info->out_snd_device);
-    disable_snd_device(adev, uc_downlink_info->in_snd_device);
+    fp_disable_snd_device(adev, uc_downlink_info->out_snd_device);
+    fp_disable_snd_device(adev, uc_downlink_info->in_snd_device);
 
     list_remove(&uc_downlink_info->list);
     free(uc_downlink_info);
@@ -766,14 +836,15 @@ int audio_extn_auto_hal_stop_hfp_downlink(struct audio_device *adev,
     return ret;
 }
 
-snd_device_t audio_extn_auto_hal_get_input_snd_device(struct audio_device *adev,
+snd_device_t auto_hal_get_input_snd_device(struct audio_device *adev,
                                 audio_usecase_t uc_id)
 {
     snd_device_t snd_device = SND_DEVICE_NONE;
     audio_devices_t out_device = AUDIO_DEVICE_NONE;
     struct audio_usecase *usecase = NULL;
-    audio_devices_t in_device = ((adev->active_input == NULL) ?
-                                    AUDIO_DEVICE_NONE : adev->active_input->device)
+    struct stream_in *in = fp_adev_get_active_input(adev);
+    audio_devices_t in_device = ((in == NULL) ?
+                                    AUDIO_DEVICE_NONE : in->device)
                                 & ~AUDIO_DEVICE_BIT_IN;
 
     if (uc_id == USECASE_INVALID) {
@@ -781,7 +852,7 @@ snd_device_t audio_extn_auto_hal_get_input_snd_device(struct audio_device *adev,
         return -EINVAL;
     }
 
-    usecase = get_usecase_from_list(adev, uc_id);
+    usecase = fp_get_usecase_from_list(adev, uc_id);
     if (usecase == NULL) {
         ALOGE("%s: Could not find the usecase (%d)", __func__, uc_id);
         return -EINVAL;
@@ -807,22 +878,44 @@ snd_device_t audio_extn_auto_hal_get_input_snd_device(struct audio_device *adev,
         switch (usecase->id) {
         case USECASE_AUDIO_HFP_SCO:
         case USECASE_AUDIO_HFP_SCO_WB:
-            if (platform_get_eccarstate((void *) adev->platform)) {
+        case USECASE_AUDIO_PRI_HFP_SCO:
+        case USECASE_AUDIO_SEC_HFP_SCO:
+        case USECASE_AUDIO_PRI_HFP_SCO_WB:
+        case USECASE_AUDIO_SEC_HFP_SCO_WB:
+            if (fp_platform_get_eccarstate((void *) adev->platform)) {
                 snd_device = SND_DEVICE_IN_VOICE_SPEAKER_MIC_HFP_MMSECNS;
             } else {
                 snd_device = SND_DEVICE_IN_VOICE_SPEAKER_MIC_HFP;
             }
             if (adev->enable_hfp)
-                platform_set_echo_reference(adev, true, out_device);
+                fp_platform_set_echo_reference(adev, true, out_device);
             break;
         case USECASE_AUDIO_HFP_SCO_DOWNLINK:
             snd_device = SND_DEVICE_IN_BT_SCO_MIC;
             break;
+        case USECASE_AUDIO_PRI_HFP_SCO_DOWNLINK:
+            snd_device = SND_DEVICE_IN_BT_PRI_SCO_MIC;
+            break;
+        case USECASE_AUDIO_SEC_HFP_SCO_DOWNLINK:
+            snd_device = SND_DEVICE_IN_BT_SEC_SCO_MIC;
+            break;
         case USECASE_AUDIO_HFP_SCO_WB_DOWNLINK:
             snd_device = SND_DEVICE_IN_BT_SCO_MIC_WB;
             break;
+        case USECASE_AUDIO_PRI_HFP_SCO_WB_DOWNLINK:
+            snd_device = SND_DEVICE_IN_BT_PRI_SCO_MIC_WB;
+            break;
+        case USECASE_AUDIO_SEC_HFP_SCO_WB_DOWNLINK:
+            snd_device = SND_DEVICE_IN_BT_SEC_SCO_MIC_WB;
+            break;
         case USECASE_VOICE_CALL:
             snd_device = SND_DEVICE_IN_VOICE_SPEAKER_MIC;
+            break;
+        case USECASE_ICC_CALL:
+            snd_device = SND_DEVICE_IN_ICC;
+            break;
+        case USECASE_AUDIO_PLAYBACK_SYNTHESIZER:
+            snd_device = SND_DEVICE_IN_SYNTH_MIC;
             break;
         default:
             ALOGE("%s: Usecase (%d) not supported", __func__, uc_id);
@@ -836,7 +929,7 @@ snd_device_t audio_extn_auto_hal_get_input_snd_device(struct audio_device *adev,
     return snd_device;
 }
 
-snd_device_t audio_extn_auto_hal_get_output_snd_device(struct audio_device *adev,
+snd_device_t auto_hal_get_output_snd_device(struct audio_device *adev,
                                 audio_usecase_t uc_id)
 {
     snd_device_t snd_device = SND_DEVICE_NONE;
@@ -848,7 +941,7 @@ snd_device_t audio_extn_auto_hal_get_output_snd_device(struct audio_device *adev
         return -EINVAL;
     }
 
-    usecase = get_usecase_from_list(adev, uc_id);
+    usecase = fp_get_usecase_from_list(adev, uc_id);
     if (usecase == NULL) {
         ALOGE("%s: Could not find the usecase (%d)", __func__, uc_id);
         return -EINVAL;
@@ -874,11 +967,27 @@ snd_device_t audio_extn_auto_hal_get_output_snd_device(struct audio_device *adev
         case USECASE_AUDIO_HFP_SCO:
             snd_device = SND_DEVICE_OUT_BT_SCO;
             break;
+        case USECASE_AUDIO_PRI_HFP_SCO:
+            snd_device = SND_DEVICE_OUT_BT_PRI_SCO;
+            break;
+        case USECASE_AUDIO_SEC_HFP_SCO:
+            snd_device = SND_DEVICE_OUT_BT_SEC_SCO;
+            break;
         case USECASE_AUDIO_HFP_SCO_WB:
             snd_device = SND_DEVICE_OUT_BT_SCO_WB;
             break;
+        case USECASE_AUDIO_PRI_HFP_SCO_WB:
+            snd_device = SND_DEVICE_OUT_BT_PRI_SCO_WB;
+            break;
+        case USECASE_AUDIO_SEC_HFP_SCO_WB:
+            snd_device = SND_DEVICE_OUT_BT_SEC_SCO_WB;
+            break;
         case USECASE_AUDIO_HFP_SCO_DOWNLINK:
         case USECASE_AUDIO_HFP_SCO_WB_DOWNLINK:
+        case USECASE_AUDIO_PRI_HFP_SCO_DOWNLINK:
+        case USECASE_AUDIO_PRI_HFP_SCO_WB_DOWNLINK:
+        case USECASE_AUDIO_SEC_HFP_SCO_DOWNLINK:
+        case USECASE_AUDIO_SEC_HFP_SCO_WB_DOWNLINK:
             snd_device = SND_DEVICE_OUT_VOICE_SPEAKER_HFP;
             break;
         case USECASE_VOICE_CALL:
@@ -908,6 +1017,18 @@ snd_device_t audio_extn_auto_hal_get_output_snd_device(struct audio_device *adev
         case USECASE_AUDIO_PLAYBACK_PHONE:
             snd_device = SND_DEVICE_OUT_BUS_PHN;
             break;
+        case USECASE_AUDIO_PLAYBACK_FRONT_PASSENGER:
+            snd_device = SND_DEVICE_OUT_BUS_PAX;
+            break;
+        case USECASE_AUDIO_PLAYBACK_REAR_SEAT:
+            snd_device = SND_DEVICE_OUT_BUS_RSE;
+            break;
+        case USECASE_ICC_CALL:
+            snd_device = SND_DEVICE_OUT_ICC;
+            break;
+        case USECASE_AUDIO_PLAYBACK_SYNTHESIZER:
+            snd_device = SND_DEVICE_OUT_SYNTH_SPKR;
+            break;
         default:
             ALOGE("%s: Usecase (%d) not supported", __func__, uc_id);
             return -EINVAL;
@@ -920,9 +1041,9 @@ snd_device_t audio_extn_auto_hal_get_output_snd_device(struct audio_device *adev
     return snd_device;
 }
 
-int32_t audio_extn_auto_hal_init(struct audio_device *adev)
+int auto_hal_init(struct audio_device *adev, auto_hal_init_config_t init_config)
 {
-    int32_t ret = 0;
+    int ret = 0;
 
     if (auto_hal != NULL) {
         ALOGD("%s: Auto hal module already exists",
@@ -940,10 +1061,24 @@ int32_t audio_extn_auto_hal_init(struct audio_device *adev)
 
     auto_hal->adev = adev;
 
+    fp_in_get_stream = init_config.fp_in_get_stream;
+    fp_out_get_stream = init_config.fp_out_get_stream;
+    fp_audio_extn_ext_hw_plugin_usecase_start = init_config.fp_audio_extn_ext_hw_plugin_usecase_start;
+    fp_audio_extn_ext_hw_plugin_usecase_stop = init_config.fp_audio_extn_ext_hw_plugin_usecase_stop;
+    fp_get_usecase_from_list = init_config.fp_get_usecase_from_list;
+    fp_get_output_period_size = init_config.fp_get_output_period_size;
+    fp_audio_extn_ext_hw_plugin_set_audio_gain = init_config.fp_audio_extn_ext_hw_plugin_set_audio_gain;
+    fp_select_devices = init_config.fp_select_devices;
+    fp_disable_audio_route = init_config.fp_disable_audio_route;
+    fp_disable_snd_device = init_config.fp_disable_snd_device;
+    fp_adev_get_active_input = init_config.fp_adev_get_active_input;
+    fp_platform_set_echo_reference = init_config.fp_platform_set_echo_reference;
+    fp_platform_get_eccarstate = init_config.fp_platform_get_eccarstate;
+
     return ret;
 }
 
-void audio_extn_auto_hal_deinit(void)
+void auto_hal_deinit(void)
 {
     if (auto_hal == NULL) {
         ALOGE("%s: Auto hal module is NULL, cannot deinitialize",
@@ -955,4 +1090,3 @@ void audio_extn_auto_hal_deinit(void)
 
     return;
 }
-#endif /* AUDIO_EXTN_AUTO_HAL_ENABLED */

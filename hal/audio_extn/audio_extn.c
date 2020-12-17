@@ -47,6 +47,7 @@
 #include <log/log.h>
 #include <unistd.h>
 #include <sched.h>
+
 #include "audio_hw.h"
 #include "audio_extn.h"
 #include "voice_extn.h"
@@ -81,13 +82,14 @@ static void audio_extn_parse_aptx_dec_bt_addr(char *value);
 #define MAX_NUM_CHANNELS 8
 #define Q14_GAIN_UNITY 0x4000
 
-static bool is_running_on_stock_version = true;
+static int  vendor_enhanced_info = 0;
 static bool is_compress_meta_data_enabled = false;
 
 struct snd_card_split cur_snd_card_split = {
     .device = {0},
     .snd_card = {0},
     .form_factor = {0},
+    .variant = {0},
 };
 
 struct snd_card_split *audio_extn_get_snd_card_split()
@@ -106,6 +108,23 @@ void keep_alive_stop(ka_mode_t ka_mode);
 int keep_alive_set_parameters(struct audio_device *adev,
                                          struct str_parms *parms);
 
+bool cin_applicable_stream(struct stream_in *in);
+bool cin_attached_usecase(struct stream_in *in);
+bool cin_format_supported(audio_format_t format);
+int cin_acquire_usecase(struct stream_in *in);
+size_t cin_get_buffer_size(struct stream_in *in);
+int cin_open_input_stream(struct stream_in *in);
+void cin_stop_input_stream(struct stream_in *in);
+void cin_close_input_stream(struct stream_in *in);
+void cin_free_input_stream_resources(struct stream_in *in);
+int cin_read(struct stream_in *in, void *buffer,
+                        size_t bytes, size_t *bytes_read);
+int cin_configure_input_stream(struct stream_in *in, struct audio_config *in_config);
+
+void hdmi_passthrough_feature_init(bool is_feature_enabled);
+void concurrent_capture_feature_init(bool is_feature_enabled);
+void compress_in_feature_init(bool is_feature_enabled);
+
 void audio_extn_set_snd_card_split(const char* in_snd_card_name)
 {
     /* sound card name follows below mentioned convention
@@ -117,6 +136,7 @@ void audio_extn_set_snd_card_split(const char* in_snd_card_name)
     char *device = NULL;
     char *snd_card = NULL;
     char *form_factor = NULL;
+    char *variant = NULL;
 
     if (in_snd_card_name == NULL) {
         ALOGE("%s: snd_card_name passed is NULL", __func__);
@@ -144,6 +164,11 @@ void audio_extn_set_snd_card_split(const char* in_snd_card_name)
         goto on_error;
     }
     strlcpy(cur_snd_card_split.form_factor, form_factor, HW_INFO_ARRAY_MAX_SIZE);
+
+    variant = strtok_r(NULL, "-", &tmp);
+    if (variant != NULL) {
+        strlcpy(cur_snd_card_split.variant, variant, HW_INFO_ARRAY_MAX_SIZE);
+    }
 
     ALOGI("%s: snd_card_name(%s) device(%s) snd_card(%s) form_factor(%s)",
                __func__, in_snd_card_name, device, snd_card, form_factor);
@@ -186,6 +211,15 @@ static bool audio_extn_fluence_feature_enabled = false;
 static bool audio_extn_custom_stereo_feature_enabled = false;
 static bool audio_extn_anc_headset_feature_enabled = false;
 static bool audio_extn_vbat_enabled = false;
+static bool audio_extn_wsa_enabled = false;
+static bool audio_extn_record_play_concurrency_enabled = false;
+static bool audio_extn_hdmi_passthru_enabled = false;
+static bool audio_extn_concurrent_capture_enabled = false;
+static bool audio_extn_compress_in_enabled = false;
+static bool audio_extn_battery_listener_enabled = false;
+static bool audio_extn_maxx_audio_enabled = false;
+static bool audio_extn_audiozoom_enabled = false;
+static bool audio_extn_hifi_filter_enabled = false;
 
 #define AUDIO_PARAMETER_KEY_AANC_NOISE_LEVEL "aanc_noise_level"
 #define AUDIO_PARAMETER_KEY_ANC        "anc_enabled"
@@ -210,7 +244,9 @@ static bool audio_extn_vbat_enabled = false;
 
 #define IS_BIT_SET(NUM, bitno) (NUM & (1 << bitno))
 
-#define EXT_DISPLAY_PLUG_STATUS_NOTIFY_ENABLE 0x30
+#define EXT_DISPLAY_PLUG_STATUS_NOTIFY_ENABLE      0x30
+#define EXT_DISPLAY_PLUG_STATUS_NOTIFY_CONNECT     0x01
+#define EXT_DISPLAY_PLUG_STATUS_NOTIFY_DISCONNECT  0x00
 
 static ssize_t update_sysfs_node(const char *path, const char *data, size_t len)
 {
@@ -270,12 +306,14 @@ static int get_ext_disp_sysfs_node_index(int ext_disp_type)
     return -1;
 }
 
-static int update_ext_disp_sysfs_node(const struct audio_device *adev, int node_value)
+static int update_ext_disp_sysfs_node(const struct audio_device *adev,
+                                      int node_value, int controller, int stream)
 {
     char ext_disp_ack_path[80] = {0};
     char ext_disp_ack_value[3] = {0};
     int index, ret = -1;
-    int ext_disp_type = platform_get_ext_disp_type(adev->platform);
+    int ext_disp_type = platform_get_ext_disp_type_v2(adev->platform, controller,
+                                                      stream);
 
     if (ext_disp_type < 0) {
         ALOGE("%s, Unable to get the external display type, err:%d",
@@ -299,26 +337,47 @@ static int update_ext_disp_sysfs_node(const struct audio_device *adev, int node_
     return ret;
 }
 
-static int update_audio_ack_state(const struct audio_device *adev, int node_value)
+static int update_audio_ack_state(const struct audio_device *adev,
+                                  int node_value,
+                                  int controller,
+                                  int stream)
 {
-    const char *mixer_ctl_name = "External Display Audio Ack";
-    struct mixer_ctl *ctl;
     int ret = 0;
+    int ctl_index = 0;
+    struct mixer_ctl *ctl = NULL;
+    const char *ctl_prefix = "External Display";
+    const char *ctl_suffix = "Audio Ack";
+    char mixer_ctl_name[MIXER_PATH_MAX_LENGTH] = {0};
 
+    ctl_index = platform_get_display_port_ctl_index(controller, stream);
+    if (-EINVAL == ctl_index) {
+        ALOGE("%s: Unknown controller/stream %d/%d",
+              __func__, controller, stream);
+        return -EINVAL;
+    }
+
+    if (0 == ctl_index)
+        snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
+                 "%s %s", ctl_prefix, ctl_suffix);
+    else
+        snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
+                 "%s%d %s", ctl_prefix, ctl_index, ctl_suffix);
+
+    ALOGV("%s: mixer ctl name: %s", __func__, mixer_ctl_name);
     ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
     /* If no mixer command support, fall back to sysfs node approach */
     if (!ctl) {
         ALOGI("%s: could not get ctl for mixer cmd(%s), use sysfs node instead\n",
               __func__, mixer_ctl_name);
-        ret = update_ext_disp_sysfs_node(adev, node_value);
+        ret = update_ext_disp_sysfs_node(adev, node_value, controller, stream);
     } else {
         char *ack_str = NULL;
 
         if (node_value == EXT_DISPLAY_PLUG_STATUS_NOTIFY_ENABLE)
             ack_str = "Ack_Enable";
-        else if (node_value == 1)
+        else if (node_value == EXT_DISPLAY_PLUG_STATUS_NOTIFY_CONNECT)
             ack_str = "Connect";
-        else if (node_value == 0)
+        else if (node_value == EXT_DISPLAY_PLUG_STATUS_NOTIFY_DISCONNECT)
             ack_str = "Disconnect";
         else {
             ALOGE("%s: Invalid input parameter - 0x%x\n",
@@ -337,24 +396,32 @@ static int update_audio_ack_state(const struct audio_device *adev, int node_valu
 static void audio_extn_ext_disp_set_parameters(const struct audio_device *adev,
                                                      struct str_parms *parms)
 {
+    int controller = 0;
+    int stream = 0;
     char value[32] = {0};
     static bool is_hdmi_sysfs_node_init = false;
 
     if (str_parms_get_str(parms, "connect", value, sizeof(value)) >= 0
             && (atoi(value) & AUDIO_DEVICE_OUT_AUX_DIGITAL)) {
         //params = "connect=1024" for external display connection.
+        platform_get_controller_stream_from_params(parms, &controller, &stream);
         if (is_hdmi_sysfs_node_init == false) {
             //check if this is different for dp and hdmi
             is_hdmi_sysfs_node_init = true;
-            update_audio_ack_state(adev, EXT_DISPLAY_PLUG_STATUS_NOTIFY_ENABLE);
+            update_audio_ack_state(adev,
+                                   EXT_DISPLAY_PLUG_STATUS_NOTIFY_ENABLE,
+                                   controller, stream);
         }
-        update_audio_ack_state(adev, 1);
+        update_audio_ack_state(adev, EXT_DISPLAY_PLUG_STATUS_NOTIFY_CONNECT,
+                               controller, stream);
     } else if(str_parms_get_str(parms, "disconnect", value, sizeof(value)) >= 0
             && (atoi(value) & AUDIO_DEVICE_OUT_AUX_DIGITAL)){
         //params = "disconnect=1024" for external display disconnection.
-        update_audio_ack_state(adev, 0);
+        platform_get_controller_stream_from_params(parms, &controller, &stream);
+        update_audio_ack_state(adev, EXT_DISPLAY_PLUG_STATUS_NOTIFY_DISCONNECT,
+                               controller, stream);
         ALOGV("invalidate cached edid");
-        platform_invalidate_hdmi_config(adev->platform);
+        platform_invalidate_hdmi_config_v2(adev->platform, controller, stream);
     } else {
         // handle ext disp devices only
         return;
@@ -367,6 +434,7 @@ static int update_custom_mtmx_coefficients_v2(struct audio_device *adev,
                                               int pcm_device_id)
 {
     struct mixer_ctl *ctl = NULL;
+//    char *mixer_name_prefix = "AudStr";
     char *playback_mixer_name_prefix = "AudStr";
     char *capture_mixer_name_prefix = "AudStr Capture";
     char *mixer_name_suffix = "ChMixer Weight Ch";
@@ -437,6 +505,7 @@ static void set_custom_mtmx_params_v2(struct audio_device *adev,
                                       int pcm_device_id, bool enable)
 {
     struct mixer_ctl *ctl = NULL;
+//    char *mixer_name_prefix = "AudStr";
     char *playback_mixer_name_prefix = "AudStr";
     char *capture_mixer_name_prefix = "AudStr Capture";
     char *mixer_name_suffix = "ChMixer Cfg";
@@ -474,9 +543,9 @@ static void set_custom_mtmx_params_v2(struct audio_device *adev,
 }
 
 static int update_and_set_custom_mtmx_param_v2(struct audio_device *adev,
-                                      struct audio_usecase *usecase,
-                                      struct audio_custom_mtmx_params *params,
-                                      int pcm_device_id, bool enable)
+                                        struct audio_usecase *usecase,
+                                        struct audio_custom_mtmx_params *params,
+                                        int pcm_device_id, bool enable)
 {
     int ret = 0;
     if (!adev || !usecase || !params) {
@@ -498,9 +567,10 @@ static int update_and_set_custom_mtmx_param_v2(struct audio_device *adev,
     return 0;
 }
 
-static struct audio_custom_mtmx_params *update_channel_weightage_params(struct audio_custom_mtmx_params_info *pinfo,
-                                                                    uint8_t *input_channel_map,
-                                                                    uint8_t *output_channel_map)
+static struct audio_custom_mtmx_params *update_channel_weightage_params(
+                                        struct audio_custom_mtmx_params_info *pinfo,
+                                        uint8_t *input_channel_map,
+                                        uint8_t *output_channel_map)
 {
     struct audio_custom_mtmx_params *params = NULL;
     uint32_t ip_channels = 0;
@@ -856,7 +926,7 @@ static int update_custom_mtmx_coefficients_v1(struct audio_device *adev,
 
     if (err) {
         ALOGE("%s: ERROR. %s channel mixer failed", __func__,
-                enable ? "Enable" : "Disable");
+              enable ? "Enable" : "Disable");
         return -EINVAL;
     }
 
@@ -1224,15 +1294,17 @@ bool audio_extn_can_use_bcl(void)
 void anc_headset_feature_init(bool is_feature_enabled)
 {
     audio_extn_anc_headset_feature_enabled = is_feature_enabled;
-    ALOGD(":: %s: ---- Feature FM_POWER_OPT is %s----", __func__,
+    ALOGD(":: %s: ---- Feature ANC_HEADSET is %s----", __func__,
                                     is_feature_enabled? "ENABLED": "NOT ENABLED");
 
 }
 
 bool audio_extn_get_anc_enabled(void)
 {
-    ALOGD("%s: anc_enabled:%d", __func__, aextnmod.anc_enabled);
-    return (aextnmod.anc_enabled ? true: false);
+    ALOGD("%s: anc_enabled:%d", __func__,
+        (aextnmod.anc_enabled && audio_extn_anc_headset_feature_enabled));
+    return (aextnmod.anc_enabled &&
+        audio_extn_anc_headset_feature_enabled);
 }
 
 bool audio_extn_should_use_handset_anc(int in_channels)
@@ -1349,7 +1421,7 @@ void audio_extn_set_anc_parameters(struct audio_device *adev,
         // Refresh device selection for anc playback
         list_for_each(node, &adev->usecase_list) {
             usecase = node_to_item(node, struct audio_usecase, list);
-            if (usecase->type != PCM_CAPTURE) {
+            if (usecase->stream.out && usecase->type != PCM_CAPTURE) {
                 if (usecase->stream.out->devices == \
                     AUDIO_DEVICE_OUT_WIRED_HEADPHONE ||
                     usecase->stream.out->devices ==  \
@@ -1369,23 +1441,34 @@ void audio_extn_set_anc_parameters(struct audio_device *adev,
         str_parms_destroy(reply_44_1);
     }
 
-    ALOGD("%s: anc_enabled:%d", __func__, aextnmod.anc_enabled);
+    ALOGV("%s: anc_enabled:%d", __func__, aextnmod.anc_enabled);
 }
 // END: ANC_HEADSET -------------------------------------------------------
 
 static int32_t afe_proxy_set_channel_mapping(struct audio_device *adev,
-                                                     int channel_count)
+                                                     int channel_count,
+                                                     snd_device_t snd_device)
 {
-    struct mixer_ctl *ctl;
+    struct mixer_ctl *ctl = NULL, *be_ctl = NULL;
     const char *mixer_ctl_name = "Playback Device Channel Map";
-    long set_values[8] = {0};
-    int ret;
+    const char *be_mixer_ctl_name = "Backend Device Channel Map";
+    long set_values[FCC_8] = {0};
+    long be_set_values[FCC_8 + 1] = {0};
+    int ret = -1;
+    int be_idx = -1;
+
     ALOGV("%s channel_count:%d",__func__, channel_count);
 
     switch (channel_count) {
     case 2:
         set_values[0] = PCM_CHANNEL_FL;
         set_values[1] = PCM_CHANNEL_FR;
+        break;
+     case 4:
+        set_values[0] = PCM_CHANNEL_FL;
+        set_values[1] = PCM_CHANNEL_FR;
+        set_values[2] = PCM_CHANNEL_LS;
+        set_values[3] = PCM_CHANNEL_LFE;
         break;
     case 6:
         set_values[0] = PCM_CHANNEL_FL;
@@ -1411,28 +1494,49 @@ static int32_t afe_proxy_set_channel_mapping(struct audio_device *adev,
         return -EINVAL;
     }
 
-    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+    be_idx = platform_get_snd_device_backend_index(snd_device);
+
+    if (be_idx >= 0) {
+        be_ctl = mixer_get_ctl_by_name(adev->mixer, be_mixer_ctl_name);
+        if (!be_ctl) {
+            ALOGD("%s: Could not get ctl for mixer cmd - %s, using default control",
+                  __func__, be_mixer_ctl_name);
+            ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+        } else
+            ctl = be_ctl;
+    } else
+         ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+
     if (!ctl) {
         ALOGE("%s: Could not get ctl for mixer cmd - %s",
               __func__, mixer_ctl_name);
         return -EINVAL;
     }
+
     ALOGV("AFE: set mapping(%ld %ld %ld %ld %ld %ld %ld %ld) for channel:%d",
         set_values[0], set_values[1], set_values[2], set_values[3], set_values[4],
         set_values[5], set_values[6], set_values[7], channel_count);
-    ret = mixer_ctl_set_array(ctl, set_values, channel_count);
+
+    if (!be_ctl)
+        ret = mixer_ctl_set_array(ctl, set_values, channel_count);
+    else {
+       be_set_values[0] = be_idx;
+       memcpy(&be_set_values[1], set_values, sizeof(long) * channel_count);
+       ret = mixer_ctl_set_array(ctl, be_set_values, ARRAY_SIZE(be_set_values));
+    }
+
     return ret;
 }
 
 int32_t audio_extn_set_afe_proxy_channel_mixer(struct audio_device *adev,
-                                    int channel_count)
+                                    int channel_count, snd_device_t snd_device)
 {
     int32_t ret = 0;
     const char *channel_cnt_str = NULL;
     struct mixer_ctl *ctl = NULL;
     const char *mixer_ctl_name = "PROXY_RX Channels";
 
-    if (!audio_feature_manager_is_feature_enabled(AFE_PROXY)) {
+    if (!property_get_bool("vendor.audio.feature.afe_proxy.enable", false)) {
         ALOGW("%s: AFE_PROXY is disabled", __func__);
         return -ENOSYS;
     }
@@ -1462,8 +1566,8 @@ int32_t audio_extn_set_afe_proxy_channel_mixer(struct audio_device *adev,
     }
     mixer_ctl_set_enum_by_string(ctl, channel_cnt_str);
 
-    if (channel_count == 6 || channel_count == 8 || channel_count == 2) {
-        ret = afe_proxy_set_channel_mapping(adev, channel_count);
+    if (channel_count == 6 || channel_count == 8 || channel_count == 2 || channel_count == 4) {
+        ret = afe_proxy_set_channel_mapping(adev, channel_count, snd_device);
     } else {
         ALOGE("%s: set unsupported channel count(%d)",  __func__, channel_count);
         ret = -EINVAL;
@@ -1513,7 +1617,8 @@ int32_t audio_extn_read_afe_proxy_channel_masks(struct stream_out *out)
     int ret = 0;
     int channels = aextnmod.proxy_channel_num;
 
-    if (!audio_feature_manager_is_feature_enabled(AFE_PROXY)) {
+    if (!property_get_bool("vendor.audio.feature.afe_proxy.enable",
+                            false)) {
         ALOGW("%s: AFE_PROXY is disabled", __func__);
         return -ENOSYS;
     }
@@ -1543,7 +1648,8 @@ int32_t audio_extn_read_afe_proxy_channel_masks(struct stream_out *out)
 int32_t audio_extn_get_afe_proxy_channel_count()
 {
 
-    if (!audio_feature_manager_is_feature_enabled(AFE_PROXY)) {
+    if (!property_get_bool("vendor.audio.feature.afe_proxy.enable",
+                            false)) {
         ALOGW("%s: AFE_PROXY is disabled", __func__);
         return -ENOSYS;
     }
@@ -1607,6 +1713,7 @@ int usb_get_sup_sample_rates(bool type, uint32_t *sr, uint32_t l);
 bool usb_is_tunnel_supported();
 bool usb_alive(int card);
 bool usb_connected(struct str_parms *parms);
+char *usb_usbid(void);
 unsigned long usb_find_service_interval(bool min, bool playback);
 int usb_altset_for_service_interval(bool is_playback,
                                                unsigned long service_interval,
@@ -1767,6 +1874,15 @@ bool audio_extn_usb_connected(struct str_parms *parms)
     return ret_val;
 }
 
+char *audio_extn_usb_usbid(void)
+{
+    char *ret_val = NULL;
+    if (is_usb_offload_enabled)
+        ret_val = usb_usbid();
+
+    return ret_val;
+}
+
 unsigned long audio_extn_usb_find_service_interval(bool min, bool playback)
 {
     unsigned long ret_val = 0;
@@ -1839,22 +1955,19 @@ void audio_extn_usb_set_reconfig(bool is_required)
 //END: USB_OFFLOAD ===========================================================
 
 //START: SPEAKER_PROTECTION ==========================================================
-#ifdef __LP64__
+#define STR_CAT(path, extn) (path extn)
+
 #if LINUX_ENABLED
-#define SPKR_PROT_LIB_PATH  "/usr/lib64/audio.spkr.prot.so"
-#define CIRRUS_SPKR_PROT_LIB_PATH  "/usr/lib64/audio.external.spkr.prot.so"
+#  define SPKR_PROT_LIB_PATH        STR_CAT(LE_LIBDIR, "/audio.spkr.prot.so")
+#  define CIRRUS_SPKR_PROT_LIB_PATH STR_CAT(LE_LIBDIR, "/audio.external.spkr.prot.so")
 #else
-#define SPKR_PROT_LIB_PATH  "/vendor/lib64/libspkrprot.so"
-#define CIRRUS_SPKR_PROT_LIB_PATH  "/vendor/lib64/libcirrusspkrprot.so"
-#endif
-#else
-#if LINUX_ENABLED
-#define SPKR_PROT_LIB_PATH  "/usr/lib/audio.spkr.prot.so"
-#define CIRRUS_SPKR_PROT_LIB_PATH  "/usr/lib/audio.external.spkr.prot.so"
-#else
-#define SPKR_PROT_LIB_PATH  "/vendor/lib/libspkrprot.so"
-#define CIRRUS_SPKR_PROT_LIB_PATH  "/vendor/lib/libcirrusspkrprot.so"
-#endif
+#  ifdef __LP64__
+#    define SPKR_PROT_LIB_PATH  "/vendor/lib64/libspkrprot.so"
+#    define CIRRUS_SPKR_PROT_LIB_PATH  "/vendor/lib64/libcirrusspkrprot.so"
+#  else
+#    define SPKR_PROT_LIB_PATH         "/vendor/lib/libspkrprot.so"
+#    define CIRRUS_SPKR_PROT_LIB_PATH  "/vendor/lib/libcirrusspkrprot.so"
+#  endif
 #endif
 
 static void *spkr_prot_lib_handle = NULL;
@@ -1893,25 +2006,25 @@ static get_spkr_prot_snd_device_t get_spkr_prot_snd_device;
 
 void spkr_prot_feature_init(bool is_feature_enabled)
 {
-    ALOGD("%s: Called with feature %s", __func__, is_feature_enabled?"Enabled":"NOT Enabled");
+    ALOGD("%s: Called with feature %s, vendor_enhanced_info 0x%x", __func__,
+            is_feature_enabled ? "Enabled" : "NOT Enabled", vendor_enhanced_info);
     if (is_feature_enabled) {
-        //dlopen lib
+        // dlopen lib
 #if LINUX_ENABLED
         spkr_prot_lib_handle = dlopen(SPKR_PROT_LIB_PATH, RTLD_NOW);
 #else
-        if (is_running_on_stock_version)
+        if ((vendor_enhanced_info & 0x3) == 0x0) // Pure AOSP
             spkr_prot_lib_handle = dlopen(CIRRUS_SPKR_PROT_LIB_PATH, RTLD_NOW);
         else
             spkr_prot_lib_handle = dlopen(SPKR_PROT_LIB_PATH, RTLD_NOW);
 #endif
-
         if (spkr_prot_lib_handle == NULL) {
             ALOGE("%s: dlopen failed", __func__);
             goto feature_disabled;
         }
-        //map each function
-        //if mandatoy functions are not found, disble feature
 
+        // map each function
+        // if mandatoy functions are not found, disble feature
         // Mandatory functions
         if (((spkr_prot_init =
              (spkr_prot_init_t)dlsym(spkr_prot_lib_handle, "spkr_prot_init")) == NULL) ||
@@ -1931,8 +2044,7 @@ void spkr_prot_feature_init(bool is_feature_enabled)
             goto feature_disabled;
         }
 
-        // options functions, can be NULL
-
+        // optional functions, can be NULL
         spkr_prot_set_parameters = NULL;
         fbsp_set_parameters = NULL;
         fbsp_get_parameters = NULL;
@@ -2504,6 +2616,9 @@ static void *hwdep_cal_lib_handle = NULL;
 typedef void (*hwdep_cal_send_t)(int, void*);
 static hwdep_cal_send_t hwdep_cal_send;
 
+
+//If feature is enabled, please copy hwdep_cal.c in the audio_extn dir
+//Current lib doesn't have any src files
 void hwdep_cal_feature_init(bool is_feature_enabled)
 {
     ALOGD("%s: Called with feature %s", __func__, is_feature_enabled?"Enabled":"NOT Enabled");
@@ -3303,8 +3418,6 @@ size_t audio_extn_compr_cap_read(struct stream_in *in,
 
 void audio_extn_init(struct audio_device *adev)
 {
-    //fix-me: check running on vendor enhanced build
-    //is_running_on_stock_version = !isRunningWithVendorEnhancedFramework();
     aextnmod.anc_enabled = 0;
     aextnmod.aanc_enabled = 0;
     aextnmod.custom_stereo_enabled = 0;
@@ -3921,7 +4034,7 @@ int audio_extn_in_set_param_data(struct stream_in *in,
 
     switch (param_id) {
         case AUDIO_EXTN_PARAM_IN_TTP_OFFSET:
-            ret = audio_extn_compress_in_set_ttp_offset(in,
+            ret = cin_compress_in_set_ttp_offset(in,
                     (struct audio_in_ttp_offset_param *)(payload));
             break;
         case AUDIO_EXTN_PARAM_IN_CHANNEL_MAP:
@@ -4095,21 +4208,25 @@ fail:
 void fm_feature_init(bool is_feature_enabled)
 {
     audio_extn_fm_power_opt_enabled = is_feature_enabled;
-    ALOGD(":: %s: ---- Feature FM_POWER_OPT is %s----", __func__, is_feature_enabled? "ENABLED": "NOT ENABLED");
+    ALOGD("%s: ---- Feature FM_POWER_OPT is %s----", __func__, is_feature_enabled? "ENABLED": "NOT ENABLED");
 }
 
 
 void audio_extn_fm_get_parameters(struct str_parms *query, struct str_parms *reply)
 {
-    if(audio_extn_fm_power_opt_enabled)
-        fm_get_parameters(query, reply);
+    if(audio_extn_fm_power_opt_enabled) {
+       ALOGD("%s: Enter", __func__);
+       fm_get_parameters(query, reply);
+    }
 }
 
 void audio_extn_fm_set_parameters(struct audio_device *adev,
                                   struct str_parms *parms)
 {
-    if(audio_extn_fm_power_opt_enabled)
-        fm_set_parameters(adev, parms);
+    if(audio_extn_fm_power_opt_enabled) {
+       ALOGD("%s: Enter", __func__);
+       fm_set_parameters(adev, parms);
+    }
 }
 //END: FM_POWER_OPT_FEATURE ================================================================
 
@@ -4520,6 +4637,17 @@ done:
     return ret;
 }
 //END: FLUENCE ===============================================================================
+//START: WSA =============================================================================
+void wsa_feature_init(bool is_feature_enabled)
+{
+    audio_extn_wsa_enabled = is_feature_enabled;
+}
+
+bool audio_extn_is_wsa_enabled()
+{
+    return audio_extn_wsa_enabled;
+}
+//END: WSA ===============================================================================
 //START: CUSTOM_STEREO =============================================================================
 void custom_stereo_feature_init(bool is_feature_enabled)
 {
@@ -4706,6 +4834,13 @@ static a2dp_start_capture_t a2dp_start_capture;
 typedef int (*a2dp_stop_capture_t)();
 static a2dp_stop_capture_t a2dp_stop_capture;
 
+typedef int (*sco_start_configuration_t)();
+static sco_start_configuration_t sco_start_configuration;
+
+typedef void (*sco_reset_configuration_t)();
+static sco_reset_configuration_t sco_reset_configuration;
+
+
 int a2dp_offload_feature_init(bool is_feature_enabled)
 {
     ALOGD("%s: Called with feature %s", __func__,
@@ -4748,6 +4883,15 @@ int a2dp_offload_feature_init(bool is_feature_enabled)
             ALOGE("%s: dlsym failed", __func__);
 
             goto feature_disabled;
+        }
+        // initialize APIs for SWB extension
+        if (!(sco_start_configuration =
+                 (sco_start_configuration_t)dlsym(a2dp_lib_handle, "sco_start_configuration")) ||
+             !(sco_reset_configuration =
+                 (sco_reset_configuration_t)dlsym(a2dp_lib_handle, "sco_reset_configuration"))) {
+            ALOGE("%s: dlsym failed for swb APIs", __func__);
+            sco_start_configuration = NULL;
+            sco_reset_configuration = NULL;
         }
         ALOGD("%s:: ---- Feature A2DP_OFFLOAD is Enabled ----", __func__);
         return 0;
@@ -4852,78 +4996,1685 @@ bool audio_extn_a2dp_source_is_suspended()
 }
 
 
-// END: A2DP_OFFLOAD =====================================================================
-void audio_extn_feature_init()
+int audio_extn_sco_start_configuration()
 {
-    for(int index = 0; index < MAX_SUPPORTED_FEATURE; index++)
-    {
-        bool enable = audio_feature_manager_is_feature_enabled(index);
-        switch (index) {
-            case SND_MONITOR:
-                snd_mon_feature_init(enable);
-                break;
-            case COMPRESS_CAPTURE:
-                compr_cap_feature_init(enable);
-                break;
-            case DSM_FEEDBACK:
-                dsm_feedback_feature_init(enable);
-                break;
-            case SSREC:
-                ssrec_feature_init(enable);
-                break;
-            case SOURCE_TRACK:
-                src_trkn_feature_init(enable);
-            case HDMI_EDID:
-                hdmi_edid_feature_init(enable);
-                break;
-            case KEEP_ALIVE:
-                keep_alive_feature_init(enable);
-                break;
-            case HIFI_AUDIO:
-                hifi_audio_feature_init(enable);
-                break;
-            case RECEIVER_AIDED_STEREO:
-                ras_feature_init(enable);
-                break;
-            case KPI_OPTIMIZE:
-                kpi_optimize_feature_init(enable);
-            case USB_OFFLOAD:
-                usb_offload_feature_init(enable);
-                break;
-            case USB_OFFLOAD_BURST_MODE:
-                usb_offload_burst_mode_feature_init(enable);
-                break;
-            case USB_OFFLOAD_SIDETONE_VOLM:
-                usb_offload_sidetone_volume_feature_init(enable);
-                break;
-            case A2DP_OFFLOAD:
-                a2dp_offload_feature_init(enable);
-                break;
-            case COMPRESS_METADATA_NEEDED:
-                compress_meta_data_feature_init(enable);
-                break;
-            case VBAT:
-                vbat_feature_init(enable);
-                break;
-            case DISPLAY_PORT:
-                display_port_feature_init(enable);
-                break;
-            case FLUENCE:
-                fluence_feature_init(enable);
-                break;
-             case CUSTOM_STEREO:
-                custom_stereo_feature_init(enable);
-                break;
-            case ANC_HEADSET:
-                anc_headset_feature_init(enable);
-                break;
-            case SPKR_PROT:
-                spkr_prot_feature_init(enable);
-                break;
-            default:
-                break;
+    return (sco_start_configuration? sco_start_configuration() : 0);
+}
+
+void audio_extn_sco_reset_configuration()
+{
+    return (sco_reset_configuration? sco_reset_configuration() : 0);
+}
+
+// END: A2DP_OFFLOAD =====================================================================
+
+// START: HFP ======================================================================
+#ifdef __LP64__
+#if LINUX_ENABLED
+#define HFP_LIB_PATH "/usr/lib64/hfp.so"
+#else
+#define HFP_LIB_PATH "/vendor/lib64/libhfp.so"
+#endif
+#else
+#if LINUX_ENABLED
+#define HFP_LIB_PATH "/usr/lib/hfp.so"
+#else
+#define HFP_LIB_PATH "/vendor/lib/libhfp.so"
+#endif
+#endif
+
+static void *hfp_lib_handle = NULL;
+
+typedef void (*hfp_init_t)(hfp_init_config_t);
+static hfp_init_t hfp_init;
+
+typedef bool (*hfp_is_active_t)(struct audio_device *adev);
+static hfp_is_active_t hfp_is_active;
+
+typedef audio_usecase_t (*hfp_get_usecase_t)();
+static hfp_get_usecase_t hfp_get_usecase;
+
+typedef int (*hfp_set_mic_mute_t)(struct audio_device *dev, bool state);
+static hfp_set_mic_mute_t hfp_set_mic_mute;
+
+typedef void (*hfp_set_parameters_t)(struct audio_device *adev,
+                                           struct str_parms *parms);
+static hfp_set_parameters_t hfp_set_parameters;
+
+typedef int (*hfp_set_mic_mute2_t)(struct audio_device *adev, bool state);
+static hfp_set_mic_mute2_t hfp_set_mic_mute2;
+
+int hfp_feature_init(bool is_feature_enabled)
+{
+    ALOGD("%s: Called with feature %s", __func__,
+                  is_feature_enabled ? "Enabled" : "NOT Enabled");
+    if (is_feature_enabled) {
+        // dlopen lib
+        hfp_lib_handle = dlopen(HFP_LIB_PATH, RTLD_NOW);
+
+        if (!hfp_lib_handle) {
+            ALOGE("%s: dlopen failed", __func__);
+            goto feature_disabled;
+        }
+        if (!(hfp_init = (hfp_init_t)dlsym(
+                            hfp_lib_handle, "hfp_init")) ||
+            !(hfp_is_active =
+                 (hfp_is_active_t)dlsym(
+                            hfp_lib_handle, "hfp_is_active")) ||
+            !(hfp_get_usecase =
+                 (hfp_get_usecase_t)dlsym(
+                            hfp_lib_handle, "hfp_get_usecase")) ||
+            !(hfp_set_mic_mute =
+                 (hfp_set_mic_mute_t)dlsym(
+                            hfp_lib_handle, "hfp_set_mic_mute")) ||
+            !(hfp_set_mic_mute2 =
+                 (hfp_set_mic_mute2_t)dlsym(
+                            hfp_lib_handle, "hfp_set_mic_mute2")) ||
+            !(hfp_set_parameters =
+                 (hfp_set_parameters_t)dlsym(
+                            hfp_lib_handle, "hfp_set_parameters"))) {
+            ALOGE("%s: dlsym failed", __func__);
+            goto feature_disabled;
+        }
+        hfp_init_config_t init_config;
+        init_config.fp_platform_set_mic_mute = platform_set_mic_mute;
+        init_config.fp_platform_get_pcm_device_id = platform_get_pcm_device_id;
+        init_config.fp_platform_set_echo_reference = platform_set_echo_reference;
+        init_config.fp_platform_set_mic_mute = platform_set_mic_mute;
+        init_config.fp_select_devices = select_devices;
+        init_config.fp_audio_extn_ext_hw_plugin_usecase_start =
+                                        audio_extn_ext_hw_plugin_usecase_start;
+        init_config.fp_audio_extn_ext_hw_plugin_usecase_stop =
+                                        audio_extn_ext_hw_plugin_usecase_stop;
+        init_config.fp_get_usecase_from_list = get_usecase_from_list;
+        init_config.fp_disable_audio_route = disable_audio_route;
+        init_config.fp_disable_snd_device = disable_snd_device;
+        init_config.fp_voice_get_mic_mute = voice_get_mic_mute;
+        init_config.fp_audio_extn_auto_hal_start_hfp_downlink =
+                                        audio_extn_auto_hal_start_hfp_downlink;
+        init_config.fp_audio_extn_auto_hal_stop_hfp_downlink =
+                                        audio_extn_auto_hal_stop_hfp_downlink;
+        init_config.fp_platform_get_eccarstate = platform_get_eccarstate;
+
+        hfp_init(init_config);
+        ALOGD("%s:: ---- Feature HFP is Enabled ----", __func__);
+        return 0;
+    }
+
+feature_disabled:
+    if (hfp_lib_handle) {
+        dlclose(hfp_lib_handle);
+        hfp_lib_handle = NULL;
+    }
+
+    hfp_init = NULL;
+    hfp_is_active = NULL;
+    hfp_get_usecase = NULL;
+    hfp_set_mic_mute = NULL;
+    hfp_set_mic_mute2 = NULL;
+    hfp_set_parameters = NULL;
+
+    ALOGW(":: %s: ---- Feature HFP is disabled ----", __func__);
+    return -ENOSYS;
+}
+
+bool audio_extn_hfp_is_active(struct audio_device *adev)
+{
+    return ((hfp_is_active) ?
+                    hfp_is_active(adev): false);
+}
+
+audio_usecase_t audio_extn_hfp_get_usecase()
+{
+    return ((hfp_get_usecase) ?
+                    hfp_get_usecase(): -1);
+}
+
+int audio_extn_hfp_set_mic_mute(struct audio_device *adev, bool state)
+{
+    return ((hfp_set_mic_mute) ?
+                    hfp_set_mic_mute(adev, state): -1);
+}
+
+void audio_extn_hfp_set_parameters(struct audio_device *adev,
+                                           struct str_parms *parms)
+{
+    ((hfp_set_parameters) ?
+                    hfp_set_parameters(adev, parms): NULL);
+}
+
+int audio_extn_hfp_set_mic_mute2(struct audio_device *adev, bool state)
+{
+    return ((hfp_set_mic_mute2) ?
+                    hfp_set_mic_mute2(adev, state): -1);
+}
+// END: HFP ========================================================================
+
+// START: ICC ======================================================================
+#ifdef __LP64__
+#define ICC_LIB_PATH "/vendor/lib64/libicc.so"
+#else
+#define ICC_LIB_PATH "/vendor/lib/libicc.so"
+#endif
+
+static void *icc_lib_handle = NULL;
+
+typedef void (*icc_init_t)(icc_init_config_t);
+static icc_init_t icc_init;
+
+typedef bool (*icc_is_active_t)(struct audio_device *adev);
+static icc_is_active_t icc_is_active;
+
+typedef audio_usecase_t (*icc_get_usecase_t)();
+static icc_get_usecase_t icc_get_usecase;
+
+typedef void (*icc_set_parameters_t)(struct audio_device *adev,
+                                           struct str_parms *parms);
+static icc_set_parameters_t icc_set_parameters;
+
+int icc_feature_init(bool is_feature_enabled)
+{
+    ALOGD("%s: Called with feature %s", __func__,
+                  is_feature_enabled ? "Enabled" : "NOT Enabled");
+    if (is_feature_enabled) {
+        // dlopen lib
+        icc_lib_handle = dlopen(ICC_LIB_PATH, RTLD_NOW);
+
+        if (!icc_lib_handle) {
+            ALOGE("%s: dlopen failed", __func__);
+            goto feature_disabled;
+        }
+        if (!(icc_init = (icc_init_t)dlsym(
+                            icc_lib_handle, "icc_init")) ||
+            !(icc_is_active =
+                 (icc_is_active_t)dlsym(
+                            icc_lib_handle, "icc_is_active")) ||
+            !(icc_get_usecase =
+                 (icc_get_usecase_t)dlsym(
+                            icc_lib_handle, "icc_get_usecase")) ||
+            !(icc_set_parameters =
+                 (icc_set_parameters_t)dlsym(
+                            icc_lib_handle, "icc_set_parameters"))) {
+            ALOGE("%s: dlsym failed", __func__);
+            goto feature_disabled;
+        }
+        icc_init_config_t init_config;
+        init_config.fp_platform_get_pcm_device_id = platform_get_pcm_device_id;
+        init_config.fp_platform_set_echo_reference = platform_set_echo_reference;
+        init_config.fp_select_devices = select_devices;
+        init_config.fp_audio_extn_ext_hw_plugin_usecase_start =
+                                        audio_extn_ext_hw_plugin_usecase_start;
+        init_config.fp_audio_extn_ext_hw_plugin_usecase_stop =
+                                        audio_extn_ext_hw_plugin_usecase_stop;
+        init_config.fp_get_usecase_from_list = get_usecase_from_list;
+        init_config.fp_disable_audio_route = disable_audio_route;
+        init_config.fp_disable_snd_device = disable_snd_device;
+
+        icc_init(init_config);
+        ALOGD("%s:: ---- Feature ICC is Enabled ----", __func__);
+        return 0;
+    }
+
+feature_disabled:
+    if (icc_lib_handle) {
+        dlclose(icc_lib_handle);
+        icc_lib_handle = NULL;
+    }
+
+    icc_init = NULL;
+    icc_is_active = NULL;
+    icc_get_usecase = NULL;
+    icc_set_parameters = NULL;
+
+    ALOGW(":: %s: ---- Feature ICC is disabled ----", __func__);
+    return -ENOSYS;
+}
+
+bool audio_extn_icc_is_active(struct audio_device *adev)
+{
+    return ((icc_is_active) ?
+                    icc_is_active(adev): false);
+}
+
+audio_usecase_t audio_extn_icc_get_usecase()
+{
+    return ((icc_get_usecase) ?
+                    icc_get_usecase(): -1);
+}
+
+void audio_extn_icc_set_parameters(struct audio_device *adev,
+                                           struct str_parms *parms)
+{
+    ((icc_set_parameters) ?
+                    icc_set_parameters(adev, parms): NULL);
+}
+
+// END: ICC ========================================================================
+
+// START: EXT_HW_PLUGIN ===================================================================
+#ifdef __LP64__
+#define EXT_HW_PLUGIN_LIB_PATH "/vendor/lib64/libexthwplugin.so"
+#else
+#define EXT_HW_PLUGIN_LIB_PATH "/vendor/lib/libexthwplugin.so"
+#endif
+
+static void *ext_hw_plugin_lib_handle = NULL;
+
+typedef void* (*ext_hw_plugin_init_t)(struct audio_device*,
+                                        ext_hw_plugin_init_config_t init_config);
+static ext_hw_plugin_init_t ext_hw_plugin_init;
+
+typedef int (*ext_hw_plugin_deinit_t)(void*);
+static ext_hw_plugin_deinit_t ext_hw_plugin_deinit;
+
+typedef int(*ext_hw_plugin_usecase_start_t)(void*, struct audio_usecase*);
+static ext_hw_plugin_usecase_start_t ext_hw_plugin_usecase_start;
+
+typedef int(*ext_hw_plugin_usecase_stop_t)(void*, struct audio_usecase*);
+static ext_hw_plugin_usecase_stop_t ext_hw_plugin_usecase_stop;
+
+typedef int(*ext_hw_plugin_set_parameters_t)(void*, struct str_parms*);
+static ext_hw_plugin_set_parameters_t ext_hw_plugin_set_parameters;
+
+typedef int(*ext_hw_plugin_get_parameters_t)(void*,
+                                        struct str_parms*, struct str_parms*);
+static ext_hw_plugin_get_parameters_t ext_hw_plugin_get_parameters;
+
+typedef int(*ext_hw_plugin_set_mic_mute_t)(void*, bool);
+static ext_hw_plugin_set_mic_mute_t ext_hw_plugin_set_mic_mute;
+
+typedef int(*ext_hw_plugin_get_mic_mute_t)(void*, bool*);
+static ext_hw_plugin_get_mic_mute_t ext_hw_plugin_get_mic_mute;
+
+typedef int(*ext_hw_plugin_set_audio_gain_t)(void*, struct audio_usecase*, uint32_t);
+static ext_hw_plugin_set_audio_gain_t ext_hw_plugin_set_audio_gain;
+
+
+int ext_hw_plugin_feature_init(bool is_feature_enabled)
+{
+    ALOGD("%s: Called with feature %s", __func__,
+                  is_feature_enabled ? "Enabled" : "NOT Enabled");
+    if (is_feature_enabled) {
+        // dlopen lib
+        ext_hw_plugin_lib_handle = dlopen(EXT_HW_PLUGIN_LIB_PATH, RTLD_NOW);
+
+        if (!ext_hw_plugin_lib_handle) {
+            ALOGE("%s: dlopen failed", __func__);
+            goto feature_disabled;
+        }
+    if (!(ext_hw_plugin_init = (ext_hw_plugin_init_t)dlsym(
+                            ext_hw_plugin_lib_handle, "ext_hw_plugin_init")) ||
+            !(ext_hw_plugin_deinit =
+                 (ext_hw_plugin_deinit_t)dlsym(
+                            ext_hw_plugin_lib_handle, "ext_hw_plugin_deinit")) ||
+            !(ext_hw_plugin_usecase_start =
+                 (ext_hw_plugin_usecase_start_t)dlsym(
+                            ext_hw_plugin_lib_handle, "ext_hw_plugin_usecase_start")) ||
+            !(ext_hw_plugin_usecase_stop =
+                 (ext_hw_plugin_usecase_stop_t)dlsym(
+                            ext_hw_plugin_lib_handle, "ext_hw_plugin_usecase_stop")) ||
+            !(ext_hw_plugin_set_parameters =
+                 (ext_hw_plugin_set_parameters_t)dlsym(
+                            ext_hw_plugin_lib_handle, "ext_hw_plugin_set_parameters")) ||
+            !(ext_hw_plugin_get_parameters =
+                 (ext_hw_plugin_get_parameters_t)dlsym(
+                            ext_hw_plugin_lib_handle, "ext_hw_plugin_get_parameters")) ||
+            !(ext_hw_plugin_set_mic_mute =
+                 (ext_hw_plugin_set_mic_mute_t)dlsym(
+                            ext_hw_plugin_lib_handle, "ext_hw_plugin_set_mic_mute")) ||
+            !(ext_hw_plugin_get_mic_mute =
+                 (ext_hw_plugin_get_mic_mute_t)dlsym(
+                            ext_hw_plugin_lib_handle, "ext_hw_plugin_get_mic_mute")) ||
+            !(ext_hw_plugin_set_audio_gain =
+                 (ext_hw_plugin_set_audio_gain_t)dlsym(
+                            ext_hw_plugin_lib_handle, "ext_hw_plugin_set_audio_gain"))) {
+            ALOGE("%s: dlsym failed", __func__);
+            goto feature_disabled;
+        }
+        ALOGD("%s:: ---- Feature EXT_HW_PLUGIN is Enabled ----", __func__);
+        return 0;
+    }
+
+feature_disabled:
+    if (ext_hw_plugin_lib_handle) {
+        dlclose(ext_hw_plugin_lib_handle);
+        ext_hw_plugin_lib_handle = NULL;
+    }
+
+    ext_hw_plugin_init = NULL;
+    ext_hw_plugin_deinit = NULL;
+    ext_hw_plugin_usecase_start = NULL;
+    ext_hw_plugin_usecase_stop = NULL;
+    ext_hw_plugin_set_parameters = NULL;
+    ext_hw_plugin_get_parameters = NULL;
+    ext_hw_plugin_set_mic_mute = NULL;
+    ext_hw_plugin_get_mic_mute = NULL;
+    ext_hw_plugin_set_audio_gain = NULL;
+
+    ALOGW(":: %s: ---- Feature EXT_HW_PLUGIN is disabled ----", __func__);
+    return -ENOSYS;
+}
+
+void* audio_extn_ext_hw_plugin_init(struct audio_device *adev)
+{
+    if(ext_hw_plugin_init) {
+        ext_hw_plugin_init_config_t ext_hw_plugin_init_config;
+        ext_hw_plugin_init_config.fp_b64decode = b64decode;
+        ext_hw_plugin_init_config.fp_b64encode = b64encode;
+        return ext_hw_plugin_init(adev, ext_hw_plugin_init_config);
+    }
+    else
+        return NULL;
+}
+
+int audio_extn_ext_hw_plugin_deinit(void *plugin)
+{
+    return ((ext_hw_plugin_deinit) ?
+                            ext_hw_plugin_deinit(plugin): 0);
+}
+
+int audio_extn_ext_hw_plugin_usecase_start(void *plugin, struct audio_usecase *usecase)
+{
+    return ((ext_hw_plugin_usecase_start) ?
+                            ext_hw_plugin_usecase_start(plugin, usecase): 0);
+}
+
+int audio_extn_ext_hw_plugin_usecase_stop(void *plugin, struct audio_usecase *usecase)
+{
+    return ((ext_hw_plugin_usecase_stop) ?
+                            ext_hw_plugin_usecase_stop(plugin, usecase): 0);
+}
+
+int audio_extn_ext_hw_plugin_set_parameters(void *plugin,
+                                           struct str_parms *parms)
+{
+    return ((ext_hw_plugin_set_parameters) ?
+                            ext_hw_plugin_set_parameters(plugin, parms): 0);
+}
+
+int audio_extn_ext_hw_plugin_get_parameters(void *plugin,
+                  struct str_parms *query, struct str_parms *reply)
+{
+    return ((ext_hw_plugin_get_parameters) ?
+                        ext_hw_plugin_get_parameters(plugin, query, reply): 0);
+}
+
+int audio_extn_ext_hw_plugin_set_mic_mute(void *plugin, bool mute)
+{
+    return ((ext_hw_plugin_set_mic_mute) ?
+                        ext_hw_plugin_set_mic_mute(plugin, mute): 0);
+}
+
+int audio_extn_ext_hw_plugin_get_mic_mute(void *plugin, bool *mute)
+{
+    return ((ext_hw_plugin_get_mic_mute) ?
+                        ext_hw_plugin_get_mic_mute(plugin, mute): 0);
+}
+
+int audio_extn_ext_hw_plugin_set_audio_gain(void *plugin,
+            struct audio_usecase *usecase, uint32_t gain)
+{
+    return ((ext_hw_plugin_set_audio_gain) ?
+                        ext_hw_plugin_set_audio_gain(plugin, usecase, gain): 0);
+}
+// END: EXT_HW_PLUGIN ===================================================================
+
+// START: RECORD_PLAY_CONCURRENCY =======================================================
+void record_play_concurency_feature_init(bool is_feature_enabled)
+{
+    audio_extn_record_play_concurrency_enabled = is_feature_enabled;
+    ALOGD("%s: ---- Feature RECORD_PLAY_CONCURRENCY is %s----", __func__,
+                                        is_feature_enabled? "ENABLED": "NOT ENABLED");
+}
+
+bool audio_extn_is_record_play_concurrency_enabled()
+{
+    return audio_extn_record_play_concurrency_enabled;
+}
+// END: RECORD_PLAY_CONCURRENCY =========================================================
+
+// START: HDMI_PASSTHROUGH ==================================================
+#ifdef __LP64__
+#define HDMI_PASSTHRU_LIB_PATH "/vendor/lib64/libhdmipassthru.so"
+#else
+#define HDMI_PASSTHRU_LIB_PATH "/vendor/lib/libhdmipassthru.so"
+#endif
+
+static void *hdmi_passthru_lib_handle = NULL;
+
+typedef bool (*passthru_is_convert_supported_t)(struct audio_device *,
+                                                 struct stream_out *);
+static passthru_is_convert_supported_t passthru_is_convert_supported;
+
+typedef bool (*passthru_is_passt_supported_t)(struct stream_out *);
+static passthru_is_passt_supported_t passthru_is_passt_supported;
+
+typedef void (*passthru_update_stream_configuration_t)(
+        struct audio_device *, struct stream_out *, const void *, size_t);
+static passthru_update_stream_configuration_t passthru_update_stream_configuration;
+
+typedef bool (*passthru_is_passthrough_stream_t)(struct stream_out *);
+static passthru_is_passthrough_stream_t passthru_is_passthrough_stream;
+
+typedef int (*passthru_get_buffer_size_t)(audio_offload_info_t*);
+static passthru_get_buffer_size_t passthru_get_buffer_size;
+
+typedef int (*passthru_set_volume_t)(struct stream_out *, int);
+static passthru_set_volume_t passthru_set_volume;
+
+typedef int (*passthru_set_latency_t)(struct stream_out *, int);
+static passthru_set_latency_t passthru_set_latency;
+
+typedef bool (*passthru_is_supported_format_t)(audio_format_t);
+static passthru_is_supported_format_t passthru_is_supported_format;
+
+typedef bool (*passthru_should_drop_data_t)(struct stream_out * out);
+static passthru_should_drop_data_t passthru_should_drop_data;
+
+typedef void (*passthru_on_start_t)(struct stream_out *out);
+static passthru_on_start_t passthru_on_start;
+
+typedef void (*passthru_on_stop_t)(struct stream_out *out);
+static passthru_on_stop_t passthru_on_stop;
+
+typedef void (*passthru_on_pause_t)(struct stream_out *out);
+static passthru_on_pause_t passthru_on_pause;
+
+typedef int (*passthru_set_parameters_t)(struct audio_device *adev,
+                                       struct str_parms *parms);
+static passthru_set_parameters_t passthru_set_parameters;
+
+typedef bool (*passthru_is_enabled_t)();
+static passthru_is_enabled_t passthru_is_enabled;
+
+typedef bool (*passthru_is_active_t)();
+static passthru_is_active_t passthru_is_active;
+
+typedef void (*passthru_init_t)(passthru_init_config_t);
+static passthru_init_t passthru_init;
+
+typedef bool (*passthru_should_standby_t)(struct stream_out *out);
+static passthru_should_standby_t passthru_should_standby;
+
+typedef int (*passthru_get_channel_count_t)(struct stream_out *out);
+static passthru_get_channel_count_t passthru_get_channel_count;
+
+typedef int (*passthru_update_dts_stream_configuration_t)(struct stream_out *out,
+        const void *buffer, size_t bytes);
+static passthru_update_dts_stream_configuration_t passthru_update_dts_stream_configuration;
+
+typedef bool (*passthru_is_direct_passthrough_t)(struct stream_out *out);
+static passthru_is_direct_passthrough_t passthru_is_direct_passthrough;
+
+typedef bool (*passthru_is_supported_backend_edid_cfg_t)(struct audio_device *adev,
+                                                   struct stream_out *out);
+static passthru_is_supported_backend_edid_cfg_t passthru_is_supported_backend_edid_cfg;
+
+bool audio_extn_passthru_is_convert_supported(struct audio_device *adev,
+                                                 struct stream_out *out)
+{
+    return (passthru_is_convert_supported ? passthru_is_convert_supported(adev, out) : false);
+}
+
+bool audio_extn_passthru_is_passthrough_stream(struct stream_out *out)
+{
+    return (passthru_is_passthrough_stream ?
+                passthru_is_passthrough_stream(out) : false);
+}
+
+void audio_extn_passthru_update_stream_configuration(
+        struct audio_device *adev, struct stream_out *out,
+        const void *buffer, size_t bytes)
+{
+    (passthru_update_stream_configuration ?
+                passthru_update_stream_configuration(adev, out, buffer, bytes) : 0);
+}
+
+bool audio_extn_passthru_is_passt_supported(struct stream_out *out)
+{
+    return (passthru_is_passt_supported)? passthru_is_passt_supported(out): false;
+}
+
+int audio_extn_passthru_get_buffer_size(audio_offload_info_t* info)
+{
+    return (passthru_get_buffer_size)? passthru_get_buffer_size(info): 0;
+}
+
+int audio_extn_passthru_set_volume(struct stream_out *out, int mute)
+{
+    return (passthru_set_volume)? passthru_set_volume(out, mute): 0;
+}
+
+int audio_extn_passthru_set_latency(struct stream_out *out, int latency)
+{
+    return (passthru_set_latency)? passthru_set_latency(out, latency): 0;
+}
+
+bool audio_extn_passthru_is_supported_format(audio_format_t format)
+{
+    return (passthru_is_supported_format)? passthru_is_supported_format(format): false;
+}
+
+bool audio_extn_passthru_should_drop_data(struct stream_out * out)
+{
+    return (passthru_should_drop_data)? passthru_should_drop_data(out): false;
+}
+
+void audio_extn_passthru_on_start(struct stream_out *out)
+{
+    (passthru_on_start)? passthru_on_start(out): 0;
+}
+
+void audio_extn_passthru_on_stop(struct stream_out *out)
+{
+    (passthru_on_stop)? passthru_on_stop(out): 0;
+}
+
+void audio_extn_passthru_on_pause(struct stream_out *out)
+{
+    (passthru_on_pause)? passthru_on_pause(out): 0;
+}
+
+int audio_extn_passthru_set_parameters(struct audio_device *adev,
+                                       struct str_parms *parms)
+{
+    return (passthru_set_parameters)?
+                            passthru_set_parameters(adev, parms): false;
+}
+
+bool audio_extn_passthru_is_enabled()
+{
+    return (passthru_is_enabled)? passthru_is_enabled(): false;
+}
+
+bool audio_extn_passthru_is_active()
+{
+     return (passthru_is_active)? passthru_is_active(): false;
+}
+
+bool audio_extn_passthru_should_standby(struct stream_out *out)
+{
+    return (passthru_should_standby)? passthru_should_standby(out): false;
+}
+int audio_extn_passthru_get_channel_count(struct stream_out *out)
+{
+    return (passthru_get_channel_count)? passthru_get_channel_count(out): 0;
+}
+
+int audio_extn_passthru_update_dts_stream_configuration(struct stream_out *out,
+        const void *buffer, size_t bytes)
+{
+    return (passthru_update_dts_stream_configuration)?
+                        passthru_update_dts_stream_configuration(out, buffer, bytes): 0;
+}
+
+bool audio_extn_passthru_is_direct_passthrough(struct stream_out *out)
+{
+    return (passthru_is_direct_passthrough)? passthru_is_direct_passthrough(out): false;
+}
+
+bool audio_extn_passthru_is_supported_backend_edid_cfg(struct audio_device *adev,
+                                                   struct stream_out *out)
+{
+    return (passthru_is_supported_backend_edid_cfg)?
+                            passthru_is_supported_backend_edid_cfg(adev, out): false;
+}
+bool audio_extn_is_hdmi_passthru_enabled()
+{
+    return audio_extn_hdmi_passthru_enabled;
+}
+
+void hdmi_passthrough_feature_init(bool is_feature_enabled)
+{
+    ALOGD("%s: Called with feature %s", __func__,
+                  is_feature_enabled ? "Enabled" : "NOT Enabled");
+
+    audio_extn_hdmi_passthru_enabled = is_feature_enabled;
+    if (is_feature_enabled) {
+        // dlopen lib
+        hdmi_passthru_lib_handle = dlopen(HDMI_PASSTHRU_LIB_PATH, RTLD_NOW);
+
+        if (!hdmi_passthru_lib_handle) {
+            ALOGE("%s: dlopen failed", __func__);
+            goto feature_disabled;
+        }
+    if (!(passthru_init = (passthru_init_t)dlsym(
+                            hdmi_passthru_lib_handle, "passthru_init")) ||
+            !(passthru_is_convert_supported =
+                 (passthru_is_convert_supported_t)dlsym(
+                            hdmi_passthru_lib_handle, "passthru_is_convert_supported")) ||
+            !(passthru_is_passthrough_stream =
+                 (passthru_is_passthrough_stream_t)dlsym(
+                            hdmi_passthru_lib_handle, "passthru_is_passthrough_stream")) ||
+            !(passthru_get_buffer_size =
+                 (passthru_get_buffer_size_t)dlsym(
+                            hdmi_passthru_lib_handle, "passthru_get_buffer_size")) ||
+            !(passthru_set_volume =
+                 (passthru_set_volume_t)dlsym(
+                            hdmi_passthru_lib_handle, "passthru_set_volume")) ||
+            !(passthru_set_latency =
+                 (passthru_set_latency_t)dlsym(
+                            hdmi_passthru_lib_handle, "passthru_set_latency")) ||
+            !(passthru_is_supported_format =
+                 (passthru_is_supported_format_t)dlsym(
+                            hdmi_passthru_lib_handle, "passthru_is_supported_format")) ||
+            !(passthru_should_drop_data =
+                 (passthru_should_drop_data_t)dlsym(
+                            hdmi_passthru_lib_handle, "passthru_should_drop_data")) ||
+            !(passthru_on_start =
+                 (passthru_on_start_t)dlsym(
+                            hdmi_passthru_lib_handle, "passthru_on_start")) ||
+            !(passthru_on_stop =
+                 (passthru_on_stop_t)dlsym(
+                            hdmi_passthru_lib_handle, "passthru_on_stop")) ||
+            !(passthru_on_pause =
+                 (passthru_on_pause_t)dlsym(
+                            hdmi_passthru_lib_handle, "passthru_on_pause")) ||
+            !(passthru_set_parameters =
+                 (passthru_set_parameters_t)dlsym(
+                            hdmi_passthru_lib_handle, "passthru_set_parameters")) ||
+            (passthru_is_enabled =
+                 (passthru_is_enabled_t)dlsym(
+                            hdmi_passthru_lib_handle, "passthru_is_enabled")) ||
+            (passthru_is_active =
+                 (passthru_is_active_t)dlsym(
+                            hdmi_passthru_lib_handle, "passthru_is_active")) ||
+            (passthru_should_standby =
+                 (passthru_should_standby_t)dlsym(
+                            hdmi_passthru_lib_handle, "passthru_should_standby")) ||
+            (passthru_get_channel_count =
+                 (passthru_get_channel_count_t)dlsym(
+                            hdmi_passthru_lib_handle, "passthru_get_channel_count")) ||
+            (passthru_update_dts_stream_configuration =
+                 (passthru_update_dts_stream_configuration_t)dlsym(
+                            hdmi_passthru_lib_handle,
+                            "passthru_update_dts_stream_configuration")) ||
+            (passthru_is_direct_passthrough =
+                 (passthru_is_direct_passthrough_t)dlsym(
+                            hdmi_passthru_lib_handle, "passthru_is_direct_passthrough")) ||
+            (passthru_is_supported_backend_edid_cfg =
+                 (passthru_is_supported_backend_edid_cfg_t)dlsym(
+                            hdmi_passthru_lib_handle,
+                            "passthru_is_supported_backend_edid_cfg"))) {
+            ALOGE("%s: dlsym failed", __func__);
+            goto feature_disabled;
+        }
+
+        passthru_init_config_t init_config;
+        init_config.fp_platform_is_edid_supported_format =
+                                                    platform_is_edid_supported_format;
+        init_config.fp_platform_set_device_params = platform_set_device_params;
+        init_config.fp_platform_edid_get_max_channels = platform_edid_get_max_channels;
+        init_config.fp_platform_get_output_snd_device = platform_get_output_snd_device;
+        init_config.fp_platform_get_codec_backend_cfg = platform_get_codec_backend_cfg;
+        init_config.fp_platform_get_snd_device_name = platform_get_snd_device_name;
+        init_config.fp_platform_is_edid_supported_sample_rate =
+                                                platform_is_edid_supported_sample_rate;
+        init_config.fp_audio_extn_keep_alive_start = audio_extn_keep_alive_start;
+        init_config.fp_audio_extn_keep_alive_stop = audio_extn_keep_alive_stop;
+        init_config.fp_audio_extn_utils_is_dolby_format =
+                                                    audio_extn_utils_is_dolby_format;
+        passthru_init(init_config);
+        ALOGD("%s:: ---- Feature HDMI_PASSTHROUGH is Enabled ----", __func__);
+        return;
+    }
+
+feature_disabled:
+    if (hdmi_passthru_lib_handle) {
+        dlclose(hdmi_passthru_lib_handle);
+        hdmi_passthru_lib_handle = NULL;
+    }
+
+    passthru_init = NULL;
+    passthru_is_convert_supported = NULL;
+    passthru_is_passthrough_stream = NULL;
+    passthru_get_buffer_size = NULL;
+    passthru_set_volume = NULL;
+    passthru_set_latency = NULL;
+    passthru_is_supported_format = NULL;
+    passthru_should_drop_data = NULL;
+    passthru_on_start = NULL;
+    passthru_on_stop = NULL;
+    passthru_on_pause = NULL;
+    passthru_set_parameters = NULL;
+    passthru_is_enabled = NULL;
+    passthru_is_active = NULL;
+    passthru_should_standby = NULL;
+    passthru_get_channel_count = NULL;
+    passthru_update_dts_stream_configuration = NULL;
+    passthru_is_direct_passthrough = NULL;
+    passthru_is_supported_backend_edid_cfg = NULL;
+
+    ALOGW(":: %s: ---- Feature HDMI_PASSTHROUGH is disabled ----", __func__);
+}
+// END: HDMI_PASSTHROUGH ==================================================
+
+// START: CONCURRENT_CAPTURE ==================================================
+bool audio_extn_is_concurrent_capture_enabled()
+{
+    return audio_extn_concurrent_capture_enabled;
+}
+
+void concurrent_capture_feature_init(bool is_feature_enabled)
+{
+    audio_extn_concurrent_capture_enabled = is_feature_enabled;
+    ALOGD("%s: ---- Feature CONCURRENT_CAPTURE is %s----", __func__, is_feature_enabled? "ENABLED": "NOT ENABLED");
+}
+// END: CONCURRENT_CAPTURE ====================================================
+
+// START: COMPRESS_IN ==================================================
+void compress_in_feature_init(bool is_feature_enabled)
+{
+    audio_extn_compress_in_enabled = is_feature_enabled;
+    ALOGD("%s: ---- Feature COMPRESS_IN is %s----", __func__, is_feature_enabled? "ENABLED": "NOT ENABLED");
+}
+
+bool audio_extn_cin_applicable_stream(struct stream_in *in)
+{
+    return (audio_extn_compress_in_enabled? cin_applicable_stream(in): false);
+}
+bool audio_extn_cin_attached_usecase(struct stream_in *in)
+{
+    return (audio_extn_compress_in_enabled? cin_attached_usecase(in): false);
+}
+bool audio_extn_cin_format_supported(audio_format_t format)
+{
+    return (audio_extn_compress_in_enabled? cin_format_supported(format): false);
+}
+int audio_extn_cin_acquire_usecase(struct stream_in *in)
+{
+    return (audio_extn_compress_in_enabled? cin_acquire_usecase(in): 0);
+}
+size_t audio_extn_cin_get_buffer_size(struct stream_in *in)
+{
+    return (audio_extn_compress_in_enabled? cin_get_buffer_size(in): 0);
+}
+int audio_extn_cin_open_input_stream(struct stream_in *in)
+{
+    return (audio_extn_compress_in_enabled? cin_open_input_stream(in): -1);
+}
+void audio_extn_cin_stop_input_stream(struct stream_in *in)
+{
+    (audio_extn_compress_in_enabled? cin_stop_input_stream(in): NULL);
+}
+void audio_extn_cin_close_input_stream(struct stream_in *in)
+{
+    (audio_extn_compress_in_enabled? cin_close_input_stream(in): NULL);
+}
+void audio_extn_cin_free_input_stream_resources(struct stream_in *in)
+{
+    return (audio_extn_compress_in_enabled? cin_free_input_stream_resources(in): NULL);
+}
+int audio_extn_cin_read(struct stream_in *in, void *buffer,
+                        size_t bytes, size_t *bytes_read)
+{
+    return (audio_extn_compress_in_enabled?
+                            cin_read(in, buffer, bytes, bytes_read): -1);
+}
+int audio_extn_cin_configure_input_stream(struct stream_in *in, struct audio_config *in_config)
+{
+    return (audio_extn_compress_in_enabled? cin_configure_input_stream(in, in_config): -1);
+}
+// END: COMPRESS_IN ====================================================
+
+// START: BATTERY_LISTENER ==================================================
+#ifdef __LP64__
+#define BATTERY_LISTENER_LIB_PATH "/vendor/lib64/libbatterylistener.so"
+#else
+#define BATTERY_LISTENER_LIB_PATH "/vendor/lib/libbatterylistener.so"
+#endif
+
+static void *batt_listener_lib_handle = NULL;
+
+typedef void (*batt_listener_init_t)(battery_status_change_fn_t);
+static batt_listener_init_t batt_listener_init;
+
+typedef void (*batt_listener_deinit_t)();
+static batt_listener_deinit_t batt_listener_deinit;
+
+typedef bool (*batt_prop_is_charging_t)();
+static batt_prop_is_charging_t batt_prop_is_charging;
+
+void battery_listener_feature_init(bool is_feature_enabled)
+{
+    audio_extn_battery_listener_enabled = is_feature_enabled;
+    if (is_feature_enabled) {
+        // dlopen lib
+        batt_listener_lib_handle = dlopen(BATTERY_LISTENER_LIB_PATH, RTLD_NOW);
+
+        if (!batt_listener_lib_handle) {
+            ALOGE("%s: dlopen failed", __func__);
+            goto feature_disabled;
+        }
+        if (!(batt_listener_init = (batt_listener_init_t)dlsym(
+                            batt_listener_lib_handle, "battery_properties_listener_init")) ||
+                !(batt_listener_deinit =
+                     (batt_listener_deinit_t)dlsym(
+                        batt_listener_lib_handle, "battery_properties_listener_deinit")) ||
+                !(batt_prop_is_charging =
+                     (batt_prop_is_charging_t)dlsym(
+                        batt_listener_lib_handle, "battery_properties_is_charging"))) {
+             ALOGE("%s: dlsym failed", __func__);
+                goto feature_disabled;
+        }
+        ALOGD("%s: ---- Feature BATTERY_LISTENER is enabled ----", __func__);
+        return;
+    }
+
+    feature_disabled:
+    if (batt_listener_lib_handle) {
+        dlclose(batt_listener_lib_handle);
+        batt_listener_lib_handle = NULL;
+    }
+
+    batt_listener_init = NULL;
+    batt_listener_deinit = NULL;
+    batt_prop_is_charging = NULL;
+    ALOGW(":: %s: ---- Feature BATTERY_LISTENER is disabled ----", __func__);
+}
+
+void audio_extn_battery_properties_listener_init(battery_status_change_fn_t fn)
+{
+    if(batt_listener_init)
+        batt_listener_init(fn);
+}
+void audio_extn_battery_properties_listener_deinit()
+{
+    if(batt_listener_deinit)
+        batt_listener_deinit();
+}
+bool audio_extn_battery_properties_is_charging()
+{
+    return (batt_prop_is_charging)? batt_prop_is_charging(): false;
+}
+// END: BATTERY_LISTENER ================================================================
+
+// START: HiFi Filter Feature ============================================================
+void audio_extn_enable_hifi_filter(struct audio_device *adev, bool value)
+{
+    const char *mixer_ctl_name = "HiFi Filter";
+    struct mixer_ctl *ctl = NULL;
+    ctl = mixer_get_ctl_by_name(adev->mixer, mixer_ctl_name);
+    if (!ctl) {
+        ALOGE("%s: Could not get ctl for mixer cmd - %s, using default control",
+              __func__, mixer_ctl_name);
+        return;
+    } else {
+        mixer_ctl_set_value(ctl, 0, value);
+        ALOGD("%s: mixer_value set %d", __func__, value);
+    }
+    return;
+}
+
+void audio_extn_hifi_filter_set_params(struct str_parms *parms,
+                                        char *value, int len)
+{
+    int ret = 0;
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_HIFI_AUDIO_FILTER, value,len);
+    if (ret >= 0) {
+        if (value && !strncmp(value, "true", sizeof("true")))
+            audio_extn_hifi_filter_enabled = true;
+        else
+            audio_extn_hifi_filter_enabled = false;
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_HIFI_AUDIO_FILTER);
+    }
+}
+
+bool audio_extn_hifi_check_usecase_params(int sample_rate, int usecase)
+{
+    if (sample_rate != 48000 && sample_rate != 44100)
+        return false;
+    if (usecase == USECASE_AUDIO_PLAYBACK_LOW_LATENCY || usecase == USECASE_AUDIO_PLAYBACK_ULL)
+        return false;
+    return true;
+}
+
+bool audio_extn_is_hifi_filter_enabled(struct audio_device* adev, struct stream_out *out,
+                                   snd_device_t snd_device, char *codec_variant,
+                                   int channels, int usecase_init)
+{
+    int na_mode = platform_get_native_support();
+    struct audio_usecase *uc = NULL;
+    struct listnode *node = NULL;
+    bool hifi_active = false;
+
+    if (audio_extn_hifi_filter_enabled) {
+        /*Restricting the feature for Tavil and WCD9375 codecs only*/
+        if ((strstr(codec_variant, "WCD9385") || strstr(codec_variant, "WCD9375"))
+            && (na_mode == NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_DSP || na_mode ==
+                       NATIVE_AUDIO_MODE_TRUE_44_1) && channels <=2) {
+            /*Upsampling 8 time should be restricited to headphones playback only */
+            if (snd_device == SND_DEVICE_OUT_HEADPHONES
+                || snd_device == SND_DEVICE_OUT_HEADPHONES_44_1
+                || snd_device == SND_DEVICE_OUT_HEADPHONES_HIFI_FILTER
+                || usecase_init) {
+                if (audio_extn_hifi_check_usecase_params(out->sample_rate,
+                    out->usecase) && !usecase_init)
+                    return true;
+
+                list_for_each(node, &adev->usecase_list) {
+                    /* checking if hifi_filter is already active to set */
+                    /* concurrent playback sessions with hifi_filter enabled*/
+                    uc = node_to_item(node, struct audio_usecase, list);
+                    struct stream_out *curr_out = (struct stream_out*) uc->stream.out;
+                    if (uc->type == PCM_PLAYBACK && curr_out
+                        && audio_extn_hifi_check_usecase_params(
+                        curr_out->sample_rate, curr_out->usecase) &&
+                        (curr_out->channel_mask == AUDIO_CHANNEL_OUT_STEREO ||
+                        curr_out->channel_mask == AUDIO_CHANNEL_OUT_MONO))
+                            hifi_active = true;
+                }
+            }
         }
     }
+    return hifi_active;
+}
+// END: HiFi Filter Feature ==============================================================
+
+// START: AUDIOZOOM_FEATURE =====================================================================
+#ifdef __LP64__
+#define AUDIOZOOM_LIB_PATH "/vendor/lib64/libaudiozoom.so"
+#else
+#define AUDIOZOOM_LIB_PATH "/vendor/lib/libaudiozoom.so"
+#endif
+
+static void *audiozoom_lib_handle = NULL;
+
+typedef int (*audiozoom_init_t)(audiozoom_init_config_t);
+static audiozoom_init_t audiozoom_init;
+
+typedef int (*audiozoom_set_microphone_direction_t)(struct stream_in *,
+                                                    audio_microphone_direction_t);
+static audiozoom_set_microphone_direction_t audiozoom_set_microphone_direction;
+
+typedef int (*audiozoom_set_microphone_field_dimension_t)(struct stream_in *, float);
+static audiozoom_set_microphone_field_dimension_t audiozoom_set_microphone_field_dimension;
+
+int audiozoom_feature_init(bool is_feature_enabled)
+{
+    audio_extn_audiozoom_enabled = is_feature_enabled;
+    ALOGD("%s: Called with feature %s", __func__,
+                  is_feature_enabled ? "Enabled" : "NOT Enabled");
+    if (is_feature_enabled) {
+        // dlopen lib
+        audiozoom_lib_handle = dlopen(AUDIOZOOM_LIB_PATH, RTLD_NOW);
+
+        if (!audiozoom_lib_handle) {
+            ALOGE("%s: dlopen failed", __func__);
+            goto feature_disabled;
+        }
+
+        if (!(audiozoom_init =
+                    (audiozoom_init_t)dlsym(audiozoom_lib_handle, "audiozoom_init")) ||
+            !(audiozoom_set_microphone_direction =
+                 (audiozoom_set_microphone_direction_t)dlsym(audiozoom_lib_handle,
+                                              "audiozoom_set_microphone_direction")) ||
+            !(audiozoom_set_microphone_field_dimension =
+                 (audiozoom_set_microphone_field_dimension_t)dlsym(audiozoom_lib_handle,
+                                        "audiozoom_set_microphone_field_dimension"))) {
+            ALOGE("%s: dlsym failed", __func__);
+            goto feature_disabled;
+        }
+
+        ALOGD("%s:: ---- Feature AUDIOZOOM is Enabled ----", __func__);
+        return 0;
+    }
+feature_disabled:
+    if (audiozoom_lib_handle) {
+        dlclose(audiozoom_lib_handle);
+        audiozoom_lib_handle = NULL;
+    }
+
+    audiozoom_init = NULL;
+    audiozoom_set_microphone_direction = NULL;
+    audiozoom_set_microphone_field_dimension = NULL;
+    ALOGW(":: %s: ---- Feature AUDIOZOOM is disabled ----", __func__);
+    return -ENOSYS;
+}
+
+bool audio_extn_is_audiozoom_enabled()
+{
+    return audio_extn_audiozoom_enabled;
+}
+
+int audio_extn_audiozoom_init()
+{
+     int ret_val = 0;
+     if (audiozoom_init) {
+        audiozoom_init_config_t init_config;
+        init_config.fp_platform_set_parameters = platform_set_parameters;
+        ret_val = audiozoom_init(init_config);
+     }
+
+     return ret_val;
+}
+
+int audio_extn_audiozoom_set_microphone_direction(struct stream_in *stream,
+                                           audio_microphone_direction_t dir)
+{
+     int ret_val = -ENOSYS;
+     if (audiozoom_set_microphone_direction)
+        ret_val = audiozoom_set_microphone_direction(stream, dir);
+
+     return ret_val;
+}
+
+int audio_extn_audiozoom_set_microphone_field_dimension(struct stream_in *stream,
+                                                         float zoom)
+{
+    int ret_val = -ENOSYS;
+    if (audiozoom_set_microphone_field_dimension)
+        ret_val = audiozoom_set_microphone_field_dimension(stream, zoom);
+
+    return ret_val;
+}
+// END:   AUDIOZOOM_FEATURE =====================================================================
+
+// START: MAXX_AUDIO =====================================================================
+#ifdef __LP64__
+#define MAXX_AUDIO_LIB_PATH "/vendor/lib64/libmaxxaudio.so"
+#else
+#define MAXX_AUDIO_LIB_PATH "/vendor/lib/libmaxxaudio.so"
+#endif
+
+static void *maxxaudio_lib_handle = NULL;
+
+typedef void (*maxxaudio_init_t)(void *, maxx_audio_init_config_t);
+static maxxaudio_init_t maxxaudio_init;
+
+typedef void (*maxxaudio_deinit_t)();
+static maxxaudio_deinit_t maxxaudio_deinit;
+
+typedef bool (*maxxaudio_set_state_t)(struct audio_device*, int,
+                             float, bool);
+static maxxaudio_set_state_t maxxaudio_set_state;
+
+typedef void (*maxxaudio_set_device_t)(struct audio_usecase *);
+static maxxaudio_set_device_t maxxaudio_set_device;
+
+typedef void (*maxxaudio_set_parameters_t)(struct audio_device *,
+                                  struct str_parms *);
+static maxxaudio_set_parameters_t maxxaudio_set_parameters;
+
+typedef bool (*maxxaudio_supported_usb_t)();
+static maxxaudio_supported_usb_t maxxaudio_supported_usb;
+
+int maxx_audio_feature_init(bool is_feature_enabled)
+{
+    audio_extn_maxx_audio_enabled = is_feature_enabled;
+    ALOGD("%s: Called with feature %s", __func__,
+                  is_feature_enabled ? "Enabled" : "NOT Enabled");
+    if (is_feature_enabled) {
+        // dlopen lib
+        maxxaudio_lib_handle = dlopen(MAXX_AUDIO_LIB_PATH, RTLD_NOW);
+
+        if (!maxxaudio_lib_handle) {
+            ALOGE("%s: dlopen failed", __func__);
+            goto feature_disabled;
+        }
+
+        if (!(maxxaudio_init =
+                    (maxxaudio_init_t)dlsym(maxxaudio_lib_handle, "ma_init")) ||
+            !(maxxaudio_deinit =
+                 (maxxaudio_deinit_t)dlsym(maxxaudio_lib_handle, "ma_deinit")) ||
+            !(maxxaudio_set_state =
+                 (maxxaudio_set_state_t)dlsym(maxxaudio_lib_handle, "ma_set_state")) ||
+            !(maxxaudio_set_device =
+                 (maxxaudio_set_device_t)dlsym(maxxaudio_lib_handle, "ma_set_device")) ||
+            !(maxxaudio_set_parameters =
+                 (maxxaudio_set_parameters_t)dlsym(maxxaudio_lib_handle, "ma_set_parameters")) ||
+            !(maxxaudio_supported_usb =
+                 (maxxaudio_supported_usb_t)dlsym(
+                                    maxxaudio_lib_handle, "ma_supported_usb"))) {
+            ALOGE("%s: dlsym failed", __func__);
+            goto feature_disabled;
+        }
+        ALOGD("%s:: ---- Feature MAXX_AUDIO is Enabled ----", __func__);
+        return 0;
+    }
+
+feature_disabled:
+    if (maxxaudio_lib_handle) {
+        dlclose(maxxaudio_lib_handle);
+        maxxaudio_lib_handle = NULL;
+    }
+
+    maxxaudio_init = NULL;
+    maxxaudio_deinit = NULL;
+    maxxaudio_set_state = NULL;
+    maxxaudio_set_device = NULL;
+    maxxaudio_set_parameters = NULL;
+    maxxaudio_supported_usb = NULL;
+    ALOGW(":: %s: ---- Feature MAXX_AUDIO is disabled ----", __func__);
+    return -ENOSYS;
+}
+
+bool audio_extn_is_maxx_audio_enabled()
+{
+    return audio_extn_maxx_audio_enabled;
+}
+
+void audio_extn_ma_init(void *platform)
+{
+
+     if (maxxaudio_init) {
+        maxx_audio_init_config_t init_config;
+        init_config.fp_platform_set_parameters = platform_set_parameters;
+        init_config.fp_audio_extn_get_snd_card_split = audio_extn_get_snd_card_split;
+        maxxaudio_init(platform, init_config);
+     }
+}
+
+void audio_extn_ma_deinit()
+{
+     if (maxxaudio_deinit)
+        maxxaudio_deinit();
+}
+
+bool audio_extn_ma_set_state(struct audio_device *adev, int stream_type,
+                             float vol, bool active)
+{
+    return (maxxaudio_set_state ?
+                maxxaudio_set_state(adev, stream_type, vol, active): false);
+}
+
+void audio_extn_ma_set_device(struct audio_usecase *usecase)
+{
+    if (maxxaudio_set_device)
+        maxxaudio_set_device(usecase);
+}
+
+void audio_extn_ma_set_parameters(struct audio_device *adev,
+                                  struct str_parms *parms)
+{
+    if (maxxaudio_set_parameters)
+        maxxaudio_set_parameters(adev, parms);
+}
+
+bool audio_extn_ma_supported_usb()
+{
+    return (maxxaudio_supported_usb ? maxxaudio_supported_usb(): false);
+}
+// END: MAXX_AUDIO =====================================================================
+
+// START: AUTO_HAL ===================================================================
+#ifdef __LP64__
+#define AUTO_HAL_LIB_PATH "/vendor/lib64/libautohal.so"
+#else
+#define AUTO_HAL_LIB_PATH "/vendor/lib/libautohal.so"
+#endif
+
+static void *auto_hal_lib_handle = NULL;
+
+typedef int (*auto_hal_init_t)(struct audio_device*,
+                                auto_hal_init_config_t);
+static auto_hal_init_t auto_hal_init;
+
+typedef void (*auto_hal_deinit_t)();
+static auto_hal_deinit_t auto_hal_deinit;
+
+typedef int (*auto_hal_create_audio_patch_t)(struct audio_hw_device*,
+                                unsigned int,
+                                const struct audio_port_config*,
+                                unsigned int,
+                                const struct audio_port_config*,
+                                audio_patch_handle_t*);
+static auto_hal_create_audio_patch_t auto_hal_create_audio_patch;
+
+typedef int (*auto_hal_release_audio_patch_t)(struct audio_hw_device*,
+                                audio_patch_handle_t);
+static auto_hal_release_audio_patch_t auto_hal_release_audio_patch;
+
+typedef int (*auto_hal_get_car_audio_stream_from_address_t)(const char*);
+static auto_hal_get_car_audio_stream_from_address_t auto_hal_get_car_audio_stream_from_address;
+
+typedef int (*auto_hal_open_output_stream_t)(struct stream_out*);
+static auto_hal_open_output_stream_t auto_hal_open_output_stream;
+
+typedef bool (*auto_hal_is_bus_device_usecase_t)(audio_usecase_t);
+static auto_hal_is_bus_device_usecase_t auto_hal_is_bus_device_usecase;
+
+typedef int (*auto_hal_get_audio_port_t)(struct audio_hw_device*,
+                                struct audio_port*);
+static auto_hal_get_audio_port_t auto_hal_get_audio_port;
+
+typedef int (*auto_hal_set_audio_port_config_t)(struct audio_hw_device*,
+                                const struct audio_port_config*);
+static auto_hal_set_audio_port_config_t auto_hal_set_audio_port_config;
+
+typedef void (*auto_hal_set_parameters_t)(struct audio_device*,
+                                struct str_parms*);
+static auto_hal_set_parameters_t auto_hal_set_parameters;
+
+typedef int (*auto_hal_start_hfp_downlink_t)(struct audio_device*,
+                                struct audio_usecase*);
+static auto_hal_start_hfp_downlink_t auto_hal_start_hfp_downlink;
+
+typedef int (*auto_hal_stop_hfp_downlink_t)(struct audio_device*,
+                                struct audio_usecase*);
+static auto_hal_stop_hfp_downlink_t auto_hal_stop_hfp_downlink;
+
+typedef snd_device_t (*auto_hal_get_input_snd_device_t)(struct audio_device*,
+                                audio_usecase_t);
+static auto_hal_get_input_snd_device_t auto_hal_get_input_snd_device;
+
+typedef snd_device_t (*auto_hal_get_output_snd_device_t)(struct audio_device*,
+                                audio_usecase_t);
+static auto_hal_get_output_snd_device_t auto_hal_get_output_snd_device;
+
+int auto_hal_feature_init(bool is_feature_enabled)
+{
+    ALOGD("%s: Called with feature %s", __func__,
+                  is_feature_enabled ? "Enabled" : "NOT Enabled");
+    if (is_feature_enabled) {
+        // dlopen lib
+        auto_hal_lib_handle = dlopen(AUTO_HAL_LIB_PATH, RTLD_NOW);
+
+        if (!auto_hal_lib_handle) {
+            ALOGE("%s: dlopen failed", __func__);
+            goto feature_disabled;
+        }
+        if (!(auto_hal_init = (auto_hal_init_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_init")) ||
+            !(auto_hal_deinit =
+                 (auto_hal_deinit_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_deinit")) ||
+            !(auto_hal_create_audio_patch =
+                 (auto_hal_create_audio_patch_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_create_audio_patch")) ||
+            !(auto_hal_release_audio_patch =
+                 (auto_hal_release_audio_patch_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_release_audio_patch")) ||
+            !(auto_hal_get_car_audio_stream_from_address =
+                 (auto_hal_get_car_audio_stream_from_address_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_get_car_audio_stream_from_address")) ||
+            !(auto_hal_open_output_stream =
+                 (auto_hal_open_output_stream_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_open_output_stream")) ||
+            !(auto_hal_is_bus_device_usecase =
+                 (auto_hal_is_bus_device_usecase_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_is_bus_device_usecase")) ||
+            !(auto_hal_get_audio_port =
+                 (auto_hal_get_audio_port_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_get_audio_port")) ||
+            !(auto_hal_set_audio_port_config =
+                 (auto_hal_set_audio_port_config_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_set_audio_port_config")) ||
+            !(auto_hal_set_parameters =
+                 (auto_hal_set_parameters_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_set_parameters")) ||
+            !(auto_hal_start_hfp_downlink =
+                 (auto_hal_start_hfp_downlink_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_start_hfp_downlink")) ||
+            !(auto_hal_stop_hfp_downlink =
+                 (auto_hal_stop_hfp_downlink_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_stop_hfp_downlink")) ||
+            !(auto_hal_get_input_snd_device =
+                 (auto_hal_get_input_snd_device_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_get_input_snd_device")) ||
+            !(auto_hal_get_output_snd_device =
+                 (auto_hal_get_output_snd_device_t)dlsym(
+                            auto_hal_lib_handle, "auto_hal_get_output_snd_device"))) {
+            ALOGE("%s: dlsym failed", __func__);
+            goto feature_disabled;
+        }
+        ALOGD("%s:: ---- Feature AUTO_HAL is Enabled ----", __func__);
+        return 0;
+    }
+
+feature_disabled:
+    if (auto_hal_lib_handle) {
+        dlclose(auto_hal_lib_handle);
+        auto_hal_lib_handle = NULL;
+    }
+
+    auto_hal_init = NULL;
+    auto_hal_deinit = NULL;
+    auto_hal_create_audio_patch = NULL;
+    auto_hal_release_audio_patch = NULL;
+    auto_hal_get_car_audio_stream_from_address = NULL;
+    auto_hal_open_output_stream = NULL;
+    auto_hal_is_bus_device_usecase = NULL;
+    auto_hal_get_audio_port = NULL;
+    auto_hal_set_audio_port_config = NULL;
+    auto_hal_set_parameters = NULL;
+    auto_hal_start_hfp_downlink = NULL;
+    auto_hal_stop_hfp_downlink = NULL;
+    auto_hal_get_input_snd_device = NULL;
+    auto_hal_get_output_snd_device = NULL;
+
+    ALOGW(":: %s: ---- Feature AUTO_HAL is disabled ----", __func__);
+    return -ENOSYS;
+}
+
+int audio_extn_auto_hal_init(struct audio_device *adev)
+{
+    if(auto_hal_init) {
+        auto_hal_init_config_t auto_hal_init_config;
+        auto_hal_init_config.fp_in_get_stream = in_get_stream;
+        auto_hal_init_config.fp_out_get_stream = out_get_stream;
+        auto_hal_init_config.fp_audio_extn_ext_hw_plugin_usecase_start = audio_extn_ext_hw_plugin_usecase_start;
+        auto_hal_init_config.fp_audio_extn_ext_hw_plugin_usecase_stop = audio_extn_ext_hw_plugin_usecase_stop;
+        auto_hal_init_config.fp_get_usecase_from_list = get_usecase_from_list;
+        auto_hal_init_config.fp_get_output_period_size = get_output_period_size;
+        auto_hal_init_config.fp_audio_extn_ext_hw_plugin_set_audio_gain = audio_extn_ext_hw_plugin_set_audio_gain;
+        auto_hal_init_config.fp_select_devices = select_devices;
+        auto_hal_init_config.fp_disable_audio_route = disable_audio_route;
+        auto_hal_init_config.fp_disable_snd_device = disable_snd_device;
+        auto_hal_init_config.fp_adev_get_active_input = adev_get_active_input;
+        auto_hal_init_config.fp_platform_set_echo_reference = platform_set_echo_reference;
+        auto_hal_init_config.fp_platform_get_eccarstate = platform_get_eccarstate;
+        return auto_hal_init(adev, auto_hal_init_config);
+    }
+    else
+        return 0;
+}
+
+void audio_extn_auto_hal_deinit()
+{
+    if (auto_hal_deinit)
+        auto_hal_deinit();
+}
+
+int audio_extn_auto_hal_create_audio_patch(struct audio_hw_device *dev,
+                                unsigned int num_sources,
+                                const struct audio_port_config *sources,
+                                unsigned int num_sinks,
+                                const struct audio_port_config *sinks,
+                                audio_patch_handle_t *handle)
+{
+    return ((auto_hal_create_audio_patch) ?
+                            auto_hal_create_audio_patch(dev,
+                                num_sources,
+                                sources,
+                                num_sinks,
+                                sinks,
+                                handle): 0);
+}
+
+int audio_extn_auto_hal_release_audio_patch(struct audio_hw_device *dev,
+                                audio_patch_handle_t handle)
+{
+    return ((auto_hal_release_audio_patch) ?
+                            auto_hal_release_audio_patch(dev, handle): 0);
+}
+
+int audio_extn_auto_hal_get_car_audio_stream_from_address(const char *address)
+{
+    return ((auto_hal_get_car_audio_stream_from_address) ?
+                            auto_hal_get_car_audio_stream_from_address(address): -ENOSYS);
+}
+
+int audio_extn_auto_hal_open_output_stream(struct stream_out *out)
+{
+    return ((auto_hal_open_output_stream) ?
+                            auto_hal_open_output_stream(out): -ENOSYS);
+}
+
+bool audio_extn_auto_hal_is_bus_device_usecase(audio_usecase_t uc_id)
+{
+    return ((auto_hal_is_bus_device_usecase) ?
+                            auto_hal_is_bus_device_usecase(uc_id): false);
+}
+
+int audio_extn_auto_hal_get_audio_port(struct audio_hw_device *dev,
+                                struct audio_port *config)
+{
+    return ((auto_hal_get_audio_port) ?
+                            auto_hal_get_audio_port(dev, config): 0);
+}
+
+int audio_extn_auto_hal_set_audio_port_config(struct audio_hw_device *dev,
+                                const struct audio_port_config *config)
+{
+    return ((auto_hal_set_audio_port_config) ?
+                            auto_hal_set_audio_port_config(dev, config): 0);
+}
+
+void audio_extn_auto_hal_set_parameters(struct audio_device *adev,
+                                        struct str_parms *parms)
+{
+    if (auto_hal_set_parameters)
+        auto_hal_set_parameters(adev, parms);
+}
+
+int audio_extn_auto_hal_start_hfp_downlink(struct audio_device *adev,
+                                struct audio_usecase *uc_info)
+{
+    return ((auto_hal_start_hfp_downlink) ?
+                            auto_hal_start_hfp_downlink(adev, uc_info): 0);
+}
+
+int audio_extn_auto_hal_stop_hfp_downlink(struct audio_device *adev,
+                                struct audio_usecase *uc_info)
+{
+    return ((auto_hal_stop_hfp_downlink) ?
+                            auto_hal_stop_hfp_downlink(adev, uc_info): 0);
+}
+
+snd_device_t audio_extn_auto_hal_get_input_snd_device(struct audio_device *adev,
+                                audio_usecase_t uc_id)
+{
+    return ((auto_hal_get_input_snd_device) ?
+                            auto_hal_get_input_snd_device(adev, uc_id): SND_DEVICE_NONE);
+}
+
+snd_device_t audio_extn_auto_hal_get_output_snd_device(struct audio_device *adev,
+                                audio_usecase_t uc_id)
+{
+    return ((auto_hal_get_output_snd_device) ?
+                            auto_hal_get_output_snd_device(adev, uc_id): SND_DEVICE_NONE);
+}
+// END: AUTO_HAL ===================================================================
+
+// START: Synth ======================================================================
+#ifdef __LP64__
+#define SYNTH_LIB_PATH "/vendor/lib64/libsynth.so"
+#else
+#define SYNTH_LIB_PATH "/vendor/lib/libsynth.so"
+#endif
+
+static void *synth_lib_handle = NULL;
+
+typedef void (*synth_init_t)(synth_init_config_t);
+static synth_init_t synth_init;
+
+typedef bool (*synth_is_active_t)(struct audio_device *adev);
+static synth_is_active_t synth_is_active;
+
+typedef void (*synth_set_parameters_t)(struct audio_device *adev,
+                                           struct str_parms *parms);
+static synth_set_parameters_t synth_set_parameters;
+
+int synth_feature_init(bool is_feature_enabled)
+{
+    ALOGD("%s: Called with feature %s", __func__,
+                  is_feature_enabled ? "Enabled" : "NOT Enabled");
+    if (is_feature_enabled) {
+        // dlopen lib
+        synth_lib_handle = dlopen(SYNTH_LIB_PATH, RTLD_NOW);
+
+        if (!synth_lib_handle) {
+            ALOGE("%s: dlopen failed", __func__);
+            goto feature_disabled;
+        }
+        if (!(synth_init = (synth_init_t)dlsym(
+                            synth_lib_handle, "synth_init")) ||
+            !(synth_is_active =
+                 (synth_is_active_t)dlsym(
+                            synth_lib_handle, "synth_is_active")) ||
+            !(synth_set_parameters =
+                 (synth_set_parameters_t)dlsym(
+                            synth_lib_handle, "synth_set_parameters"))) {
+            ALOGE("%s: dlsym failed", __func__);
+            goto feature_disabled;
+        }
+        synth_init_config_t init_config;
+        init_config.fp_platform_get_pcm_device_id = platform_get_pcm_device_id;
+        init_config.fp_get_usecase_from_list = get_usecase_from_list;
+        init_config.fp_select_devices = select_devices;
+        init_config.fp_disable_audio_route = disable_audio_route;
+        init_config.fp_disable_snd_device = disable_snd_device;
+
+        synth_init(init_config);
+        ALOGD("%s:: ---- Feature Synth is Enabled ----", __func__);
+        return 0;
+    }
+
+feature_disabled:
+    if (synth_lib_handle) {
+        dlclose(synth_lib_handle);
+        synth_lib_handle = NULL;
+    }
+
+    synth_init = NULL;
+    synth_is_active = NULL;
+    synth_set_parameters = NULL;
+
+    ALOGW(":: %s: ---- Feature Synth is disabled ----", __func__);
+    return -ENOSYS;
+}
+
+bool audio_extn_synth_is_active(struct audio_device *adev)
+{
+    return ((synth_is_active) ?
+                    synth_is_active(adev): false);
+}
+
+void audio_extn_synth_set_parameters(struct audio_device *adev,
+                                           struct str_parms *parms)
+{
+    ((synth_set_parameters) ?
+                    synth_set_parameters(adev, parms): NULL);
+}
+
+// END: Synth ========================================================================
+
+
+void audio_extn_feature_init()
+{
+    vendor_enhanced_info = audio_extn_utils_get_vendor_enhanced_info();
+
+    // register feature init functions here
+    // each feature needs a vendor property
+    // default value added is for GSI (non vendor modified images)
+    snd_mon_feature_init(
+        property_get_bool("vendor.audio.feature.snd_mon.enable",
+                           false));
+    compr_cap_feature_init(
+        property_get_bool("vendor.audio.feature.compr_cap.enable",
+                           false));
+    dsm_feedback_feature_init(
+        property_get_bool("vendor.audio.feature.dsm_feedback.enable",
+                           false));
+    ssrec_feature_init(
+        property_get_bool("vendor.audio.feature.ssrec.enable",
+                           false));
+    src_trkn_feature_init(
+        property_get_bool("vendor.audio.feature.src_trkn.enable",
+                           false));
+    hdmi_edid_feature_init(
+        property_get_bool("vendor.audio.feature.hdmi_edid.enable",
+                           false));
+    keep_alive_feature_init(
+        property_get_bool("vendor.audio.feature.keep_alive.enable",
+                           false));
+    hifi_audio_feature_init(
+        property_get_bool("vendor.audio.feature.hifi_audio.enable",
+                           false));
+    ras_feature_init(
+        property_get_bool("vendor.audio.feature.ras.enable",
+                           false));
+    kpi_optimize_feature_init(
+        property_get_bool("vendor.audio.feature.kpi_optimize.enable",
+                           false));
+    usb_offload_feature_init(
+        property_get_bool("vendor.audio.feature.usb_offload.enable",
+                           false));
+    usb_offload_burst_mode_feature_init(
+        property_get_bool("vendor.audio.feature.usb_offload_burst_mode.enable",
+                           false));
+    usb_offload_sidetone_volume_feature_init(
+        property_get_bool("vendor.audio.feature.usb_offload_sidetone_volume.enable",
+                           false));
+    a2dp_offload_feature_init(
+        property_get_bool("vendor.audio.feature.a2dp_offload.enable",
+                           false));
+    wsa_feature_init(
+        property_get_bool("vendor.audio.feature.wsa.enable",
+                           false));
+    compress_meta_data_feature_init(
+        property_get_bool("vendor.audio.feature.compress_meta_data.enable",
+                           false));
+    vbat_feature_init(
+        property_get_bool("vendor.audio.feature.vbat.enable",
+                           false));
+    display_port_feature_init(
+        property_get_bool("vendor.audio.feature.display_port.enable",
+                           false));
+    fluence_feature_init(
+        property_get_bool("vendor.audio.feature.fluence.enable",
+                           false));
+    custom_stereo_feature_init(
+        property_get_bool("vendor.audio.feature.custom_stereo.enable",
+                           false));
+    anc_headset_feature_init(
+        property_get_bool("vendor.audio.feature.anc_headset.enable",
+                           false));
+    spkr_prot_feature_init(
+        property_get_bool("vendor.audio.feature.spkr_prot.enable",
+                           false));
+    fm_feature_init(
+        property_get_bool("vendor.audio.feature.fm.enable",
+                           false));
+    external_qdsp_feature_init(
+        property_get_bool("vendor.audio.feature.external_dsp.enable",
+                           false));
+    external_speaker_feature_init(
+        property_get_bool("vendor.audio.feature.external_speaker.enable",
+                           false));
+    external_speaker_tfa_feature_init(
+        property_get_bool("vendor.audio.feature.external_speaker_tfa.enable",
+                           false));
+    hwdep_cal_feature_init(
+        property_get_bool("vendor.audio.feature.hwdep_cal.enable",
+                           false));
+    hfp_feature_init(
+        property_get_bool("vendor.audio.feature.hfp.enable",
+                           false));
+    icc_feature_init(
+        property_get_bool("vendor.audio.feature.icc.enable",
+                           false));
+    ext_hw_plugin_feature_init(
+        property_get_bool("vendor.audio.feature.ext_hw_plugin.enable",
+                           false));
+    record_play_concurency_feature_init(
+        property_get_bool("vendor.audio.feature.record_play_concurency.enable",
+                           false));
+    hdmi_passthrough_feature_init(
+        property_get_bool("vendor.audio.feature.hdmi_passthrough.enable",
+                           false));
+    concurrent_capture_feature_init(
+        property_get_bool("vendor.audio.feature.concurrent_capture.enable",
+                           false));
+    compress_in_feature_init(
+        property_get_bool("vendor.audio.feature.compress_in.enable",
+                           false));
+    battery_listener_feature_init(
+        property_get_bool("vendor.audio.feature.battery_listener.enable",
+                           false));
+    maxx_audio_feature_init(
+        property_get_bool("vendor.audio.feature.maxx_audio.enable",
+                           false));
+    audiozoom_feature_init(
+        property_get_bool("vendor.audio.feature.audiozoom.enable",
+                           false));
+    auto_hal_feature_init(
+        property_get_bool("vendor.audio.feature.auto_hal.enable",
+                           false));
+    synth_feature_init(
+        property_get_bool("vendor.audio.feature.synth.enable",
+                       false));
 }
 
 void audio_extn_set_parameters(struct audio_device *adev,
@@ -4953,12 +6704,15 @@ void audio_extn_set_parameters(struct audio_device *adev,
    audio_extn_passthru_set_parameters(adev, parms);
    audio_extn_ext_disp_set_parameters(adev, parms);
    audio_extn_qaf_set_parameters(adev, parms);
+   if (audio_extn_qap_is_enabled())
+       audio_extn_qap_set_parameters(adev, parms);
    if (adev->offload_effects_set_parameters != NULL)
        adev->offload_effects_set_parameters(parms);
    audio_extn_set_aptx_dec_bt_addr(adev, parms);
    audio_extn_ffv_set_parameters(adev, parms);
    audio_extn_ext_hw_plugin_set_parameters(adev->ext_hw_plugin, parms);
-   audio_extn_set_clock_switch_params(adev, parms);
+   audio_extn_icc_set_parameters(adev, parms);
+   audio_extn_synth_set_parameters(adev, parms);
 }
 
 void audio_extn_get_parameters(const struct audio_device *adev,

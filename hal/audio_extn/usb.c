@@ -55,6 +55,7 @@
 #define SAMPLE_RATE_11025         11025
 #define SAMPLE_RATE_192000        192000
 // Supported sample rates for USB
+#define USBID_SIZE                16
 static uint32_t supported_sample_rates[] =
     {384000, 352800, 192000, 176400, 96000, 88200, 64000, 48000, 44100, 32000, 22050, 16000, 11025, 8000};
 static uint32_t supported_sample_rates_mask[2];
@@ -97,6 +98,7 @@ struct usb_card_config {
     int usb_sidetone_vol_min;
     int usb_sidetone_vol_max;
     int endian;
+    char usbid[USBID_SIZE];
 };
 
 struct usb_module {
@@ -375,6 +377,62 @@ static int usb_get_sample_rates(int type, char *rates_str,
     return 0;
 }
 
+int usb_get_service_interval(bool playback,
+                                        unsigned long *service_interval)
+{
+    const char *ctl_name = "USB_AUDIO_RX service_interval";
+    struct mixer_ctl *ctl = mixer_get_ctl_by_name(usbmod->adev->mixer,
+                                                  ctl_name);
+
+    if (!playback) {
+        ALOGE("%s not valid for capture", __func__);
+        return -1;
+    }
+
+    if (!ctl) {
+        ALOGV("%s: could not get mixer %s", __func__, ctl_name);
+        return -1;
+    }
+
+    *service_interval = mixer_ctl_get_value(ctl, 0);
+    return 0;
+}
+
+int usb_set_service_interval(bool playback,
+                                        unsigned long service_interval,
+                                        bool *reconfig)
+{
+    *reconfig = false;
+    unsigned long current_service_interval = 0;
+    const char *ctl_name = "USB_AUDIO_RX service_interval";
+    struct mixer_ctl *ctl = mixer_get_ctl_by_name(usbmod->adev->mixer,
+                                                  ctl_name);
+
+    if (!playback) {
+        ALOGE("%s not valid for capture", __func__);
+        return -1;
+    }
+
+    if (!ctl) {
+        ALOGV("%s: could not get mixer %s", __func__, ctl_name);
+        return -1;
+    }
+
+    if (usb_get_service_interval(playback,
+                                            &current_service_interval) != 0) {
+        ALOGE("%s Unable to get current service interval", __func__);
+        return -1;
+    }
+
+    if (current_service_interval != service_interval) {
+        mixer_ctl_set_value(ctl, 0, service_interval);
+        *reconfig = usbmod->usb_reconfig = true;
+    }
+    else
+        *reconfig = usbmod->usb_reconfig = false;
+    return 0;
+}
+
 static int get_usb_service_interval(const char *interval_str_start,
                                     struct usb_device_config *usb_device_info)
 {
@@ -393,6 +451,7 @@ static int get_usb_service_interval(const char *interval_str_start,
         return -1;
     }
     memcpy(tmp, interval_str_start, eol-interval_str_start);
+    tmp[eol-interval_str_start] = '\0';
     sscanf(tmp, "%lu %2s", &interval, &time_unit[0]);
     if (!strcmp(time_unit, "us")) {
         multiplier = 1;
@@ -584,6 +643,7 @@ static int usb_get_capability(int type,
         // Data packet interval is an optional field.
         // Assume 0ms interval if this cannot be read
         // LPASS USB and HLOS USB will figure out the default to use
+        bool reconfig = false;
         usb_device_info->service_interval_us = DEFAULT_SERVICE_INTERVAL_US;
         interval_str_start = strstr(str_start, DATA_PACKET_INTERVAL_STR);
         if (interval_str_start != NULL) {
@@ -594,6 +654,9 @@ static int usb_get_capability(int type,
                       __func__);
             }
         }
+        usb_set_service_interval(true /*playback*/,
+                                       usb_device_info->service_interval_us,
+                                       &reconfig);
         /* Add to list if every field is valid */
         list_add_tail(&usb_card_info->usb_device_conf_list,
                       &usb_device_info->list);
@@ -619,6 +682,49 @@ static int usb_get_device_pb_config(struct usb_card_config *usb_card_info,
     usb_set_dev_id_mixer_ctl(USB_PLAYBACK, card, "USB_AUDIO_RX dev_token");
     usb_set_endian_mixer_ctl(usb_card_info->endian, "USB_AUDIO_RX endian");
 exit:
+
+    return ret;
+}
+
+static int usb_get_usbid(struct usb_card_config *usb_card_info,
+                              int card)
+{
+    int32_t fd=-1;
+    char path[128];
+    int ret = 0;
+    char *saveptr = NULL;
+
+    memset(usb_card_info->usbid, 0, sizeof(usb_card_info->usbid));
+
+    ret = snprintf(path, sizeof(path), "/proc/asound/card%u/usbid",
+             card);
+
+    if (ret < 0) {
+        ALOGE("%s: failed on snprintf (%d) to path %s\n",
+          __func__, ret, path);
+        goto done;
+    }
+
+    fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        ALOGE("%s: error failed to open file %s error: %d\n",
+              __func__, path, errno);
+        ret = -EINVAL;
+        goto done;
+    }
+
+    if (read(fd, usb_card_info->usbid, USBID_SIZE - 1) < 0) {
+        ALOGE("file read error\n");
+        ret = -EINVAL;
+        usb_card_info->usbid[0] = '\0';
+        goto done;
+    }
+
+    strtok_r(usb_card_info->usbid, "\n", &saveptr);
+
+done:
+    if (fd >= 0)
+        close(fd);
 
     return ret;
 }
@@ -1095,10 +1201,11 @@ int usb_get_sup_sample_rates(bool is_playback,
     uint32_t tries = _MIN(sample_rate_size, (uint32_t)__builtin_popcount(bm));
 
     int i = 0;
-    while (tries--) {
+    while (tries) {
         int idx = __builtin_ffs(bm) - 1;
         sample_rates[i++] = supported_sample_rates[idx];
         bm &= ~(1<<idx);
+        tries--;
     }
 
     return i;
@@ -1125,10 +1232,8 @@ void usb_add_device(audio_devices_t device, int card)
     char check_debug_enable[PROPERTY_VALUE_MAX];
     struct listnode *node_i;
 
-    if ((property_get("vendor.audio.usb.enable.debug",
-                      check_debug_enable, NULL) > 0) ||
-        (property_get("audio.usb.enable.debug",
-                      check_debug_enable, NULL) > 0)) {
+    if (property_get("vendor.audio.usb.enable.debug",
+                      check_debug_enable, NULL) > 0) {
         if (atoi(check_debug_enable))
             usb_audio_debug_enable = true;
     }
@@ -1167,6 +1272,10 @@ void usb_add_device(audio_devices_t device, int card)
     }
     list_init(&usb_card_info->usb_device_conf_list);
     if (usb_output_device(device)) {
+        if (usb_get_usbid(usb_card_info, card) < 0) {
+            ALOGE("parse card %d usbid fail", card);
+        }
+
         if (!usb_get_device_pb_config(usb_card_info, card)){
             usb_card_info->usb_card = card;
             usb_card_info->usb_device_type = device;
@@ -1175,6 +1284,10 @@ void usb_add_device(audio_devices_t device, int card)
             goto exit;
         }
     } else if (usb_input_device(device)) {
+        if (usb_get_usbid(usb_card_info, card) < 0) {
+            ALOGE("parse card %d usbid fail", card);
+        }
+
         if (!usb_get_device_cap_config(usb_card_info, card)) {
             usb_card_info->usb_card = card;
             usb_card_info->usb_device_type = device;
@@ -1342,62 +1455,6 @@ int usb_altset_for_service_interval(bool playback,
 #undef SET_OR_RETURN_ON_ERROR
 }
 
-int usb_get_service_interval(bool playback,
-                                        unsigned long *service_interval)
-{
-    const char *ctl_name = "USB_AUDIO_RX service_interval";
-    struct mixer_ctl *ctl = mixer_get_ctl_by_name(usbmod->adev->mixer,
-                                                  ctl_name);
-
-    if (!playback) {
-        ALOGE("%s not valid for capture", __func__);
-        return -1;
-    }
-
-    if (!ctl) {
-        ALOGV("%s: could not get mixer %s", __func__, ctl_name);
-        return -1;
-    }
-
-    *service_interval = mixer_ctl_get_value(ctl, 0);
-    return 0;
-}
-
-int usb_set_service_interval(bool playback,
-                                        unsigned long service_interval,
-                                        bool *reconfig)
-{
-    *reconfig = false;
-    unsigned long current_service_interval = 0;
-    const char *ctl_name = "USB_AUDIO_RX service_interval";
-    struct mixer_ctl *ctl = mixer_get_ctl_by_name(usbmod->adev->mixer,
-                                                  ctl_name);
-
-    if (!playback) {
-        ALOGE("%s not valid for capture", __func__);
-        return -1;
-    }
-
-    if (!ctl) {
-        ALOGV("%s: could not get mixer %s", __func__, ctl_name);
-        return -1;
-    }
-
-    if (usb_get_service_interval(playback,
-                                            &current_service_interval) != 0) {
-        ALOGE("%s Unable to get current service interval", __func__);
-        return -1;
-    }
-
-    if (current_service_interval != service_interval) {
-        mixer_ctl_set_value(ctl, 0, service_interval);
-        *reconfig = usbmod->usb_reconfig = true;
-    }
-    else
-        *reconfig = usbmod->usb_reconfig = false;
-    return 0;
-}
-
 int usb_check_and_set_svc_int(struct audio_usecase *uc_info,
                                          bool starting_output_stream)
 {
@@ -1486,6 +1543,22 @@ bool usb_connected(struct str_parms *parms) {
         }
     }
     return usb_connected;
+}
+
+char *usb_usbid()
+{
+    struct usb_card_config *card_info;
+
+    if (usbmod == NULL)
+        return NULL;
+
+    if (list_empty(&usbmod->usb_card_conf_list))
+        return NULL;
+
+    card_info = node_to_item(list_head(&usbmod->usb_card_conf_list),\
+                             struct usb_card_config, list);
+
+    return strdup(card_info->usbid);
 }
 
 void usb_init(void *adev)
