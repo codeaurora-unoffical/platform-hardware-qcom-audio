@@ -5754,9 +5754,15 @@ static int out_pause(struct audio_stream_out* stream)
         ALOGD("copl(%p):pause compress driver", out);
         lock_output_stream(out);
         if (out->compr != NULL && out->offload_state == OFFLOAD_STATE_PLAYING) {
-            if (out->card_status != CARD_STATUS_OFFLINE)
+            if (out->card_status == CARD_STATUS_OFFLINE) {
+                /*during SSR we should return error*/
+                ALOGD("%s: sound card is not active/SSR state", __func__);
+                pthread_mutex_unlock(&out->lock);
+                return -ENETRESET;
+            }
+            else {
                 status = compress_pause(out->compr);
-
+            }
             out->offload_state = OFFLOAD_STATE_PAUSED;
 
             if (audio_extn_passthru_is_active()) {
@@ -5806,6 +5812,13 @@ static int out_drain(struct audio_stream_out* stream, audio_drain_type_t type )
     ALOGV("%s", __func__);
     if (is_offload_usecase(out->usecase)) {
         lock_output_stream(out);
+
+        if (out->card_status == CARD_STATUS_OFFLINE) {
+            /*during SSR we should return error*/
+            ALOGD("%s: sound card is not active/SSR state", __func__);
+            pthread_mutex_unlock(&out->lock);
+            return -ENETRESET;
+        }
         if (type == AUDIO_DRAIN_EARLY_NOTIFY)
             status = send_offload_cmd_l(out, OFFLOAD_CMD_PARTIAL_DRAIN);
         else
@@ -6208,6 +6221,13 @@ static int in_set_parameters(struct audio_stream *stream, const char *kvpairs)
     lock_input_stream(in);
     pthread_mutex_lock(&adev->lock);
 
+    if (in->card_status == CARD_STATUS_OFFLINE) {
+        /*during SSR we should return error*/
+        ALOGD("%s: sound card is not active/SSR state", __func__);
+        pthread_mutex_unlock(&adev->lock);
+        pthread_mutex_unlock(&in->lock);
+        return -ENETRESET;
+    }
     err = str_parms_get_str(parms, AUDIO_PARAMETER_STREAM_INPUT_SOURCE, value, sizeof(value));
     if (err >= 0) {
         val = atoi(value);
