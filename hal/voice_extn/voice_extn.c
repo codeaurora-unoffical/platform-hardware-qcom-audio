@@ -574,6 +574,7 @@ int voice_extn_out_set_parameters(struct stream_out *out,
         uint32_t dtmf_low_freq = value;
         uint32_t dtmf_high_freq = 0;
         uint32_t dtmf_duration_ms = 0;
+        struct voice_session *session = NULL;
         err = str_parms_get_int(parms, AUDIO_PARAMETER_KEY_DTMF_HIGH_FREQ, &value);
         if (err >= 0) {
             dtmf_high_freq = value;
@@ -594,7 +595,16 @@ int voice_extn_out_set_parameters(struct stream_out *out,
                    __func__);
            dtmf_duration_ms = 0xFFFF;
         }
-        voice_extn_dtmf_generate_rx_tone(out, dtmf_low_freq, dtmf_high_freq, dtmf_duration_ms);
+
+        ret = voice_extn_get_session_from_use_case(out->dev, out->usecase, &session);
+        if (session != NULL) {
+            voice_extn_dtmf_generate_rx_tone_session(out, dtmf_low_freq,
+                                                     dtmf_high_freq,
+                                                     dtmf_duration_ms,
+                                                     session->vsid);
+        } else {
+            voice_extn_dtmf_generate_rx_tone(out, dtmf_low_freq, dtmf_high_freq, dtmf_duration_ms);
+        }
     }
 
 
