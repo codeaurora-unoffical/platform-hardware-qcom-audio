@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
  * Not a Contribution.
  *
  * Copyright (C) 2013 The Android Open Source Project
@@ -4352,7 +4352,7 @@ static void out_snd_mon_cb(void * stream, struct str_parms * parms)
     if (status == CARD_STATUS_OFFLINE) {
         out_on_error(stream);
         if (voice_is_call_state_active(adev) &&
-            out == adev->primary_output) {
+            output_drives_call(adev, out)) {
             ALOGD("%s: SSR/PDR occurred, end all calls\n", __func__);
             pthread_mutex_lock(&adev->lock);
             voice_stop_call(adev);
