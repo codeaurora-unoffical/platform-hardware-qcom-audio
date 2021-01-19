@@ -6713,6 +6713,7 @@ void audio_extn_set_parameters(struct audio_device *adev,
    audio_extn_ext_hw_plugin_set_parameters(adev->ext_hw_plugin, parms);
    audio_extn_icc_set_parameters(adev, parms);
    audio_extn_synth_set_parameters(adev, parms);
+   audio_extn_set_clock_switch_params(adev, parms);
 }
 
 void audio_extn_get_parameters(const struct audio_device *adev,
