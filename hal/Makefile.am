@@ -32,10 +32,10 @@ c_sources += audio_extn/fm.c
 c_sources += audio_extn/usb.c
 #endif
 
-if HFP
-AM_CFLAGS += -DHFP_ENABLED
-c_sources += audio_extn/hfp.c
-endif
+#if HFP
+#AM_CFLAGS += -DHFP_ENABLED
+#c_sources += audio_extn/hfp.c
+#endif
 
 #if SSR
 #AM_CFLAGS += -DSSR_ENABLED
@@ -250,7 +250,11 @@ if SPDIF_PLAYBACK
 AM_CFLAGS += -DSPDIF_PLAYBACK_ENABLED
 endif
 
-AM_CFLAGS += -DMAX_TARGET_SPECIFIC_CHANNEL_CNT="14"
+if EXTENDED_COMPRESS_FORMAT
+AM_CFLAGS += -DENABLE_EXTENDED_COMPRESS_FORMAT
+endif
+
+AM_CFLAGS += -DMAX_TARGET_SPECIFIC_CHANNEL_CNT="16"
 
 h_sources = audio_extn/audio_defs.h \
             audio_extn/audio_extn.h \

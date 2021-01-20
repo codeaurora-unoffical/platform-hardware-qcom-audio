@@ -99,6 +99,7 @@ struct ip_hdlr_intf {
     bool adm_event;
     bool asm_event;
     void *ip_dev_handle;
+    int out_snd_device;
 };
 static struct ip_hdlr_intf *ip_hdlr = NULL;
 static bool adm_event_enable;

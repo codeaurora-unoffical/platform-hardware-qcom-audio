@@ -5010,9 +5010,17 @@ void audio_extn_sco_reset_configuration()
 
 // START: HFP ======================================================================
 #ifdef __LP64__
+#if LINUX_ENABLED
+#define HFP_LIB_PATH "/usr/lib64/hfp.so"
+#else
 #define HFP_LIB_PATH "/vendor/lib64/libhfp.so"
+#endif
+#else
+#if LINUX_ENABLED
+#define HFP_LIB_PATH "/usr/lib/hfp.so"
 #else
 #define HFP_LIB_PATH "/vendor/lib/libhfp.so"
+#endif
 #endif
 
 static void *hfp_lib_handle = NULL;

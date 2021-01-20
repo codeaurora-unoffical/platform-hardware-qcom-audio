@@ -62,7 +62,6 @@
 #include <platform.h>
 #include "audio_extn.h"
 #include <cutils/log.h>
-#include <cutils/atomic.h>
 #include <cutils/sched_policy.h>
 #include <system/thread_defs.h>
 #include <system/audio.h>
@@ -548,6 +547,7 @@ int create_loopback_session(loopback_patch_t *active_loopback_patch)
     struct stream_inout *inout =  &active_loopback_patch->patch_stream;
     struct adsp_hdlr_stream_cfg hdlr_stream_cfg;
     struct stream_in loopback_source_stream;
+    struct stream_out loopback_sink_stream;
     char prop_value[PROPERTY_VALUE_MAX] = {0};
 
     ALOGD("%s: Create loopback session begin", __func__);
@@ -569,21 +569,27 @@ int create_loopback_session(loopback_patch_t *active_loopback_patch)
 
     uc_info_rx->id = USECASE_AUDIO_TRANSCODE_LOOPBACK_RX;
     uc_info_rx->type = audio_loopback_mod->uc_type_rx;
-    uc_info_rx->stream.inout = &active_loopback_patch->patch_stream;
+    uc_info_rx->stream.out = &loopback_sink_stream;
     uc_info_rx->devices = active_loopback_patch->patch_stream.out_config.devices;
     uc_info_rx->in_snd_device = SND_DEVICE_NONE;
     uc_info_rx->out_snd_device = SND_DEVICE_NONE;
 
+    loopback_sink_stream.devices = inout->out_config.devices;
+    loopback_sink_stream.channel_mask = inout->out_config.channel_mask;
+    loopback_sink_stream.bit_width = inout->out_config.bit_width;
+    loopback_sink_stream.sample_rate = inout->out_config.sample_rate;
+    loopback_sink_stream.format = inout->out_config.format;
+    loopback_sink_stream.hal_op_format = inout->out_config.format;
+
+    memcpy(&loopback_sink_stream.usecase, uc_info_rx,
+           sizeof(struct audio_usecase));
 
     uc_info_tx->id = USECASE_AUDIO_TRANSCODE_LOOPBACK_TX;
     uc_info_tx->type = audio_loopback_mod->uc_type_tx;
-    uc_info_tx->stream.inout = &active_loopback_patch->patch_stream;
+    uc_info_tx->stream.in = &loopback_source_stream;
     uc_info_tx->devices = active_loopback_patch->patch_stream.in_config.devices;
     uc_info_tx->in_snd_device = SND_DEVICE_NONE;
     uc_info_tx->out_snd_device = SND_DEVICE_NONE;
-
-    list_add_tail(&adev->usecase_list, &uc_info_rx->list);
-    list_add_tail(&adev->usecase_list, &uc_info_tx->list);
 
     loopback_source_stream.source = AUDIO_SOURCE_UNPROCESSED;
     loopback_source_stream.device = inout->in_config.devices;
@@ -592,8 +598,13 @@ int create_loopback_session(loopback_patch_t *active_loopback_patch)
     loopback_source_stream.sample_rate = inout->in_config.sample_rate;
     loopback_source_stream.format = inout->in_config.format;
 
-    memcpy(&loopback_source_stream.usecase, uc_info_rx,
+    memcpy(&loopback_source_stream.usecase, uc_info_tx,
            sizeof(struct audio_usecase));
+    adev->active_input = &loopback_source_stream;
+
+    list_add_tail(&adev->usecase_list, &uc_info_rx->list);
+    list_add_tail(&adev->usecase_list, &uc_info_tx->list);
+
     select_devices(adev, uc_info_rx->id);
     select_devices(adev, uc_info_tx->id);
 
@@ -624,8 +635,10 @@ int create_loopback_session(loopback_patch_t *active_loopback_patch)
         inout->adsp_hdlr_stream_handle = NULL;
         goto exit;
     }
-    if (audio_extn_ip_hdlr_intf_supported(source_patch_config->format,false, true) ||
-        audio_extn_ip_hdlr_intf_supported_for_copp(adev->platform)) {
+    if (audio_extn_ip_hdlr_intf_supported(source_patch_config->format,false, true,
+                            inout, USECASE_AUDIO_TRANSCODE_LOOPBACK_RX) ||
+        audio_extn_ip_hdlr_intf_supported_for_copp(adev->platform, inout,
+                            USECASE_AUDIO_TRANSCODE_LOOPBACK_RX)) {
         ret = audio_extn_ip_hdlr_intf_init(&inout->ip_hdlr_handle, NULL, NULL, adev,
                                            USECASE_AUDIO_TRANSCODE_LOOPBACK_RX);
         if (ret < 0) {
@@ -640,6 +653,11 @@ int create_loopback_session(loopback_patch_t *active_loopback_patch)
         // any format change via ADSP event
         codec.id = SND_AUDIOCODEC_AC3;
     }
+
+    /* Set config for compress stream open in capture path */
+     codec.id = get_snd_codec_id(source_patch_config->format);
+     codec.ch_in = audio_channel_count_from_out_mask(source_patch_config->
+                                                     channel_mask);
 
     codec.ch_out = 2; // Irrelevant for loopback case in this direction
     codec.sample_rate = source_patch_config->sample_rate;
@@ -1120,8 +1138,7 @@ int audio_extn_hw_loopback_set_audio_port_config(struct audio_hw_device *dev,
         port_out->sample_rate = config->sample_rate;
 
     /* Convert gain in millibels to ratio and convert to Q13 */
-    loopback_gain = pow(10, (float)((float)port_out->gain.values[0]/2000)) *
-                       (1 << 13);
+    loopback_gain = ((float)port_out->gain.values[0]/2000) * (1 << 13);
     ALOGV("%s, Port config gain_in_mbells: %d, gain_in_q13 : %d", __func__,
           port_out->gain.values[0], loopback_gain);
     if((port_out->config_mask & AUDIO_PORT_CONFIG_GAIN) &&

@@ -573,7 +573,7 @@ struct ldac_enc_cfg_t
  * definition under "LINUX_ENABLED" which is defined only
  * in LE
  */
-//#ifndef LINUX_ENABLED
+#ifndef LINUX_ENABLED
 /* TODO: Define the following structures only for O using PLATFORM_VERSION */
 /* Information about BT SBC encoder configuration
  * This data is used between audio HAL module and
@@ -645,7 +645,7 @@ typedef struct {
     uint32_t bitrate;
     uint32_t bits_per_sample;
 } audio_aac_encoder_config;
-//#endif
+#endif
 
 typedef struct {
     audio_aac_encoder_config audio_aac_enc_cfg;
@@ -1074,10 +1074,7 @@ static bool a2dp_set_backend_cfg()
      * 96Khz for 48Khz input and 88.2Khz for 44.1Khz input.
      * For APTX AD encoder, open slimbus port at 96Khz for 48Khz input.
      */
-    if (((a2dp.bt_encoder_format == CODEC_TYPE_LDAC) ||
-         (a2dp.bt_encoder_format == CODEC_TYPE_SBC) ||
-         (a2dp.bt_encoder_format == AUDIO_FORMAT_AAC) ||
-         (a2dp.bt_encoder_format == CODEC_TYPE_APTX_AD)) &&
+    if ((a2dp.bt_encoder_format == CODEC_TYPE_LDAC) &&
         (sampling_rate == 48000 || sampling_rate == 44100 )) {
         sampling_rate = sampling_rate *2;
     }

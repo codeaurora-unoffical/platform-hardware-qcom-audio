@@ -215,7 +215,7 @@ static int cin_compress_set_render_mode(struct stream_in *in)
     int ret = -EINVAL;
     cin_private_data_t *cin_data = (cin_private_data_t *) in->cin_extn;
 
-    if (!audio_extn_cin_attached_usecase((struct stream_in*)&in->usecase)) {
+    if (!cin_attached_usecase(in)) {
         ALOGE("%s:: not supported for non offload session", __func__);
         goto exit;
     }
@@ -301,10 +301,6 @@ void cin_stop_input_stream(struct stream_in *in)
         compress_stop(cin_data->compr);
     }
 
-    if (cin_data->usecase_acquired) {
-        free_cin_usecase(in->usecase);
-        cin_data->usecase_acquired = false;
-    }
 }
 
 
@@ -314,7 +310,13 @@ void cin_close_input_stream(struct stream_in *in)
 
     ALOGV("%s: in %p, cin_data %p", __func__, in, cin_data);
     if (cin_data->compr) {
-        compress_stop(cin_data->compr);
+        compress_close(cin_data->compr);
+        cin_data->compr = NULL;
+    }
+
+    if (cin_data->usecase_acquired) {
+        free_cin_usecase(in->usecase);
+        cin_data->usecase_acquired = false;
     }
 }
 
@@ -462,7 +464,7 @@ int cin_compress_in_set_ttp_offset(
 
     ALOGD("%s: ttp offset 0x%"PRIx64" ", __func__, offset_param->ttp_offset);
 
-    if (!audio_extn_cin_attached_usecase((struct stream_in*)&in->usecase)) {
+    if (!cin_attached_usecase(in)) {
         ALOGE("%s:: not supported for non offload session", __func__);
         goto exit;
     }

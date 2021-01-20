@@ -82,6 +82,14 @@
 #endif /* SPDIF_PLAYBACK_ENABLED */
 #endif /* AUDIO_DEVICE_OUT_OPTICAL */
 
+#ifndef AUDIO_DEVICE_IN_SPEAKER_MIC2
+#define AUDIO_DEVICE_IN_SPEAKER_MIC2 0x10000000
+#endif
+
+#ifndef AUDIO_DEVICE_IN_SPEAKER_MIC3
+#define AUDIO_DEVICE_IN_SPEAKER_MIC3 0x20000000
+#endif
+
 #if 0
 // these formats should have been enabled by default now
 #ifndef FLAC_OFFLOAD_ENABLED
@@ -1045,6 +1053,7 @@ void audio_extn_perf_lock_release(int *handle);
 
 #ifdef SPDIF_PLAYBACK_ENABLED
 bool audio_extn_utils_is_spdif_device(audio_devices_t devices);
+bool audio_extn_utils_is_spdif_snd_device(int snd_devices);
 bool audio_extn_util_init_spdif_channel_status(struct stream_out *out);
 void audio_extn_utils_set_spdif_channel_status_from_config(struct stream_out *out);
 int audio_extn_utils_set_spdif_channel_status (struct stream_out *out,
@@ -1055,6 +1064,7 @@ int audio_extn_utils_parse_configs_from_ch_status (struct stream_out *out,
                 struct audio_out_channel_status_info *channel_status_info);
 #else
 #define audio_extn_utils_is_spdif_device(devices) (0)
+#define audio_extn_utils_is_spdif_snd_device(snd_devices) (0)
 #define audio_extn_util_init_spdif_channel_status(out) (0)
 #define audio_extn_utils_set_spdif_channel_status_from_config(out) (0)
 #define audio_extn_utils_set_spdif_channel_status(out,\
