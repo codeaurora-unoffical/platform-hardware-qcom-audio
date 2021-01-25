@@ -1297,7 +1297,7 @@ int audio_extn_utils_get_app_sample_rate_for_device(
 
         if (usecase->id == USECASE_AUDIO_PLAYBACK_VOIP) {
             usecase->stream.out->app_type_cfg.sample_rate = usecase->stream.out->sample_rate;
-        } else if (usecase->stream.out->devices & AUDIO_DEVICE_OUT_SPEAKER) {
+        } else if ((usecase->stream.out->devices & AUDIO_DEVICE_OUT_SPEAKER) && (platform_spkr_use_default_sample_rate(adev->platform))) {
             usecase->stream.out->app_type_cfg.sample_rate = DEFAULT_OUTPUT_SAMPLING_RATE;
         } else if ((snd_device == SND_DEVICE_OUT_HDMI ||
                     snd_device == SND_DEVICE_OUT_USB_HEADSET ||
