@@ -55,6 +55,7 @@
 #include <audio_effects/effect_aec.h>
 #include <audio_effects/effect_ns.h>
 #include "audio_extn.h"
+
 #include <audio_utils/format.h>
 
 #define COMPRESS_OFFLOAD_FRAGMENT_SIZE (32 * 1024)
@@ -2133,8 +2134,11 @@ ssize_t StreamOutPrimary::Write(const void *buffer, size_t bytes) {
 
     if (halInputFormat != halOutputFormat && convertBuffer != NULL) {
         frames = bytes / (format_to_bitwidth_table[halInputFormat]/8);
+
+#ifndef LINUX_ENABLED
         memcpy_by_audio_format(convertBuffer, halOutputFormat, buffer, halInputFormat,
                                frames);
+#endif
         qalBuffer.buffer = convertBuffer;
         qalBuffer.size = frames * (format_to_bitwidth_table[halOutputFormat]/8);
     }
