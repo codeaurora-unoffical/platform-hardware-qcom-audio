@@ -7194,7 +7194,7 @@ snd_device_t platform_get_input_snd_device(void *platform,
                      audio_extn_hfp_is_active(adev)) {
                      snd_device = my_data->fluence_sb_enabled ?
                                       SND_DEVICE_IN_VOICE_SPEAKER_MIC_SB
-                                      : SND_DEVICE_IN_VOICE_SPEAKER_MIC;
+                                      : SND_DEVICE_IN_VOICE_SPEAKER_MIC_HFP;
                  } else {
                      snd_device = my_data->fluence_sb_enabled ?
                                      SND_DEVICE_IN_HANDSET_MIC_SB
