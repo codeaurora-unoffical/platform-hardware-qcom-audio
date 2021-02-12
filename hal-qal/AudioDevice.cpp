@@ -986,7 +986,7 @@ int AudioDevice::SetParameters(const char *kvpairs) {
 
     ALOGD("%s: exit: %s", __func__, kvpairs);
 
-    return ret;
+    return 0;
 }
 
 int AudioDevice::SetVoiceVolume(float volume) {
