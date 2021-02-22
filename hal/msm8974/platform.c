@@ -1793,6 +1793,8 @@ static bool platform_is_i2s_ext_modem(const char *snd_card_name,
                  sizeof("apq8096-tasha-i2c-snd-card")) ||
         !strncmp(snd_card_name, "sdx-tavil-i2s-snd-card",
                  sizeof("sdx-tavil-i2s-snd-card")) ||
+        !strncmp(snd_card_name, "sdx-tasha-i2s-snd-card",
+                 sizeof("sdx-tasha-i2s-snd-card")) ||
         !strncmp(snd_card_name, "sda845-tavil-i2s-snd-card",
                  sizeof("sda845-tavil-i2s-snd-card")) ||
         !strncmp(snd_card_name, "sa6155-adp-star-snd-card",

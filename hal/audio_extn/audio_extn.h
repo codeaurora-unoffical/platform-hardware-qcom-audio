@@ -158,10 +158,8 @@ int audio_extn_parse_compress_metadata(struct stream_out *out,
 #define compress_set_next_track_param(compress, codec_options) (0)
 #endif
 
-#ifndef AUDIO_HW_EXTN_API_ENABLED
 #define compress_set_metadata(compress, metadata) (0)
 #define compress_get_metadata(compress, metadata) (0)
-#endif
 
 #define MAX_LENGTH_MIXER_CONTROL_IN_INT                  (128)
 #define HW_INFO_ARRAY_MAX_SIZE 32

@@ -1123,6 +1123,7 @@ void get_file_format(stream_config *stream_info)
         else
             stream_info->flags = AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD|AUDIO_OUTPUT_FLAG_NON_BLOCKING;
         stream_info->flags |= AUDIO_OUTPUT_FLAG_DIRECT;
+        stream_info->flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
     }
 
     char header[WAV_HEADER_LENGTH_MAX] = {0};
@@ -1174,6 +1175,7 @@ void get_file_format(stream_config *stream_info)
                 stream_info->config.offload_info.format = AUDIO_FORMAT_PCM_16_BIT;
             if (!(stream_info->flags_set))
                 stream_info->flags = AUDIO_OUTPUT_FLAG_DIRECT;
+            stream_info->flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
             break;
 
         case FILE_MP3:
@@ -2747,6 +2749,7 @@ int main(int argc, char* argv[]) {
             }
             stream->flags = AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD|AUDIO_OUTPUT_FLAG_NON_BLOCKING;
             stream->flags |= AUDIO_OUTPUT_FLAG_DIRECT;
+        stream->flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
         } else if (kpi_mode == true)
             stream->config.format = stream->config.offload_info.format = AUDIO_FORMAT_PCM_16_BIT;
 
