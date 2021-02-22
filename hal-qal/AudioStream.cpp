@@ -55,6 +55,7 @@
 #include <audio_effects/effect_aec.h>
 #include <audio_effects/effect_ns.h>
 #include "audio_extn.h"
+
 #include <audio_utils/format.h>
 
 #define COMPRESS_OFFLOAD_FRAGMENT_SIZE (32 * 1024)
@@ -1370,6 +1371,7 @@ int StreamOutPrimary::CreateMmapBuffer(int32_t min_size_frames,
         ALOGE("%s: failed to open stream.", __func__);
         return ret;
     }
+#ifndef LINUX_ENABLED
     ret = qal_stream_create_mmap_buffer(qal_stream_handle_,
             min_size_frames, &qalMmapBuf);
     if (ret) {
@@ -1377,6 +1379,7 @@ int StreamOutPrimary::CreateMmapBuffer(int32_t min_size_frames,
         Standby();
         return ret;
     }
+#endif
     info->shared_memory_address = qalMmapBuf.buffer;
     info->shared_memory_fd = qalMmapBuf.fd;
     info->buffer_size_frames = qalMmapBuf.buffer_size_frames;
@@ -2131,8 +2134,11 @@ ssize_t StreamOutPrimary::Write(const void *buffer, size_t bytes) {
 
     if (halInputFormat != halOutputFormat && convertBuffer != NULL) {
         frames = bytes / (format_to_bitwidth_table[halInputFormat]/8);
+
+#ifndef LINUX_ENABLED
         memcpy_by_audio_format(convertBuffer, halOutputFormat, buffer, halInputFormat,
                                frames);
+#endif
         qalBuffer.buffer = convertBuffer;
         qalBuffer.size = frames * (format_to_bitwidth_table[halOutputFormat]/8);
     }
@@ -2437,6 +2443,7 @@ int StreamInPrimary::CreateMmapBuffer(int32_t min_size_frames,
         ALOGE("%s: failed to open stream.", __func__);
         return ret;
     }
+#ifndef LINUX_ENABLED
     ret = qal_stream_create_mmap_buffer(qal_stream_handle_,
             min_size_frames, &qalMmapBuf);
     if (ret) {
@@ -2444,6 +2451,7 @@ int StreamInPrimary::CreateMmapBuffer(int32_t min_size_frames,
         Standby();
         return ret;
     }
+#endif
     info->shared_memory_address = qalMmapBuf.buffer;
     info->shared_memory_fd = qalMmapBuf.fd;
     info->buffer_size_frames = qalMmapBuf.buffer_size_frames;

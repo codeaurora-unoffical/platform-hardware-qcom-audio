@@ -9,7 +9,9 @@ AM_CFLAGS = -Wno-narrowing \
 c_sources = AudioStream.cpp \
     AudioDevice.cpp \
     AudioVoice.cpp \
-    audio_extn/AudioExtn.cpp
+    audio_extn/AudioExtn.cpp \
+    audio_extn/soundtrigger.cpp \
+    audio_extn/Gef.cpp
 
 #if LISTEN
 #AM_CFLAGS += -DAUDIO_LISTEN_ENABLED
@@ -82,7 +84,7 @@ library_includedir = $(includedir)
 lib_LTLIBRARIES = audio.primary.default.la
 audio_primary_default_la_SOURCES = $(c_sources)
 audio_primary_default_la_LIBADD = -lglib-2.0 -llog -lcutils -ltinyalsa
-audio_primary_default_la_LIBADD += -laudioroute -ldl -lexpat
+audio_primary_default_la_LIBADD += -laudioroute -ldl -lexpat -lqal
 if AUDIO_PARSER
 audio_primary_default_la_LIBADD += -laudioparsers
 endif
